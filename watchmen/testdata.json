@@ -1,0 +1,83 @@
+{
+  "version": 2,
+  "projects": [
+    {
+      "id": "proj001",
+      "name": "Test Project",
+      "hourly_rate": 100,
+      "description": "A test project for development",
+      "created_at": "2025-01-10T09:00:00Z"
+    },
+    {
+      "id": "proj002",
+      "name": "Another Project",
+      "hourly_rate": 125,
+      "description": "Another test project",
+      "created_at": "2025-01-12T10:00:00Z"
+    }
+  ],
+  "entries": [
+    {
+      "id": "entry001",
+      "project_id": "proj001",
+      "note": "Initial setup work",
+      "segments": [
+        {
+          "start": "2025-01-15T09:00:00Z",
+          "end": "2025-01-15T11:30:00Z"
+        }
+      ],
+      "completed": true
+    },
+    {
+      "id": "entry002",
+      "project_id": "proj001",
+      "note": "Feature development",
+      "segments": [
+        {
+          "start": "2025-01-15T13:00:00Z",
+          "end": "2025-01-15T17:00:00Z"
+        }
+      ],
+      "completed": true
+    },
+    {
+      "id": "entry003",
+      "project_id": "proj002",
+      "note": "Code review",
+      "segments": [
+        {
+          "start": "2025-01-16T10:00:00Z",
+          "end": "2025-01-16T12:00:00Z"
+        }
+      ],
+      "completed": true
+    },
+    {
+      "id": "d06f40a2939e9212",
+      "project_id": "proj001",
+      "note": "Testing pause feature | Finished testing",
+      "segments": [
+        {
+          "start": "2026-01-17T21:24:39.04747-05:00",
+          "end": "2026-01-17T21:24:45.663968-05:00"
+        },
+        {
+          "start": "2026-01-17T21:25:13.02446-05:00",
+          "end": "2026-01-17T21:25:20.888263-05:00"
+        },
+        {
+          "start": "2026-01-17T21:25:21.900218-05:00",
+          "end": "2026-01-17T21:25:22.913009-05:00"
+        }
+      ],
+      "completed": true
+    }
+  ],
+  "settings": {
+    "user_contact": {
+      "name": "Test User",
+      "email": "test@example.com"
+    }
+  }
+}
