@@ -15,13 +15,14 @@ var invoiceCmd = &cobra.Command{
 	Short: "Generate an invoice for a project",
 	Long: `Generate an invoice for time entries on a project.
 
+By default, generates a condensed invoice with a single line item (requires --desc).
+
 Examples:
-  watchmen invoice myproject --month              # This month's entries (text)
-  watchmen invoice myproject --week --markdown    # This week's entries (markdown)
-  watchmen invoice myproject --since 2024-01-01 --until 2024-01-31
-  watchmen invoice myproject --pdf invoice.pdf    # Generate PDF
-  watchmen invoice myproject --markdown -o inv.md # Save markdown to file
-  watchmen invoice myproject --condensed -d "Software development services"`,
+  watchmen invoice myproject -d "Software development"  # Condensed invoice (default)
+  watchmen invoice myproject --detailed                 # Detailed invoice with all entries
+  watchmen invoice myproject --week -d "Weekly dev"     # This week's entries
+  watchmen invoice myproject --since 2024-01-01 --until 2024-01-31 -d "Jan work"
+  watchmen invoice myproject --pdf invoice.pdf -d "Dev" # Generate PDF`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		sinceStr, _ := cmd.Flags().GetString("since")
@@ -34,8 +35,18 @@ Examples:
 		markdown, _ := cmd.Flags().GetBool("markdown")
 		outputFile, _ := cmd.Flags().GetString("output")
 		condensed, _ := cmd.Flags().GetBool("condensed")
+		detailed, _ := cmd.Flags().GetBool("detailed")
 		condensedDesc, _ := cmd.Flags().GetString("desc")
 		noSave, _ := cmd.Flags().GetBool("no-save")
+
+		// --detailed overrides --condensed
+		if detailed {
+			condensed = false
+		}
+
+		if condensed && condensedDesc == "" {
+			return fmt.Errorf("--desc is required for condensed invoices")
+		}
 
 		project, err := store.GetProject(args[0])
 		if err != nil {
@@ -169,7 +180,8 @@ func init() {
 	invoiceCmd.Flags().String("po", "", "Purchase order number")
 	invoiceCmd.Flags().Bool("markdown", false, "Output as markdown")
 	invoiceCmd.Flags().StringP("output", "o", "", "Output file (for markdown)")
-	invoiceCmd.Flags().BoolP("condensed", "c", false, "Generate condensed invoice with single line item")
-	invoiceCmd.Flags().StringP("desc", "d", "", "Description for condensed invoice line item")
+	invoiceCmd.Flags().BoolP("condensed", "c", true, "Generate condensed invoice with single line item (default)")
+	invoiceCmd.Flags().Bool("detailed", false, "Generate detailed invoice with all time entries")
+	invoiceCmd.Flags().StringP("desc", "d", "", "Description for condensed invoice line item (required for condensed)")
 	invoiceCmd.Flags().Bool("no-save", false, "Don't save invoice record (preview only)")
 }
