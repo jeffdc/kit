@@ -184,6 +184,10 @@ func writeContactPDF(pdf *gofpdf.Fpdf, c *model.ContactInfo) {
 		pdf.Cell(90, 5, c.Name)
 		pdf.Ln(5)
 	}
+	if c.Title != "" {
+		pdf.Cell(90, 5, c.Title)
+		pdf.Ln(5)
+	}
 	if c.Company != "" {
 		pdf.Cell(90, 5, c.Company)
 		pdf.Ln(5)
@@ -207,6 +211,11 @@ func writeContactPDFAt(pdf *gofpdf.Fpdf, c *model.ContactInfo, x float64) {
 	if c.Name != "" {
 		pdf.SetXY(x, y)
 		pdf.Cell(90, 5, c.Name)
+		y += 5
+	}
+	if c.Title != "" {
+		pdf.SetXY(x, y)
+		pdf.Cell(90, 5, c.Title)
 		y += 5
 	}
 	if c.Company != "" {

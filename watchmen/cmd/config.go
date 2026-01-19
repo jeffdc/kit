@@ -20,15 +20,16 @@ var configSetCmd = &cobra.Command{
 
 Examples:
   watchmen config set --name "John Doe" --email "john@example.com"
-  watchmen config set --name "Jane Smith" --company "Smith LLC" --address "123 Main St" --phone "555-1234" --email "jane@smith.com"`,
+  watchmen config set --name "Jane Smith" --title "Software Engineer" --company "Smith LLC" --address "123 Main St" --phone "555-1234" --email "jane@smith.com"`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name, _ := cmd.Flags().GetString("name")
+		title, _ := cmd.Flags().GetString("title")
 		company, _ := cmd.Flags().GetString("company")
 		address, _ := cmd.Flags().GetString("address")
 		phone, _ := cmd.Flags().GetString("phone")
 		email, _ := cmd.Flags().GetString("email")
 
-		if name == "" && company == "" && address == "" && phone == "" && email == "" {
+		if name == "" && title == "" && company == "" && address == "" && phone == "" && email == "" {
 			return fmt.Errorf("provide at least one field to set")
 		}
 
@@ -42,6 +43,9 @@ Examples:
 		// Update only provided fields
 		if name != "" {
 			contact.Name = name
+		}
+		if title != "" {
+			contact.Title = title
 		}
 		if company != "" {
 			contact.Company = company
@@ -85,6 +89,9 @@ func printContactInfo(c *model.ContactInfo) {
 	if c.Name != "" {
 		fmt.Printf("  Name:    %s\n", c.Name)
 	}
+	if c.Title != "" {
+		fmt.Printf("  Title:   %s\n", c.Title)
+	}
 	if c.Company != "" {
 		fmt.Printf("  Company: %s\n", c.Company)
 	}
@@ -101,6 +108,7 @@ func printContactInfo(c *model.ContactInfo) {
 
 func init() {
 	configSetCmd.Flags().String("name", "", "Your name")
+	configSetCmd.Flags().String("title", "", "Your title (e.g., Software Engineer, Consultant)")
 	configSetCmd.Flags().String("company", "", "Your company name")
 	configSetCmd.Flags().String("address", "", "Your address")
 	configSetCmd.Flags().String("phone", "", "Your phone number")

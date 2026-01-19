@@ -5,6 +5,7 @@ import "time"
 // ContactInfo holds contact details for invoicing
 type ContactInfo struct {
 	Name    string `json:"name,omitempty"`
+	Title   string `json:"title,omitempty"`
 	Company string `json:"company,omitempty"`
 	Address string `json:"address,omitempty"`
 	Phone   string `json:"phone,omitempty"`

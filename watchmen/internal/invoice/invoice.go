@@ -175,12 +175,15 @@ func GenerateMarkdown(w io.Writer, data *InvoiceData) error {
 }
 
 func hasContactInfo(c *model.ContactInfo) bool {
-	return c.Name != "" || c.Company != "" || c.Address != "" || c.Phone != "" || c.Email != ""
+	return c.Name != "" || c.Title != "" || c.Company != "" || c.Address != "" || c.Phone != "" || c.Email != ""
 }
 
 func writeContactText(w io.Writer, c *model.ContactInfo, prefix string) {
 	if c.Name != "" {
 		fmt.Fprintf(w, "%s%s\n", prefix, c.Name)
+	}
+	if c.Title != "" {
+		fmt.Fprintf(w, "%s%s\n", prefix, c.Title)
 	}
 	if c.Company != "" {
 		fmt.Fprintf(w, "%s%s\n", prefix, c.Company)
@@ -199,6 +202,9 @@ func writeContactText(w io.Writer, c *model.ContactInfo, prefix string) {
 func writeContactMarkdown(w io.Writer, c *model.ContactInfo) {
 	if c.Name != "" {
 		fmt.Fprintf(w, "**%s**\n", c.Name)
+	}
+	if c.Title != "" {
+		fmt.Fprintf(w, "*%s*\n", c.Title)
 	}
 	if c.Company != "" {
 		fmt.Fprintf(w, "%s\n", c.Company)
