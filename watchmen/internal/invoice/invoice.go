@@ -11,15 +11,17 @@ import (
 
 // InvoiceData holds data needed to generate an invoice
 type InvoiceData struct {
-	InvoiceNumber  string
-	PurchaseOrder  string             // Client's PO number
-	Date           time.Time
-	Project        model.Project
-	Entries        []model.Entry
-	From           time.Time
-	To             time.Time
-	FromContact    *model.ContactInfo // User's contact info
-	BillToContact  *model.ContactInfo // Client's billing contact
+	InvoiceNumber        string
+	PurchaseOrder        string             // Client's PO number
+	Date                 time.Time
+	Project              model.Project
+	Entries              []model.Entry
+	From                 time.Time
+	To                   time.Time
+	FromContact          *model.ContactInfo // User's contact info
+	BillToContact        *model.ContactInfo // Client's billing contact
+	Condensed            bool               // If true, show single line item
+	CondensedDescription string             // Description for condensed invoice
 }
 
 // TotalHours calculates total hours worked
@@ -74,15 +76,25 @@ func GenerateText(w io.Writer, data *InvoiceData) error {
 	fmt.Fprintf(w, "%-12s %8s  %s\n", "DATE", "HOURS", "DESCRIPTION")
 	fmt.Fprintf(w, "%s\n", strings.Repeat("-", 60))
 
-	for _, e := range data.Entries {
-		note := e.Note
-		if note == "" {
-			note = "-"
+	if data.Condensed {
+		// Single line item with total hours and custom description
+		period := fmt.Sprintf("%s - %s", data.From.Format("Jan 2"), data.To.Format("Jan 2"))
+		desc := data.CondensedDescription
+		if desc == "" {
+			desc = "Consulting services"
 		}
-		fmt.Fprintf(w, "%-12s %8.2f  %s\n",
-			e.StartTime().Format("Jan 2"),
-			e.Duration().Hours(),
-			note)
+		fmt.Fprintf(w, "%-12s %8.2f  %s\n", period, data.TotalHours(), desc)
+	} else {
+		for _, e := range data.Entries {
+			note := e.Note
+			if note == "" {
+				note = "-"
+			}
+			fmt.Fprintf(w, "%-12s %8.2f  %s\n",
+				e.StartTime().Format("Jan 2"),
+				e.Duration().Hours(),
+				note)
+		}
 	}
 
 	fmt.Fprintf(w, "%s\n", strings.Repeat("-", 60))
@@ -131,15 +143,25 @@ func GenerateMarkdown(w io.Writer, data *InvoiceData) error {
 	fmt.Fprintf(w, "| Date | Hours | Description |\n")
 	fmt.Fprintf(w, "|------|------:|-------------|\n")
 
-	for _, e := range data.Entries {
-		note := e.Note
-		if note == "" {
-			note = "-"
+	if data.Condensed {
+		// Single line item with total hours and custom description
+		period := fmt.Sprintf("%s - %s", data.From.Format("Jan 2"), data.To.Format("Jan 2"))
+		desc := data.CondensedDescription
+		if desc == "" {
+			desc = "Consulting services"
 		}
-		fmt.Fprintf(w, "| %s | %.2f | %s |\n",
-			e.StartTime().Format("Jan 2"),
-			e.Duration().Hours(),
-			note)
+		fmt.Fprintf(w, "| %s | %.2f | %s |\n", period, data.TotalHours(), desc)
+	} else {
+		for _, e := range data.Entries {
+			note := e.Note
+			if note == "" {
+				note = "-"
+			}
+			fmt.Fprintf(w, "| %s | %.2f | %s |\n",
+				e.StartTime().Format("Jan 2"),
+				e.Duration().Hours(),
+				note)
+		}
 	}
 
 	fmt.Fprintf(w, "\n## Summary\n\n")

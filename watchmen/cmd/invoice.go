@@ -19,7 +19,8 @@ Examples:
   watchmen invoice myproject --week --markdown    # This week's entries (markdown)
   watchmen invoice myproject --since 2024-01-01 --until 2024-01-31
   watchmen invoice myproject --pdf invoice.pdf    # Generate PDF
-  watchmen invoice myproject --markdown -o inv.md # Save markdown to file`,
+  watchmen invoice myproject --markdown -o inv.md # Save markdown to file
+  watchmen invoice myproject --condensed -d "Software development services"`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		sinceStr, _ := cmd.Flags().GetString("since")
@@ -31,6 +32,8 @@ Examples:
 		poNumber, _ := cmd.Flags().GetString("po")
 		markdown, _ := cmd.Flags().GetBool("markdown")
 		outputFile, _ := cmd.Flags().GetString("output")
+		condensed, _ := cmd.Flags().GetBool("condensed")
+		condensedDesc, _ := cmd.Flags().GetString("desc")
 
 		project, err := store.GetProject(args[0])
 		if err != nil {
@@ -92,15 +95,17 @@ Examples:
 		}
 
 		data := &invoice.InvoiceData{
-			InvoiceNumber: invoiceNum,
-			PurchaseOrder: po,
-			Date:          now,
-			Project:       *project,
-			Entries:       entries,
-			From:          from,
-			To:            to,
-			FromContact:   settings.UserContact,
-			BillToContact: project.BillingContact,
+			InvoiceNumber:        invoiceNum,
+			PurchaseOrder:        po,
+			Date:                 now,
+			Project:              *project,
+			Entries:              entries,
+			From:                 from,
+			To:                   to,
+			FromContact:          settings.UserContact,
+			BillToContact:        project.BillingContact,
+			Condensed:            condensed,
+			CondensedDescription: condensedDesc,
 		}
 
 		if pdfFile != "" {
@@ -143,4 +148,6 @@ func init() {
 	invoiceCmd.Flags().String("po", "", "Purchase order number")
 	invoiceCmd.Flags().Bool("markdown", false, "Output as markdown")
 	invoiceCmd.Flags().StringP("output", "o", "", "Output file (for markdown)")
+	invoiceCmd.Flags().BoolP("condensed", "c", false, "Generate condensed invoice with single line item")
+	invoiceCmd.Flags().StringP("desc", "d", "", "Description for condensed invoice line item")
 }

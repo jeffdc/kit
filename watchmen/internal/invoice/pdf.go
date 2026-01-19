@@ -93,16 +93,22 @@ func GeneratePDF(filename string, data *InvoiceData) error {
 
 	// Table rows
 	pdf.SetFont("Arial", "", 10)
-	pageWidth, _ := pdf.GetPageSize()
-	marginLeft, _, marginRight, _ := pdf.GetMargins()
+	pageWidth, pageHeight := pdf.GetPageSize()
+	marginLeft, _, marginRight, marginBottom := pdf.GetMargins()
 	descWidth := pageWidth - marginLeft - marginRight - 30 - 25 // remaining width for description
 
-	for _, e := range data.Entries {
-		note := e.Note
-		if note == "" {
-			note = "-"
-		}
+	// Helper function to draw table header
+	drawTableHeader := func() {
+		pdf.SetFillColor(240, 240, 240)
+		pdf.SetFont("Arial", "B", 10)
+		pdf.CellFormat(30, 8, "DATE", "1", 0, "L", true, 0, "")
+		pdf.CellFormat(25, 8, "HOURS", "1", 0, "R", true, 0, "")
+		pdf.CellFormat(0, 8, "DESCRIPTION", "1", 1, "L", true, 0, "")
+		pdf.SetFont("Arial", "", 10)
+	}
 
+	// Helper function to draw a single table row
+	drawRow := func(dateStr string, hours float64, note string) {
 		// Calculate height needed for the note text
 		lines := pdf.SplitText(note, descWidth)
 		lineHeight := 5.0
@@ -111,14 +117,21 @@ func GeneratePDF(filename string, data *InvoiceData) error {
 			cellHeight = 7
 		}
 
-		// Get current position
+		// Check if we need a new page before drawing this row
+		_, y := pdf.GetXY()
+		if y+cellHeight > pageHeight-marginBottom {
+			pdf.AddPage()
+			drawTableHeader()
+		}
+
+		// Get current position (may have changed after page break)
 		x, y := pdf.GetXY()
 
 		// Draw date cell
-		pdf.CellFormat(30, cellHeight, e.StartTime().Format("Jan 2"), "1", 0, "L", false, 0, "")
+		pdf.CellFormat(30, cellHeight, dateStr, "1", 0, "L", false, 0, "")
 
 		// Draw hours cell
-		pdf.CellFormat(25, cellHeight, fmt.Sprintf("%.2f", e.Duration().Hours()), "1", 0, "R", false, 0, "")
+		pdf.CellFormat(25, cellHeight, fmt.Sprintf("%.2f", hours), "1", 0, "R", false, 0, "")
 
 		// Draw description cell with MultiCell for wrapping
 		descX := x + 30 + 25
@@ -130,6 +143,24 @@ func GeneratePDF(filename string, data *InvoiceData) error {
 
 		// Move to next row
 		pdf.SetXY(x, y+cellHeight)
+	}
+
+	if data.Condensed {
+		// Single line item with total hours and custom description
+		period := fmt.Sprintf("%s - %s", data.From.Format("Jan 2"), data.To.Format("Jan 2"))
+		desc := data.CondensedDescription
+		if desc == "" {
+			desc = "Consulting services"
+		}
+		drawRow(period, data.TotalHours(), desc)
+	} else {
+		for _, e := range data.Entries {
+			note := e.Note
+			if note == "" {
+				note = "-"
+			}
+			drawRow(e.StartTime().Format("Jan 2"), e.Duration().Hours(), note)
+		}
 	}
 
 	// Total hours
