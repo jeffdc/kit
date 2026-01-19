@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"watchmen/internal/invoice"
+	"watchmen/internal/model"
 )
 
 var invoiceCmd = &cobra.Command{
@@ -34,6 +35,7 @@ Examples:
 		outputFile, _ := cmd.Flags().GetString("output")
 		condensed, _ := cmd.Flags().GetBool("condensed")
 		condensedDesc, _ := cmd.Flags().GetString("desc")
+		noSave, _ := cmd.Flags().GetBool("no-save")
 
 		project, err := store.GetProject(args[0])
 		if err != nil {
@@ -134,6 +136,25 @@ Examples:
 			invoice.GenerateText(os.Stdout, data)
 		}
 
+		// Save invoice record unless --no-save is set
+		if !noSave {
+			invRecord := &model.Invoice{
+				ID:          invoiceNum,
+				ProjectID:   project.ID,
+				ProjectName: project.Name,
+				PeriodStart: from,
+				PeriodEnd:   to,
+				Hours:       data.TotalHours(),
+				Rate:        project.HourlyRate,
+				Amount:      data.TotalAmount(),
+				Description: condensedDesc,
+				Condensed:   condensed,
+			}
+			if err := store.SaveInvoice(invRecord); err != nil {
+				return fmt.Errorf("failed to save invoice record: %v", err)
+			}
+		}
+
 		return nil
 	},
 }
@@ -150,4 +171,5 @@ func init() {
 	invoiceCmd.Flags().StringP("output", "o", "", "Output file (for markdown)")
 	invoiceCmd.Flags().BoolP("condensed", "c", false, "Generate condensed invoice with single line item")
 	invoiceCmd.Flags().StringP("desc", "d", "", "Description for condensed invoice line item")
+	invoiceCmd.Flags().Bool("no-save", false, "Don't save invoice record (preview only)")
 }

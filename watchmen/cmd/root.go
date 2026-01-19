@@ -47,5 +47,8 @@ func init() {
 	rootCmd.AddCommand(logCmd)
 	rootCmd.AddCommand(listCmd)
 	rootCmd.AddCommand(invoiceCmd)
+	rootCmd.AddCommand(invoicesCmd)
 	rootCmd.AddCommand(configCmd)
+	rootCmd.AddCommand(pauseCmd)
+	rootCmd.AddCommand(resumeCmd)
 }

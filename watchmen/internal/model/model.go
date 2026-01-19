@@ -83,10 +83,36 @@ type Settings struct {
 	UserContact *ContactInfo `json:"user_contact,omitempty"`
 }
 
+// InvoiceStatus represents the payment status of an invoice
+type InvoiceStatus string
+
+const (
+	InvoiceStatusPending InvoiceStatus = "pending"
+	InvoiceStatusPaid    InvoiceStatus = "paid"
+)
+
+// Invoice represents a generated invoice record
+type Invoice struct {
+	ID          string        `json:"id"`
+	ProjectID   string        `json:"project_id"`
+	ProjectName string        `json:"project_name"`
+	CreatedAt   time.Time     `json:"created_at"`
+	PeriodStart time.Time     `json:"period_start"`
+	PeriodEnd   time.Time     `json:"period_end"`
+	Hours       float64       `json:"hours"`
+	Rate        float64       `json:"rate"`
+	Amount      float64       `json:"amount"`
+	Status      InvoiceStatus `json:"status"`
+	PaidAt      *time.Time    `json:"paid_at,omitempty"`
+	Description string        `json:"description,omitempty"`
+	Condensed   bool          `json:"condensed,omitempty"`
+}
+
 // Data is the root structure for JSON storage
 type Data struct {
 	Version  int       `json:"version"`
 	Projects []Project `json:"projects"`
 	Entries  []Entry   `json:"entries"`
+	Invoices []Invoice `json:"invoices,omitempty"`
 	Settings *Settings `json:"settings,omitempty"`
 }

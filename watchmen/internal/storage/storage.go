@@ -17,6 +17,7 @@ const CurrentVersion = 2
 var (
 	ErrProjectNotFound = errors.New("project not found")
 	ErrEntryNotFound   = errors.New("entry not found")
+	ErrInvoiceNotFound = errors.New("invoice not found")
 	ErrNoActiveEntry   = errors.New("no active time entry")
 	ErrActiveEntry     = errors.New("there is already an active time entry")
 	ErrNoPausedEntry   = errors.New("no paused time entry")
@@ -356,4 +357,70 @@ func (s *Store) UpdateProject(idOrName string, updates func(*model.Project)) err
 		}
 	}
 	return ErrProjectNotFound
+}
+
+// SaveInvoice saves a new invoice record
+func (s *Store) SaveInvoice(inv *model.Invoice) error {
+	inv.CreatedAt = time.Now()
+	if inv.Status == "" {
+		inv.Status = model.InvoiceStatusPending
+	}
+	s.data.Invoices = append(s.data.Invoices, *inv)
+	return s.save()
+}
+
+// GetInvoice returns an invoice by ID
+func (s *Store) GetInvoice(id string) (*model.Invoice, error) {
+	for i := range s.data.Invoices {
+		if s.data.Invoices[i].ID == id {
+			return &s.data.Invoices[i], nil
+		}
+	}
+	return nil, ErrInvoiceNotFound
+}
+
+// ListInvoices returns invoices, optionally filtered by project and/or status
+func (s *Store) ListInvoices(projectID string, status model.InvoiceStatus) []model.Invoice {
+	var result []model.Invoice
+	for _, inv := range s.data.Invoices {
+		if projectID != "" && inv.ProjectID != projectID {
+			// Check if project name matches
+			p, _ := s.GetProject(projectID)
+			if p == nil || p.ID != inv.ProjectID {
+				continue
+			}
+		}
+		if status != "" && inv.Status != status {
+			continue
+		}
+		result = append(result, inv)
+	}
+	return result
+}
+
+// MarkInvoicePaid marks an invoice as paid
+func (s *Store) MarkInvoicePaid(id string) (*model.Invoice, error) {
+	for i := range s.data.Invoices {
+		if s.data.Invoices[i].ID == id {
+			now := time.Now()
+			s.data.Invoices[i].Status = model.InvoiceStatusPaid
+			s.data.Invoices[i].PaidAt = &now
+			if err := s.save(); err != nil {
+				return nil, err
+			}
+			return &s.data.Invoices[i], nil
+		}
+	}
+	return nil, ErrInvoiceNotFound
+}
+
+// DeleteInvoice removes an invoice by ID
+func (s *Store) DeleteInvoice(id string) error {
+	for i, inv := range s.data.Invoices {
+		if inv.ID == id {
+			s.data.Invoices = append(s.data.Invoices[:i], s.data.Invoices[i+1:]...)
+			return s.save()
+		}
+	}
+	return ErrInvoiceNotFound
 }
