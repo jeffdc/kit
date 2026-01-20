@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"sort"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -22,7 +23,8 @@ Examples:
   watchmen invoice myproject --detailed                 # Detailed invoice with all entries
   watchmen invoice myproject --week -d "Weekly dev"     # This week's entries
   watchmen invoice myproject --since 2024-01-01 --until 2024-01-31 -d "Jan work"
-  watchmen invoice myproject --pdf invoice.pdf -d "Dev" # Generate PDF`,
+  watchmen invoice myproject --pdf invoice.pdf -d "Dev" # Generate PDF
+  watchmen invoice myproject --one-shot -d "Dev"        # Auto-generate invoice + report`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		sinceStr, _ := cmd.Flags().GetString("since")
@@ -38,6 +40,7 @@ Examples:
 		detailed, _ := cmd.Flags().GetBool("detailed")
 		condensedDesc, _ := cmd.Flags().GetString("desc")
 		noSave, _ := cmd.Flags().GetBool("no-save")
+		oneShot, _ := cmd.Flags().GetBool("one-shot")
 
 		// --detailed overrides --condensed
 		if detailed {
@@ -56,7 +59,22 @@ Examples:
 		var from, to time.Time
 		now := time.Now()
 
-		if thisWeek {
+		if oneShot {
+			// One-shot mode: auto-calculate date range
+			from, err = getOneShotStartDate(project.ID)
+			if err != nil {
+				return err
+			}
+
+			// End date is 2 weeks from start, or today if sooner
+			twoWeeksOut := from.AddDate(0, 0, 14)
+			today := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 0, time.Local)
+			if today.Before(twoWeeksOut) {
+				to = today
+			} else {
+				to = twoWeeksOut
+			}
+		} else if thisWeek {
 			weekday := int(now.Weekday())
 			if weekday == 0 {
 				weekday = 7
@@ -121,7 +139,53 @@ Examples:
 			CondensedDescription: condensedDesc,
 		}
 
-		if pdfFile != "" {
+		if oneShot {
+			// One-shot mode: generate PDF, markdown invoice, and report
+			pdfFileName := invoiceNum + ".pdf"
+			mdFileName := invoiceNum + ".md"
+			reportFileName := fmt.Sprintf("report-%s-%s.md", project.Name, now.Format("20060102"))
+
+			// Generate PDF invoice
+			if err := invoice.GeneratePDF(pdfFileName, data); err != nil {
+				return fmt.Errorf("failed to generate PDF: %v", err)
+			}
+			fmt.Printf("Invoice PDF: %s\n", pdfFileName)
+
+			// Generate markdown invoice
+			mdFile, err := os.Create(mdFileName)
+			if err != nil {
+				return fmt.Errorf("failed to create markdown file: %v", err)
+			}
+			invoice.GenerateMarkdown(mdFile, data)
+			mdFile.Close()
+			fmt.Printf("Invoice MD:  %s\n", mdFileName)
+
+			// Generate stakeholder report
+			var totalHours float64
+			for _, e := range entries {
+				totalHours += e.Duration().Hours()
+			}
+
+			reportData := &invoice.ReportData{
+				ProjectName: project.Name,
+				From:        from,
+				To:          to,
+				TotalHours:  totalHours,
+				InvoiceRef:  invoiceNum,
+				Entries:     entries,
+			}
+
+			reportFile, err := os.Create(reportFileName)
+			if err != nil {
+				return fmt.Errorf("failed to create report file: %v", err)
+			}
+			invoice.GenerateReport(reportFile, reportData)
+			reportFile.Close()
+			fmt.Printf("Report:      %s\n", reportFileName)
+
+			fmt.Printf("\nTotal hours: %.2f\n", data.TotalHours())
+			fmt.Printf("Total due:   $%.2f\n", data.TotalAmount())
+		} else if pdfFile != "" {
 			if err := invoice.GeneratePDF(pdfFile, data); err != nil {
 				return fmt.Errorf("failed to generate PDF: %v", err)
 			}
@@ -170,6 +234,42 @@ Examples:
 	},
 }
 
+// getOneShotStartDate returns the start date for one-shot mode.
+// If there's a previous invoice, returns the day after its end date.
+// Otherwise, returns the date of the first entry for the project.
+func getOneShotStartDate(projectID string) (time.Time, error) {
+	// Get all invoices for this project
+	invoices := store.ListInvoices(projectID, "")
+
+	if len(invoices) > 0 {
+		// Sort by PeriodEnd descending to find the most recent
+		sort.Slice(invoices, func(i, j int) bool {
+			return invoices[i].PeriodEnd.After(invoices[j].PeriodEnd)
+		})
+
+		lastInvoice := invoices[0]
+		// Start from the day after the last invoice's end date
+		nextDay := lastInvoice.PeriodEnd.AddDate(0, 0, 1)
+		return time.Date(nextDay.Year(), nextDay.Month(), nextDay.Day(), 0, 0, 0, 0, time.Local), nil
+	}
+
+	// No previous invoice - find first entry date
+	entries := store.ListEntries(projectID, nil, nil)
+	if len(entries) == 0 {
+		return time.Time{}, fmt.Errorf("no entries found for project")
+	}
+
+	// Find the earliest entry
+	earliest := entries[0].StartTime()
+	for _, e := range entries[1:] {
+		if e.StartTime().Before(earliest) {
+			earliest = e.StartTime()
+		}
+	}
+
+	return time.Date(earliest.Year(), earliest.Month(), earliest.Day(), 0, 0, 0, 0, time.Local), nil
+}
+
 func init() {
 	invoiceCmd.Flags().String("since", "", "Start date (YYYY-MM-DD)")
 	invoiceCmd.Flags().String("until", "", "End date (YYYY-MM-DD)")
@@ -184,4 +284,5 @@ func init() {
 	invoiceCmd.Flags().Bool("detailed", false, "Generate detailed invoice with all time entries")
 	invoiceCmd.Flags().StringP("desc", "d", "", "Description for condensed invoice line item (required for condensed)")
 	invoiceCmd.Flags().Bool("no-save", false, "Don't save invoice record (preview only)")
+	invoiceCmd.Flags().Bool("one-shot", false, "Generate invoice + report, auto-calculating dates from last invoice")
 }

@@ -38,8 +38,8 @@ Examples:
 			return nil
 		}
 
-		fmt.Printf("%-20s %-12s %10s %10s  %s\n", "INVOICE", "PROJECT", "AMOUNT", "STATUS", "AGE/PAID")
-		fmt.Println("-------------------------------------------------------------------------------")
+		fmt.Printf("%-20s %-12s %-17s %10s %10s  %s\n", "INVOICE", "PROJECT", "PERIOD", "AMOUNT", "STATUS", "AGE/PAID")
+		fmt.Println("--------------------------------------------------------------------------------------------")
 
 		var totalOutstanding float64
 		for _, inv := range invoices {
@@ -66,15 +66,20 @@ Examples:
 				ageOrPaid = inv.PaidAt.Format("Jan 2, 2006")
 			}
 
-			fmt.Printf("%-20s %-12s %10.2f %10s  %s\n",
+			period := fmt.Sprintf("%s - %s",
+				inv.PeriodStart.Format("Jan 2"),
+				inv.PeriodEnd.Format("Jan 2"))
+
+			fmt.Printf("%-20s %-12s %-17s %10.2f %10s  %s\n",
 				inv.ID,
 				projectName,
+				period,
 				inv.Amount,
 				status,
 				ageOrPaid)
 		}
 
-		fmt.Println("-------------------------------------------------------------------------------")
+		fmt.Println("--------------------------------------------------------------------------------------------")
 		if outstanding || statusFilter == "" {
 			fmt.Printf("Outstanding: $%.2f\n", totalOutstanding)
 		}
