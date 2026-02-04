@@ -3,6 +3,7 @@ package cmd
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -19,14 +20,21 @@ var amendCmd = &cobra.Command{
 With no arguments, displays an interactive list of recent entries.
 With an index (1=most recent), directly edits that entry.
 
+Non-interactive mode: When --note or --clear is provided, skips all prompts
+and defaults to the most recent entry (index 1) if no index is specified.
+
 Examples:
-  watchmen amend              # Interactive mode
-  watchmen amend 1            # Edit most recent entry
-  watchmen amend 2 -n "note"  # Update second entry directly
-  watchmen amend 1 --clear    # Clear note from most recent entry`,
+  watchmen amend                # Interactive mode
+  watchmen amend 1              # Edit most recent entry interactively
+  watchmen amend -n "note"      # Update most recent entry (non-interactive)
+  watchmen amend --last -n "x"  # Explicit: update most recent entry
+  watchmen amend 2 -n "note"    # Update second most recent entry
+  watchmen amend --clear        # Clear note from most recent entry
+  echo "note" | watchmen amend  # Read note from stdin`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		note, _ := cmd.Flags().GetString("note")
 		clear, _ := cmd.Flags().GetBool("clear")
+		last, _ := cmd.Flags().GetBool("last")
 
 		if clear && note != "" {
 			return fmt.Errorf("cannot use both --note and --clear")
@@ -42,26 +50,38 @@ Examples:
 		}
 
 		if len(completed) == 0 {
-			fmt.Println("No completed entries to amend")
-			return nil
+			fmt.Fprintln(os.Stderr, "no completed entries to amend")
+			os.Exit(1)
 		}
 
-		// Interactive mode - no args
-		if len(args) == 0 {
+		// Determine if we're in non-interactive mode
+		// Non-interactive when: --note, --clear, --last, or stdin is not a TTY
+		stdinIsTerminal := isTerminal(os.Stdin)
+		nonInteractive := note != "" || clear || last || !stdinIsTerminal
+
+		// Determine the index
+		var index int
+		if len(args) > 0 {
+			var err error
+			index, err = strconv.Atoi(args[0])
+			if err != nil || index <= 0 {
+				fmt.Fprintf(os.Stderr, "invalid entry index: %s\n", args[0])
+				os.Exit(2)
+			}
+		} else if last || nonInteractive {
+			// Default to most recent entry in non-interactive mode
+			index = 1
+		} else {
+			// Interactive mode - no args, no flags
 			return runAmendInteractive(entries, completed)
 		}
 
-		// Direct mode - with index
-		index, err := strconv.Atoi(args[0])
-		if err != nil || index <= 0 {
-			return fmt.Errorf("invalid entry index: %s", args[0])
-		}
-
 		if index > len(completed) {
-			return fmt.Errorf("entry #%d not found (only %d completed entries)", index, len(completed))
+			fmt.Fprintf(os.Stderr, "entry #%d not found (only %d completed entries)\n", index, len(completed))
+			os.Exit(2)
 		}
 
-		// Get the entry details for display
+		// Get the entry details
 		entryIdx := completed[index-1]
 		entry := entries[entryIdx]
 		project, _ := store.GetProject(entry.ProjectID)
@@ -70,25 +90,36 @@ Examples:
 			projectName = project.Name
 		}
 
-		// Show entry details
-		fmt.Printf("Entry #%d:\n", index)
-		fmt.Printf("  Project: %s\n", projectName)
-		fmt.Printf("  Date: %s\n", entry.StartTime().Format("2006-01-02 15:04"))
-		fmt.Printf("  Duration: %.2fh\n", entry.Duration().Hours())
-		if entry.Note != "" {
-			fmt.Printf("  Current note: %q\n", entry.Note)
-		} else {
-			fmt.Printf("  Current note: (none)\n")
-		}
-		fmt.Println()
-
+		// Determine the new note
 		var newNote string
 		if clear {
 			newNote = ""
 		} else if note != "" {
 			newNote = note
+		} else if !stdinIsTerminal {
+			// Read note from stdin
+			input, err := io.ReadAll(os.Stdin)
+			if err != nil {
+				return fmt.Errorf("reading from stdin: %w", err)
+			}
+			newNote = strings.TrimSpace(string(input))
+			if newNote == "" {
+				fmt.Fprintln(os.Stderr, "empty note from stdin")
+				os.Exit(1)
+			}
 		} else {
-			// Prompt for new note
+			// Interactive prompt for note
+			fmt.Printf("Entry #%d:\n", index)
+			fmt.Printf("  Project: %s\n", projectName)
+			fmt.Printf("  Date: %s\n", entry.StartTime().Format("2006-01-02 15:04"))
+			fmt.Printf("  Duration: %.2fh\n", entry.Duration().Hours())
+			if entry.Note != "" {
+				fmt.Printf("  Current note: %q\n", entry.Note)
+			} else {
+				fmt.Printf("  Current note: (none)\n")
+			}
+			fmt.Println()
+
 			fmt.Print("Enter new note (or press Enter to keep current): ")
 			reader := bufio.NewReader(os.Stdin)
 			input, _ := reader.ReadString('\n')
@@ -102,23 +133,45 @@ Examples:
 		}
 
 		// Update the entry
-		updated, err := store.AmendEntry(index, newNote)
+		_, err := store.AmendEntry(index, newNote)
 		if err != nil {
 			return err
 		}
 
-		// Show confirmation
-		fmt.Printf("\nUpdated entry #%d:\n", index)
-		fmt.Printf("  Project: %s\n", projectName)
-		fmt.Printf("  Duration: %.2fh\n", updated.Duration().Hours())
-		if newNote != "" {
-			fmt.Printf("  Note: %q\n", newNote)
+		// Output: minimal in non-interactive mode, verbose otherwise
+		if nonInteractive && stdinIsTerminal {
+			// Non-interactive with terminal - single line confirmation
+			if newNote != "" {
+				fmt.Printf("amended entry #%d: %q\n", index, newNote)
+			} else {
+				fmt.Printf("amended entry #%d: (cleared)\n", index)
+			}
+		} else if !stdinIsTerminal {
+			// Piped input - even more minimal
+			fmt.Printf("amended entry #%d\n", index)
 		} else {
-			fmt.Printf("  Note: (cleared)\n")
+			// Interactive mode - verbose output
+			fmt.Printf("\nUpdated entry #%d:\n", index)
+			fmt.Printf("  Project: %s\n", projectName)
+			fmt.Printf("  Duration: %.2fh\n", entry.Duration().Hours())
+			if newNote != "" {
+				fmt.Printf("  Note: %q\n", newNote)
+			} else {
+				fmt.Printf("  Note: (cleared)\n")
+			}
 		}
 
 		return nil
 	},
+}
+
+// isTerminal returns true if the file is a terminal
+func isTerminal(f *os.File) bool {
+	stat, err := f.Stat()
+	if err != nil {
+		return false
+	}
+	return (stat.Mode() & os.ModeCharDevice) != 0
 }
 
 func runAmendInteractive(entries []model.Entry, completed []int) error {
@@ -220,4 +273,5 @@ func runAmendInteractive(entries []model.Entry, completed []int) error {
 func init() {
 	amendCmd.Flags().StringP("note", "n", "", "New note text (skips prompt)")
 	amendCmd.Flags().Bool("clear", false, "Clear the note (set to empty)")
+	amendCmd.Flags().BoolP("last", "1", false, "Amend the most recent entry (index 1)")
 }
