@@ -2,7 +2,23 @@
 
 This directory contains integration files for using Watchmen with Claude Code.
 
-## Installation
+## Quick Installation
+
+Run the install script:
+
+```bash
+cd contrib/claude-code
+./install.sh
+```
+
+The script will:
+- Copy the status line script to `~/.claude/`
+- Copy all timer skills to `~/.claude/skills/`
+- Provide instructions for updating `~/.claude/settings.json`
+
+After installation, restart Claude Code.
+
+## Manual Installation
 
 ### 1. Status Line (shows timer in status bar)
 
