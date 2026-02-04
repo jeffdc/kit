@@ -54,6 +54,23 @@ Data
 
 The `invoice` command generates invoices in text, markdown, or PDF format. Condensed mode (default) requires `--desc` flag. One-shot mode (`--one-shot`) auto-calculates date range from last invoice and generates PDF + markdown + stakeholder report.
 
+## Testing
+
+**CRITICAL: NEVER use the production data file (`~/.watchmen/data.json`) for testing or development.**
+
+Always use test files when developing or testing features:
+
+```bash
+# Use --data flag to specify a test file
+./watchmen --data /tmp/test_data.json list
+./watchmen --data /tmp/test_data.json start myproject
+
+# Or in Go tests, use the test helpers that create temporary files
+# See internal/storage/storage_test.go for examples
+```
+
+The production data file contains real work history and should never be modified during development or testing.
+
 ## Wrap
 
 When the user asks to "wrap" or "wrap up" work, follow these steps:
