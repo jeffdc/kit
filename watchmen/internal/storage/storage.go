@@ -23,6 +23,7 @@ var (
 	ErrNoPausedEntry   = errors.New("no paused time entry")
 	ErrNotPaused       = errors.New("entry is not paused")
 	ErrAlreadyPaused   = errors.New("entry is already paused")
+	ErrInvalidIndex    = errors.New("invalid entry index")
 )
 
 // Store manages the JSON data file
@@ -329,6 +330,37 @@ func (s *Store) DeleteEntry(id string) error {
 		}
 	}
 	return ErrEntryNotFound
+}
+
+// AmendEntry updates the note on a completed entry by index (1=most recent)
+func (s *Store) AmendEntry(index int, note string) (*model.Entry, error) {
+	if index <= 0 {
+		return nil, ErrInvalidIndex
+	}
+
+	// Get all completed entries in reverse chronological order
+	var completed []int // indices into s.data.Entries
+	for i := len(s.data.Entries) - 1; i >= 0; i-- {
+		if s.data.Entries[i].Completed {
+			completed = append(completed, i)
+		}
+	}
+
+	if index > len(completed) {
+		return nil, ErrInvalidIndex
+	}
+
+	// Get the actual entry index
+	entryIdx := completed[index-1]
+
+	// Update the note
+	s.data.Entries[entryIdx].Note = note
+
+	if err := s.save(); err != nil {
+		return nil, err
+	}
+
+	return &s.data.Entries[entryIdx], nil
 }
 
 // GetSettings returns the current settings

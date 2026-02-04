@@ -346,3 +346,123 @@ func TestPauseResumeDuration(t *testing.T) {
 		t.Errorf("Final duration %v seems wrong, expected ~200ms", finalDuration)
 	}
 }
+
+func TestAmendEntry(t *testing.T) {
+	store, _ := setupTestStore(t)
+
+	project, _ := store.AddProject("Test", 100, "")
+
+	// Create three completed entries
+	store.StartEntry(project.ID, "first entry")
+	time.Sleep(10 * time.Millisecond)
+	store.StopEntry("")
+
+	store.StartEntry(project.ID, "second entry")
+	time.Sleep(10 * time.Millisecond)
+	store.StopEntry("")
+
+	store.StartEntry(project.ID, "third entry")
+	time.Sleep(10 * time.Millisecond)
+	store.StopEntry("")
+
+	// Amend the most recent entry (index 1)
+	amended, err := store.AmendEntry(1, "updated third entry")
+	if err != nil {
+		t.Fatalf("Failed to amend entry: %v", err)
+	}
+
+	if amended.Note != "updated third entry" {
+		t.Errorf("Expected note 'updated third entry', got %q", amended.Note)
+	}
+
+	// Amend the second entry (index 2)
+	amended, err = store.AmendEntry(2, "updated second entry")
+	if err != nil {
+		t.Fatalf("Failed to amend entry: %v", err)
+	}
+
+	if amended.Note != "updated second entry" {
+		t.Errorf("Expected note 'updated second entry', got %q", amended.Note)
+	}
+
+	// Verify changes persisted
+	entries := store.ListEntries("", nil, nil)
+	if len(entries) != 3 {
+		t.Fatalf("Expected 3 entries, got %d", len(entries))
+	}
+}
+
+func TestAmendEntryErrors(t *testing.T) {
+	store, _ := setupTestStore(t)
+
+	project, _ := store.AddProject("Test", 100, "")
+
+	// Create one completed entry
+	store.StartEntry(project.ID, "test")
+	store.StopEntry("")
+
+	// Try to amend with invalid index
+	_, err := store.AmendEntry(0, "test")
+	if err == nil {
+		t.Error("Expected error for index 0")
+	}
+
+	_, err = store.AmendEntry(2, "test")
+	if err == nil {
+		t.Error("Expected error for index 2 (only 1 entry)")
+	}
+
+	_, err = store.AmendEntry(-1, "test")
+	if err == nil {
+		t.Error("Expected error for negative index")
+	}
+}
+
+func TestAmendRunningEntry(t *testing.T) {
+	store, _ := setupTestStore(t)
+
+	project, _ := store.AddProject("Test", 100, "")
+
+	// Create completed entry
+	store.StartEntry(project.ID, "completed")
+	store.StopEntry("")
+
+	// Start a running entry
+	store.StartEntry(project.ID, "running")
+
+	// Try to amend - should only see completed entry
+	amended, err := store.AmendEntry(1, "updated")
+	if err != nil {
+		t.Fatalf("Should be able to amend completed entry: %v", err)
+	}
+
+	if amended.Note != "updated" {
+		t.Errorf("Expected 'updated', got %q", amended.Note)
+	}
+
+	// Running entry should not be amendable
+	_, err = store.AmendEntry(2, "test")
+	if err == nil {
+		t.Error("Should not be able to amend running entry via index")
+	}
+}
+
+func TestAmendClearNote(t *testing.T) {
+	store, _ := setupTestStore(t)
+
+	project, _ := store.AddProject("Test", 100, "")
+
+	// Create entry with note
+	store.StartEntry(project.ID, "original note")
+	store.StopEntry("")
+
+	// Clear the note
+	amended, err := store.AmendEntry(1, "")
+	if err != nil {
+		t.Fatalf("Failed to clear note: %v", err)
+	}
+
+	if amended.Note != "" {
+		t.Errorf("Expected empty note, got %q", amended.Note)
+	}
+}
