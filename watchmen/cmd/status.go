@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -11,8 +12,14 @@ var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Show current tracking status",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		outputJSON, _ := cmd.Flags().GetBool("json")
+
 		entry := store.ActiveEntry()
 		if entry == nil {
+			if outputJSON {
+				fmt.Println("{}")
+				return nil
+			}
 			fmt.Println("No active time entry")
 			return nil
 		}
@@ -29,6 +36,27 @@ var statusCmd = &cobra.Command{
 			status = "paused"
 		}
 
+		if outputJSON {
+			output := map[string]interface{}{
+				"running":         entry.IsRunning(),
+				"paused":          entry.IsPaused(),
+				"status":          status,
+				"project_id":      entry.ProjectID,
+				"project_name":    projectName,
+				"started_at":      entry.StartTime(),
+				"elapsed_seconds": int(duration.Seconds()),
+				"hours":           duration.Hours(),
+				"segments":        len(entry.Segments),
+				"note":            entry.Note,
+			}
+			jsonData, err := json.Marshal(output)
+			if err != nil {
+				return err
+			}
+			fmt.Println(string(jsonData))
+			return nil
+		}
+
 		fmt.Printf("Currently tracking: %s (%s)\n", projectName, status)
 		fmt.Printf("  Started: %s\n", entry.StartTime().Format("3:04 PM"))
 		fmt.Printf("  Accumulated: %s (%.2f hours)\n", formatDuration(duration), duration.Hours())
@@ -38,6 +66,10 @@ var statusCmd = &cobra.Command{
 		}
 		return nil
 	},
+}
+
+func init() {
+	statusCmd.Flags().Bool("json", false, "Output status as JSON")
 }
 
 func formatDuration(d time.Duration) string {
