@@ -28,6 +28,16 @@ var listCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+
+		notDocketed, _ := cmd.Flags().GetBool("not-docketed")
+		undocketed, _ := cmd.Flags().GetBool("undocketed")
+		if notDocketed || undocketed {
+			matters, err = excludeDocketed(matters)
+			if err != nil {
+				return err
+			}
+		}
+
 		if matters == nil {
 			return json.NewEncoder(os.Stdout).Encode([]any{})
 		}
@@ -39,5 +49,8 @@ func init() {
 	listCmd.Flags().String("status", "", "filter by status")
 	listCmd.Flags().String("tag", "", "filter by tag")
 	listCmd.Flags().String("effort", "", "filter by effort")
+	listCmd.Flags().Bool("not-docketed", false, "only show matters not on the docket")
+	listCmd.Flags().Bool("undocketed", false, "alias for --not-docketed")
+	listCmd.Flags().MarkHidden("undocketed")
 	rootCmd.AddCommand(listCmd)
 }

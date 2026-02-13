@@ -19,6 +19,22 @@ var docketCmd = &cobra.Command{
 	Use:   "docket",
 	Short: "Show the prioritized work queue",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		invert, _ := cmd.Flags().GetBool("invert")
+		if invert {
+			matters, err := store.ListMatters(nil)
+			if err != nil {
+				return err
+			}
+			matters, err = excludeDocketed(matters)
+			if err != nil {
+				return err
+			}
+			if matters == nil {
+				return json.NewEncoder(os.Stdout).Encode([]any{})
+			}
+			return json.NewEncoder(os.Stdout).Encode(matters)
+		}
+
 		entries, err := store.LoadDocket()
 		if err != nil {
 			return err
@@ -105,6 +121,8 @@ func init() {
 	docketAddCmd.Flags().String("note", "", "annotation for the docket entry")
 
 	docketMoveCmd.Flags().String("after", "", "move to after this ID")
+
+	docketCmd.Flags().Bool("invert", false, "show matters NOT on the docket")
 
 	docketCmd.AddCommand(docketAddCmd)
 	docketCmd.AddCommand(docketRmCmd)
