@@ -19,9 +19,9 @@ type primeMatter struct {
 }
 
 type primeOutput struct {
-	Matters []primeMatter      `json:"matters"`
-	Docket  []string           `json:"docket"`
-	Counts  map[string]int     `json:"counts"`
+	Matters []primeMatter  `json:"matters"`
+	Docket  []string       `json:"docket"`
+	Counts  map[string]int `json:"counts"`
 }
 
 var primeCmd = &cobra.Command{
