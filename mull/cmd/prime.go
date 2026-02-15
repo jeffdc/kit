@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -24,12 +25,24 @@ type primeOutput struct {
 	Counts  map[string]int `json:"counts"`
 }
 
+var primeContext bool
+
 var primeCmd = &cobra.Command{
 	Use:   "prime",
 	Short: "Compact dump for LLM context injection",
-	Long:  `Token-efficient summary. Excludes done and dropped matters. Bodies omitted.`,
-	Args:  cobra.NoArgs,
+	Long: `Token-efficient summary. Excludes done and dropped matters. Bodies omitted.
+
+Use --context to wrap output with workflow instructions for Claude Code hooks.
+In --context mode, exits silently if no .mull/ directory exists.`,
+	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// In context mode, exit silently if not a mull project.
+		if primeContext {
+			if _, err := os.Stat(".mull"); os.IsNotExist(err) {
+				os.Exit(0)
+			}
+		}
+
 		all, err := store.ListMatters(nil)
 		if err != nil {
 			return err
@@ -67,10 +80,45 @@ var primeCmd = &cobra.Command{
 			out.Docket = append(out.Docket, e.ID)
 		}
 
+		if primeContext {
+			return outputContext(out)
+		}
 		return json.NewEncoder(os.Stdout).Encode(out)
 	},
 }
 
+func outputContext(out primeOutput) error {
+	jsonBytes, err := json.MarshalIndent(out, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	fmt.Print(`# Mull — Matter Tracking
+
+## Landscape
+
+` + "```json\n" + string(jsonBytes) + "\n```" + `
+
+## Workflow
+
+- ` + "`mull show <id>`" + ` + ` + "`mull graph <id>`" + ` to load full context
+- ` + "`mull add \"<title>\" --status raw`" + ` to capture new ideas
+- ` + "`mull append <id> \"<text>\"`" + ` for details as they emerge
+- ` + "`mull set <id> <key> <value>`" + ` for metadata
+- ` + "`mull link <id> <type> <id>`" + ` for relationships (relates, blocks, needs, parent)
+- ` + "`mull docket`" + ` + ` + "`mull graph`" + ` to consult priorities
+- ` + "`mull search <query>`" + ` to find matters by keyword
+
+## Principles
+
+- **Capture as you go** — don't wait until the end
+- **Match user's energy** — a tickler is not a spec, don't over-process
+- **Don't push toward planning** — only when user signals execution intent
+`)
+	return nil
+}
+
 func init() {
+	primeCmd.Flags().BoolVar(&primeContext, "context", false, "Wrap output with workflow instructions (for hooks)")
 	rootCmd.AddCommand(primeCmd)
 }

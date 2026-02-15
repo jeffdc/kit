@@ -16,6 +16,16 @@ var rootCmd = &cobra.Command{
 	Short: "Track ideas and features for solo projects",
 	Long:  `A CLI tool for tracking ideas and features ("matters") for solo projects. All output is JSON.`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		// Skip auto-init for commands that don't need a store
+		if cmd.Name() == "onboard" || cmd.Parent() != nil && cmd.Parent().Name() == "onboard" {
+			return nil
+		}
+		// Skip auto-init when prime --context is probing for .mull/
+		if cmd.Name() == "prime" && primeContext {
+			if _, err := os.Stat(".mull"); os.IsNotExist(err) {
+				return nil // let RunE handle the silent exit
+			}
+		}
 		var err error
 		store, err = storage.New(".")
 		return err
