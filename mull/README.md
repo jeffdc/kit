@@ -31,7 +31,7 @@ This puts the `mull` binary in your `$GOBIN` (usually `~/go/bin`).
 
 ```bash
 # Capture an idea
-mull add "Add RSS feed" --tag content --effort small
+mull add "Add RSS feed" --tag content --effort small --epic v2-launch
 
 # See what you've got
 mull list
@@ -50,6 +50,9 @@ mull docket add c7d1 --after ab3f
 # What should I work on?
 mull docket
 mull graph
+
+# Close it when done
+mull done ab3f
 ```
 
 ## Claude Code integration
@@ -87,26 +90,32 @@ Run `mull onboard` to see both options with details.
 
 | Command | What it does |
 |---------|-------------|
-| `mull add "<title>"` | Create a matter |
+| `mull add "<title>"` | Create a matter (`--tag`, `--status`, `--effort`, `--epic`) |
 | `mull show <id>` | View a matter with full body |
-| `mull list` | List matters (filter with `--status`, `--tag`) |
+| `mull list` | List active matters (`--status`, `--tag`, `--effort`, `--epic`, `--all`) |
 | `mull search <query>` | Full-text search across titles and bodies |
 | `mull set <id> <key> <value>` | Update metadata |
 | `mull append <id> "<text>"` | Add to the body |
 | `mull link <id> <type> <id>` | Add relationship (relates, blocks, needs, parent) |
 | `mull unlink <id> <type> <id>` | Remove relationship |
-| `mull drop <id>` | Set status to dropped |
-| `mull rm <id>` | Permanently delete |
+| `mull done <id>` | Mark as done (removes from docket) |
+| `mull drop <id>` | Mark as dropped (removes from docket) |
+| `mull rm <id>` | Permanently delete (use sparingly) |
 | `mull docket` | View the prioritized work queue |
+| `mull docket --invert` | View matters NOT on the docket |
 | `mull docket add <id>` | Add to docket (`--after <id>` to position) |
 | `mull docket rm <id>` | Remove from docket |
 | `mull docket move <id>` | Reorder (`--after <id>`) |
+| `mull epics` | List all epics with matter counts |
 | `mull graph [id]` | Dependency graph (all or centered on one matter) |
+| `mull doctor` | Check data integrity (`--fix` to repair) |
 | `mull prime` | Token-efficient JSON snapshot for LLM context |
 | `mull prime --context` | Snapshot wrapped with workflow instructions (for hooks) |
 | `mull onboard` | Setup instructions for Claude Code integration |
 
 All commands output JSON to stdout. Errors go to stderr as `{"error": "message"}`.
+
+`list`, `docket --invert`, and `epics` exclude done/dropped matters by default. Use `--all` to include them.
 
 ## Data layout
 
@@ -126,6 +135,7 @@ Each matter is a markdown file:
 status: refined
 tags: [content, low-effort]
 effort: small
+epic: v2-launch
 created: 2026-02-13
 updated: 2026-02-14
 needs: [c7d1]
@@ -160,3 +170,21 @@ Four types, all managed with `mull link` / `mull unlink`:
 - **parent** -- grouping (one-way)
 
 Bidirectional links are kept in sync atomically. If writing one side fails, the other is rolled back.
+
+## Epics
+
+Epics are lightweight labels for grouping related matters by theme. Set with `--epic` on create or `mull set <id> epic <name>` later. No extra files or lifecycle -- an epic is just a string.
+
+```bash
+mull add "Dark mode" --epic ui-overhaul
+mull epics                    # list all epics with counts
+mull list --epic ui-overhaul  # filter by epic
+```
+
+## Closing vs deleting
+
+- `mull done <id>` -- marks as done, keeps the file for reference. This is almost always what you want.
+- `mull drop <id>` -- decided against, keeps the file for reference.
+- `mull rm <id>` -- permanent delete. Only for junk or mistakes.
+
+Both `done` and `drop` automatically remove the matter from the docket. Done/dropped matters are hidden from `list`, `docket --invert`, `epics`, and `prime` by default.
