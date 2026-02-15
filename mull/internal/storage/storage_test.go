@@ -224,6 +224,118 @@ func TestAppendBody(t *testing.T) {
 	}
 }
 
+func TestUpdateMatterTitle(t *testing.T) {
+	s := setupTestStore(t)
+
+	m, _ := s.CreateMatter("Old title", nil)
+	oldFilename := m.Filename
+
+	updated, err := s.UpdateMatter(m.ID, "title", "New title")
+	if err != nil {
+		t.Fatalf("UpdateMatter(title) error: %v", err)
+	}
+	if updated.Title != "New title" {
+		t.Errorf("Title = %q, want %q", updated.Title, "New title")
+	}
+	if updated.Filename == oldFilename {
+		t.Errorf("Filename should have changed, got %q", updated.Filename)
+	}
+
+	// Old file should be gone
+	oldPath := filepath.Join(s.mattersDir, oldFilename)
+	if _, err := os.Stat(oldPath); !os.IsNotExist(err) {
+		t.Error("old file should have been removed")
+	}
+
+	// New file should exist and round-trip
+	got, err := s.GetMatter(m.ID)
+	if err != nil {
+		t.Fatalf("GetMatter() after title change: %v", err)
+	}
+	if got.Title != "New title" {
+		t.Errorf("persisted Title = %q, want %q", got.Title, "New title")
+	}
+}
+
+func TestAppendBodyEscapes(t *testing.T) {
+	s := setupTestStore(t)
+
+	m, _ := s.CreateMatter("Test escapes", nil)
+
+	m, err := s.AppendBody(m.ID, `line1\nline2`)
+	if err != nil {
+		t.Fatalf("AppendBody() error: %v", err)
+	}
+	if m.Body != "line1\nline2" {
+		t.Errorf("Body = %q, want %q", m.Body, "line1\nline2")
+	}
+
+	// Verify it persists correctly
+	got, _ := s.GetMatter(m.ID)
+	if !strings.Contains(got.Body, "line1\nline2") {
+		t.Errorf("persisted Body = %q, want it to contain actual newline", got.Body)
+	}
+}
+
+func TestDocsField(t *testing.T) {
+	s := setupTestStore(t)
+
+	m, _ := s.CreateMatter("Has docs", nil)
+	m, err := s.UpdateMatter(m.ID, "docs", "docs/plan.md,docs/design.md")
+	if err != nil {
+		t.Fatalf("UpdateMatter(docs) error: %v", err)
+	}
+	if len(m.Docs) != 2 || m.Docs[0] != "docs/plan.md" || m.Docs[1] != "docs/design.md" {
+		t.Errorf("Docs = %v, want [docs/plan.md docs/design.md]", m.Docs)
+	}
+
+	// Verify round-trip
+	got, _ := s.GetMatter(m.ID)
+	if len(got.Docs) != 2 {
+		t.Errorf("persisted Docs = %v, want 2 entries", got.Docs)
+	}
+}
+
+func TestDocsFilter(t *testing.T) {
+	s := setupTestStore(t)
+
+	m1, _ := s.CreateMatter("With docs", nil)
+	s.UpdateMatter(m1.ID, "docs", "plan.md")
+	s.CreateMatter("Without docs", nil)
+
+	withDocs, err := s.ListMatters(map[string]string{"has-docs": "true"})
+	if err != nil {
+		t.Fatalf("ListMatters(has-docs=true) error: %v", err)
+	}
+	if len(withDocs) != 1 {
+		t.Errorf("len = %d, want 1", len(withDocs))
+	}
+
+	withoutDocs, err := s.ListMatters(map[string]string{"has-docs": "false"})
+	if err != nil {
+		t.Fatalf("ListMatters(has-docs=false) error: %v", err)
+	}
+	if len(withoutDocs) != 1 {
+		t.Errorf("len = %d, want 1", len(withoutDocs))
+	}
+}
+
+func TestReadMatterRaw(t *testing.T) {
+	s := setupTestStore(t)
+
+	m, _ := s.CreateMatter("Raw test", nil)
+	raw, err := s.ReadMatterRaw(m.ID)
+	if err != nil {
+		t.Fatalf("ReadMatterRaw() error: %v", err)
+	}
+	if !strings.Contains(raw, "# Raw test") {
+		t.Errorf("raw output should contain title heading, got: %q", raw)
+	}
+	if !strings.Contains(raw, "status: raw") {
+		t.Errorf("raw output should contain frontmatter, got: %q", raw)
+	}
+}
+
 func TestDeleteMatter(t *testing.T) {
 	s := setupTestStore(t)
 

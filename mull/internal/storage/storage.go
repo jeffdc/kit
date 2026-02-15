@@ -156,10 +156,26 @@ func (s *Store) UpdateMatter(id string, key string, value string) (*model.Matter
 		return nil, err
 	}
 
+	oldFilename := m.Filename
+
 	if err := applyMeta(m, map[string]any{key: value}); err != nil {
 		return nil, err
 	}
 	m.Updated = model.Today()
+
+	// If the title changed, update the filename (slug derives from title).
+	if key == "title" {
+		newFilename := fmt.Sprintf("%s-%s.md", m.ID, Slugify(m.Title))
+		if newFilename != oldFilename {
+			oldPath := filepath.Join(s.mattersDir, oldFilename)
+			m.Filename = newFilename
+			if err := s.WriteMatter(m); err != nil {
+				return nil, err
+			}
+			os.Remove(oldPath)
+			return m, nil
+		}
+	}
 
 	if err := s.WriteMatter(m); err != nil {
 		return nil, err
@@ -174,6 +190,9 @@ func (s *Store) AppendBody(id string, text string) (*model.Matter, error) {
 		return nil, err
 	}
 
+	// Process common escape sequences so CLI input like \n becomes actual newlines.
+	text = processEscapes(text)
+
 	if m.Body == "" {
 		m.Body = text
 	} else {
@@ -185,6 +204,19 @@ func (s *Store) AppendBody(id string, text string) (*model.Matter, error) {
 		return nil, err
 	}
 	return m, nil
+}
+
+// ReadMatterRaw returns the raw file contents of a matter.
+func (s *Store) ReadMatterRaw(id string) (string, error) {
+	path, err := s.findMatterFile(id)
+	if err != nil {
+		return "", err
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
 }
 
 // DeleteMatter removes a matter file.
@@ -311,6 +343,7 @@ func buildFrontmatter(m *model.Matter) yaml.Node {
 	addField("updated", m.Updated)
 	addField("plan", m.Plan)
 	addField("epic", m.Epic)
+	addStringSlice("docs", m.Docs)
 
 	// Relationships
 	addStringSlice("relates", m.Relates)
@@ -341,6 +374,7 @@ func strSliceNode(values []string) *yaml.Node {
 var knownFields = map[string]bool{
 	"status": true, "tags": true, "effort": true,
 	"created": true, "updated": true, "plan": true, "epic": true,
+	"docs":    true,
 	"relates": true, "blocks": true, "needs": true, "parent": true,
 }
 
@@ -363,6 +397,8 @@ func applyMeta(m *model.Matter, meta map[string]any) error {
 	for k, v := range meta {
 		sv := fmt.Sprintf("%v", v)
 		switch k {
+		case "title":
+			m.Title = sv
 		case "status":
 			if err := model.ValidateStatus(sv); err != nil {
 				return err
@@ -384,6 +420,16 @@ func applyMeta(m *model.Matter, meta map[string]any) error {
 				m.Tags = strings.Split(t, ",")
 				for i := range m.Tags {
 					m.Tags[i] = strings.TrimSpace(m.Tags[i])
+				}
+			}
+		case "docs":
+			switch t := v.(type) {
+			case []string:
+				m.Docs = t
+			case string:
+				m.Docs = strings.Split(t, ",")
+				for i := range m.Docs {
+					m.Docs[i] = strings.TrimSpace(m.Docs[i])
 				}
 			}
 		default:
@@ -657,6 +703,14 @@ func (s *Store) RemoveAllReferences(id string) error {
 	return nil
 }
 
+// processEscapes replaces literal escape sequences (\n, \t) in a string
+// with their actual characters, so CLI arguments work intuitively.
+func processEscapes(s string) string {
+	s = strings.ReplaceAll(s, `\n`, "\n")
+	s = strings.ReplaceAll(s, `\t`, "\t")
+	return s
+}
+
 // matchesFilters checks if a matter matches all the given filters.
 func matchesFilters(m *model.Matter, filters map[string]string) bool {
 	for k, v := range filters {
@@ -682,6 +736,13 @@ func matchesFilters(m *model.Matter, filters map[string]string) bool {
 			}
 		case "epic":
 			if m.Epic != v {
+				return false
+			}
+		case "has-docs":
+			if v == "true" && len(m.Docs) == 0 {
+				return false
+			}
+			if v == "false" && len(m.Docs) > 0 {
 				return false
 			}
 		}

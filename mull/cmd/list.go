@@ -26,6 +26,14 @@ var listCmd = &cobra.Command{
 		if ep, _ := cmd.Flags().GetString("epic"); ep != "" {
 			filters["epic"] = ep
 		}
+		if cmd.Flags().Changed("has-docs") {
+			hd, _ := cmd.Flags().GetBool("has-docs")
+			if hd {
+				filters["has-docs"] = "true"
+			} else {
+				filters["has-docs"] = "false"
+			}
+		}
 
 		matters, err := store.ListMatters(filters)
 		if err != nil {
@@ -63,6 +71,7 @@ func init() {
 	listCmd.Flags().Bool("not-docketed", false, "only show matters not on the docket")
 	listCmd.Flags().Bool("undocketed", false, "alias for --not-docketed")
 	listCmd.Flags().MarkHidden("undocketed")
+	listCmd.Flags().Bool("has-docs", false, "filter to matters with associated docs")
 	listCmd.Flags().Bool("all", false, "include done and dropped matters")
 	rootCmd.AddCommand(listCmd)
 }

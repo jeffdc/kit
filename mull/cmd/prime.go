@@ -14,6 +14,7 @@ type primeMatter struct {
 	Status  string   `json:"status"`
 	Tags    []string `json:"tags,omitempty"`
 	Epic    string   `json:"epic,omitempty"`
+	Docs    []string `json:"docs,omitempty"`
 	Relates []string `json:"relates,omitempty"`
 	Blocks  []string `json:"blocks,omitempty"`
 	Needs   []string `json:"needs,omitempty"`
@@ -67,6 +68,7 @@ In --context mode, exits silently if no .mull/ directory exists.`,
 				Status:  m.Status,
 				Tags:    m.Tags,
 				Epic:    m.Epic,
+				Docs:    m.Docs,
 				Relates: m.Relates,
 				Blocks:  m.Blocks,
 				Needs:   m.Needs,
@@ -106,9 +108,13 @@ func outputContext(out primeOutput) error {
 - ` + "`mull show <id>`" + ` + ` + "`mull graph <id>`" + ` to load full context
 - ` + "`mull add \"<title>\" --status raw --epic <name>`" + ` to capture new ideas
 - ` + "`mull append <id> \"<text>\"`" + ` for details as they emerge
-- ` + "`mull set <id> <key> <value>`" + ` for metadata
+- ` + "`mull set <id> [id...] <key> <value>`" + ` for metadata (supports multiple IDs for batch updates)
+- ` + "`mull set <id> docs <path>[,<path>]`" + ` to associate plan/design docs
 - ` + "`mull link <id> <type> <id>`" + ` for relationships (relates, blocks, needs, parent)
+- ` + "`mull plan <id>`" + ` to mark a matter as planned
 - ` + "`mull done <id>`" + ` to close a matter (sets done + removes from docket)
+- ` + "`mull show <id> --md`" + ` to see raw markdown instead of JSON
+- ` + "`mull list --has-docs`" + ` to filter matters with associated docs
 - ` + "`mull docket`" + ` to see the prioritized work queue
 - ` + "`mull docket --invert`" + ` to see matters NOT on the docket
 - ` + "`mull graph [id]`" + ` to see dependency relationships

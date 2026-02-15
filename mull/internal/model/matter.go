@@ -22,6 +22,9 @@ type Matter struct {
 	Plan   string   `yaml:"plan,omitempty" json:"plan,omitempty"`
 	Epic   string   `yaml:"epic,omitempty" json:"epic,omitempty"`
 
+	// Docs (associated plan docs, design docs, etc.)
+	Docs []string `yaml:"docs,omitempty" json:"docs,omitempty"`
+
 	// Relationships
 	Relates []string `yaml:"relates,omitempty" json:"relates,omitempty"`
 	Blocks  []string `yaml:"blocks,omitempty" json:"blocks,omitempty"`
