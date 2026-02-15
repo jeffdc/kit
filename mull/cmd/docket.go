@@ -12,6 +12,7 @@ type docketRow struct {
 	ID     string `json:"id"`
 	Title  string `json:"title,omitempty"`
 	Status string `json:"status,omitempty"`
+	Epic   string `json:"epic,omitempty"`
 	Note   string `json:"note,omitempty"`
 }
 
@@ -52,6 +53,7 @@ var docketCmd = &cobra.Command{
 			if err == nil {
 				row.Title = m.Title
 				row.Status = m.Status
+				row.Epic = m.Epic
 			}
 			rows = append(rows, row)
 		}

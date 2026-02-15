@@ -23,6 +23,9 @@ var listCmd = &cobra.Command{
 		if e, _ := cmd.Flags().GetString("effort"); e != "" {
 			filters["effort"] = e
 		}
+		if ep, _ := cmd.Flags().GetString("epic"); ep != "" {
+			filters["epic"] = ep
+		}
 
 		matters, err := store.ListMatters(filters)
 		if err != nil {
@@ -56,6 +59,7 @@ func init() {
 	listCmd.Flags().String("status", "", "filter by status")
 	listCmd.Flags().String("tag", "", "filter by tag")
 	listCmd.Flags().String("effort", "", "filter by effort")
+	listCmd.Flags().String("epic", "", "filter by epic")
 	listCmd.Flags().Bool("not-docketed", false, "only show matters not on the docket")
 	listCmd.Flags().Bool("undocketed", false, "alias for --not-docketed")
 	listCmd.Flags().MarkHidden("undocketed")

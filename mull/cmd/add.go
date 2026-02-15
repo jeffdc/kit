@@ -25,6 +25,9 @@ var addCmd = &cobra.Command{
 		if e, _ := cmd.Flags().GetString("effort"); e != "" {
 			meta["effort"] = e
 		}
+		if ep, _ := cmd.Flags().GetString("epic"); ep != "" {
+			meta["epic"] = ep
+		}
 
 		m, err := store.CreateMatter(title, meta)
 		if err != nil {
@@ -38,5 +41,6 @@ func init() {
 	addCmd.Flags().StringSlice("tag", nil, "add a tag (repeatable)")
 	addCmd.Flags().String("status", "", "set initial status")
 	addCmd.Flags().String("effort", "", "set effort estimate")
+	addCmd.Flags().String("epic", "", "assign to an epic")
 	rootCmd.AddCommand(addCmd)
 }

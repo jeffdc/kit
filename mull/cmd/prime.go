@@ -13,6 +13,7 @@ type primeMatter struct {
 	Title   string   `json:"title"`
 	Status  string   `json:"status"`
 	Tags    []string `json:"tags,omitempty"`
+	Epic    string   `json:"epic,omitempty"`
 	Relates []string `json:"relates,omitempty"`
 	Blocks  []string `json:"blocks,omitempty"`
 	Needs   []string `json:"needs,omitempty"`
@@ -65,6 +66,7 @@ In --context mode, exits silently if no .mull/ directory exists.`,
 				Title:   m.Title,
 				Status:  m.Status,
 				Tags:    m.Tags,
+				Epic:    m.Epic,
 				Relates: m.Relates,
 				Blocks:  m.Blocks,
 				Needs:   m.Needs,
@@ -102,7 +104,7 @@ func outputContext(out primeOutput) error {
 ## Workflow
 
 - ` + "`mull show <id>`" + ` + ` + "`mull graph <id>`" + ` to load full context
-- ` + "`mull add \"<title>\" --status raw`" + ` to capture new ideas
+- ` + "`mull add \"<title>\" --status raw --epic <name>`" + ` to capture new ideas
 - ` + "`mull append <id> \"<text>\"`" + ` for details as they emerge
 - ` + "`mull set <id> <key> <value>`" + ` for metadata
 - ` + "`mull link <id> <type> <id>`" + ` for relationships (relates, blocks, needs, parent)
@@ -111,6 +113,8 @@ func outputContext(out primeOutput) error {
 - ` + "`mull docket --invert`" + ` to see matters NOT on the docket
 - ` + "`mull graph [id]`" + ` to see dependency relationships
 - ` + "`mull search <query>`" + ` to find matters by keyword
+- ` + "`mull list --epic <name>`" + ` to filter by epic
+- ` + "`mull epics`" + ` to list all epics with counts
 
 ## Statuses
 

@@ -20,6 +20,7 @@ type Matter struct {
 	Tags   []string `yaml:"tags,omitempty" json:"tags,omitempty"`
 	Effort string   `yaml:"effort,omitempty" json:"effort,omitempty"`
 	Plan   string   `yaml:"plan,omitempty" json:"plan,omitempty"`
+	Epic   string   `yaml:"epic,omitempty" json:"epic,omitempty"`
 
 	// Relationships
 	Relates []string `yaml:"relates,omitempty" json:"relates,omitempty"`

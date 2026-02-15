@@ -310,6 +310,7 @@ func buildFrontmatter(m *model.Matter) yaml.Node {
 	addField("created", m.Created)
 	addField("updated", m.Updated)
 	addField("plan", m.Plan)
+	addField("epic", m.Epic)
 
 	// Relationships
 	addStringSlice("relates", m.Relates)
@@ -339,7 +340,7 @@ func strSliceNode(values []string) *yaml.Node {
 // knownFields are the YAML keys handled by struct tags.
 var knownFields = map[string]bool{
 	"status": true, "tags": true, "effort": true,
-	"created": true, "updated": true, "plan": true,
+	"created": true, "updated": true, "plan": true, "epic": true,
 	"relates": true, "blocks": true, "needs": true, "parent": true,
 }
 
@@ -371,6 +372,8 @@ func applyMeta(m *model.Matter, meta map[string]any) error {
 			m.Effort = sv
 		case "plan":
 			m.Plan = sv
+		case "epic":
+			m.Epic = sv
 		case "parent":
 			m.Parent = sv
 		case "tags":
@@ -675,6 +678,10 @@ func matchesFilters(m *model.Matter, filters map[string]string) bool {
 			}
 		case "effort":
 			if m.Effort != v {
+				return false
+			}
+		case "epic":
+			if m.Epic != v {
 				return false
 			}
 		}

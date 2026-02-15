@@ -22,7 +22,7 @@ Conversational wrapper around the `mull` CLI for capturing and refining matters.
 
 ## Creating a New Matter
 
-1. `mull add "<title>" --status raw`
+1. `mull add "<title>" --status raw --epic <name>` (epic is optional)
 2. One question at a time, `mull append` as details emerge
 3. Check `mull prime` for relationships to existing matters
 
@@ -30,6 +30,8 @@ Conversational wrapper around the `mull` CLI for capturing and refining matters.
 
 - `mull docket` — the prioritized work queue
 - `mull docket --invert` — matters NOT on the docket
+- `mull epics` — list all epics with counts
+- `mull list --epic <name>` — filter by epic
 - When user asks "what next?": `mull docket` + `mull graph`. Present options conversationally.
 
 ## Statuses
