@@ -30,9 +30,15 @@ Conversational wrapper around the `mull` CLI for capturing and refining matters.
 
 When user asks "what next?": `mull docket` + `mull graph`. Present options conversationally.
 
+## Closing vs Deleting
+
+- `mull done <id>` — marks as done, matter stays for reference. **This is almost always what you want.**
+- `mull drop <id>` — decided against, matter stays for reference
+- `mull rm <id>` — **permanent delete**, only for junk/mistakes
+
 ## Cross-Skill Capture
 
-Active matter in context + related work completed elsewhere → `mull append` findings, `mull set` status changes.
+Active matter in context + related work completed elsewhere → `mull append` findings, `mull done <id>` when complete.
 
 ## Principles
 

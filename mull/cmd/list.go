@@ -29,6 +29,13 @@ var listCmd = &cobra.Command{
 			return err
 		}
 
+		// Exclude done/dropped by default unless --all or --status is set
+		showAll, _ := cmd.Flags().GetBool("all")
+		statusSet := cmd.Flags().Changed("status")
+		if !showAll && !statusSet {
+			matters = excludeTerminal(matters)
+		}
+
 		notDocketed, _ := cmd.Flags().GetBool("not-docketed")
 		undocketed, _ := cmd.Flags().GetBool("undocketed")
 		if notDocketed || undocketed {
@@ -52,5 +59,6 @@ func init() {
 	listCmd.Flags().Bool("not-docketed", false, "only show matters not on the docket")
 	listCmd.Flags().Bool("undocketed", false, "alias for --not-docketed")
 	listCmd.Flags().MarkHidden("undocketed")
+	listCmd.Flags().Bool("all", false, "include done and dropped matters")
 	rootCmd.AddCommand(listCmd)
 }

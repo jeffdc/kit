@@ -25,6 +25,11 @@ var docketCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
+			// Exclude done/dropped by default unless --all
+			showAll, _ := cmd.Flags().GetBool("all")
+			if !showAll {
+				matters = excludeTerminal(matters)
+			}
 			matters, err = excludeDocketed(matters)
 			if err != nil {
 				return err
@@ -123,6 +128,7 @@ func init() {
 	docketMoveCmd.Flags().String("after", "", "move to after this ID")
 
 	docketCmd.Flags().Bool("invert", false, "show matters NOT on the docket")
+	docketCmd.Flags().Bool("all", false, "include done and dropped matters")
 
 	docketCmd.AddCommand(docketAddCmd)
 	docketCmd.AddCommand(docketRmCmd)

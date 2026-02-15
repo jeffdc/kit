@@ -2,6 +2,17 @@ package cmd
 
 import "mull/internal/model"
 
+// excludeTerminal filters out done and dropped matters.
+func excludeTerminal(matters []*model.Matter) []*model.Matter {
+	filtered := make([]*model.Matter, 0, len(matters))
+	for _, m := range matters {
+		if m.Status != "done" && m.Status != "dropped" {
+			filtered = append(filtered, m)
+		}
+	}
+	return filtered
+}
+
 // excludeDocketed filters out matters that appear on the docket.
 func excludeDocketed(matters []*model.Matter) ([]*model.Matter, error) {
 	entries, err := store.LoadDocket()

@@ -106,8 +106,15 @@ func outputContext(out primeOutput) error {
 - ` + "`mull append <id> \"<text>\"`" + ` for details as they emerge
 - ` + "`mull set <id> <key> <value>`" + ` for metadata
 - ` + "`mull link <id> <type> <id>`" + ` for relationships (relates, blocks, needs, parent)
+- ` + "`mull done <id>`" + ` to close a matter (sets done + removes from docket)
 - ` + "`mull docket`" + ` + ` + "`mull graph`" + ` to consult priorities
 - ` + "`mull search <query>`" + ` to find matters by keyword
+
+## Closing vs Deleting
+
+- ` + "`mull done <id>`" + ` — marks as done, matter stays for reference. **This is almost always what you want.**
+- ` + "`mull drop <id>`" + ` — decided against, matter stays for reference
+- ` + "`mull rm <id>`" + ` — **permanent delete**, only for junk/mistakes
 
 ## Principles
 
