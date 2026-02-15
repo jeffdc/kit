@@ -34,9 +34,10 @@ Conversational wrapper around the `mull` CLI for capturing and refining matters.
 - `mull list --epic <name>` — filter by epic
 - When user asks "what next?": `mull docket` + `mull graph`. Present options conversationally.
 
-## Statuses
+## Statuses and Fields
 
 Valid statuses: raw, refined, planned, done, dropped. No others accepted.
+Run `mull schema` for all valid fields, types, and relationship types.
 
 ## Closing vs Deleting
 

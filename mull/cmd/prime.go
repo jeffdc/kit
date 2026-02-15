@@ -116,9 +116,10 @@ func outputContext(out primeOutput) error {
 - ` + "`mull list --epic <name>`" + ` to filter by epic
 - ` + "`mull epics`" + ` to list all epics with counts
 
-## Statuses
+## Statuses and Fields
 
 Valid statuses: raw, refined, planned, done, dropped. No others accepted.
+Run ` + "`mull schema`" + ` for all valid fields, types, and relationship types.
 
 ## Closing vs Deleting
 
