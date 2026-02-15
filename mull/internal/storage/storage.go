@@ -82,7 +82,9 @@ func (s *Store) CreateMatter(title string, meta map[string]any) (*model.Matter, 
 
 	// Apply any provided metadata
 	if meta != nil {
-		applyMeta(m, meta)
+		if err := applyMeta(m, meta); err != nil {
+			return nil, err
+		}
 	}
 
 	filename := fmt.Sprintf("%s-%s.md", id, Slugify(title))
@@ -154,7 +156,9 @@ func (s *Store) UpdateMatter(id string, key string, value string) (*model.Matter
 		return nil, err
 	}
 
-	applyMeta(m, map[string]any{key: value})
+	if err := applyMeta(m, map[string]any{key: value}); err != nil {
+		return nil, err
+	}
 	m.Updated = model.Today()
 
 	if err := s.WriteMatter(m); err != nil {
@@ -354,11 +358,14 @@ func extractExtra(raw map[string]any) map[string]any {
 }
 
 // applyMeta sets metadata fields on a matter from a map.
-func applyMeta(m *model.Matter, meta map[string]any) {
+func applyMeta(m *model.Matter, meta map[string]any) error {
 	for k, v := range meta {
 		sv := fmt.Sprintf("%v", v)
 		switch k {
 		case "status":
+			if err := model.ValidateStatus(sv); err != nil {
+				return err
+			}
 			m.Status = sv
 		case "effort":
 			m.Effort = sv
@@ -383,6 +390,7 @@ func applyMeta(m *model.Matter, meta map[string]any) {
 			m.Extra[k] = v
 		}
 	}
+	return nil
 }
 
 // validRelTypes lists the allowed relationship types.

@@ -2,11 +2,11 @@ package cmd
 
 import "mull/internal/model"
 
-// excludeTerminal filters out done and dropped matters.
+// excludeTerminal filters out matters with terminal statuses (done, dropped, etc).
 func excludeTerminal(matters []*model.Matter) []*model.Matter {
 	filtered := make([]*model.Matter, 0, len(matters))
 	for _, m := range matters {
-		if m.Status != "done" && m.Status != "dropped" {
+		if !m.IsTerminal() {
 			filtered = append(filtered, m)
 		}
 	}

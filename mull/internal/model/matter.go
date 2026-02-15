@@ -1,6 +1,9 @@
 package model
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 type Matter struct {
 	// Core fields
@@ -33,4 +36,27 @@ type Matter struct {
 
 func Today() string {
 	return time.Now().Format("2006-01-02")
+}
+
+// ValidStatuses is the set of allowed matter statuses.
+var ValidStatuses = map[string]bool{
+	"raw":     true,
+	"refined": true,
+	"planned": true,
+	"done":    true,
+	"dropped": true,
+}
+
+// IsTerminal returns true if the matter's status represents completed work.
+func (m *Matter) IsTerminal() bool {
+	return m.Status == "done" || m.Status == "dropped"
+}
+
+// ValidateStatus returns an error if the status is not recognized.
+func ValidateStatus(status string) error {
+	if !ValidStatuses[status] {
+		valid := []string{"raw", "refined", "planned", "done", "dropped"}
+		return fmt.Errorf("invalid status %q, must be one of: %v", status, valid)
+	}
+	return nil
 }

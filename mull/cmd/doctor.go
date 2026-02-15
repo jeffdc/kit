@@ -176,7 +176,7 @@ and bidirectional link inconsistencies. Use --fix to repair automatically.`,
 			if err != nil {
 				continue // orphan already handled
 			}
-			if m.Status == "done" || m.Status == "dropped" {
+			if m.IsTerminal() {
 				iss := issue{Check: "docket-terminal", ID: e.ID, Detail: fmt.Sprintf("%s matter %s is still in docket", m.Status, e.ID)}
 				if doctorFix {
 					if fixErr := store.DocketRemove(e.ID); fixErr == nil {

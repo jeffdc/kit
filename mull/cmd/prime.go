@@ -55,7 +55,7 @@ In --context mode, exits silently if no .mull/ directory exists.`,
 		}
 
 		for _, m := range all {
-			if m.Status == "done" || m.Status == "dropped" {
+			if m.IsTerminal() {
 				continue
 			}
 
@@ -107,8 +107,14 @@ func outputContext(out primeOutput) error {
 - ` + "`mull set <id> <key> <value>`" + ` for metadata
 - ` + "`mull link <id> <type> <id>`" + ` for relationships (relates, blocks, needs, parent)
 - ` + "`mull done <id>`" + ` to close a matter (sets done + removes from docket)
-- ` + "`mull docket`" + ` + ` + "`mull graph`" + ` to consult priorities
+- ` + "`mull docket`" + ` to see the prioritized work queue
+- ` + "`mull docket --invert`" + ` to see matters NOT on the docket
+- ` + "`mull graph [id]`" + ` to see dependency relationships
 - ` + "`mull search <query>`" + ` to find matters by keyword
+
+## Statuses
+
+Valid statuses: raw, refined, planned, done, dropped. No others accepted.
 
 ## Closing vs Deleting
 

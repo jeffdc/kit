@@ -28,7 +28,13 @@ Conversational wrapper around the `mull` CLI for capturing and refining matters.
 
 ## Docket
 
-When user asks "what next?": `mull docket` + `mull graph`. Present options conversationally.
+- `mull docket` — the prioritized work queue
+- `mull docket --invert` — matters NOT on the docket
+- When user asks "what next?": `mull docket` + `mull graph`. Present options conversationally.
+
+## Statuses
+
+Valid statuses: raw, refined, planned, done, dropped. No others accepted.
 
 ## Closing vs Deleting
 
