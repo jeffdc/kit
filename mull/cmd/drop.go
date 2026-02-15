@@ -12,10 +12,12 @@ var dropCmd = &cobra.Command{
 	Short: "Drop a matter by setting its status to dropped",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		m, err := store.UpdateMatter(args[0], "status", "dropped")
+		id := args[0]
+		m, err := store.UpdateMatter(id, "status", "dropped")
 		if err != nil {
 			return err
 		}
+		_ = store.DocketRemove(id) // ignore error if not in docket
 		return json.NewEncoder(os.Stdout).Encode(m)
 	},
 }

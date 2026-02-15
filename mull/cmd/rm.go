@@ -16,6 +16,9 @@ var rmCmd = &cobra.Command{
 		if err := store.DeleteMatter(id); err != nil {
 			return err
 		}
+		// Clean up: remove from docket and relationship references
+		_ = store.DocketRemove(id) // ignore error if not in docket
+		_ = store.RemoveAllReferences(id)
 		return json.NewEncoder(os.Stdout).Encode(map[string]string{"deleted": id})
 	},
 }

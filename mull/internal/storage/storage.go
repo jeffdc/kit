@@ -88,7 +88,7 @@ func (s *Store) CreateMatter(title string, meta map[string]any) (*model.Matter, 
 	filename := fmt.Sprintf("%s-%s.md", id, Slugify(title))
 	m.Filename = filename
 
-	if err := s.writeMatter(m); err != nil {
+	if err := s.WriteMatter(m); err != nil {
 		return nil, err
 	}
 	return m, nil
@@ -157,7 +157,7 @@ func (s *Store) UpdateMatter(id string, key string, value string) (*model.Matter
 	applyMeta(m, map[string]any{key: value})
 	m.Updated = model.Today()
 
-	if err := s.writeMatter(m); err != nil {
+	if err := s.WriteMatter(m); err != nil {
 		return nil, err
 	}
 	return m, nil
@@ -177,7 +177,7 @@ func (s *Store) AppendBody(id string, text string) (*model.Matter, error) {
 	}
 	m.Updated = model.Today()
 
-	if err := s.writeMatter(m); err != nil {
+	if err := s.WriteMatter(m); err != nil {
 		return nil, err
 	}
 	return m, nil
@@ -253,8 +253,8 @@ func (s *Store) readMatterFile(path string) (*model.Matter, error) {
 	return m, nil
 }
 
-// writeMatter writes a matter to its file.
-func (s *Store) writeMatter(m *model.Matter) error {
+// WriteMatter writes a matter to its file.
+func (s *Store) WriteMatter(m *model.Matter) error {
 	// Build frontmatter map preserving known fields
 	fm := buildFrontmatter(m)
 
@@ -450,7 +450,7 @@ func (s *Store) LinkMatters(id1, relType, id2 string) error {
 		}
 		m1.Parent = id2
 		m1.Updated = model.Today()
-		return s.writeMatter(m1)
+		return s.WriteMatter(m1)
 	}
 
 	m2, err := s.GetMatter(id2)
@@ -503,14 +503,14 @@ func (s *Store) LinkMatters(id1, relType, id2 string) error {
 
 	if needWriteM1 {
 		m1.Updated = model.Today()
-		if err := s.writeMatter(m1); err != nil {
+		if err := s.WriteMatter(m1); err != nil {
 			return err
 		}
 	}
 
 	if needWriteM2 {
 		m2.Updated = model.Today()
-		if err := s.writeMatter(m2); err != nil {
+		if err := s.WriteMatter(m2); err != nil {
 			// Roll back m1.
 			rollbackPath := filepath.Join(s.mattersDir, m1.Filename)
 			os.WriteFile(rollbackPath, backupData, 0644)
@@ -539,7 +539,7 @@ func (s *Store) UnlinkMatters(id1, relType, id2 string) error {
 		}
 		m1.Parent = ""
 		m1.Updated = model.Today()
-		return s.writeMatter(m1)
+		return s.WriteMatter(m1)
 	}
 
 	m2, err := s.GetMatter(id2)
@@ -591,20 +591,58 @@ func (s *Store) UnlinkMatters(id1, relType, id2 string) error {
 
 	if needWriteM1 {
 		m1.Updated = model.Today()
-		if err := s.writeMatter(m1); err != nil {
+		if err := s.WriteMatter(m1); err != nil {
 			return err
 		}
 	}
 
 	if needWriteM2 {
 		m2.Updated = model.Today()
-		if err := s.writeMatter(m2); err != nil {
+		if err := s.WriteMatter(m2); err != nil {
 			rollbackPath := filepath.Join(s.mattersDir, m1.Filename)
 			os.WriteFile(rollbackPath, backupData, 0644)
 			return fmt.Errorf("unlinking failed, rolled back %s: %w", id1, err)
 		}
 	}
 
+	return nil
+}
+
+// RemoveAllReferences removes all references to a matter ID from other matters.
+// Used when deleting a matter to clean up dangling references.
+func (s *Store) RemoveAllReferences(id string) error {
+	all, err := s.ListMatters(nil)
+	if err != nil {
+		return err
+	}
+
+	for _, m := range all {
+		changed := false
+
+		if containsString(m.Relates, id) {
+			m.Relates = removeString(m.Relates, id)
+			changed = true
+		}
+		if containsString(m.Blocks, id) {
+			m.Blocks = removeString(m.Blocks, id)
+			changed = true
+		}
+		if containsString(m.Needs, id) {
+			m.Needs = removeString(m.Needs, id)
+			changed = true
+		}
+		if m.Parent == id {
+			m.Parent = ""
+			changed = true
+		}
+
+		if changed {
+			m.Updated = model.Today()
+			if err := s.WriteMatter(m); err != nil {
+				return fmt.Errorf("cleaning references in %s: %w", m.ID, err)
+			}
+		}
+	}
 	return nil
 }
 
