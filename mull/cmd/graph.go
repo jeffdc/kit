@@ -105,6 +105,9 @@ func buildGraph(idSet map[string]bool) error {
 		if err != nil {
 			continue
 		}
+		if m.IsTerminal() {
+			continue
+		}
 		seen[id] = m
 		out.Nodes = append(out.Nodes, graphNode{
 			ID:     m.ID,
