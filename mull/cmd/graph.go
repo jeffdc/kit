@@ -34,8 +34,26 @@ var graphCmd = &cobra.Command{
 		if len(args) == 1 {
 			return graphSingle(args[0])
 		}
+		all, _ := cmd.Flags().GetBool("all")
+		if all {
+			return graphAll()
+		}
 		return graphDocket()
 	},
+}
+
+func graphAll() error {
+	matters, err := store.ListMatters(nil)
+	if err != nil {
+		return err
+	}
+
+	idSet := make(map[string]bool)
+	for _, m := range matters {
+		idSet[m.ID] = true
+	}
+
+	return buildGraph(idSet)
 }
 
 func graphDocket() error {
@@ -123,5 +141,6 @@ func buildGraph(idSet map[string]bool) error {
 }
 
 func init() {
+	graphCmd.Flags().BoolP("all", "a", false, "Show all matters, not just docket")
 	rootCmd.AddCommand(graphCmd)
 }
