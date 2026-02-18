@@ -5,10 +5,10 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"mull/internal/model"
 	"mull/internal/storage"
 )
@@ -24,8 +24,8 @@ const (
 type filterMode int
 
 const (
-	filterOpen filterMode = iota // raw, refined, planned
-	filterClosed                 // done, dropped
+	filterOpen   filterMode = iota // raw, refined, planned
+	filterClosed                   // done, dropped
 	filterAll
 	filterStatus // single status
 )
@@ -83,15 +83,15 @@ func NewApp(store *storage.Store) App {
 	si.CharLimit = 64
 
 	return App{
-		store:     store,
-		keys:      newKeyMap(),
-		docketSet: make(map[string]bool),
+		store:       store,
+		keys:        newKeyMap(),
+		docketSet:   make(map[string]bool),
 		searchInput: si,
 	}
 }
 
 func (a App) Init() tea.Cmd {
-	return a.loadDataCmd()
+	return tea.Batch(a.loadDataCmd(), watchFiles(a.store.Root()))
 }
 
 func (a App) loadDataCmd() tea.Cmd {
@@ -176,6 +176,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.applyDataLoaded(msg)
 		a.clampCursors()
 		return a, nil
+
+	case dataReloadMsg:
+		return a, tea.Batch(a.loadDataCmd(), watchFiles(a.store.Root()))
 
 	case clearFlashMsg:
 		a.flash = ""
