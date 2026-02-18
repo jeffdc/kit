@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -439,5 +440,75 @@ func matchKey(msg tea.KeyMsg, binding key.Binding) bool {
 }
 
 func (a App) View() string {
-	return "mull-tui - press q to quit\n"
+	var content string
+	switch a.view {
+	case viewMatters:
+		content = renderMatters(&a)
+	case viewDocket:
+		content = renderDocket(&a)
+	case viewDetail:
+		content = renderDetail(&a)
+	}
+
+	if a.showHelp {
+		content = renderHelpOverlay(&a, content)
+	}
+
+	return content
+}
+
+func renderHelpOverlay(a *App, bg string) string {
+	help := `Navigation          Filtering           Actions
+─────────           ─────────           ───────
+j/↓  down           o  open only        p  copy prompt
+k/↑  up             c  closed only      d  toggle docket
+enter  detail       a  all              r  refresh
+esc    back         s  cycle status
+1  matters          e  cycle epic
+2  docket           /  search
+
+Press ? to close`
+
+	box := helpBox.Render(help)
+	boxW := lipgloss.Width(box)
+	boxH := lipgloss.Height(box)
+
+	x := (a.width - boxW) / 2
+	if x < 0 {
+		x = 0
+	}
+	y := (a.height - boxH) / 2
+	if y < 0 {
+		y = 0
+	}
+
+	return placeOverlay(x, y, box, bg)
+}
+
+func placeOverlay(x, y int, fg, bg string) string {
+	bgLines := strings.Split(bg, "\n")
+	fgLines := strings.Split(fg, "\n")
+
+	for i := range bgLines {
+		bgLines[i] = dimOverlay.Render(bgLines[i])
+	}
+
+	for i, fgLine := range fgLines {
+		bgIdx := y + i
+		if bgIdx >= 0 && bgIdx < len(bgLines) {
+			line := bgLines[bgIdx]
+			// Simple overlay: pad line if needed, splice in fg
+			for len([]rune(line)) < x {
+				line += " "
+			}
+			runes := []rune(line)
+			if x < len(runes) {
+				bgLines[bgIdx] = string(runes[:x]) + fgLine
+			} else {
+				bgLines[bgIdx] = line + fgLine
+			}
+		}
+	}
+
+	return strings.Join(bgLines, "\n")
 }
