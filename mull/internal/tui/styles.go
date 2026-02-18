@@ -73,6 +73,9 @@ var (
 
 	dimOverlay = lipgloss.NewStyle().
 			Foreground(lipgloss.AdaptiveColor{Light: "#AAAAAA", Dark: "#555555"})
+
+	docketMarker = lipgloss.NewStyle().
+			Foreground(lipgloss.AdaptiveColor{Light: "#2255AA", Dark: "#5588DD"})
 )
 
 func statusStyle(status string) lipgloss.Style {

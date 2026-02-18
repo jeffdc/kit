@@ -68,7 +68,13 @@ func renderMatters(a *App) string {
 			title = title[:titleW-1] + "…"
 		}
 
-		row := fmt.Sprintf("  %-*s %-*s %-*s %-*s %-*s",
+		prefix := "  "
+		if a.docketSet[m.ID] {
+			prefix = docketMarker.Render("●") + " "
+		}
+
+		row := fmt.Sprintf("%s%-*s %-*s %-*s %-*s %-*s",
+			prefix,
 			idW, m.ID,
 			titleW, title,
 			statusW, m.Status,
@@ -79,9 +85,9 @@ func renderMatters(a *App) string {
 		if i == a.cursor {
 			b.WriteString(selectedRow.Width(a.width).Render(row))
 		} else {
-			// Color the status portion
 			styledStatus := statusStyle(m.Status).Render(fmt.Sprintf("%-*s", statusW, m.Status))
-			row = fmt.Sprintf("  %-*s %-*s %s %-*s %-*s",
+			row = fmt.Sprintf("%s%-*s %-*s %s %-*s %-*s",
+				prefix,
 				idW, m.ID,
 				titleW, title,
 				styledStatus,
