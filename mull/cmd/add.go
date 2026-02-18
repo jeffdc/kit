@@ -33,6 +33,59 @@ var addCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+
+		// Body
+		if body, _ := cmd.Flags().GetString("body"); body != "" {
+			m, err = store.AppendBody(m.ID, body)
+			if err != nil {
+				return err
+			}
+		}
+
+		// Links
+		relatesIDs, _ := cmd.Flags().GetStringSlice("relates")
+		for _, targetID := range relatesIDs {
+			if err := store.LinkMatters(m.ID, "relates", targetID); err != nil {
+				return err
+			}
+		}
+
+		blocksIDs, _ := cmd.Flags().GetStringSlice("blocks")
+		for _, targetID := range blocksIDs {
+			if err := store.LinkMatters(m.ID, "blocks", targetID); err != nil {
+				return err
+			}
+		}
+
+		needsIDs, _ := cmd.Flags().GetStringSlice("needs")
+		for _, targetID := range needsIDs {
+			if err := store.LinkMatters(m.ID, "needs", targetID); err != nil {
+				return err
+			}
+		}
+
+		parentID, _ := cmd.Flags().GetString("parent")
+		if parentID != "" {
+			if err := store.LinkMatters(m.ID, "parent", parentID); err != nil {
+				return err
+			}
+		}
+
+		// Re-read if any links were created
+		if len(relatesIDs) > 0 || len(blocksIDs) > 0 || len(needsIDs) > 0 || parentID != "" {
+			m, err = store.GetMatter(m.ID)
+			if err != nil {
+				return err
+			}
+		}
+
+		// Docket
+		if docket, _ := cmd.Flags().GetBool("docket"); docket {
+			if err := store.DocketAdd(m.ID, "", ""); err != nil {
+				return err
+			}
+		}
+
 		return json.NewEncoder(os.Stdout).Encode(m)
 	},
 }
@@ -42,5 +95,11 @@ func init() {
 	addCmd.Flags().String("status", "", "set initial status")
 	addCmd.Flags().String("effort", "", "set effort estimate")
 	addCmd.Flags().String("epic", "", "assign to an epic")
+	addCmd.Flags().String("body", "", "set the matter body")
+	addCmd.Flags().StringSlice("relates", nil, "link as relates to these matter IDs (repeatable)")
+	addCmd.Flags().StringSlice("blocks", nil, "link as blocks these matter IDs (repeatable)")
+	addCmd.Flags().StringSlice("needs", nil, "link as needs these matter IDs (repeatable)")
+	addCmd.Flags().String("parent", "", "set parent matter ID")
+	addCmd.Flags().Bool("docket", false, "add the new matter to the docket")
 	rootCmd.AddCommand(addCmd)
 }
