@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"slices"
 	"testing"
 )
 
@@ -17,10 +18,10 @@ func TestLinkRelates(t *testing.T) {
 	got1, _ := s.GetMatter(m1.ID)
 	got2, _ := s.GetMatter(m2.ID)
 
-	if !containsString(got1.Relates, m2.ID) {
+	if !slices.Contains(got1.Relates, m2.ID) {
 		t.Errorf("m1.Relates = %v, want to contain %s", got1.Relates, m2.ID)
 	}
-	if !containsString(got2.Relates, m1.ID) {
+	if !slices.Contains(got2.Relates, m1.ID) {
 		t.Errorf("m2.Relates = %v, want to contain %s", got2.Relates, m1.ID)
 	}
 }
@@ -38,10 +39,10 @@ func TestLinkBlocks(t *testing.T) {
 	got1, _ := s.GetMatter(m1.ID)
 	got2, _ := s.GetMatter(m2.ID)
 
-	if !containsString(got1.Blocks, m2.ID) {
+	if !slices.Contains(got1.Blocks, m2.ID) {
 		t.Errorf("m1.Blocks = %v, want to contain %s", got1.Blocks, m2.ID)
 	}
-	if !containsString(got2.Needs, m1.ID) {
+	if !slices.Contains(got2.Needs, m1.ID) {
 		t.Errorf("m2.Needs = %v, want to contain %s", got2.Needs, m1.ID)
 	}
 }
@@ -59,10 +60,10 @@ func TestLinkNeeds(t *testing.T) {
 	got1, _ := s.GetMatter(m1.ID)
 	got2, _ := s.GetMatter(m2.ID)
 
-	if !containsString(got1.Needs, m2.ID) {
+	if !slices.Contains(got1.Needs, m2.ID) {
 		t.Errorf("m1.Needs = %v, want to contain %s", got1.Needs, m2.ID)
 	}
-	if !containsString(got2.Blocks, m1.ID) {
+	if !slices.Contains(got2.Blocks, m1.ID) {
 		t.Errorf("m2.Blocks = %v, want to contain %s", got2.Blocks, m1.ID)
 	}
 }

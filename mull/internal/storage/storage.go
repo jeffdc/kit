@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -38,7 +39,7 @@ func (s *Store) Root() string {
 // If there's a collision with existing matters, it retries with incremented timestamps.
 func (s *Store) GenerateID(title string) (string, error) {
 	t := time.Now()
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		ts := t.Add(time.Duration(i) * time.Nanosecond).Format(time.RFC3339Nano)
 		h := sha256.Sum256([]byte(title + ts))
 		id := fmt.Sprintf("%x", h[:2])
@@ -198,6 +199,22 @@ func (s *Store) AppendBody(id string, text string) (*model.Matter, error) {
 	} else {
 		m.Body = m.Body + "\n\n" + text
 	}
+	m.Updated = model.Today()
+
+	if err := s.WriteMatter(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// ReplaceBody replaces a matter's body entirely.
+func (s *Store) ReplaceBody(id string, text string) (*model.Matter, error) {
+	m, err := s.GetMatter(id)
+	if err != nil {
+		return nil, err
+	}
+
+	m.Body = text
 	m.Updated = model.Today()
 
 	if err := s.WriteMatter(m); err != nil {
@@ -450,26 +467,6 @@ var validRelTypes = map[string]bool{
 	"parent":  true,
 }
 
-// containsString checks if a slice contains a string.
-func containsString(slice []string, s string) bool {
-	for _, v := range slice {
-		if v == s {
-			return true
-		}
-	}
-	return false
-}
-
-// removeString returns a new slice with the first occurrence of s removed.
-func removeString(slice []string, s string) []string {
-	for i, v := range slice {
-		if v == s {
-			return append(slice[:i], slice[i+1:]...)
-		}
-	}
-	return slice
-}
-
 // backupMatterFile reads the raw file content for rollback purposes.
 func (s *Store) backupMatterFile(id string) (string, []byte, error) {
 	path, err := s.findMatterFile(id)
@@ -520,29 +517,29 @@ func (s *Store) LinkMatters(id1, relType, id2 string) error {
 
 	switch relType {
 	case "relates":
-		if !containsString(m1.Relates, id2) {
+		if !slices.Contains(m1.Relates, id2) {
 			m1.Relates = append(m1.Relates, id2)
 			needWriteM1 = true
 		}
-		if !containsString(m2.Relates, id1) {
+		if !slices.Contains(m2.Relates, id1) {
 			m2.Relates = append(m2.Relates, id1)
 			needWriteM2 = true
 		}
 	case "blocks":
-		if !containsString(m1.Blocks, id2) {
+		if !slices.Contains(m1.Blocks, id2) {
 			m1.Blocks = append(m1.Blocks, id2)
 			needWriteM1 = true
 		}
-		if !containsString(m2.Needs, id1) {
+		if !slices.Contains(m2.Needs, id1) {
 			m2.Needs = append(m2.Needs, id1)
 			needWriteM2 = true
 		}
 	case "needs":
-		if !containsString(m1.Needs, id2) {
+		if !slices.Contains(m1.Needs, id2) {
 			m1.Needs = append(m1.Needs, id2)
 			needWriteM1 = true
 		}
-		if !containsString(m2.Blocks, id1) {
+		if !slices.Contains(m2.Blocks, id1) {
 			m2.Blocks = append(m2.Blocks, id1)
 			needWriteM2 = true
 		}
@@ -608,30 +605,30 @@ func (s *Store) UnlinkMatters(id1, relType, id2 string) error {
 
 	switch relType {
 	case "relates":
-		if containsString(m1.Relates, id2) {
-			m1.Relates = removeString(m1.Relates, id2)
+		if slices.Contains(m1.Relates, id2) {
+			m1.Relates = slices.DeleteFunc(m1.Relates, func(s string) bool { return s == id2 })
 			needWriteM1 = true
 		}
-		if containsString(m2.Relates, id1) {
-			m2.Relates = removeString(m2.Relates, id1)
+		if slices.Contains(m2.Relates, id1) {
+			m2.Relates = slices.DeleteFunc(m2.Relates, func(s string) bool { return s == id1 })
 			needWriteM2 = true
 		}
 	case "blocks":
-		if containsString(m1.Blocks, id2) {
-			m1.Blocks = removeString(m1.Blocks, id2)
+		if slices.Contains(m1.Blocks, id2) {
+			m1.Blocks = slices.DeleteFunc(m1.Blocks, func(s string) bool { return s == id2 })
 			needWriteM1 = true
 		}
-		if containsString(m2.Needs, id1) {
-			m2.Needs = removeString(m2.Needs, id1)
+		if slices.Contains(m2.Needs, id1) {
+			m2.Needs = slices.DeleteFunc(m2.Needs, func(s string) bool { return s == id1 })
 			needWriteM2 = true
 		}
 	case "needs":
-		if containsString(m1.Needs, id2) {
-			m1.Needs = removeString(m1.Needs, id2)
+		if slices.Contains(m1.Needs, id2) {
+			m1.Needs = slices.DeleteFunc(m1.Needs, func(s string) bool { return s == id2 })
 			needWriteM1 = true
 		}
-		if containsString(m2.Blocks, id1) {
-			m2.Blocks = removeString(m2.Blocks, id1)
+		if slices.Contains(m2.Blocks, id1) {
+			m2.Blocks = slices.DeleteFunc(m2.Blocks, func(s string) bool { return s == id1 })
 			needWriteM2 = true
 		}
 	}
@@ -676,16 +673,16 @@ func (s *Store) RemoveAllReferences(id string) error {
 	for _, m := range all {
 		changed := false
 
-		if containsString(m.Relates, id) {
-			m.Relates = removeString(m.Relates, id)
+		if slices.Contains(m.Relates, id) {
+			m.Relates = slices.DeleteFunc(m.Relates, func(s string) bool { return s == id })
 			changed = true
 		}
-		if containsString(m.Blocks, id) {
-			m.Blocks = removeString(m.Blocks, id)
+		if slices.Contains(m.Blocks, id) {
+			m.Blocks = slices.DeleteFunc(m.Blocks, func(s string) bool { return s == id })
 			changed = true
 		}
-		if containsString(m.Needs, id) {
-			m.Needs = removeString(m.Needs, id)
+		if slices.Contains(m.Needs, id) {
+			m.Needs = slices.DeleteFunc(m.Needs, func(s string) bool { return s == id })
 			changed = true
 		}
 		if m.Parent == id {
@@ -720,14 +717,7 @@ func matchesFilters(m *model.Matter, filters map[string]string) bool {
 				return false
 			}
 		case "tag":
-			found := false
-			for _, t := range m.Tags {
-				if t == v {
-					found = true
-					break
-				}
-			}
-			if !found {
+			if !slices.Contains(m.Tags, v) {
 				return false
 			}
 		case "effort":
