@@ -515,28 +515,71 @@ func placeOverlay(x, y int, fg, bg string) string {
 	bgLines := strings.Split(bg, "\n")
 	fgLines := strings.Split(fg, "\n")
 
+	// Dim background: strip existing ANSI codes first so dim applies uniformly
 	for i := range bgLines {
-		bgLines[i] = dimOverlay.Render(bgLines[i])
+		bgLines[i] = dimOverlay.Render(stripANSI(bgLines[i]))
 	}
 
 	for i, fgLine := range fgLines {
 		bgIdx := y + i
 		if bgIdx >= 0 && bgIdx < len(bgLines) {
 			line := bgLines[bgIdx]
-			// Simple overlay: pad line if needed, splice in fg
-			for len([]rune(line)) < x {
-				line += " "
+			visW := lipgloss.Width(line)
+			if visW < x {
+				line += strings.Repeat(" ", x-visW)
 			}
-			runes := []rune(line)
-			if x < len(runes) {
-				bgLines[bgIdx] = string(runes[:x]) + fgLine
-			} else {
-				bgLines[bgIdx] = line + fgLine
-			}
+			bgLines[bgIdx] = truncateVisual(line, x) + fgLine
 		}
 	}
 
 	return strings.Join(bgLines, "\n")
+}
+
+// stripANSI removes ANSI escape sequences from a string.
+func stripANSI(s string) string {
+	var result []rune
+	inEscape := false
+	for _, r := range s {
+		if r == '\x1b' {
+			inEscape = true
+			continue
+		}
+		if inEscape {
+			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+				inEscape = false
+			}
+			continue
+		}
+		result = append(result, r)
+	}
+	return string(result)
+}
+
+// truncateVisual truncates a string to n visible characters, preserving ANSI sequences.
+func truncateVisual(s string, n int) string {
+	var result []rune
+	visWidth := 0
+	inEscape := false
+	for _, r := range s {
+		if r == '\x1b' {
+			inEscape = true
+			result = append(result, r)
+			continue
+		}
+		if inEscape {
+			result = append(result, r)
+			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+				inEscape = false
+			}
+			continue
+		}
+		if visWidth >= n {
+			break
+		}
+		result = append(result, r)
+		visWidth++
+	}
+	return string(result)
 }
 
 func generatePrompt(m *model.Matter) string {
