@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -38,7 +39,7 @@ var addCmd = &cobra.Command{
 		if body, _ := cmd.Flags().GetString("body"); body != "" {
 			m, err = store.AppendBody(m.ID, body)
 			if err != nil {
-				return err
+				return fmt.Errorf("matter %s created but body failed: %w", m.ID, err)
 			}
 		}
 
@@ -46,28 +47,28 @@ var addCmd = &cobra.Command{
 		relatesIDs, _ := cmd.Flags().GetStringSlice("relates")
 		for _, targetID := range relatesIDs {
 			if err := store.LinkMatters(m.ID, "relates", targetID); err != nil {
-				return err
+				return fmt.Errorf("matter %s created but link failed: %w", m.ID, err)
 			}
 		}
 
 		blocksIDs, _ := cmd.Flags().GetStringSlice("blocks")
 		for _, targetID := range blocksIDs {
 			if err := store.LinkMatters(m.ID, "blocks", targetID); err != nil {
-				return err
+				return fmt.Errorf("matter %s created but link failed: %w", m.ID, err)
 			}
 		}
 
 		needsIDs, _ := cmd.Flags().GetStringSlice("needs")
 		for _, targetID := range needsIDs {
 			if err := store.LinkMatters(m.ID, "needs", targetID); err != nil {
-				return err
+				return fmt.Errorf("matter %s created but link failed: %w", m.ID, err)
 			}
 		}
 
 		parentID, _ := cmd.Flags().GetString("parent")
 		if parentID != "" {
 			if err := store.LinkMatters(m.ID, "parent", parentID); err != nil {
-				return err
+				return fmt.Errorf("matter %s created but link failed: %w", m.ID, err)
 			}
 		}
 
@@ -82,7 +83,7 @@ var addCmd = &cobra.Command{
 		// Docket
 		if docket, _ := cmd.Flags().GetBool("docket"); docket {
 			if err := store.DocketAdd(m.ID, "", ""); err != nil {
-				return err
+				return fmt.Errorf("matter %s created but docket add failed: %w", m.ID, err)
 			}
 		}
 
