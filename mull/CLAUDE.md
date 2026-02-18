@@ -7,6 +7,7 @@ This file provides guidance to Claude Code when working with code in this reposi
 ```bash
 make all           # fmt, vet, test, build (default)
 make build         # Build binary (outputs ./mull)
+make build-tui     # Build TUI binary (outputs ./mull-tui)
 make install       # Install to GOBIN
 make test          # Run all tests (go test -v ./...)
 make fmt           # Format code (gofmt -s -w)
@@ -24,8 +25,10 @@ Data is stored in `.mull/` at the repo root, version controlled alongside the pr
 ### Package Structure
 
 - `cmd/` - CLI commands using Cobra framework
+- `cmd/mull-tui/` - Bubble Tea TUI entry point
 - `internal/model/` - Data structures (Matter, Docket)
 - `internal/storage/` - File-based persistence layer (.mull/ directory)
+- `internal/tui/` - Bubble Tea TUI (matters list, docket, detail, file watcher)
 
 ### Key Patterns
 
