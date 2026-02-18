@@ -515,6 +515,12 @@ func placeOverlay(x, y int, fg, bg string) string {
 	bgLines := strings.Split(bg, "\n")
 	fgLines := strings.Split(fg, "\n")
 
+	// Pad background to fill the overlay area
+	needed := y + len(fgLines)
+	for len(bgLines) < needed {
+		bgLines = append(bgLines, "")
+	}
+
 	// Dim background: strip existing ANSI codes first so dim applies uniformly
 	for i := range bgLines {
 		bgLines[i] = dimOverlay.Render(stripANSI(bgLines[i]))
