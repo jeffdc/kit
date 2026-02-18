@@ -29,7 +29,7 @@ func watchFiles(mullDir string) tea.Cmd {
 				if timer != nil {
 					timer.Stop()
 				}
-				timer = time.AfterFunc(100*time.Millisecond, func() {})
+				timer = time.NewTimer(100 * time.Millisecond)
 				<-timer.C
 				return dataReloadMsg{}
 			case _, ok := <-watcher.Errors:
