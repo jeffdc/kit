@@ -1,6 +1,7 @@
-.PHONY: all build install test fmt lint vet clean help
+.PHONY: all build build-tui install test fmt lint vet clean help
 
 BINARY_NAME := mull
+TUI_BINARY := mull-tui
 GOBIN := $(shell go env GOBIN)
 ifeq ($(GOBIN),)
 	GOBIN := $(shell go env GOPATH)/bin
@@ -11,9 +12,13 @@ all: fmt vet test build
 build:
 	go build -o $(BINARY_NAME) .
 
+build-tui:
+	go build -o $(TUI_BINARY) ./cmd/mull-tui
+
 install:
 	go install .
-	@echo "Installed to $(GOBIN)/$(BINARY_NAME)"
+	go install ./cmd/mull-tui
+	@echo "Installed $(BINARY_NAME) and $(TUI_BINARY) to $(GOBIN)"
 	@echo "Make sure $(GOBIN) is in your PATH"
 
 test:
@@ -41,13 +46,14 @@ vet:
 	go vet ./...
 
 clean:
-	rm -f $(BINARY_NAME)
+	rm -f $(BINARY_NAME) $(TUI_BINARY)
 	rm -f coverage.out coverage.html
 
 help:
 	@echo "Available targets:"
 	@echo "  all           - fmt, vet, test, build (default)"
 	@echo "  build         - Build the binary"
+	@echo "  build-tui     - Build the TUI binary"
 	@echo "  install       - Install to $(GOBIN)"
 	@echo "  test          - Run tests"
 	@echo "  test-coverage - Run tests with coverage report"
