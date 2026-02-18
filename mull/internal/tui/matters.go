@@ -68,26 +68,30 @@ func renderMatters(a *App) string {
 			title = title[:titleW-1] + "…"
 		}
 
-		prefix := "  "
-		if a.docketSet[m.ID] {
-			prefix = docketMarker.Render("●") + " "
+		onDocket := a.docketSet[m.ID]
+		marker := " "
+		if onDocket {
+			marker = "●"
 		}
 
-		row := fmt.Sprintf("%s%-*s %-*s %-*s %-*s %-*s",
-			prefix,
-			idW, m.ID,
-			titleW, title,
-			statusW, m.Status,
-			epicW, truncate(m.Epic, epicW),
-			effortW, m.Effort,
-		)
-
 		if i == a.cursor {
+			row := fmt.Sprintf(" %s %-*s %-*s %-*s %-*s %-*s",
+				marker,
+				idW, m.ID,
+				titleW, title,
+				statusW, m.Status,
+				epicW, truncate(m.Epic, epicW),
+				effortW, m.Effort,
+			)
 			b.WriteString(selectedRow.Width(a.width).Render(row))
 		} else {
+			styledMarker := marker
+			if onDocket {
+				styledMarker = docketMarker.Render(marker)
+			}
 			styledStatus := statusStyle(m.Status).Render(fmt.Sprintf("%-*s", statusW, m.Status))
-			row = fmt.Sprintf("%s%-*s %-*s %s %-*s %-*s",
-				prefix,
+			row := fmt.Sprintf(" %s %-*s %-*s %s %-*s %-*s",
+				styledMarker,
 				idW, m.ID,
 				titleW, title,
 				styledStatus,
