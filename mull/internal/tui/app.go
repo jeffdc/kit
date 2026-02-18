@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"fmt"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -290,6 +292,27 @@ func (a App) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case matchKey(msg, a.keys.Refresh):
 		return a, a.loadDataCmd()
 
+	case matchKey(msg, a.keys.Prompt):
+		m := a.currentMatter()
+		if m != nil {
+			prompt := generatePrompt(m)
+			if err := copyToClipboard(prompt); err == nil {
+				cmd := a.setFlash("Copied to clipboard")
+				return a, cmd
+			} else {
+				cmd := a.setFlash("Clipboard error: " + err.Error())
+				return a, cmd
+			}
+		}
+		return a, nil
+
+	case matchKey(msg, a.keys.Docket):
+		m := a.currentMatter()
+		if m != nil {
+			return a.toggleDocket(m)
+		}
+		return a, nil
+
 	case matchKey(msg, a.keys.Search):
 		if a.view == viewMatters {
 			a.searching = true
@@ -514,4 +537,36 @@ func placeOverlay(x, y int, fg, bg string) string {
 	}
 
 	return strings.Join(bgLines, "\n")
+}
+
+func generatePrompt(m *model.Matter) string {
+	switch m.Status {
+	case "raw":
+		return fmt.Sprintf("Explore matter %s (%s) with the user", m.ID, m.Title)
+	case "refined":
+		return fmt.Sprintf("Help plan matter %s (%s)", m.ID, m.Title)
+	case "planned":
+		return fmt.Sprintf("Implement matter %s (%s)", m.ID, m.Title)
+	case "done":
+		return fmt.Sprintf("Review matter %s (%s)", m.ID, m.Title)
+	case "dropped":
+		return fmt.Sprintf("Revisit matter %s (%s)", m.ID, m.Title)
+	default:
+		return fmt.Sprintf("Work on matter %s (%s)", m.ID, m.Title)
+	}
+}
+
+func copyToClipboard(text string) error {
+	cmd := exec.Command("pbcopy")
+	cmd.Stdin = strings.NewReader(text)
+	return cmd.Run()
+}
+
+func (a App) toggleDocket(m *model.Matter) (tea.Model, tea.Cmd) {
+	if a.docketSet[m.ID] {
+		_ = a.store.DocketRemove(m.ID)
+		return a, tea.Batch(a.setFlash("Removed from docket"), a.loadDataCmd())
+	}
+	_ = a.store.DocketAdd(m.ID, "", "")
+	return a, tea.Batch(a.setFlash("Added to docket"), a.loadDataCmd())
 }
