@@ -34,20 +34,22 @@ func renderDocket(a *App) string {
 	idW := 6
 	statusW := 9
 	epicW := 14
+	effortW := 8
 	noteW := 16
-	padding := numW + idW + statusW + epicW + noteW + 10
+	padding := numW + idW + statusW + epicW + effortW + noteW + 12
 	titleW := a.width - padding
 	if titleW < 10 {
 		titleW = 10
 	}
 
 	// Header
-	hdr := fmt.Sprintf("  %-*s %-*s %-*s %-*s %-*s %s",
+	hdr := fmt.Sprintf("  %-*s %-*s %-*s %-*s %-*s %-*s %s",
 		numW, "#",
 		idW, "ID",
 		titleW, "Title",
 		statusW, "Status",
 		epicW, "Epic",
+		effortW, "Effort",
 		"Note",
 	)
 	b.WriteString(headerStyle.Render(hdr))
@@ -72,12 +74,13 @@ func renderDocket(a *App) string {
 		}
 		note := truncate(noteMap[m.ID], noteW)
 
-		row := fmt.Sprintf("  %-*d %-*s %-*s %-*s %-*s %s",
+		row := fmt.Sprintf("  %-*d %-*s %-*s %-*s %-*s %-*s %s",
 			numW, i+1,
 			idW, m.ID,
 			titleW, title,
 			statusW, m.Status,
 			epicW, truncate(m.Epic, epicW),
+			effortW, m.Effort,
 			note,
 		)
 
@@ -85,12 +88,13 @@ func renderDocket(a *App) string {
 			b.WriteString(selectedRow.Width(a.width).Render(row))
 		} else {
 			styledStatus := statusStyle(m.Status).Render(fmt.Sprintf("%-*s", statusW, m.Status))
-			row = fmt.Sprintf("  %-*d %-*s %-*s %s %-*s %s",
+			row = fmt.Sprintf("  %-*d %-*s %-*s %s %-*s %-*s %s",
 				numW, i+1,
 				idW, m.ID,
 				titleW, title,
 				styledStatus,
 				epicW, truncate(m.Epic, epicW),
+				effortW, m.Effort,
 				note,
 			)
 			b.WriteString(row)
