@@ -18,11 +18,13 @@ Conversational wrapper around the `mull` CLI for capturing and refining matters.
 `mull show <id>` and `mull graph <id>` to load context. Follow user's lead:
 - `mull append <id> "<text>"` for details
 - `mull set <id> <key> <value>` for metadata
-- `mull link <id> <type> <id>` for relationships
+- `mull link <id> <type> <id> [id...]` for relationships (supports multiple targets)
 
 ## Creating a New Matter
 
 1. `mull add "<title>" --status raw --epic <name>` (epic is optional)
+   - `add` also accepts: `--body "<text>"`, `--relates <id>`, `--blocks <id>`, `--needs <id>`, `--parent <id>`, `--docket`
+   - Link flags are repeatable. Use them to collapse add + append + link + docket into one call.
 2. One question at a time, `mull append` as details emerge
 3. Check `mull prime` for relationships to existing matters
 

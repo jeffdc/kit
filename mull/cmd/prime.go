@@ -107,10 +107,11 @@ func outputContext(out primeOutput) error {
 
 - ` + "`mull show <id>`" + ` + ` + "`mull graph <id>`" + ` to load full context
 - ` + "`mull add \"<title>\" --status raw --epic <name>`" + ` to capture new ideas
+- ` + "`mull add`" + ` also accepts ` + "`--body \"<text>\" --relates <id> --blocks <id> --needs <id> --parent <id> --docket`" + `
 - ` + "`mull append <id> \"<text>\"`" + ` for details as they emerge
 - ` + "`mull set <id> [id...] <key> <value>`" + ` for metadata (supports multiple IDs for batch updates)
 - ` + "`mull set <id> docs <path>[,<path>]`" + ` to associate plan/design docs
-- ` + "`mull link <id> <type> <id>`" + ` for relationships (relates, blocks, needs, parent)
+- ` + "`mull link <id> <type> <id> [id...]`" + ` for relationships (relates, blocks, needs, parent)
 - ` + "`mull plan <id>`" + ` to mark a matter as planned
 - ` + "`mull done <id>`" + ` to close a matter (sets done + removes from docket)
 - ` + "`mull show <id> --md`" + ` to see raw markdown instead of JSON

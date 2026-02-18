@@ -30,21 +30,23 @@ This puts the `mull` binary in your `$GOBIN` (usually `~/go/bin`).
 ## Quick start
 
 ```bash
-# Capture an idea
-mull add "Add RSS feed" --tag content --effort small --epic v2-launch
+# Capture an idea with body, links, and docket in one shot
+mull add "Add RSS feed" --tag content --effort small --epic v2-launch \
+  --body "Should support Atom format. Auto-generate from post metadata." \
+  --needs c7d1 --docket
 
 # See what you've got
 mull list
 
-# Flesh it out
-mull append ab3f "Should support Atom format. Auto-generate from post metadata."
-mull set ab3f status refined
+# Or build up incrementally
+mull add "Dark mode" --status raw
+mull append c7d1 "Support both system preference and manual toggle."
+mull set c7d1 status refined
 
-# Link related work
-mull link ab3f needs c7d1
+# Link multiple targets at once
+mull link ab3f relates c7d1 e2f9
 
 # Prioritize
-mull docket add ab3f
 mull docket add c7d1 --after ab3f
 
 # What should I work on?
@@ -90,13 +92,13 @@ Run `mull onboard` to see both options with details.
 
 | Command | What it does |
 |---------|-------------|
-| `mull add "<title>"` | Create a matter (`--tag`, `--status`, `--effort`, `--epic`) |
+| `mull add "<title>"` | Create a matter (`--tag`, `--status`, `--effort`, `--epic`, `--body`, `--relates`, `--blocks`, `--needs`, `--parent`, `--docket`) |
 | `mull show <id>` | View a matter with full body |
 | `mull list` | List active matters (`--status`, `--tag`, `--effort`, `--epic`, `--all`) |
 | `mull search <query>` | Full-text search across titles and bodies |
 | `mull set <id> <key> <value>` | Update metadata |
 | `mull append <id> "<text>"` | Add to the body |
-| `mull link <id> <type> <id>` | Add relationship (relates, blocks, needs, parent) |
+| `mull link <id> <type> <id> [id...]` | Add relationship (relates, blocks, needs, parent; multiple targets) |
 | `mull unlink <id> <type> <id>` | Remove relationship |
 | `mull done <id>` | Mark as done (removes from docket) |
 | `mull drop <id>` | Mark as dropped (removes from docket) |
