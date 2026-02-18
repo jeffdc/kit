@@ -59,7 +59,7 @@ var listCmd = &cobra.Command{
 		if matters == nil {
 			return json.NewEncoder(os.Stdout).Encode([]any{})
 		}
-		return json.NewEncoder(os.Stdout).Encode(matters)
+		return json.NewEncoder(os.Stdout).Encode(stripBodies(matters))
 	},
 }
 

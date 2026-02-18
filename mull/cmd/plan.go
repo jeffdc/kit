@@ -16,7 +16,7 @@ var planCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		return json.NewEncoder(os.Stdout).Encode(m)
+		return json.NewEncoder(os.Stdout).Encode(confirm(m))
 	},
 }
 

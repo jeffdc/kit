@@ -23,7 +23,7 @@ var setCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			return json.NewEncoder(os.Stdout).Encode(m)
+			return json.NewEncoder(os.Stdout).Encode(confirm(m))
 		}
 
 		// Batch mode: collect results and errors.
@@ -39,7 +39,7 @@ var setCmd = &cobra.Command{
 				results = append(results, result{ID: id, Error: err.Error()})
 				errs = append(errs, fmt.Sprintf("%s: %s", id, err.Error()))
 			} else {
-				results = append(results, m)
+				results = append(results, confirm(m))
 			}
 		}
 		if err := json.NewEncoder(os.Stdout).Encode(results); err != nil {

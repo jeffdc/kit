@@ -19,7 +19,7 @@ var searchCmd = &cobra.Command{
 		if results == nil {
 			return json.NewEncoder(os.Stdout).Encode([]any{})
 		}
-		return json.NewEncoder(os.Stdout).Encode(results)
+		return json.NewEncoder(os.Stdout).Encode(stripBodies(results))
 	},
 }
 

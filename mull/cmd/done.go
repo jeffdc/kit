@@ -18,7 +18,7 @@ var doneCmd = &cobra.Command{
 			return err
 		}
 		_ = store.DocketRemove(id) // ignore error if not in docket
-		return json.NewEncoder(os.Stdout).Encode(m)
+		return json.NewEncoder(os.Stdout).Encode(confirm(m))
 	},
 }
 

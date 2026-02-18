@@ -87,7 +87,7 @@ var addCmd = &cobra.Command{
 			}
 		}
 
-		return json.NewEncoder(os.Stdout).Encode(m)
+		return json.NewEncoder(os.Stdout).Encode(confirm(m))
 	},
 }
 

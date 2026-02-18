@@ -6,6 +6,8 @@ import (
 	"io"
 	"os"
 
+	"mull/internal/model"
+
 	"github.com/spf13/cobra"
 )
 
@@ -41,7 +43,7 @@ Use --replace to overwrite the body instead of appending.`,
 			text = string(data)
 		}
 
-		var m any
+		var m *model.Matter
 		var err error
 		if replaceBody {
 			m, err = store.ReplaceBody(id, text)
@@ -51,7 +53,8 @@ Use --replace to overwrite the body instead of appending.`,
 		if err != nil {
 			return err
 		}
-		return json.NewEncoder(os.Stdout).Encode(m)
+
+		return json.NewEncoder(os.Stdout).Encode(confirmAppend(m))
 	},
 }
 
