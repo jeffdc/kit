@@ -257,6 +257,15 @@ func (a App) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case matchKey(msg, a.keys.Quit):
 		return a, tea.Quit
 
+	case matchKey(msg, a.keys.Esc):
+		if a.searchQuery != "" {
+			a.searchQuery = ""
+			a.searchInput.SetValue("")
+			a.cursor = 0
+			return a, nil
+		}
+		return a, nil
+
 	case matchKey(msg, a.keys.Help):
 		a.showHelp = true
 		return a, nil
