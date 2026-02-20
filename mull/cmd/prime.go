@@ -125,7 +125,7 @@ func outputContext(out primeOutput) error {
 
 ## Statuses and Fields
 
-Valid statuses: raw, refined, planned, done, dropped. No others accepted.
+Valid statuses: raw, refined, planned, active, done, dropped. No others accepted.
 Run ` + "`mull schema`" + ` for all valid fields, types, and relationship types.
 
 ## Closing vs Deleting

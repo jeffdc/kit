@@ -31,10 +31,10 @@ var schemaCmd = &cobra.Command{
 		}
 
 		out := schemaOutput{
-			Statuses: []string{"raw", "refined", "planned", "done", "dropped"},
+			Statuses: []string{"raw", "refined", "planned", "active", "done", "dropped"},
 			Fields: map[string]fieldSchema{
 				"title":  {Required: true, Type: "string"},
-				"status": {Required: true, Type: "enum", Values: []string{"raw", "refined", "planned", "done", "dropped"}},
+				"status": {Required: true, Type: "enum", Values: []string{"raw", "refined", "planned", "active", "done", "dropped"}},
 				"tags":   {Required: false, Type: "string[]"},
 				"effort": {Required: false, Type: "string"},
 				"epic":   {Required: false, Type: "string"},

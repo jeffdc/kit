@@ -313,6 +313,13 @@ func (a App) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return a, nil
 
+	case matchKey(msg, a.keys.SetStatus):
+		m := a.currentMatter()
+		if m != nil {
+			return a.cycleAndSetStatus(m)
+		}
+		return a, nil
+
 	case matchKey(msg, a.keys.Search):
 		if a.view == viewMatters {
 			a.searching = true
@@ -349,7 +356,7 @@ func (a App) updateFilter(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
-var statusCycle = []string{"raw", "refined", "planned", "done", "dropped"}
+var statusCycle = []string{"raw", "refined", "planned", "active", "done", "dropped"}
 
 func (a *App) cycleStatus() {
 	if a.filter != filterStatus {
@@ -488,8 +495,8 @@ func renderHelpOverlay(a *App, bg string) string {
 ─────────           ─────────           ───────
 j/↓  down           o  open only        p  copy prompt
 k/↑  up             c  closed only      d  toggle docket
-enter  detail       a  all              r  refresh
-esc    back         s  cycle status
+enter  detail       a  all              S  set status
+esc    back         s  cycle status     r  refresh
 1  matters          e  cycle epic
 2  docket           /  search
 
@@ -596,6 +603,8 @@ func generatePrompt(m *model.Matter) string {
 		return fmt.Sprintf("Help plan matter %s (%s)", m.ID, m.Title)
 	case "planned":
 		return fmt.Sprintf("Implement matter %s (%s)", m.ID, m.Title)
+	case "active":
+		return fmt.Sprintf("Continue working on matter %s (%s)", m.ID, m.Title)
 	case "done":
 		return fmt.Sprintf("Review matter %s (%s)", m.ID, m.Title)
 	case "dropped":
@@ -609,6 +618,27 @@ func copyToClipboard(text string) error {
 	cmd := exec.Command("pbcopy")
 	cmd.Stdin = strings.NewReader(text)
 	return cmd.Run()
+}
+
+// statusProgression is the forward-only status advancement order.
+var statusProgression = []string{"raw", "refined", "planned", "active"}
+
+func (a App) cycleAndSetStatus(m *model.Matter) (tea.Model, tea.Cmd) {
+	// Find current position in progression
+	for i, s := range statusProgression {
+		if s == m.Status {
+			if i+1 < len(statusProgression) {
+				next := statusProgression[i+1]
+				if _, err := a.store.UpdateMatter(m.ID, "status", next); err != nil {
+					return a, a.setFlash("Error: " + err.Error())
+				}
+				return a, tea.Batch(a.setFlash(m.ID+" → "+next), a.loadDataCmd())
+			}
+			return a, a.setFlash("Already at end of cycle")
+		}
+	}
+	// Terminal or unknown status
+	return a, a.setFlash("Can't advance from " + m.Status)
 }
 
 func (a App) toggleDocket(m *model.Matter) (tea.Model, tea.Cmd) {

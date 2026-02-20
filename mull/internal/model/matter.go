@@ -47,6 +47,7 @@ var ValidStatuses = map[string]bool{
 	"raw":     true,
 	"refined": true,
 	"planned": true,
+	"active":  true,
 	"done":    true,
 	"dropped": true,
 }
@@ -59,7 +60,7 @@ func (m *Matter) IsTerminal() bool {
 // ValidateStatus returns an error if the status is not recognized.
 func ValidateStatus(status string) error {
 	if !ValidStatuses[status] {
-		valid := []string{"raw", "refined", "planned", "done", "dropped"}
+		valid := []string{"raw", "refined", "planned", "active", "done", "dropped"}
 		return fmt.Errorf("invalid status %q, must be one of: %v", status, valid)
 	}
 	return nil
