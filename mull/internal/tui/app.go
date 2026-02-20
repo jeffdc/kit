@@ -620,21 +620,17 @@ func copyToClipboard(text string) error {
 	return cmd.Run()
 }
 
-// statusProgression is the forward-only status advancement order.
+// statusProgression is the looping status cycle for the S key.
 var statusProgression = []string{"raw", "refined", "planned", "active"}
 
 func (a App) cycleAndSetStatus(m *model.Matter) (tea.Model, tea.Cmd) {
-	// Find current position in progression
 	for i, s := range statusProgression {
 		if s == m.Status {
-			if i+1 < len(statusProgression) {
-				next := statusProgression[i+1]
-				if _, err := a.store.UpdateMatter(m.ID, "status", next); err != nil {
-					return a, a.setFlash("Error: " + err.Error())
-				}
-				return a, tea.Batch(a.setFlash(m.ID+" → "+next), a.loadDataCmd())
+			next := statusProgression[(i+1)%len(statusProgression)]
+			if _, err := a.store.UpdateMatter(m.ID, "status", next); err != nil {
+				return a, a.setFlash("Error: " + err.Error())
 			}
-			return a, a.setFlash("Already at end of cycle")
+			return a, tea.Batch(a.setFlash(m.ID+" → "+next), a.loadDataCmd())
 		}
 	}
 	// Terminal or unknown status
