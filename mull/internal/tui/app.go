@@ -329,6 +329,20 @@ func (a App) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return a, nil
 
+	case matchKey(msg, a.keys.Done):
+		m := a.currentMatter()
+		if m != nil {
+			return a.setTerminalStatus(m, "done")
+		}
+		return a, nil
+
+	case matchKey(msg, a.keys.Drop):
+		m := a.currentMatter()
+		if m != nil {
+			return a.setTerminalStatus(m, "dropped")
+		}
+		return a, nil
+
 	case matchKey(msg, a.keys.Search):
 		if a.view == viewMatters {
 			a.searching = true
@@ -505,9 +519,9 @@ func renderHelpOverlay(a *App, bg string) string {
 j/↓  down           o  open only        p  copy prompt
 k/↑  up             c  closed only      d  toggle docket
 enter  detail       a  all              S  set status
-esc    back         s  cycle status     r  refresh
-1  matters          e  cycle epic
-2  docket           /  search
+esc    back/clear   s  cycle status     D  mark done
+1  matters          e  cycle epic       X  drop
+2  docket           /  search           r  refresh
 
 Press ? to close`
 
@@ -644,6 +658,14 @@ func (a App) cycleAndSetStatus(m *model.Matter) (tea.Model, tea.Cmd) {
 	}
 	// Terminal or unknown status
 	return a, a.setFlash("Can't advance from " + m.Status)
+}
+
+func (a App) setTerminalStatus(m *model.Matter, status string) (tea.Model, tea.Cmd) {
+	if _, err := a.store.UpdateMatter(m.ID, "status", status); err != nil {
+		return a, a.setFlash("Error: " + err.Error())
+	}
+	_ = a.store.DocketRemove(m.ID)
+	return a, tea.Batch(a.setFlash(m.ID+" → "+status), a.loadDataCmd())
 }
 
 func (a App) toggleDocket(m *model.Matter) (tea.Model, tea.Cmd) {

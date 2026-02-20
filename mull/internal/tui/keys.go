@@ -21,6 +21,8 @@ type keyMap struct {
 	Docket    key.Binding
 	Refresh   key.Binding
 	SetStatus key.Binding
+	Done      key.Binding
+	Drop      key.Binding
 }
 
 func newKeyMap() keyMap {
@@ -43,5 +45,7 @@ func newKeyMap() keyMap {
 		Docket:    key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "toggle docket")),
 		Refresh:   key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh")),
 		SetStatus: key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "set status")),
+		Done:      key.NewBinding(key.WithKeys("D"), key.WithHelp("D", "mark done")),
+		Drop:      key.NewBinding(key.WithKeys("X"), key.WithHelp("X", "drop")),
 	}
 }
