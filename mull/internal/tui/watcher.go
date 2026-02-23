@@ -13,8 +13,12 @@ func watchFiles(mullDir string) tea.Cmd {
 	return func() tea.Msg {
 		watcher, err := fsnotify.NewWatcher()
 		if err != nil {
-			return nil
+			// Can't watch — trigger a one-time reload and retry later
+			time.Sleep(5 * time.Second)
+			return dataReloadMsg{}
 		}
+		defer watcher.Close()
+
 		_ = watcher.Add(mullDir + "/matters")
 		_ = watcher.Add(mullDir)
 
@@ -24,7 +28,8 @@ func watchFiles(mullDir string) tea.Cmd {
 			select {
 			case _, ok := <-watcher.Events:
 				if !ok {
-					return nil
+					// Channel closed — watcher died, trigger reload to restart
+					return dataReloadMsg{}
 				}
 				if timer != nil {
 					timer.Stop()
@@ -34,8 +39,11 @@ func watchFiles(mullDir string) tea.Cmd {
 				return dataReloadMsg{}
 			case _, ok := <-watcher.Errors:
 				if !ok {
-					return nil
+					// Error channel closed — trigger reload to restart watcher
+					return dataReloadMsg{}
 				}
+				// Transient error — trigger reload to restart watcher
+				return dataReloadMsg{}
 			}
 		}
 	}
