@@ -1,34 +1,8 @@
-# Writs
+# Skills
 
-Custom Claude Code skills, forked from [superpowers](https://github.com/anthropics/claude-plugins-official) v4.3.1 and adapted for my workflow.
+Custom Claude Code skills — reference guides that teach Claude proven techniques, patterns, and workflows. Forked from [superpowers](https://github.com/anthropics/claude-plugins-official) v4.3.1 and adapted for my workflow.
 
-## What changed from superpowers
-
-**Core workflow skills (heavy rewrites):**
-- **brainstorming** — Design goes into mull matter instead of `docs/plans/` files. Ceremony scales to scope. No forced chain to writing-plans.
-- **writing-plans** — Plan lives in mull matter. Tasks are meaningful units of work, not 2-5 minute micro-steps. TDD is assumed, not spelled out step-by-step.
-- **executing-plans** — Reads plan from mull matter. No worktree requirement. Finishes with verification and `mull done`, no chain to another skill.
-- **finishing-a-development-branch** — Solo-developer options (merge/PR/keep). No worktree cleanup. No auto-deletion.
-
-**TDD (moderate edits):**
-- **test-driven-development** — Added Elixir/ExUnit examples. Phoenix-specific guidance (context first, LiveView second). Project commands: `mix test`, `go test`.
-
-**Dispatcher:**
-- **using-writs** — Replaces `using-superpowers`. References skills by plain name. No worktree or subagent-driven-development references.
-
-**Light-touch forks (namespace cleanup, removed superpowers cross-refs):**
-- systematic-debugging (+ supporting files)
-- dispatching-parallel-agents
-- verification-before-completion
-- receiving-code-review
-- requesting-code-review
-- writing-skills
-
-**Standalone opt-in:**
-- **using-git-worktrees** — Available when needed, but no skill invokes it automatically.
-
-**Dropped entirely:**
-- subagent-driven-development (executing-plans covers the use case)
+Skills are loaded automatically based on context. When you start debugging, Claude loads the debugging skill; when you finish a feature, it loads the code review skill.
 
 ## Install
 
@@ -36,9 +10,44 @@ Custom Claude Code skills, forked from [superpowers](https://github.com/anthropi
 ./install.sh
 ```
 
-Creates symlinks from `~/.claude/skills/<name>` to the skill directories here. Safe to re-run — skips existing correct symlinks, warns on conflicts.
+This does two things:
 
-Also disable the superpowers plugin in `~/.claude/settings.json` (set `superpowers@claude-plugins-official` to `false`).
+1. **Symlinks each skill** into `~/.claude/skills/` where Claude Code discovers them
+2. **Adds a SessionStart hook** to `~/.claude/settings.json` that injects the `using-writs` bootstrapper into every conversation, so Claude checks for applicable skills automatically
+
+Re-running is safe — skips existing correct symlinks, warns on conflicts.
+
+Also disable the superpowers plugin in `~/.claude/settings.json` (set `superpowers@claude-plugins-official` to `false`) if you haven't already.
+
+### Requirements
+
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
+- `jq` (for hook installation)
+
+## Skills
+
+| Skill | When it fires |
+|-------|--------------|
+| **using-writs** | Every conversation (via SessionStart hook). Bootstraps skill awareness. |
+| **brainstorming** | Before creative work — features, components, design decisions |
+| **writing-plans** | When you have requirements for a multi-step task, before coding |
+| **executing-plans** | When you have a plan to execute |
+| **test-driven-development** | Before writing implementation code for any feature or bugfix |
+| **systematic-debugging** | When hitting a bug, test failure, or unexpected behavior |
+| **requesting-code-review** | After completing features or before merging |
+| **receiving-code-review** | When acting on review feedback |
+| **dispatching-parallel-agents** | When facing 2+ independent tasks |
+| **using-git-worktrees** | When you need isolated workspaces (must be explicitly invoked) |
+| **finishing-a-development-branch** | When implementation is done and you need to integrate |
+| **verification-before-completion** | Before claiming work is complete |
+| **user-profile** | Sets up `~/.claude/user-profile.md` so skills calibrate tone to your experience |
+| **writing-skills** | When creating or editing skills |
+
+## How it works
+
+Skills are Markdown files that Claude Code loads via the `Skill` tool. The `using-writs` skill acts as a bootstrapper — injected at session start via a hook, it tells Claude to check for applicable skills before responding to any message. From there, skills chain naturally: starting a feature triggers brainstorming, which leads to planning, which leads to TDD, which leads to code review.
+
+The `user-profile` skill creates a global profile at `~/.claude/user-profile.md` that other skills cross-reference against the current project's stack. This lets Claude calibrate tone automatically — peer review when you're strong in the stack, teaching mode when you're learning it.
 
 ## Mull integration
 
@@ -48,3 +57,14 @@ The workflow skills (brainstorming, writing-plans, executing-plans) integrate wi
 - Matters are committed to git
 - `mull dock <id>` when moving to implementation
 - `mull done <id>` when work is complete
+
+## Structure
+
+```
+skills/
+  install.sh                          # Symlinks skills + installs hook
+  hooks/session-start.sh              # Injects using-writs at startup
+  <skill-name>/
+    SKILL.md                          # Main skill file (required)
+    supporting-file.*                 # Additional files (optional)
+```
