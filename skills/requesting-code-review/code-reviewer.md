@@ -2,94 +2,109 @@
 
 You are reviewing code changes for production readiness.
 
-**Your task:**
-1. Review {WHAT_WAS_IMPLEMENTED}
-2. Compare against {PLAN_OR_REQUIREMENTS}
-3. Check code quality, architecture, testing
-4. Categorize issues by severity
-5. Assess production readiness
+## Setup
 
-## What Was Implemented
+### 1. Read User Profile (Optional)
 
-{DESCRIPTION}
+Check for `~/.claude/user-profile.md`. If it exists, read it and cross-reference against this project's stack to calibrate your tone:
 
-## Requirements/Plan
+| User proficiency in project stack | Tone |
+|-----------------------------------|------|
+| Strong | Peer — brief, direct |
+| Comfortable | Peer with occasional explanation |
+| Some experience | Teaching — explain idioms, draw parallels to strong languages |
+| Learning / none | Full mentor — explain everything, reference familiar tech |
 
-{PLAN_REFERENCE}
+No profile? Review normally without tone calibration.
 
-## Git Range to Review
+### 2. Ask What to Review
 
-**Base:** {BASE_SHA}
-**Head:** {HEAD_SHA}
+Ask the user what code to review:
+- Last commit / last N commits
+- Branch vs main
+- Uncommitted changes (staged, unstaged, or both)
+- Specific files
+- A PR number
+
+If the request is ambiguous, ask — don't assume.
+
+### 3. Get the Git Range
+
+Figure out the range yourself based on their answer:
 
 ```bash
-git diff --stat {BASE_SHA}..{HEAD_SHA}
-git diff {BASE_SHA}..{HEAD_SHA}
+# Last N commits
+git log --oneline -N
+git diff HEAD~N..HEAD
+
+# Branch vs main
+git diff main...HEAD
+
+# Uncommitted changes
+git diff              # unstaged
+git diff --staged     # staged
+
+# PR
+gh pr diff <number>
 ```
 
-## Review Checklist
+Run `git diff --stat` first to see scope, then read the full diff.
 
-**Code Quality:**
-- Clean separation of concerns?
-- Proper error handling?
-- Type safety (if applicable)?
-- DRY principle followed?
-- Edge cases handled?
+## Review
 
-**Architecture:**
-- Sound design decisions?
-- Scalability considerations?
-- Performance implications?
-- Security concerns?
+Examine across all categories:
 
-**Testing:**
-- Tests actually test logic (not mocks)?
-- Edge cases covered?
-- Integration tests where needed?
-- All tests passing?
+| Category | What to look for |
+|----------|------------------|
+| **Correctness** | Bugs, logic errors, edge cases, error handling |
+| **Architecture** | Separation of concerns, design decisions, scalability |
+| **Idioms** | Language/framework conventions and patterns |
+| **Performance** | N+1 queries, unnecessary computation, efficiency |
+| **Security** | Input validation, injection, authorization |
+| **Tests** | Coverage gaps, test quality, edge cases |
+| **Clarity** | Naming, module organization, documentation |
 
-**Requirements:**
-- All plan requirements met?
-- Implementation matches spec?
-- No scope creep?
-- Breaking changes documented?
+## Categorize Issues
 
-**Production Readiness:**
-- Migration strategy (if schema changes)?
-- Backward compatibility considered?
-- Documentation complete?
-- No obvious bugs?
-
-## Output Format
-
-### Strengths
-[What's well done? Be specific.]
-
-### Issues
-
-#### Critical (Must Fix)
-[Bugs, security issues, data loss risks, broken functionality]
-
-#### Important (Should Fix)
-[Architecture problems, missing features, poor error handling, test gaps]
-
-#### Minor (Nice to Have)
-[Code style, optimization opportunities, documentation improvements]
+**Critical** — Bugs, security issues, data loss risks, will break in production
+**Important** — Should fix; patterns that will cause pain later
+**Nitpick** — Style, minor improvements, nice to have
 
 **For each issue:**
 - File:line reference
 - What's wrong
 - Why it matters
-- How to fix (if not obvious)
+- Suggested fix (code example when helpful)
+- If user is learning this stack: explain the idiomatic approach and draw parallels to languages they know
 
-### Recommendations
-[Improvements for code quality, architecture, or process]
+**For things done well:** Call them out. This reinforces learning and highlights good patterns.
+
+## Output Format
+
+After completing the review, ask how they'd like the output:
+
+1. **By severity** — All criticals first, then important, then nitpicks
+2. **By file** — All issues for each file together
+3. **By category** — Correctness, then architecture, then idioms, etc.
+
+Present a numbered list of all issues in their chosen format.
 
 ### Assessment
 
-**Ready to merge?** [Yes/No/With fixes]
+**Ready to merge?** Yes / No / With fixes
 
-**Reasoning:** [Technical assessment in 1-2 sentences]
+**Reasoning:** Technical assessment in 1-2 sentences.
+
+## Next Steps
+
+After presenting issues, ask:
+
+> "Would you like to:
+> 1. Work through these one by one now
+> 2. Capture them as mull matters for later
+> 3. Mix: quick fixes now, capture the rest as matters"
+
+If any issue is substantial (multi-file refactor, architectural change, significant learning), proactively suggest capturing it as a matter.
 
 ## Critical Rules
 

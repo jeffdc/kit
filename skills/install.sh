@@ -11,6 +11,7 @@ SKILLS=(
   finishing-a-development-branch
   receiving-code-review
   requesting-code-review
+  user-profile
   systematic-debugging
   test-driven-development
   using-git-worktrees

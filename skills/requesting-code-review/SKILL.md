@@ -22,54 +22,16 @@ Dispatch a code-reviewer subagent to catch issues before they cascade.
 
 ## How to Request
 
-**1. Get git SHAs:**
-```bash
-BASE_SHA=$(git rev-parse HEAD~1)  # or origin/main
-HEAD_SHA=$(git rev-parse HEAD)
-```
+Dispatch a code-reviewer subagent using the Task tool with the template at `code-reviewer.md` in this directory. The subagent handles the interactive flow — scope selection, git range, review, and output formatting.
 
-**2. Dispatch code-reviewer subagent:**
+Pass any context you have (what was implemented, requirements) but don't worry about git SHAs — the subagent figures those out.
 
-Use Task tool with the code-reviewer template at `code-reviewer.md` in this directory.
+## Acting on Feedback
 
-**Placeholders:**
-- `{WHAT_WAS_IMPLEMENTED}` — What you just built
-- `{PLAN_OR_REQUIREMENTS}` — What it should do
-- `{BASE_SHA}` — Starting commit
-- `{HEAD_SHA}` — Ending commit
-- `{DESCRIPTION}` — Brief summary
-
-**3. Act on feedback:**
-- Fix Critical issues immediately
-- Fix Important issues before proceeding
-- Note Minor issues for later
+- Fix **Critical** issues immediately
+- Fix **Important** issues before proceeding
+- Note **Nitpick** issues for later
 - Push back if reviewer is wrong (with reasoning)
-
-## Example
-
-```
-[Just completed: Add the purge command]
-
-BASE_SHA=$(git log --oneline -10 | grep "before purge" | head -1 | awk '{print $1}')
-HEAD_SHA=$(git rev-parse HEAD)
-
-[Dispatch code-reviewer subagent]
-  WHAT_WAS_IMPLEMENTED: Purge command for batch-deleting old terminal matters
-  PLAN_OR_REQUIREMENTS: Task 3 from matter #42
-  BASE_SHA: a7981ec
-  HEAD_SHA: 3df7661
-  DESCRIPTION: Added purge subcommand with age filter and dry-run mode
-
-[Subagent returns]:
-  Strengths: Clean tests, good error handling
-  Issues:
-    Important: Missing confirmation prompt for non-dry-run
-    Minor: Could log count of deleted items
-  Assessment: Ready with fixes
-
-[Fix confirmation prompt]
-[Continue]
-```
 
 ## Red Flags
 
@@ -77,7 +39,6 @@ HEAD_SHA=$(git rev-parse HEAD)
 - Skip review because "it's simple"
 - Ignore Critical issues
 - Proceed with unfixed Important issues
-- Argue with valid technical feedback
 
 **If reviewer wrong:**
 - Push back with technical reasoning
