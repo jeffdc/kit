@@ -4,13 +4,13 @@ import (
 	"strings"
 	"time"
 
+	"forage/internal/model"
+	"forage/internal/storage"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"forage/internal/model"
-	"forage/internal/storage"
 )
 
 type viewMode int
@@ -63,9 +63,9 @@ type App struct {
 
 	detailBook *model.Book
 
-	flash  string
-	width  int
-	height int
+	flash    string
+	width    int
+	height   int
 	showHelp bool
 }
 

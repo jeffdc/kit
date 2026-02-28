@@ -1,5 +1,5 @@
 ---
-status: raw
+status: active
 tags: [design, architecture]
 created: 2026-02-28
 updated: 2026-02-28
@@ -409,4 +409,3 @@ This is just a markdown file — no code to test. Model it on mull's skill struc
 Tasks 1 → 2 → 3 must be sequential (each depends on the previous). After task 3, tasks 4-7 can be done in any order (all use the same storage/CLI foundation). Task 8 (TUI) depends on tasks 1-3. Task 9 (skill) can be done anytime.
 
 Recommended order: 1, 2, 3, 4, 5, 6, 7, 8, 9.
-
