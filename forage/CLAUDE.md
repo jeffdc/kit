@@ -26,34 +26,31 @@ Data is stored in `~/.forage/` (global, not project-local). Override with `FORAG
 
 - `cmd/` - CLI commands using Cobra framework
 - `cmd/forage-tui/` - Bubble Tea TUI entry point
-- `internal/model/` - Data structures (Book)
-- `internal/storage/` - File-based persistence layer (~/.forage/ directory)
-- `internal/tui/` - Bubble Tea TUI (book list, detail, file watcher)
+- `internal/model/` - Data structures (Book, Bookseller)
+- `internal/storage/` - SQLite persistence layer (~/.forage/forage.db)
+- `internal/tui/` - Bubble Tea TUI (book list, detail)
 - `internal/export/` - Static HTML export
 
 ### Key Patterns
 
-**Global Store**: Root command initializes a global `store *storage.Store` in `PersistentPreRunE`. All subcommands access this.
+**Global Store**: Root command initializes a global `store *storage.Store` in `PersistentPreRunE`, closed in `PersistentPostRunE`. All subcommands access this.
 
-**Book Files**: Each book is a markdown file with YAML frontmatter stored at `~/.forage/books/<4-char-hash>-<slug>.md`.
+**SQLite Storage**: All data lives in `~/.forage/forage.db` via `modernc.org/sqlite` (pure Go, no CGO). Books table keyed by 4-char hex ID. Tags stored comma-separated.
 
 **JSON Output**: All commands output JSON to stdout. Errors go to stderr as `{"error": "message"}`.
 
-**Auto-Init**: Running any command creates the directory structure automatically.
+**Auto-Init**: Running any command creates the database and tables automatically.
 
 ### Data Layout
 
 ```
 ~/.forage/
-  books/
-    a3f1-the-left-hand-of-darkness.md
-    b7c2-blood-meridian.md
-  config.yml    # optional
+  forage.db    # SQLite database (books, booksellers tables)
 ```
 
 ## Testing
 
-Always use `t.TempDir()` for test isolation. Never operate on real `~/.forage/` directories in tests.
+Always use `t.TempDir()` for test isolation. Never operate on real `~/.forage/` directories in tests. Call `t.Cleanup(func() { s.Close() })` to close the store after each test.
 
 ## Wrap
 
