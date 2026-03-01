@@ -6,6 +6,7 @@ import (
 
 	"forage/internal/model"
 	"forage/internal/storage"
+
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -23,18 +24,20 @@ const (
 type filterMode int
 
 const (
-	filterNonTerminal filterMode = iota // wishlist, reading, read
+	filterNonTerminal filterMode = iota // wishlist, reading, paused, read
 	filterWishlist
 	filterReading
+	filterPaused
 	filterRead
 	filterAll
 )
 
-var filterCycle = []filterMode{filterNonTerminal, filterWishlist, filterReading, filterRead, filterAll}
+var filterCycle = []filterMode{filterNonTerminal, filterWishlist, filterReading, filterPaused, filterRead, filterAll}
 var filterNames = map[filterMode]string{
 	filterNonTerminal: "active",
 	filterWishlist:    "wishlist",
 	filterReading:     "reading",
+	filterPaused:      "paused",
 	filterRead:        "read",
 	filterAll:         "all",
 }
@@ -82,7 +85,7 @@ func NewApp(store *storage.Store) App {
 }
 
 func (a App) Init() tea.Cmd {
-	return tea.Batch(a.loadDataCmd(), watchFiles(a.store.BooksDir()))
+	return a.loadDataCmd()
 }
 
 func (a App) loadDataCmd() tea.Cmd {
@@ -118,6 +121,8 @@ func (a *App) matchesFilter(b model.Book) bool {
 		return b.Status == "wishlist"
 	case filterReading:
 		return b.Status == "reading"
+	case filterPaused:
+		return b.Status == "paused"
 	case filterRead:
 		return b.Status == "read"
 	case filterAll:
@@ -165,9 +170,6 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.books = msg.books
 		a.clampCursor()
 		return a, nil
-
-	case dataReloadMsg:
-		return a, tea.Batch(a.loadDataCmd(), watchFiles(a.store.BooksDir()))
 
 	case clearFlashMsg:
 		a.flash = ""
@@ -303,6 +305,13 @@ func (a App) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return a, nil
 
+	case matchKey(msg, a.keys.Rate):
+		b := a.currentBook()
+		if b != nil {
+			return a.rateBook(b, msg.String())
+		}
+		return a, nil
+
 	case matchKey(msg, a.keys.CycleFilt):
 		a.cycleFilter()
 		return a, nil
@@ -317,6 +326,11 @@ func (a App) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.cursor = 0
 		return a, nil
 
+	case matchKey(msg, a.keys.FilterPa):
+		a.filter = filterPaused
+		a.cursor = 0
+		return a, nil
+
 	case matchKey(msg, a.keys.FilterRd):
 		a.filter = filterRead
 		a.cursor = 0
@@ -325,7 +339,7 @@ func (a App) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
-var statusProgression = []string{"wishlist", "reading", "read"}
+var statusProgression = []string{"wishlist", "reading", "paused", "read"}
 
 func (a App) cycleBookStatus(b *model.Book) (tea.Model, tea.Cmd) {
 	for i, s := range statusProgression {
@@ -354,6 +368,20 @@ func (a App) dropBook(b *model.Book) (tea.Model, tea.Cmd) {
 		return a, a.setFlash("Error: " + err.Error())
 	}
 	return a, tea.Batch(a.setFlash(b.ID+" → dropped"), a.loadDataCmd())
+}
+
+func (a App) rateBook(b *model.Book, digit string) (tea.Model, tea.Cmd) {
+	if _, err := a.store.UpdateBook(b.ID, "rating", digit); err != nil {
+		return a, a.setFlash("Error: " + err.Error())
+	}
+	var flash string
+	if digit == "0" {
+		flash = b.ID + " rating cleared"
+	} else {
+		n := int(digit[0] - '0')
+		flash = b.ID + " " + strings.Repeat("★", n) + strings.Repeat("☆", 5-n)
+	}
+	return a, tea.Batch(a.setFlash(flash), a.loadDataCmd())
 }
 
 func (a *App) cycleFilter() {
@@ -387,11 +415,11 @@ func (a App) View() string {
 func renderHelpOverlay(a *App, bg string) string {
 	help := `Navigation          Filtering           Actions
 ─────────           ─────────           ───────
-j/↓  down           tab  cycle filter   S  cycle status
-k/↑  up             a    all            D  mark read
-enter  detail       w    wishlist       X  drop
-esc    back/clear   d    read           r  refresh
-/  search
+j/↓  down           tab  cycle filter   S    cycle status
+k/↑  up             a    all            D    mark read
+enter  detail       w    wishlist       X    drop
+esc    back/clear   p    paused         0-5  rate
+/  search           d    read           r    refresh
 
 Press ? to close`
 

@@ -23,7 +23,7 @@ func TestGenerateContainsExpectedElements(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := Generate(books, &buf); err != nil {
+	if err := Generate(books, nil, &buf); err != nil {
 		t.Fatalf("Generate() error: %v", err)
 	}
 
@@ -52,13 +52,36 @@ func TestGenerateContainsExpectedElements(t *testing.T) {
 
 func TestGenerateEmptyLibrary(t *testing.T) {
 	var buf bytes.Buffer
-	if err := Generate(nil, &buf); err != nil {
+	if err := Generate(nil, nil, &buf); err != nil {
 		t.Fatalf("Generate() error: %v", err)
 	}
 
 	html := buf.String()
 	if !strings.Contains(html, "<!DOCTYPE html>") {
 		t.Error("empty library should still produce valid HTML")
+	}
+}
+
+func TestGenerateBooksellerLinks(t *testing.T) {
+	books := []model.Book{
+		{ID: "a1b2", Title: "Dune", Author: "Frank Herbert", Status: "wishlist", DateAdded: "2026-02-28"},
+	}
+	sellers := []model.Bookseller{
+		{Name: "TestShop", URL: "https://example.com/search?q={query}"},
+		{Name: "BookPlace", URL: "https://books.example.com/?s={query}"},
+	}
+
+	var buf bytes.Buffer
+	if err := Generate(books, sellers, &buf); err != nil {
+		t.Fatalf("Generate() error: %v", err)
+	}
+
+	html := buf.String()
+
+	for _, want := range []string{"TestShop", "BookPlace", "book-sellers"} {
+		if !strings.Contains(html, want) {
+			t.Errorf("HTML missing expected bookseller content: %q", want)
+		}
 	}
 }
 
@@ -72,7 +95,7 @@ func TestGenerateBookDataEmbedded(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	Generate(books, &buf)
+	Generate(books, nil, &buf)
 	html := buf.String()
 
 	// JSON data should be embedded in a script tag

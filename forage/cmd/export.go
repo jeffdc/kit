@@ -30,13 +30,18 @@ var exportCmd = &cobra.Command{
 			}
 		}
 
+		booksellers, err := store.LoadBooksellers()
+		if err != nil {
+			return err
+		}
+
 		f, err := os.Create(output)
 		if err != nil {
 			return err
 		}
 		defer f.Close()
 
-		if err := export.Generate(included, f); err != nil {
+		if err := export.Generate(included, booksellers, f); err != nil {
 			return err
 		}
 

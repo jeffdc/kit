@@ -21,6 +21,12 @@ var rootCmd = &cobra.Command{
 		store, err = storage.New(storage.DefaultRoot())
 		return err
 	},
+	PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
+		if store != nil {
+			return store.Close()
+		}
+		return nil
+	},
 	SilenceUsage:  true,
 	SilenceErrors: true,
 }

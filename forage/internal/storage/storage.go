@@ -2,32 +2,62 @@ package storage
 
 import (
 	"crypto/sha256"
+	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 
 	"forage/internal/model"
 
-	"gopkg.in/yaml.v3"
+	_ "modernc.org/sqlite"
 )
 
 type Store struct {
-	root     string
-	booksDir string
+	root string
+	db   *sql.DB
 }
 
 func New(root string) (*Store, error) {
-	booksDir := filepath.Join(root, "books")
-	if err := os.MkdirAll(booksDir, 0755); err != nil {
+	if err := os.MkdirAll(root, 0755); err != nil {
 		return nil, err
 	}
-	return &Store{root: root, booksDir: booksDir}, nil
+
+	dbPath := filepath.Join(root, "forage.db")
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("opening database: %w", err)
+	}
+
+	if _, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS books (
+			id         TEXT PRIMARY KEY,
+			title      TEXT NOT NULL,
+			author     TEXT NOT NULL,
+			status     TEXT NOT NULL DEFAULT 'wishlist',
+			tags       TEXT DEFAULT '',
+			rating     INTEGER DEFAULT 0,
+			date_added TEXT NOT NULL,
+			date_read  TEXT DEFAULT '',
+			body       TEXT DEFAULT ''
+		);
+		CREATE TABLE IF NOT EXISTS booksellers (
+			id   INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL,
+			url  TEXT NOT NULL
+		);
+	`); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("creating tables: %w", err)
+	}
+
+	return &Store{root: root, db: db}, nil
+}
+
+func (s *Store) Close() error {
+	return s.db.Close()
 }
 
 func DefaultRoot() string {
@@ -38,23 +68,7 @@ func DefaultRoot() string {
 	return filepath.Join(home, ".forage")
 }
 
-func (s *Store) Root() string     { return s.root }
-func (s *Store) BooksDir() string { return s.booksDir }
-
-// Slugify converts a title to a URL-friendly slug.
-func Slugify(title string) string {
-	str := strings.ToLower(title)
-	str = strings.Map(func(r rune) rune {
-		if unicode.IsLetter(r) || unicode.IsDigit(r) {
-			return r
-		}
-		return '-'
-	}, str)
-	re := regexp.MustCompile(`-+`)
-	str = re.ReplaceAllString(str, "-")
-	str = strings.Trim(str, "-")
-	return str
-}
+func (s *Store) Root() string { return s.root }
 
 func (s *Store) generateID(title, author string) (string, error) {
 	t := time.Now()
@@ -62,7 +76,13 @@ func (s *Store) generateID(title, author string) (string, error) {
 		ts := t.Add(time.Duration(i) * time.Nanosecond).Format(time.RFC3339Nano)
 		h := sha256.Sum256([]byte(title + author + ts))
 		id := fmt.Sprintf("%x", h[:2])
-		if _, err := s.findBookFile(id); err != nil {
+
+		var exists int
+		err := s.db.QueryRow("SELECT COUNT(*) FROM books WHERE id = ?", id).Scan(&exists)
+		if err != nil {
+			return "", err
+		}
+		if exists == 0 {
 			return id, nil
 		}
 	}
@@ -90,67 +110,79 @@ func (s *Store) CreateBook(title, author string, meta map[string]string) (*model
 		}
 	}
 
-	b.Filename = fmt.Sprintf("%s-%s.md", id, Slugify(title))
-
-	if err := s.writeBook(b); err != nil {
-		return nil, err
+	tags := strings.Join(b.Tags, ",")
+	_, err = s.db.Exec(
+		"INSERT INTO books (id, title, author, status, tags, rating, date_added, date_read, body) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		b.ID, b.Title, b.Author, b.Status, tags, b.Rating, b.DateAdded, b.DateRead, b.Body,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("inserting book: %w", err)
 	}
 	return b, nil
 }
 
 func (s *Store) GetBook(id string) (*model.Book, error) {
-	path, err := s.findBookFile(id)
+	b := &model.Book{}
+	var tags string
+	err := s.db.QueryRow(
+		"SELECT id, title, author, status, tags, rating, date_added, date_read, body FROM books WHERE id = ?", id,
+	).Scan(&b.ID, &b.Title, &b.Author, &b.Status, &tags, &b.Rating, &b.DateAdded, &b.DateRead, &b.Body)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("book not found: %s", id)
+	}
 	if err != nil {
 		return nil, err
 	}
-	return s.readBookFile(path)
+	b.Tags = splitTags(tags)
+	return b, nil
 }
 
 func (s *Store) ListBooks(filters map[string]string) ([]model.Book, error) {
-	entries, err := os.ReadDir(s.booksDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
+	query := "SELECT id, title, author, status, tags, rating, date_added, date_read, body FROM books"
+	var conditions []string
+	var args []any
+
+	for k, v := range filters {
+		switch k {
+		case "status":
+			conditions = append(conditions, "status = ?")
+			args = append(args, v)
+		case "tag":
+			conditions = append(conditions, "(tags = ? OR tags LIKE ? OR tags LIKE ? OR tags LIKE ?)")
+			args = append(args, v, v+",%", "%,"+v, "%,"+v+",%")
+		case "author":
+			conditions = append(conditions, "author = ? COLLATE NOCASE")
+			args = append(args, v)
 		}
-		return nil, err
 	}
 
-	var books []model.Book
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
-			continue
-		}
-		b, err := s.readBookFile(filepath.Join(s.booksDir, e.Name()))
-		if err != nil {
-			continue
-		}
-		if matchesFilters(b, filters) {
-			books = append(books, *b)
-		}
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
 	}
-	return books, nil
+
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return scanBooks(rows)
 }
 
 func (s *Store) SearchBooks(query string) ([]model.Book, error) {
-	all, err := s.ListBooks(nil)
+	q := "%" + query + "%"
+	rows, err := s.db.Query(
+		"SELECT id, title, author, status, tags, rating, date_added, date_read, body FROM books WHERE title LIKE ? COLLATE NOCASE OR author LIKE ? COLLATE NOCASE OR body LIKE ? COLLATE NOCASE OR tags LIKE ? COLLATE NOCASE",
+		q, q, q, q,
+	)
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
-	q := strings.ToLower(query)
-	var results []model.Book
-	for _, b := range all {
-		if strings.Contains(strings.ToLower(b.Title), q) ||
-			strings.Contains(strings.ToLower(b.Author), q) ||
-			strings.Contains(strings.ToLower(b.Body), q) ||
-			strings.Contains(strings.ToLower(strings.Join(b.Tags, " ")), q) {
-			results = append(results, b)
-		}
-	}
-	return results, nil
+	return scanBooks(rows)
 }
 
-// validKeys are the fields that can be set via UpdateBook.
 var validKeys = map[string]bool{
 	"title": true, "author": true, "status": true,
 	"rating": true, "tags": true, "date_read": true,
@@ -166,145 +198,108 @@ func (s *Store) UpdateBook(id, key, value string) (*model.Book, error) {
 		return nil, err
 	}
 
-	oldFilename := b.Filename
-
 	if err := applyMeta(b, map[string]string{key: value}); err != nil {
 		return nil, err
 	}
 
-	if key == "title" {
-		newFilename := fmt.Sprintf("%s-%s.md", b.ID, Slugify(b.Title))
-		if newFilename != oldFilename {
-			oldPath := filepath.Join(s.booksDir, oldFilename)
-			b.Filename = newFilename
-			if err := s.writeBook(b); err != nil {
-				return nil, err
-			}
-			os.Remove(oldPath)
-			return b, nil
-		}
+	var column string
+	var dbValue any
+	switch key {
+	case "title":
+		column, dbValue = "title", b.Title
+	case "author":
+		column, dbValue = "author", b.Author
+	case "status":
+		column, dbValue = "status", b.Status
+	case "rating":
+		column, dbValue = "rating", b.Rating
+	case "tags":
+		column, dbValue = "tags", strings.Join(b.Tags, ",")
+	case "date_read":
+		column, dbValue = "date_read", b.DateRead
 	}
 
-	if err := s.writeBook(b); err != nil {
-		return nil, err
+	_, err = s.db.Exec("UPDATE books SET "+column+" = ? WHERE id = ?", dbValue, id)
+	if err != nil {
+		return nil, fmt.Errorf("updating book: %w", err)
 	}
 	return b, nil
 }
 
 func (s *Store) DeleteBook(id string) error {
-	path, err := s.findBookFile(id)
+	result, err := s.db.Exec("DELETE FROM books WHERE id = ?", id)
 	if err != nil {
 		return err
 	}
-	return os.Remove(path)
+	n, _ := result.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("book not found: %s", id)
+	}
+	return nil
 }
 
-func (s *Store) findBookFile(id string) (string, error) {
-	entries, err := os.ReadDir(s.booksDir)
-	if err != nil {
-		return "", fmt.Errorf("book not found: %s", id)
-	}
-	for _, e := range entries {
-		if strings.HasPrefix(e.Name(), id+"-") && strings.HasSuffix(e.Name(), ".md") {
-			return filepath.Join(s.booksDir, e.Name()), nil
-		}
-	}
-	return "", fmt.Errorf("book not found: %s", id)
-}
-
-func (s *Store) readBookFile(path string) (*model.Book, error) {
-	data, err := os.ReadFile(path)
+func (s *Store) LoadBooksellers() ([]model.Bookseller, error) {
+	rows, err := s.db.Query("SELECT id, name, url FROM booksellers")
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
-	filename := filepath.Base(path)
-	id := strings.SplitN(filename, "-", 2)[0]
-
-	b := &model.Book{
-		ID:       id,
-		Filename: filename,
-	}
-
-	content := string(data)
-	if strings.HasPrefix(content, "---\n") {
-		parts := strings.SplitN(content[4:], "\n---\n", 2)
-		if len(parts) == 2 {
-			if err := yaml.Unmarshal([]byte(parts[0]), b); err != nil {
-				return nil, fmt.Errorf("parsing frontmatter of %s: %w", filename, err)
-			}
-			b.Body = strings.TrimSpace(parts[1])
+	var sellers []model.Bookseller
+	for rows.Next() {
+		var bs model.Bookseller
+		if err := rows.Scan(&bs.ID, &bs.Name, &bs.URL); err != nil {
+			return nil, err
 		}
+		sellers = append(sellers, bs)
 	}
-
-	// Restore derived fields that yaml:"-" skipped
-	b.ID = id
-	b.Filename = filename
-
-	return b, nil
+	return sellers, rows.Err()
 }
 
-func (s *Store) writeBook(b *model.Book) error {
-	fm := buildFrontmatter(b)
+func (s *Store) AddBookseller(name, url string) (*model.Bookseller, error) {
+	result, err := s.db.Exec("INSERT INTO booksellers (name, url) VALUES (?, ?)", name, url)
+	if err != nil {
+		return nil, err
+	}
+	id, _ := result.LastInsertId()
+	return &model.Bookseller{ID: int(id), Name: name, URL: url}, nil
+}
 
-	fmBytes, err := yaml.Marshal(fm)
+func (s *Store) DeleteBookseller(id int) error {
+	result, err := s.db.Exec("DELETE FROM booksellers WHERE id = ?", id)
 	if err != nil {
 		return err
 	}
-
-	var buf strings.Builder
-	buf.WriteString("---\n")
-	buf.Write(fmBytes)
-	buf.WriteString("---\n")
-	if b.Body != "" {
-		buf.WriteString("\n" + b.Body + "\n")
+	n, _ := result.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("bookseller not found: %d", id)
 	}
-
-	path := filepath.Join(s.booksDir, b.Filename)
-	return os.WriteFile(path, []byte(buf.String()), 0644)
+	return nil
 }
 
-func buildFrontmatter(b *model.Book) yaml.Node {
-	doc := yaml.Node{Kind: yaml.MappingNode}
-
-	addField := func(key, value string) {
-		if value == "" {
-			return
+func scanBooks(rows *sql.Rows) ([]model.Book, error) {
+	var books []model.Book
+	for rows.Next() {
+		var b model.Book
+		var tags string
+		if err := rows.Scan(&b.ID, &b.Title, &b.Author, &b.Status, &tags, &b.Rating, &b.DateAdded, &b.DateRead, &b.Body); err != nil {
+			return nil, err
 		}
-		doc.Content = append(doc.Content,
-			&yaml.Node{Kind: yaml.ScalarNode, Value: key},
-			&yaml.Node{Kind: yaml.ScalarNode, Value: value},
-		)
+		b.Tags = splitTags(tags)
+		books = append(books, b)
 	}
+	return books, rows.Err()
+}
 
-	addStringSlice := func(key string, values []string) {
-		if len(values) == 0 {
-			return
-		}
-		seq := &yaml.Node{Kind: yaml.SequenceNode, Style: yaml.FlowStyle}
-		for _, v := range values {
-			seq.Content = append(seq.Content, &yaml.Node{Kind: yaml.ScalarNode, Value: v})
-		}
-		doc.Content = append(doc.Content,
-			&yaml.Node{Kind: yaml.ScalarNode, Value: key},
-			seq,
-		)
+func splitTags(s string) []string {
+	if s == "" {
+		return nil
 	}
-
-	addField("title", b.Title)
-	addField("author", b.Author)
-	addField("status", b.Status)
-	addStringSlice("tags", b.Tags)
-	if b.Rating > 0 {
-		doc.Content = append(doc.Content,
-			&yaml.Node{Kind: yaml.ScalarNode, Value: "rating"},
-			&yaml.Node{Kind: yaml.ScalarNode, Value: strconv.Itoa(b.Rating), Tag: "!!int"},
-		)
+	parts := strings.Split(s, ",")
+	for i := range parts {
+		parts[i] = strings.TrimSpace(parts[i])
 	}
-	addField("date_added", b.DateAdded)
-	addField("date_read", b.DateRead)
-
-	return doc
+	return parts
 }
 
 func applyMeta(b *model.Book, meta map[string]string) error {
@@ -316,7 +311,7 @@ func applyMeta(b *model.Book, meta map[string]string) error {
 			b.Author = v
 		case "status":
 			if !model.ValidStatus(v) {
-				return fmt.Errorf("invalid status: %s (valid: wishlist, reading, read, dropped)", v)
+				return fmt.Errorf("invalid status: %s (valid: wishlist, reading, paused, read, dropped)", v)
 			}
 			b.Status = v
 		case "rating":
@@ -331,6 +326,8 @@ func applyMeta(b *model.Book, meta map[string]string) error {
 				tags[i] = strings.TrimSpace(tags[i])
 			}
 			b.Tags = tags
+		case "date_added":
+			b.DateAdded = v
 		case "date_read":
 			b.DateRead = v
 		case "body":
@@ -338,24 +335,4 @@ func applyMeta(b *model.Book, meta map[string]string) error {
 		}
 	}
 	return nil
-}
-
-func matchesFilters(b *model.Book, filters map[string]string) bool {
-	for k, v := range filters {
-		switch k {
-		case "status":
-			if b.Status != v {
-				return false
-			}
-		case "tag":
-			if !slices.Contains(b.Tags, v) {
-				return false
-			}
-		case "author":
-			if !strings.EqualFold(b.Author, v) {
-				return false
-			}
-		}
-	}
-	return true
 }

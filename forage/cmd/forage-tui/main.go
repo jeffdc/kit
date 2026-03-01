@@ -15,6 +15,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
+	defer store.Close()
 
 	p := tea.NewProgram(tui.NewApp(store), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {

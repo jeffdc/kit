@@ -14,8 +14,10 @@ type keyMap struct {
 	SetStatus key.Binding
 	MarkRead  key.Binding
 	Drop      key.Binding
+	Rate      key.Binding
 	FilterAll key.Binding
 	FilterWL  key.Binding
+	FilterPa  key.Binding
 	FilterRd  key.Binding
 	CycleFilt key.Binding
 }
@@ -33,8 +35,10 @@ func newKeyMap() keyMap {
 		SetStatus: key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "cycle status")),
 		MarkRead:  key.NewBinding(key.WithKeys("D"), key.WithHelp("D", "mark read")),
 		Drop:      key.NewBinding(key.WithKeys("X"), key.WithHelp("X", "drop")),
+		Rate:      key.NewBinding(key.WithKeys("0", "1", "2", "3", "4", "5"), key.WithHelp("0-5", "rate")),
 		FilterAll: key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "all")),
 		FilterWL:  key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "wishlist")),
+		FilterPa:  key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "paused")),
 		FilterRd:  key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "read")),
 		CycleFilt: key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "cycle filter")),
 	}

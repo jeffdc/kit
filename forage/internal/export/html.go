@@ -8,12 +8,24 @@ import (
 	"forage/internal/model"
 )
 
-func Generate(books []model.Book, w io.Writer) error {
+type templateData struct {
+	Books       template.JS
+	Booksellers template.JS
+}
+
+func Generate(books []model.Book, booksellers []model.Bookseller, w io.Writer) error {
 	if books == nil {
 		books = []model.Book{}
 	}
+	if booksellers == nil {
+		booksellers = []model.Bookseller{}
+	}
 
-	data, err := json.Marshal(books)
+	booksJSON, err := json.Marshal(books)
+	if err != nil {
+		return err
+	}
+	sellersJSON, err := json.Marshal(booksellers)
 	if err != nil {
 		return err
 	}
@@ -23,7 +35,10 @@ func Generate(books []model.Book, w io.Writer) error {
 		return err
 	}
 
-	return tmpl.Execute(w, template.JS(data))
+	return tmpl.Execute(w, templateData{
+		Books:       template.JS(booksJSON),
+		Booksellers: template.JS(sellersJSON),
+	})
 }
 
 const htmlTemplate = `<!DOCTYPE html>
@@ -48,6 +63,7 @@ h1 { font-size: 1.4em; margin-bottom: 12px; color: #222; }
 .status { font-size: 12px; padding: 2px 8px; border-radius: 4px; font-weight: 500; }
 .status-wishlist { background: #dbeafe; color: #1e40af; }
 .status-reading { background: #fef3c7; color: #92400e; }
+.status-paused { background: #f3e8ff; color: #6b21a8; }
 .status-read { background: #d1fae5; color: #065f46; }
 .rating { color: #d97706; font-size: 13px; }
 .book-notes { margin-top: 8px; font-size: 0.9em; color: #555; white-space: pre-wrap; }
@@ -55,6 +71,9 @@ h1 { font-size: 1.4em; margin-bottom: 12px; color: #222; }
 .sort-controls { display: flex; gap: 4px; align-items: center; font-size: 13px; color: #666; }
 .sort-controls button { background: none; border: 1px solid #ccc; border-radius: 4px; padding: 4px 8px; font-size: 12px; cursor: pointer; }
 .sort-controls button.active { background: #333; color: #fff; border-color: #333; }
+.book-sellers { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.book-sellers a { font-size: 11px; padding: 2px 7px; border: 1px solid #ccc; border-radius: 4px; color: #555; text-decoration: none; white-space: nowrap; }
+.book-sellers a:hover { background: #eee8d5; color: #333; }
 </style>
 </head>
 <body>
@@ -63,8 +82,9 @@ h1 { font-size: 1.4em; margin-bottom: 12px; color: #222; }
   <input type="text" id="search" placeholder="Search books..." autocomplete="off">
   <select id="filter">
     <option value="all">All</option>
-    <option value="wishlist">Wishlist</option>
+    <option value="wishlist" selected>Wishlist</option>
     <option value="reading">Reading</option>
+    <option value="paused">Paused</option>
     <option value="read">Read</option>
   </select>
 </div>
@@ -78,7 +98,8 @@ h1 { font-size: 1.4em; margin-bottom: 12px; color: #222; }
 <div class="count" id="count"></div>
 <div id="books"></div>
 <script>
-const books = {{.}};
+const books = {{.Books}};
+const booksellers = {{.Booksellers}};
 let currentSort = "title";
 let sortDir = 1;
 
@@ -114,6 +135,10 @@ function render() {
     const stars = b.rating ? '★'.repeat(b.rating) + '☆'.repeat(5 - b.rating) : '';
     const tags = (b.tags || []).map(t => '<span class="tag">' + esc(t) + '</span>').join("");
     const notes = b.body ? '<div class="book-notes">' + esc(b.body) + '</div>' : '';
+    const query = encodeURIComponent(b.title + " " + b.author);
+    const sellerLinks = booksellers.length ? '<div class="book-sellers">' + booksellers.map(s =>
+      '<a href="' + s.url.replace('{query}', query) + '" target="_blank" rel="noopener">' + esc(s.name) + '</a>'
+    ).join("") + '</div>' : '';
     return '<div class="book">' +
       '<div class="book-title">' + esc(b.title) + '</div>' +
       '<div class="book-author">' + esc(b.author) + '</div>' +
@@ -123,6 +148,7 @@ function render() {
         tags +
       '</div>' +
       notes +
+      sellerLinks +
     '</div>';
   }).join("");
 }

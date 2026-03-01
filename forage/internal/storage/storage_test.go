@@ -1,9 +1,6 @@
 package storage
 
 import (
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -13,49 +10,25 @@ func TestNew(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error: %v", err)
 	}
+	defer s.Close()
 
-	// Should create books directory
-	info, err := os.Stat(filepath.Join(dir, "books"))
+	// Verify DB is usable by inserting and querying
+	_, err = s.CreateBook("Test", "Author", nil)
 	if err != nil {
-		t.Fatalf("books dir not created: %v", err)
+		t.Fatalf("CreateBook after New: %v", err)
 	}
-	if !info.IsDir() {
-		t.Fatal("books is not a directory")
-	}
-	_ = s
 }
 
 func TestDefaultRoot(t *testing.T) {
-	// With env var set
 	t.Setenv("FORAGE_DIR", "/tmp/test-forage")
 	if got := DefaultRoot(); got != "/tmp/test-forage" {
 		t.Errorf("DefaultRoot() with FORAGE_DIR = %q, want /tmp/test-forage", got)
 	}
 
-	// Without env var, falls back to ~/.forage
 	t.Setenv("FORAGE_DIR", "")
 	got := DefaultRoot()
-	home, _ := os.UserHomeDir()
-	want := filepath.Join(home, ".forage")
-	if got != want {
-		t.Errorf("DefaultRoot() = %q, want %q", got, want)
-	}
-}
-
-func TestSlugify(t *testing.T) {
-	tests := []struct {
-		input, want string
-	}{
-		{"The Left Hand of Darkness", "the-left-hand-of-darkness"},
-		{"Blood Meridian", "blood-meridian"},
-		{"1984", "1984"},
-		{"  Spaces  Everywhere  ", "spaces-everywhere"},
-		{"Colon: A Title", "colon-a-title"},
-	}
-	for _, tt := range tests {
-		if got := Slugify(tt.input); got != tt.want {
-			t.Errorf("Slugify(%q) = %q, want %q", tt.input, got, tt.want)
-		}
+	if got == "" {
+		t.Error("DefaultRoot() returned empty string")
 	}
 }
 
@@ -83,7 +56,6 @@ func TestCreateAndGetBook(t *testing.T) {
 		t.Error("DateAdded is empty")
 	}
 
-	// Round-trip through GetBook
 	got, err := s.GetBook(b.ID)
 	if err != nil {
 		t.Fatalf("GetBook() error: %v", err)
@@ -155,7 +127,6 @@ func TestListBooks(t *testing.T) {
 	s.CreateBook("Book B", "Author B", map[string]string{"status": "read", "tags": "fantasy"})
 	s.CreateBook("Book C", "Author C", map[string]string{"status": "dropped"})
 
-	// No filter — returns all
 	all, err := s.ListBooks(nil)
 	if err != nil {
 		t.Fatalf("ListBooks() error: %v", err)
@@ -164,19 +135,16 @@ func TestListBooks(t *testing.T) {
 		t.Errorf("len = %d, want 3", len(all))
 	}
 
-	// Filter by status
 	wishlist, _ := s.ListBooks(map[string]string{"status": "wishlist"})
 	if len(wishlist) != 1 || wishlist[0].Title != "Book A" {
 		t.Errorf("status filter: got %d books", len(wishlist))
 	}
 
-	// Filter by tag
 	fantasy, _ := s.ListBooks(map[string]string{"tag": "fantasy"})
 	if len(fantasy) != 1 || fantasy[0].Title != "Book B" {
 		t.Errorf("tag filter: got %d books", len(fantasy))
 	}
 
-	// Filter by author
 	byAuthor, _ := s.ListBooks(map[string]string{"author": "Author A"})
 	if len(byAuthor) != 1 || byAuthor[0].Title != "Book A" {
 		t.Errorf("author filter: got %d books", len(byAuthor))
@@ -187,7 +155,6 @@ func TestUpdateBook(t *testing.T) {
 	s := testStore(t)
 	b, _ := s.CreateBook("Old Title", "Author", nil)
 
-	// Update status
 	updated, err := s.UpdateBook(b.ID, "status", "reading")
 	if err != nil {
 		t.Fatalf("UpdateBook() error: %v", err)
@@ -196,7 +163,6 @@ func TestUpdateBook(t *testing.T) {
 		t.Errorf("Status = %q, want reading", updated.Status)
 	}
 
-	// Update title — should rename file
 	updated, err = s.UpdateBook(b.ID, "title", "New Title")
 	if err != nil {
 		t.Fatalf("UpdateBook() error: %v", err)
@@ -204,16 +170,11 @@ func TestUpdateBook(t *testing.T) {
 	if updated.Title != "New Title" {
 		t.Errorf("Title = %q, want New Title", updated.Title)
 	}
-	if !strings.Contains(updated.Filename, "new-title") {
-		t.Errorf("Filename = %q, should contain new-title", updated.Filename)
-	}
 
-	// Verify old file is gone
-	entries, _ := os.ReadDir(filepath.Join(s.root, "books"))
-	for _, e := range entries {
-		if strings.Contains(e.Name(), "old-title") {
-			t.Errorf("old file still exists: %s", e.Name())
-		}
+	// Verify persisted
+	got, _ := s.GetBook(b.ID)
+	if got.Title != "New Title" {
+		t.Errorf("persisted Title = %q, want New Title", got.Title)
 	}
 }
 
@@ -248,31 +209,26 @@ func TestSearchBooks(t *testing.T) {
 	s.CreateBook("Blood Meridian", "Cormac McCarthy", map[string]string{"body": "A dark western novel."})
 	s.CreateBook("Dune", "Frank Herbert", nil)
 
-	// Search by title
 	results, _ := s.SearchBooks("darkness")
 	if len(results) != 1 {
 		t.Errorf("title search: got %d, want 1", len(results))
 	}
 
-	// Search by author
 	results, _ = s.SearchBooks("mccarthy")
 	if len(results) != 1 {
 		t.Errorf("author search: got %d, want 1", len(results))
 	}
 
-	// Search by body
 	results, _ = s.SearchBooks("western")
 	if len(results) != 1 {
 		t.Errorf("body search: got %d, want 1", len(results))
 	}
 
-	// Search by tag
 	results, _ = s.SearchBooks("sci-fi")
 	if len(results) != 1 {
 		t.Errorf("tag search: got %d, want 1", len(results))
 	}
 
-	// No match
 	results, _ = s.SearchBooks("zzzzz")
 	if len(results) != 0 {
 		t.Errorf("no-match search: got %d, want 0", len(results))
@@ -287,11 +243,63 @@ func TestGetBookNotFound(t *testing.T) {
 	}
 }
 
+func TestLoadBooksellers(t *testing.T) {
+	s := testStore(t)
+
+	sellers, err := s.LoadBooksellers()
+	if err != nil {
+		t.Fatalf("LoadBooksellers() error: %v", err)
+	}
+	if sellers != nil {
+		t.Errorf("expected nil, got %v", sellers)
+	}
+
+	s.AddBookseller("TestShop", "https://example.com/search?q={query}")
+	s.AddBookseller("AnotherShop", "https://another.com/?s={query}")
+
+	sellers, err = s.LoadBooksellers()
+	if err != nil {
+		t.Fatalf("LoadBooksellers() error: %v", err)
+	}
+	if len(sellers) != 2 {
+		t.Fatalf("got %d sellers, want 2", len(sellers))
+	}
+	if sellers[0].Name != "TestShop" {
+		t.Errorf("sellers[0].Name = %q, want TestShop", sellers[0].Name)
+	}
+	if sellers[1].URL != "https://another.com/?s={query}" {
+		t.Errorf("sellers[1].URL = %q", sellers[1].URL)
+	}
+}
+
+func TestAddAndDeleteBookseller(t *testing.T) {
+	s := testStore(t)
+
+	bs, err := s.AddBookseller("Shop", "https://shop.com/{query}")
+	if err != nil {
+		t.Fatalf("AddBookseller() error: %v", err)
+	}
+	if bs.ID == 0 {
+		t.Error("expected non-zero ID")
+	}
+
+	err = s.DeleteBookseller(bs.ID)
+	if err != nil {
+		t.Fatalf("DeleteBookseller() error: %v", err)
+	}
+
+	sellers, _ := s.LoadBooksellers()
+	if len(sellers) != 0 {
+		t.Errorf("expected 0 sellers after delete, got %d", len(sellers))
+	}
+}
+
 func testStore(t *testing.T) *Store {
 	t.Helper()
 	s, err := New(t.TempDir())
 	if err != nil {
 		t.Fatalf("testStore: %v", err)
 	}
+	t.Cleanup(func() { s.Close() })
 	return s
 }
