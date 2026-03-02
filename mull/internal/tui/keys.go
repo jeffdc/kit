@@ -22,7 +22,8 @@ type keyMap struct {
 	Refresh   key.Binding
 	SetStatus key.Binding
 	Done      key.Binding
-	Drop      key.Binding
+	Drop       key.Binding
+	OpenEditor key.Binding
 }
 
 func newKeyMap() keyMap {
@@ -46,6 +47,7 @@ func newKeyMap() keyMap {
 		Refresh:   key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh")),
 		SetStatus: key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "set status")),
 		Done:      key.NewBinding(key.WithKeys("D"), key.WithHelp("D", "mark done")),
-		Drop:      key.NewBinding(key.WithKeys("X"), key.WithHelp("X", "drop")),
+		Drop:       key.NewBinding(key.WithKeys("X"), key.WithHelp("X", "drop")),
+		OpenEditor: key.NewBinding(key.WithKeys("O"), key.WithHelp("O", "open in editor")),
 	}
 }

@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -248,6 +249,11 @@ func (a App) updateDetail(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "k", "up":
 		a.viewport.ScrollUp(1)
 		return a, nil
+	case "O":
+		if a.detailMatter != nil {
+			return a.openInEditor(a.detailMatter)
+		}
+		return a, nil
 	}
 	return a, nil
 }
@@ -340,6 +346,13 @@ func (a App) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m := a.currentMatter()
 		if m != nil {
 			return a.setTerminalStatus(m, "dropped")
+		}
+		return a, nil
+
+	case matchKey(msg, a.keys.OpenEditor):
+		m := a.currentMatter()
+		if m != nil {
+			return a.openInEditor(m)
 		}
 		return a, nil
 
@@ -521,7 +534,8 @@ k/↑  up             c  closed only      d  toggle docket
 enter  detail       a  all              S  set status
 esc    back/clear   s  cycle status     D  mark done
 1  matters          e  cycle epic       X  drop
-2  docket           /  search           r  refresh
+2  docket           /  search           O  open in editor
+                                        r  refresh
 
 Press ? to close`
 
@@ -616,6 +630,25 @@ func truncateVisual(s string, n int) string {
 		visWidth++
 	}
 	return string(result)
+}
+
+func (a App) openInEditor(m *model.Matter) (tea.Model, tea.Cmd) {
+	path := a.matterFilePath(m)
+	if path == "" {
+		return a, nil
+	}
+	cmd := exec.Command("open", path)
+	if err := cmd.Start(); err != nil {
+		return a, a.setFlash("Error: " + err.Error())
+	}
+	return a, a.setFlash("Opened in editor")
+}
+
+func (a *App) matterFilePath(m *model.Matter) string {
+	if m == nil {
+		return ""
+	}
+	return filepath.Join(a.store.Root(), "matters", m.Filename)
 }
 
 func generatePrompt(m *model.Matter) string {
