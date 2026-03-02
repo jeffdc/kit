@@ -11,6 +11,8 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/glamour"
+	"github.com/charmbracelet/glamour/styles"
 	"github.com/charmbracelet/lipgloss"
 	"mull/internal/model"
 	"mull/internal/storage"
@@ -192,6 +194,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.height = msg.Height
 		a.viewport.Width = msg.Width
 		a.viewport.Height = msg.Height - 6
+		if a.view == viewDetail && a.detailMatter != nil {
+			a.viewport.SetContent(a.renderBody(a.detailMatter.Body))
+		}
 		return a, nil
 
 	case tea.KeyMsg:
@@ -299,7 +304,7 @@ func (a App) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			a.detailMatter = m
 			a.prevView = a.view
 			a.view = viewDetail
-			a.viewport.SetContent(m.Body)
+			a.viewport.SetContent(a.renderBody(m.Body))
 			a.viewport.GotoTop()
 		}
 		return a, nil
@@ -583,6 +588,26 @@ func placeOverlay(x, y int, fg, bg string) string {
 	}
 
 	return strings.Join(bgLines, "\n")
+}
+
+// renderBody renders markdown body text for the detail viewport.
+func (a *App) renderBody(body string) string {
+	style := styles.LightStyleConfig
+	if lipgloss.HasDarkBackground() {
+		style = styles.DarkStyleConfig
+	}
+	r, err := glamour.NewTermRenderer(
+		glamour.WithStyles(style),
+		glamour.WithWordWrap(a.viewport.Width),
+	)
+	if err != nil {
+		return body
+	}
+	out, err := r.Render(body)
+	if err != nil {
+		return body
+	}
+	return strings.TrimRight(out, "\n")
 }
 
 // stripANSI removes ANSI escape sequences from a string.
