@@ -107,8 +107,8 @@ func outputContext(out primeOutput) error {
 
 - ` + "`mull show <id>`" + ` + ` + "`mull graph <id>`" + ` to load full context
 - ` + "`mull add \"<title>\" --status raw --epic <name>`" + ` to capture new ideas
-- ` + "`mull add`" + ` also accepts ` + "`--body \"<text>\" --relates <id> --blocks <id> --needs <id> --parent <id> --docket`" + `
-- ` + "`mull append <id> \"<text>\"`" + ` for details as they emerge
+- ` + "`mull add`" + ` also accepts ` + "`--relates <id> --blocks <id> --needs <id> --parent <id> --docket`" + `
+- ` + "`mull append <id> - <<'EOF'`" + ` to add body text (always pipe via stdin, never use inline text args — shell noise corrupts content)
 - ` + "`mull set <id> [id...] <key> <value>`" + ` for metadata (supports multiple IDs for batch updates)
 - ` + "`mull set <id> docs <path>[,<path>]`" + ` to associate plan/design docs
 - ` + "`mull link <id> <type> <id> [id...]`" + ` for relationships (relates, blocks, needs, parent)
