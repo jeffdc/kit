@@ -294,6 +294,48 @@ func TestAddAndDeleteBookseller(t *testing.T) {
 	}
 }
 
+func TestCreateBookWithID(t *testing.T) {
+	s := testStore(t)
+
+	meta := map[string]string{
+		"status":     "read",
+		"rating":     "5",
+		"tags":       "sci-fi,classic",
+		"date_added": "2026-03-01",
+	}
+	b, err := s.CreateBookWithID("f10d", "Dune", "Frank Herbert", meta)
+	if err != nil {
+		t.Fatalf("CreateBookWithID() error: %v", err)
+	}
+	if b.ID != "f10d" {
+		t.Errorf("ID = %q, want f10d", b.ID)
+	}
+	if b.Title != "Dune" {
+		t.Errorf("Title = %q", b.Title)
+	}
+	if b.Status != "read" {
+		t.Errorf("Status = %q, want read", b.Status)
+	}
+	if b.Rating != 5 {
+		t.Errorf("Rating = %d, want 5", b.Rating)
+	}
+
+	// Verify persisted
+	got, err := s.GetBook("f10d")
+	if err != nil {
+		t.Fatalf("GetBook() error: %v", err)
+	}
+	if got.Title != "Dune" {
+		t.Errorf("persisted Title = %q", got.Title)
+	}
+
+	// Duplicate ID should fail
+	_, err = s.CreateBookWithID("f10d", "Another Book", "Another Author", nil)
+	if err == nil {
+		t.Fatal("expected error for duplicate ID")
+	}
+}
+
 func testStore(t *testing.T) *Store {
 	t.Helper()
 	s, err := New(t.TempDir())

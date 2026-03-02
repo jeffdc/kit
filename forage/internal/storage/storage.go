@@ -121,6 +121,42 @@ func (s *Store) CreateBook(title, author string, meta map[string]string) (*model
 	return b, nil
 }
 
+func (s *Store) CreateBookWithID(id, title, author string, meta map[string]string) (*model.Book, error) {
+	var exists int
+	err := s.db.QueryRow("SELECT COUNT(*) FROM books WHERE id = ?", id).Scan(&exists)
+	if err != nil {
+		return nil, err
+	}
+	if exists > 0 {
+		return nil, fmt.Errorf("book already exists: %s", id)
+	}
+
+	today := time.Now().Format("2006-01-02")
+	b := &model.Book{
+		ID:        id,
+		Title:     title,
+		Author:    author,
+		Status:    "wishlist",
+		DateAdded: today,
+	}
+
+	if meta != nil {
+		if err := applyMeta(b, meta); err != nil {
+			return nil, err
+		}
+	}
+
+	tags := strings.Join(b.Tags, ",")
+	_, err = s.db.Exec(
+		"INSERT INTO books (id, title, author, status, tags, rating, date_added, date_read, body) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		b.ID, b.Title, b.Author, b.Status, tags, b.Rating, b.DateAdded, b.DateRead, b.Body,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("inserting book: %w", err)
+	}
+	return b, nil
+}
+
 func (s *Store) GetBook(id string) (*model.Book, error) {
 	b := &model.Book{}
 	var tags string

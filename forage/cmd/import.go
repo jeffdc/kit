@@ -10,8 +10,132 @@ import (
 	"strconv"
 	"strings"
 
+	"forage/internal/model"
+
 	"github.com/spf13/cobra"
 )
+
+// changelog represents a JSON changelog exported from the PWA.
+type changelog struct {
+	Version  int           `json:"version"`
+	Exported string        `json:"exported"`
+	Changes  []changeEntry `json:"changes"`
+}
+
+// changeEntry represents a single operation in a changelog.
+type changeEntry struct {
+	Op     string                 `json:"op"`
+	Book   *model.Book            `json:"book,omitempty"`   // for create
+	ID     string                 `json:"id,omitempty"`     // for update/delete
+	Fields map[string]interface{} `json:"fields,omitempty"` // for update
+	Ts     string                 `json:"ts"`
+}
+
+// changeSummary is the JSON output for an import --changes operation.
+type changeSummary struct {
+	Applied int `json:"applied"`
+	Skipped int `json:"skipped"`
+	Errors  int `json:"errors"`
+}
+
+// applyChanges reads a changelog JSON file and applies operations to the store.
+func applyChanges(s interface {
+	CreateBookWithID(id, title, author string, meta map[string]string) (*model.Book, error)
+	UpdateBook(id, key, value string) (*model.Book, error)
+	DeleteBook(id string) error
+}, cl changelog) changeSummary {
+	var summary changeSummary
+
+	for _, c := range cl.Changes {
+		switch c.Op {
+		case "create":
+			if c.Book == nil {
+				summary.Errors++
+				continue
+			}
+			meta := make(map[string]string)
+			if c.Book.Status != "" {
+				meta["status"] = c.Book.Status
+			}
+			if c.Book.Rating > 0 {
+				meta["rating"] = strconv.Itoa(c.Book.Rating)
+			}
+			if len(c.Book.Tags) > 0 {
+				meta["tags"] = strings.Join(c.Book.Tags, ",")
+			}
+			if c.Book.DateAdded != "" {
+				meta["date_added"] = c.Book.DateAdded
+			}
+			if c.Book.DateRead != "" {
+				meta["date_read"] = c.Book.DateRead
+			}
+			if c.Book.Body != "" {
+				meta["body"] = c.Book.Body
+			}
+			_, err := s.CreateBookWithID(c.Book.ID, c.Book.Title, c.Book.Author, meta)
+			if err != nil {
+				summary.Skipped++
+				continue
+			}
+			summary.Applied++
+
+		case "update":
+			if c.ID == "" || len(c.Fields) == 0 {
+				summary.Errors++
+				continue
+			}
+			errored := false
+			for key, val := range c.Fields {
+				strVal := changeFieldToString(key, val)
+				_, err := s.UpdateBook(c.ID, key, strVal)
+				if err != nil {
+					summary.Skipped++
+					errored = true
+					break
+				}
+			}
+			if !errored {
+				summary.Applied++
+			}
+
+		case "delete":
+			if c.ID == "" {
+				summary.Errors++
+				continue
+			}
+			err := s.DeleteBook(c.ID)
+			if err != nil {
+				summary.Skipped++
+				continue
+			}
+			summary.Applied++
+
+		default:
+			summary.Errors++
+		}
+	}
+
+	return summary
+}
+
+// changeFieldToString converts a changelog field value to a string suitable for store.UpdateBook.
+func changeFieldToString(key string, val interface{}) string {
+	switch key {
+	case "rating":
+		if f, ok := val.(float64); ok {
+			return strconv.Itoa(int(f))
+		}
+	case "tags":
+		if arr, ok := val.([]interface{}); ok {
+			parts := make([]string, len(arr))
+			for i, v := range arr {
+				parts[i] = fmt.Sprintf("%v", v)
+			}
+			return strings.Join(parts, ",")
+		}
+	}
+	return fmt.Sprintf("%v", val)
+}
 
 // csvBook is an intermediate representation of a book parsed from CSV.
 type csvBook struct {
@@ -304,6 +428,11 @@ var importCmd = &cobra.Command{
 	Short: "Import books from Goodreads or StoryGraph CSV exports",
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		changes, _ := cmd.Flags().GetBool("changes")
+		if changes {
+			return runImportChanges(args[0])
+		}
+
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
 
 		// Parse all CSV files and merge by normalized key
@@ -378,7 +507,23 @@ var importCmd = &cobra.Command{
 	},
 }
 
+func runImportChanges(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("reading changelog: %w", err)
+	}
+
+	var cl changelog
+	if err := json.Unmarshal(data, &cl); err != nil {
+		return fmt.Errorf("parsing changelog: %w", err)
+	}
+
+	summary := applyChanges(store, cl)
+	return json.NewEncoder(os.Stdout).Encode(summary)
+}
+
 func init() {
 	importCmd.Flags().Bool("dry-run", false, "Show what would be imported without writing anything")
+	importCmd.Flags().Bool("changes", false, "Import a JSON changelog (from PWA sync) instead of CSV")
 	rootCmd.AddCommand(importCmd)
 }

@@ -6,6 +6,7 @@ import (
 
 	"forage/internal/export"
 	"forage/internal/model"
+	"forage/internal/pwa"
 
 	"github.com/spf13/cobra"
 )
@@ -16,6 +17,7 @@ var exportCmd = &cobra.Command{
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		output, _ := cmd.Flags().GetString("output")
+		isPWA, _ := cmd.Flags().GetBool("pwa")
 
 		books, err := store.ListBooks(nil)
 		if err != nil {
@@ -33,6 +35,22 @@ var exportCmd = &cobra.Command{
 		booksellers, err := store.LoadBooksellers()
 		if err != nil {
 			return err
+		}
+
+		if isPWA {
+			if !cmd.Flags().Changed("output") {
+				output = "forage-pwa"
+			}
+
+			if err := pwa.Generate(included, booksellers, output); err != nil {
+				return err
+			}
+
+			return json.NewEncoder(os.Stdout).Encode(map[string]any{
+				"exported": "./" + output,
+				"books":    len(included),
+				"pwa":      true,
+			})
 		}
 
 		f, err := os.Create(output)
@@ -54,5 +72,6 @@ var exportCmd = &cobra.Command{
 
 func init() {
 	exportCmd.Flags().StringP("output", "o", "forage-library.html", "Output file path")
+	exportCmd.Flags().Bool("pwa", false, "Generate a PWA directory instead of a single HTML file")
 	rootCmd.AddCommand(exportCmd)
 }
