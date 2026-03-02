@@ -172,13 +172,35 @@
     return d.innerHTML;
   }
 
+  function populateTagFilter(books) {
+    var tagSet = {};
+    books.forEach(function (b) {
+      (b.tags || []).forEach(function (t) { if (t) tagSet[t] = true; });
+    });
+    var tags = Object.keys(tagSet).sort();
+    var sel = document.getElementById("tag-filter");
+    var current = sel.value;
+    sel.innerHTML = '<option value="all">All tags</option>';
+    tags.forEach(function (t) {
+      var opt = document.createElement("option");
+      opt.value = t;
+      opt.textContent = t;
+      sel.appendChild(opt);
+    });
+    sel.value = current;
+  }
+
   function render() {
     db.listBooks().then(function (books) {
+      populateTagFilter(books);
+
       var q = document.getElementById("search").value.toLowerCase();
       var status = document.getElementById("filter").value;
+      var tag = document.getElementById("tag-filter").value;
 
       var filtered = books.filter(function (b) {
         if (status !== "all" && b.status !== status) return false;
+        if (tag !== "all" && (!b.tags || b.tags.indexOf(tag) === -1)) return false;
         if (q) {
           var hay = [b.title, b.author, (b.tags || []).join(" "), b.body || ""].join(" ").toLowerCase();
           if (hay.indexOf(q) === -1) return false;
@@ -436,6 +458,7 @@
 
       document.getElementById("search").addEventListener("input", debouncedRender);
       document.getElementById("filter").addEventListener("change", render);
+      document.getElementById("tag-filter").addEventListener("change", render);
 
       document.querySelectorAll(".sort-controls button").forEach(function (btn) {
         btn.addEventListener("click", function () {
