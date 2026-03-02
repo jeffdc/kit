@@ -5,6 +5,28 @@ description: Use when encountering any bug, test failure, or unexpected behavior
 
 # Systematic Debugging
 
+## Hard Constraints
+
+These are not suggestions. They override your defaults. Violating any of them is a skill failure.
+
+**1. No fixes before root cause.**
+Do not propose, attempt, or "just try" a fix until Phase 1 (Root Cause Investigation) is complete. The urge to fix immediately is the exact impulse this skill exists to override.
+
+**2. One hypothesis at a time.**
+Test one variable per attempt. Do not batch multiple changes into a single test. If you changed two things and it works, you don't know which one fixed it.
+
+**3. Three strikes means stop.**
+If three fix attempts fail, do not attempt a fourth. Stop and question the architecture with the user. Three failures means you're fixing symptoms, not the cause.
+
+**4. Echo constraints before starting.**
+Before investigating any bug, state to the user: "Debugging mode: root cause first, no fixes until Phase 1 complete, one hypothesis at a time, three-strike rule active." Wait for confirmation. This is not optional.
+
+### Why these exist
+
+Claude sees a bug and wants to fix it. That impulse is the single most common reason debugging takes longer than it should. The echo step forces a pause before the fix-first reflex takes over.
+
+---
+
 ## Overview
 
 Random fixes waste time and create new bugs. Quick patches mask underlying issues.

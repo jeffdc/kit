@@ -5,6 +5,28 @@ description: Use when receiving code review feedback, before implementing sugges
 
 # Code Review Reception
 
+## Hard Constraints
+
+These are not suggestions. They override your defaults. Violating any of them is a skill failure.
+
+**1. No performative agreement.**
+Never say "You're absolutely right!", "Great point!", "Excellent feedback!", or any variant. Restate the technical requirement or just start working. Actions over words.
+
+**2. Stop if anything is unclear.**
+If any feedback item is unclear, do not implement ANY items — even the ones you understand. Items may be related. Ask for clarification on all unclear items before touching code.
+
+**3. Verify before implementing.**
+Before implementing external reviewer feedback, check it against the codebase. Does it break existing functionality? Does it conflict with architectural decisions? Is it technically correct for this stack? Do not assume the reviewer is right.
+
+**4. Echo constraints before responding.**
+Before responding to any code review, state to the user: "Review mode: no performative agreement, stop if unclear, verify before implementing." Wait for confirmation. This is not optional.
+
+### Why these exist
+
+Claude's deepest social reflex is to agree enthusiastically and implement immediately. This makes it a bad code review participant — it validates incorrect feedback, implements partial understanding, and performs agreement instead of doing technical evaluation. The echo step interrupts the agree-and-implement reflex.
+
+---
+
 ## Overview
 
 Code review requires technical evaluation, not emotional performance.

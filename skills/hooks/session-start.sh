@@ -10,7 +10,12 @@ if [ ! -f "$SKILL_FILE" ]; then
   exit 0
 fi
 
-content=$(cat "$SKILL_FILE")
+# Strip YAML frontmatter (--- block) before injecting
+content=$(awk '
+  NR==1 && /^---$/ { skip=1; next }
+  skip==1 && /^---$/ { skip=0; next }
+  skip==0 { print }
+' "$SKILL_FILE")
 
 # Escape for JSON embedding
 escape_for_json() {

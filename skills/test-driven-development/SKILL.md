@@ -5,6 +5,28 @@ description: Use when implementing any feature or bugfix, before writing impleme
 
 # Test-Driven Development (TDD)
 
+## Hard Constraints
+
+These are not suggestions. They override your defaults. Violating any of them is a skill failure.
+
+**1. Test comes first. Always.**
+Write the failing test before any implementation code. If you catch yourself writing production code without a failing test, delete it immediately. Do not keep it as reference. Do not adapt it. Delete means delete.
+
+**2. Watch the test fail.**
+Run the test and confirm it fails for the expected reason (missing feature, not a typo or syntax error). Never skip this step. If you didn't see it fail, you don't know what it tests.
+
+**3. Minimal code only.**
+Write the simplest code that makes the test pass. No "while I'm here" additions, no anticipated features, no refactoring of surrounding code. Green means stop.
+
+**4. Echo constraints before starting.**
+Before writing any test or code, state to the user: "TDD mode: test first, watch it fail, minimal implementation, no exceptions." Wait for confirmation. This is not optional.
+
+### Why these exist
+
+Claude's reflex is to write implementation code and then verify it with tests. This is backwards. Every instruction in this skill fights that reflex. The echo step forces a conscious pause before the reflex kicks in.
+
+---
+
 ## Overview
 
 Write the test first. Watch it fail. Write minimal code to pass.

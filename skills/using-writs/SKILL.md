@@ -3,6 +3,28 @@ name: using-writs
 description: Use when starting any conversation - establishes how to find and use skills, requiring Skill tool invocation before ANY response including clarifying questions
 ---
 
+## Hard Constraints
+
+These are not suggestions. They override your defaults. Violating any of them is a skill failure.
+
+**1. Scan the skill list before your first response.**
+When you receive a user message, read the available skills list in your system context. For each skill, ask: "Could this apply?" If yes or even maybe — invoke it with the Skill tool. Do this BEFORE responding, including before asking clarifying questions.
+
+**2. State which skills you considered.**
+Before your first response to a new task, say which skills you checked and which you're using. Example: "Considered: brainstorming, TDD, systematic-debugging. Using: TDD for this bugfix." This is your echo gate. If you didn't do this, you skipped the skill check.
+
+**3. Invoke, don't remember.**
+Never rely on memory of what a skill says. Skills change. Invoke the Skill tool to load the current version every time.
+
+**4. Skills are not optional when they match.**
+If a skill's description matches what you're doing, you must invoke it. This is not a judgment call. "It seems like overkill" is not a valid reason to skip.
+
+### Why these exist
+
+Claude processes the skill list, understands it, and then responds without invoking anything. The scan-and-state requirement (constraints 1-2) forces a visible, verifiable pause. If the user doesn't see "Considered: X, Y, Z" at the start of a response, they know the skill check was skipped.
+
+---
+
 <EXTREMELY-IMPORTANT>
 If you think there is even a 1% chance a skill might apply to what you are doing, you ABSOLUTELY MUST invoke the skill.
 
@@ -17,41 +39,37 @@ This is not negotiable. This is not optional. You cannot rationalize your way ou
 
 **In other environments:** Check your platform's documentation for how skills are loaded.
 
-# Using Skills
+## The Procedure
 
-## The Rule
+**On every user message:**
 
-**Invoke relevant or requested skills BEFORE any response or action.** Even a 1% chance a skill might apply means that you should invoke the skill to check. If an invoked skill turns out to be wrong for the situation, you don't need to use it.
+1. Read the skill list in your system context
+2. For each skill, check: does the description match this task?
+3. Invoke all matching skills with the Skill tool
+4. State what you considered: "Considered: [list]. Using: [list]."
+5. Follow invoked skills exactly
+6. If a skill has a checklist, create a TaskCreate item per checklist entry
+7. Then respond to the user
 
-```dot
-digraph skill_flow {
-    "User message received" [shape=doublecircle];
-    "About to EnterPlanMode?" [shape=doublecircle];
-    "Already brainstormed?" [shape=diamond];
-    "Invoke brainstorming skill" [shape=box];
-    "Might any skill apply?" [shape=diamond];
-    "Invoke Skill tool" [shape=box];
-    "Announce: 'Using [skill] to [purpose]'" [shape=box];
-    "Has checklist?" [shape=diamond];
-    "Create TodoWrite todo per item" [shape=box];
-    "Follow skill exactly" [shape=box];
-    "Respond (including clarifications)" [shape=doublecircle];
+**On EnterPlanMode:** Check if brainstorming has been done. If not, invoke brainstorming first.
 
-    "About to EnterPlanMode?" -> "Already brainstormed?";
-    "Already brainstormed?" -> "Invoke brainstorming skill" [label="no"];
-    "Already brainstormed?" -> "Might any skill apply?" [label="yes"];
-    "Invoke brainstorming skill" -> "Might any skill apply?";
+## Skill Priority
 
-    "User message received" -> "Might any skill apply?";
-    "Might any skill apply?" -> "Invoke Skill tool" [label="yes, even 1%"];
-    "Might any skill apply?" -> "Respond (including clarifications)" [label="definitely not"];
-    "Invoke Skill tool" -> "Announce: 'Using [skill] to [purpose]'";
-    "Announce: 'Using [skill] to [purpose]'" -> "Has checklist?";
-    "Has checklist?" -> "Create TodoWrite todo per item" [label="yes"];
-    "Has checklist?" -> "Follow skill exactly" [label="no"];
-    "Create TodoWrite todo per item" -> "Follow skill exactly";
-}
-```
+When multiple skills could apply, use this order:
+
+1. **Process skills first** (brainstorming, debugging) - these determine HOW to approach the task
+2. **Implementation skills second** - these guide execution
+
+"Let's build X" → brainstorming first, then implementation skills.
+"Fix this bug" → systematic-debugging first, then domain-specific skills.
+
+## Skill Types
+
+**Rigid** (TDD, debugging): Follow exactly. Don't adapt away discipline.
+
+**Flexible** (patterns): Adapt principles to context.
+
+The skill itself tells you which.
 
 ## Red Flags
 
@@ -71,24 +89,6 @@ These thoughts mean STOP — you're rationalizing:
 | "I'll just do this one thing first" | Check BEFORE doing anything. |
 | "This feels productive" | Undisciplined action wastes time. Skills prevent this. |
 | "I know what that means" | Knowing the concept ≠ using the skill. Invoke it. |
-
-## Skill Priority
-
-When multiple skills could apply, use this order:
-
-1. **Process skills first** (brainstorming, debugging) - these determine HOW to approach the task
-2. **Implementation skills second** - these guide execution
-
-"Let's build X" → brainstorming first, then implementation skills.
-"Fix this bug" → systematic-debugging first, then domain-specific skills.
-
-## Skill Types
-
-**Rigid** (TDD, debugging): Follow exactly. Don't adapt away discipline.
-
-**Flexible** (patterns): Adapt principles to context.
-
-The skill itself tells you which.
 
 ## User Instructions
 
