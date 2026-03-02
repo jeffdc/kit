@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 
+	"forage/internal/openlibrary"
+
 	"github.com/spf13/cobra"
 )
 
@@ -18,6 +20,20 @@ var addCmd = &cobra.Command{
 		author, _ := cmd.Flags().GetString("author")
 		if author == "" {
 			return fmt.Errorf("--author is required")
+		}
+
+		lookup, _ := cmd.Flags().GetBool("lookup")
+		var olResult *openlibrary.SearchResult
+		if lookup {
+			var err error
+			olResult, err = openlibrary.Search(title, author)
+			if err != nil {
+				return fmt.Errorf("open library lookup failed: %w", err)
+			}
+			if olResult != nil {
+				title = olResult.Title
+				author = olResult.Author
+			}
 		}
 
 		meta := make(map[string]string)
@@ -40,6 +56,9 @@ var addCmd = &cobra.Command{
 			return err
 		}
 
+		if lookup {
+			return json.NewEncoder(os.Stdout).Encode(confirmWithLookup(book, olResult))
+		}
 		return json.NewEncoder(os.Stdout).Encode(confirm(book))
 	},
 }
@@ -61,5 +80,6 @@ func init() {
 	addCmd.Flags().StringSlice("tag", nil, "Tags (repeatable)")
 	addCmd.Flags().Int("rating", 0, "Rating (1-5)")
 	addCmd.Flags().String("body", "", "Notes about the book")
+	addCmd.Flags().Bool("lookup", false, "Look up book via Open Library")
 	rootCmd.AddCommand(addCmd)
 }

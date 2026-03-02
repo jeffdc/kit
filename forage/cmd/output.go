@@ -1,6 +1,9 @@
 package cmd
 
-import "forage/internal/model"
+import (
+	"forage/internal/model"
+	"forage/internal/openlibrary"
+)
 
 type bookConfirmation struct {
 	ID     string `json:"id"`
@@ -8,11 +11,27 @@ type bookConfirmation struct {
 	Status string `json:"status"`
 }
 
+type bookConfirmationWithLookup struct {
+	ID          string                    `json:"id"`
+	Title       string                    `json:"title"`
+	Status      string                    `json:"status"`
+	OpenLibrary *openlibrary.SearchResult `json:"open_library"`
+}
+
 func confirm(b *model.Book) bookConfirmation {
 	return bookConfirmation{
 		ID:     b.ID,
 		Title:  b.Title,
 		Status: b.Status,
+	}
+}
+
+func confirmWithLookup(b *model.Book, ol *openlibrary.SearchResult) bookConfirmationWithLookup {
+	return bookConfirmationWithLookup{
+		ID:          b.ID,
+		Title:       b.Title,
+		Status:      b.Status,
+		OpenLibrary: ol,
 	}
 }
 
