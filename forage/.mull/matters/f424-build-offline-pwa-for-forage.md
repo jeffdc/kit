@@ -1,5 +1,5 @@
 ---
-status: raw
+status: done
 tags: [pwa, forage]
 created: 2026-03-01
 updated: 2026-03-01
@@ -245,4 +245,3 @@ Skip changes that can't be applied (e.g., updating a deleted book) with a warnin
 
 **Notes:**
 The `--changes` flag is mutually exclusive with the existing CSV import behavior. When `--changes` is set, the positional arg is treated as a JSON changelog file, not a CSV.
-
