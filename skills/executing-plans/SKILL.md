@@ -68,6 +68,19 @@ Read the plan section. Review critically:
 
 **If no concerns:** Create task tracking items and proceed.
 
+### Step 1b: Choose Workflow
+
+Ask the user: **"Work on main or create a branch?"**
+
+- **Main (default):** Start working. Agent commits on main, never pushes.
+- **Branch:** Create and switch before any edits:
+  ```bash
+  git checkout -b <descriptive-branch-name>
+  ```
+  Agent can push to this branch. When done, the user invokes finishing-a-development-branch.
+
+Don't choose for the user. If the plan doesn't specify, ask.
+
 ### Step 2: Execute Batch
 
 **Default batch size: 3 tasks.** Adjust if the user prefers differently.

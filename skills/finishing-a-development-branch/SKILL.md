@@ -90,12 +90,15 @@ Done.
 ## Red Flags
 
 **Never:**
+- Push to main/master — only the user pushes to main
+- Force-push to any branch — history rewriting is blocked by pre-push hook
+- Amend commits that have already been pushed
 - Proceed with failing tests
 - Merge without verifying tests on the result
 - Delete branches without the user asking
-- Force-push without explicit request
 
 **Always:**
 - Verify tests before offering options
 - Present exactly 3 options
 - Run tests again after merge (Option 1)
+- Push feature branches with `git push -u origin <branch>` (never main)

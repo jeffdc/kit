@@ -58,6 +58,8 @@ Skip any step = lying, not verifying
 - Relying on partial verification
 - Thinking "just this once"
 - **ANY wording implying success without having run verification**
+- About to claim completion without running surface audit
+- Concluding "nothing affected" without checking git diff
 
 ## Rationalization Prevention
 
@@ -70,6 +72,8 @@ Skip any step = lying, not verifying
 | "Agent said success" | Verify independently |
 | "Partial check is enough" | Partial proves nothing |
 | "Different words so rule doesn't apply" | Spirit over letter |
+| "No surfaces affected" | Run the diff, check the map |
+| "Too small to drift" | All changes go through the check |
 
 ## Key Patterns
 
@@ -102,6 +106,34 @@ NOT "Tests pass, phase complete"
 Agent reports success -> Check VCS diff -> Verify changes -> Report actual state
 NOT Trust agent report
 ```
+
+## Surface Audit
+
+After tests/build pass, before claiming completion: check whether all parallel representations of changed data were updated.
+
+**The procedure:**
+
+```
+1. DETECT: git diff --name-only against base branch (full session, not just last commit)
+2. MAP: For each changed file, identify parallel surfaces using the surface map
+3. CHECK: Which mapped surfaces are NOT in the diff?
+4. ASK: For each gap, ask the user — don't skip, don't auto-fix
+```
+
+The user decides what's in scope. You present evidence and ask.
+
+**Surface map:** See `surface-map.md` in this directory for default mapping rules, example commands, and project-specific configuration format (a `## Surface Map` section in the project's CLAUDE.md).
+
+**Anti-patterns — these are skill failures:**
+
+| Anti-pattern | Why it fails |
+|---|---|
+| Mentally conclude "nothing affected" without running diff | Self-certification, not evidence |
+| Check only the latest commit, miss earlier session commits | Drift accumulates across the session |
+| Identify a gap and silently fix it | User decides scope, not agent |
+| Skip surface check because changes seem "small" | All changes go through the check |
+
+**Ambiguous cases:** If it's unclear whether a surface uses the changed code, ask rather than skip. False positives beat silent drift.
 
 ## When To Apply
 
