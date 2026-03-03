@@ -1,5 +1,5 @@
 ---
-status: raw
+status: done
 tags: [forage]
 created: 2026-03-02
 updated: 2026-03-03
@@ -39,4 +39,3 @@ Expand Cobra `Long` field on every command with:
 - Man pages or external docs
 - `--format` flag on guide
 - Generated-from-code approach (guide is a string literal)
-
