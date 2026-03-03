@@ -229,7 +229,7 @@ var statusLikeValues = map[string]bool{
 type csvFormat int
 
 const (
-	formatGoodreads  csvFormat = iota
+	formatGoodreads csvFormat = iota
 	formatStoryGraph
 )
 
@@ -426,7 +426,20 @@ type importSummary struct {
 var importCmd = &cobra.Command{
 	Use:   "import <file> [file...]",
 	Short: "Import books from Goodreads or StoryGraph CSV exports",
-	Args:  cobra.MinimumNArgs(1),
+	Long: `Import books from Goodreads or StoryGraph CSV exports. Auto-detects format
+by header inspection. Multiple files are merged with deduplication.
+
+Also supports JSON changelog import from PWA sync with --changes.
+
+Examples:
+  forage import goodreads.csv
+  forage import goodreads.csv storygraph.csv    # merge and deduplicate
+  forage import --dry-run export.csv            # preview without writing
+  forage import changes.json --changes          # apply PWA changelog
+
+CSV output:  {"imported": 42, "skipped_existing": 3, "skipped_duplicate": 1}
+JSON output: {"applied": 10, "skipped": 1, "errors": 0}`,
+	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		changes, _ := cmd.Flags().GetBool("changes")
 		if changes {

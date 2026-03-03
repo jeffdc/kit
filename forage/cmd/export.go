@@ -14,7 +14,16 @@ import (
 var exportCmd = &cobra.Command{
 	Use:   "export",
 	Short: "Generate a self-contained HTML file of your library",
-	Args:  cobra.NoArgs,
+	Long: `Generate a self-contained HTML file (or PWA directory) of your library.
+Dropped books are excluded.
+
+Examples:
+  forage export
+  forage export -o my-books.html
+  forage export --pwa                     # generate a PWA directory
+
+Output: {"exported": "forage-library.html", "books": 17}`,
+	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		output, _ := cmd.Flags().GetString("output")
 		isPWA, _ := cmd.Flags().GetBool("pwa")

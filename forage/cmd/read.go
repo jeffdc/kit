@@ -11,7 +11,13 @@ import (
 var readCmd = &cobra.Command{
 	Use:   "read <id>",
 	Short: "Mark a book as read",
-	Args:  cobra.ExactArgs(1),
+	Long: `Mark a book as read. Sets status to "read" and date_read to today.
+
+Example:
+  forage read a3f2
+
+Output: {"id": "a3f2", "title": "...", "status": "read"}`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		id := args[0]
 

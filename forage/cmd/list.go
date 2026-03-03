@@ -12,7 +12,17 @@ import (
 var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List books in your library",
-	Args:  cobra.NoArgs,
+	Long: `List books in your library. Dropped books are excluded by default.
+
+Examples:
+  forage list
+  forage list --status reading
+  forage list --tag sci-fi
+  forage list --author "Frank Herbert"
+  forage list --all                       # include dropped books
+
+Output: JSON array of books (body field stripped).`,
+	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		filters := make(map[string]string)
 

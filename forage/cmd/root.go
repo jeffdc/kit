@@ -15,7 +15,10 @@ var store *storage.Store
 var rootCmd = &cobra.Command{
 	Use:   "forage",
 	Short: "A personal book library manager",
-	Long:  "A CLI tool for managing your personal book library. All output is JSON.",
+	Long: `A CLI tool for managing your personal book library. All output is JSON.
+
+Run "forage guide" for a full reference (commands, fields, statuses, workflows).
+Run "forage prime" for a token-efficient library snapshot (for LLM context).`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		var err error
 		store, err = storage.New(storage.DefaultRoot())

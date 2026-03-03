@@ -26,7 +26,16 @@ type primeOutput struct {
 var primeCmd = &cobra.Command{
 	Use:   "prime",
 	Short: "Token-efficient JSON snapshot for LLM context",
-	Args:  cobra.NoArgs,
+	Long: `Token-efficient JSON snapshot of your library for LLM context windows.
+Lists non-dropped books with minimal fields, plus status counts.
+
+Use "forage guide" for a full command/field reference.
+
+Example:
+  forage prime
+
+Output: {"books": [{"id": "...", "title": "...", ...}], "counts": {"reading": 1, ...}}`,
+	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		books, err := store.ListBooks(nil)
 		if err != nil {

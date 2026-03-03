@@ -12,7 +12,14 @@ import (
 var searchCmd = &cobra.Command{
 	Use:   "search <query>",
 	Short: "Search books by title, author, tags, or notes",
-	Args:  cobra.ExactArgs(1),
+	Long: `Search books by title, author, tags, or notes. Case-insensitive substring match.
+
+Example:
+  forage search "neuromancer"
+  forage search "sci-fi"
+
+Output: JSON array of matching books (same shape as "list", body stripped).`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		books, err := store.SearchBooks(args[0])
 		if err != nil {

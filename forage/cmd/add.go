@@ -13,7 +13,18 @@ import (
 var addCmd = &cobra.Command{
 	Use:   "add <title>",
 	Short: "Add a book to your library",
-	Args:  cobra.ExactArgs(1),
+	Long: `Add a book to your library. Status defaults to "wishlist".
+
+Valid statuses: wishlist, reading, paused, read, dropped.
+Rating: 1-5 (0 or omitted = unrated).
+
+Examples:
+  forage add "Dune" --author "Frank Herbert"
+  forage add "Neuromancer" --author "William Gibson" --tag sci-fi --tag classic
+  forage add "Babel" --author "R.F. Kuang" --status reading --rating 4
+
+Output: {"id": "a3f2", "title": "...", "status": "wishlist"}`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		title := args[0]
 
