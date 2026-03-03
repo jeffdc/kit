@@ -143,6 +143,10 @@ func renderFilterLine(a *App) string {
 		parts = append(parts, fmt.Sprintf("search=%q", a.searchQuery))
 	}
 
+	if a.sortMode != sortTitle {
+		parts = append(parts, "sort="+sortLabels[a.sortMode])
+	}
+
 	if a.searching {
 		return "  " + a.searchInput.View()
 	}

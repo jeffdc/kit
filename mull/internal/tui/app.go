@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -57,12 +58,13 @@ type App struct {
 	cursor       int
 	docketCursor int
 
-	// Filter state
+	// Filter/sort state
 	filter       filterMode
 	statusFilter string
 	epicFilter   string
 	searchQuery  string
 	searching    bool
+	sortMode     sortMode
 
 	// UI components
 	searchInput textinput.Model
@@ -132,6 +134,7 @@ func (a *App) filteredMatters() []*model.Matter {
 		}
 		result = append(result, m)
 	}
+	sort.Slice(result, sortFunc(a.sortMode, result))
 	return result
 }
 
@@ -361,6 +364,14 @@ func (a App) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return a, nil
 
+	case matchKey(msg, a.keys.Sort):
+		if a.view == viewMatters {
+			a.cycleSort()
+			a.cursor = 0
+			return a, a.setFlash("Sort: " + sortLabels[a.sortMode])
+		}
+		return a, nil
+
 	case matchKey(msg, a.keys.Search):
 		if a.view == viewMatters {
 			a.searching = true
@@ -540,7 +551,7 @@ enter  detail       a  all              S  set status
 esc    back/clear   s  cycle status     D  mark done
 1  matters          e  cycle epic       X  drop
 2  docket           /  search           O  open in editor
-                                        r  refresh
+                    t  cycle sort       r  refresh
 
 Press ? to close`
 
