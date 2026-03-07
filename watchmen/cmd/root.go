@@ -47,6 +47,7 @@ func init() {
 	rootCmd.AddCommand(logCmd)
 	rootCmd.AddCommand(listCmd)
 	rootCmd.AddCommand(amendCmd)
+	rootCmd.AddCommand(deleteCmd)
 	rootCmd.AddCommand(invoiceCmd)
 	rootCmd.AddCommand(invoicesCmd)
 	rootCmd.AddCommand(configCmd)
