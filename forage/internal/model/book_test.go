@@ -18,6 +18,24 @@ func TestValidStatuses(t *testing.T) {
 	}
 }
 
+func TestAuthorSortKey(t *testing.T) {
+	cases := []struct {
+		input, want string
+	}{
+		{"Frank Herbert", "Herbert, Frank"},
+		{"Homer", "Homer"},
+		{"Ursula K. Le Guin", "Guin, Ursula K. Le"},
+		{"", ""},
+		{"J.R.R. Tolkien", "Tolkien, J.R.R."},
+	}
+	for _, tc := range cases {
+		got := AuthorSortKey(tc.input)
+		if got != tc.want {
+			t.Errorf("AuthorSortKey(%q) = %q, want %q", tc.input, got, tc.want)
+		}
+	}
+}
+
 func TestIsTerminal(t *testing.T) {
 	if !IsTerminal("dropped") {
 		t.Error("expected dropped to be terminal")

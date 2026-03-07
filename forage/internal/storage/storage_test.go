@@ -336,6 +336,68 @@ func TestCreateBookWithID(t *testing.T) {
 	}
 }
 
+func TestSortAuthorAutoPopulated(t *testing.T) {
+	s := testStore(t)
+
+	b, err := s.CreateBook("Dune", "Frank Herbert", nil)
+	if err != nil {
+		t.Fatalf("CreateBook() error: %v", err)
+	}
+	if b.SortAuthor != "Herbert, Frank" {
+		t.Errorf("SortAuthor = %q, want %q", b.SortAuthor, "Herbert, Frank")
+	}
+
+	got, err := s.GetBook(b.ID)
+	if err != nil {
+		t.Fatalf("GetBook() error: %v", err)
+	}
+	if got.SortAuthor != "Herbert, Frank" {
+		t.Errorf("persisted SortAuthor = %q, want %q", got.SortAuthor, "Herbert, Frank")
+	}
+}
+
+func TestSortAuthorManualOverride(t *testing.T) {
+	s := testStore(t)
+
+	b, _ := s.CreateBook("The Left Hand of Darkness", "Ursula K. Le Guin", nil)
+	updated, err := s.UpdateBook(b.ID, "sort_author", "Le Guin, Ursula K.")
+	if err != nil {
+		t.Fatalf("UpdateBook() error: %v", err)
+	}
+	if updated.SortAuthor != "Le Guin, Ursula K." {
+		t.Errorf("SortAuthor = %q, want %q", updated.SortAuthor, "Le Guin, Ursula K.")
+	}
+
+	got, _ := s.GetBook(b.ID)
+	if got.SortAuthor != "Le Guin, Ursula K." {
+		t.Errorf("persisted SortAuthor = %q, want %q", got.SortAuthor, "Le Guin, Ursula K.")
+	}
+}
+
+func TestSortAuthorMigrationBackfill(t *testing.T) {
+	s := testStore(t)
+
+	// Insert a book with empty sort_author (simulating pre-migration data)
+	_, err := s.db.Exec(
+		"INSERT INTO books (id, title, author, status, tags, rating, date_added, date_read, body, sort_author) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		"aaaa", "Dune", "Frank Herbert", "wishlist", "", 0, "2026-01-01", "", "", "",
+	)
+	if err != nil {
+		t.Fatalf("manual insert: %v", err)
+	}
+
+	// Run backfill
+	err = s.BackfillSortAuthor()
+	if err != nil {
+		t.Fatalf("BackfillSortAuthor() error: %v", err)
+	}
+
+	got, _ := s.GetBook("aaaa")
+	if got.SortAuthor != "Herbert, Frank" {
+		t.Errorf("backfilled SortAuthor = %q, want %q", got.SortAuthor, "Herbert, Frank")
+	}
+}
+
 func testStore(t *testing.T) *Store {
 	t.Helper()
 	s, err := New(t.TempDir())

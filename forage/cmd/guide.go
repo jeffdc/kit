@@ -45,6 +45,7 @@ Statuses are set via "forage set <id> status <value>" or shortcuts:
   status      string     yes                  one of: wishlist, owned, reading, paused, read, dropped
   tags        []string   yes                  comma-separated in "set", --tag flag on "add"
   rating      int        yes                  1-5 (0 = unrated, omitted from output)
+  sort_author string     yes                  "Last, First" sort key, auto-derived from author
   date_added  string     no                   YYYY-MM-DD, auto-set on add
   date_read   string     yes                  YYYY-MM-DD, auto-set by "forage read"
   body        string     no (use add --body)  free-form notes

@@ -93,7 +93,7 @@ h1 { font-size: 1.4em; margin-bottom: 12px; color: #222; }
 <div class="sort-controls">
   Sort:
   <button data-sort="title" class="active">Title</button>
-  <button data-sort="author">Author</button>
+  <button data-sort="sort_author">Author</button>
   <button data-sort="rating">Rating</button>
   <button data-sort="date_added">Date</button>
 </div>

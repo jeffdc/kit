@@ -42,7 +42,7 @@ func sortBooks(books []model.Book, mode sortMode) {
 		case sortStatus:
 			return statusOrder[a.Status] < statusOrder[b.Status]
 		case sortAuthor:
-			return strings.ToLower(a.Author) < strings.ToLower(b.Author)
+			return strings.ToLower(a.SortAuthor) < strings.ToLower(b.SortAuthor)
 		default: // sortTitle
 			return strings.ToLower(a.Title) < strings.ToLower(b.Title)
 		}

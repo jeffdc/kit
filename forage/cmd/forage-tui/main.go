@@ -17,6 +17,11 @@ func main() {
 	}
 	defer store.Close()
 
+	if err := store.BackfillSortAuthor(); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+
 	p := tea.NewProgram(tui.NewApp(store), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)

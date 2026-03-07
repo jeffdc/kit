@@ -1,5 +1,7 @@
 package model
 
+import "strings"
+
 // StatusList is the canonical ordered list of valid statuses.
 var StatusList = []string{"wishlist", "owned", "reading", "paused", "read", "dropped"}
 
@@ -19,6 +21,20 @@ func IsTerminal(s string) bool {
 	return s == "dropped"
 }
 
+// AuthorSortKey derives a "Last, First" sort key from a full author name.
+func AuthorSortKey(author string) string {
+	if author == "" {
+		return ""
+	}
+	parts := strings.Fields(author)
+	if len(parts) == 1 {
+		return author
+	}
+	last := parts[len(parts)-1]
+	rest := strings.Join(parts[:len(parts)-1], " ")
+	return last + ", " + rest
+}
+
 type Bookseller struct {
 	ID   int    `json:"id"`
 	Name string `json:"name"`
@@ -34,5 +50,6 @@ type Book struct {
 	Rating    int      `json:"rating,omitempty"`
 	DateAdded string   `json:"date_added"`
 	DateRead  string   `json:"date_read,omitempty"`
-	Body      string   `json:"body,omitempty"`
+	Body       string   `json:"body,omitempty"`
+	SortAuthor string   `json:"sort_author,omitempty"`
 }

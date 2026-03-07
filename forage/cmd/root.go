@@ -22,7 +22,10 @@ Run "forage prime" for a token-efficient library snapshot (for LLM context).`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		var err error
 		store, err = storage.New(storage.DefaultRoot())
-		return err
+		if err != nil {
+			return err
+		}
+		return store.BackfillSortAuthor()
 	},
 	PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
 		if store != nil {
