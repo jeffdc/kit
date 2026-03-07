@@ -1,20 +1,25 @@
 package cmd
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"strings"
 
 	"flint/internal/git"
+	"flint/internal/obsidian"
 
 	"github.com/spf13/cobra"
 )
 
 var parkCmd = &cobra.Command{
-	Use:   "park",
+	Use:   "park [notes]",
 	Short: "Save context before stepping away",
-	Long:  "Gathers git state (branch, dirty files, recent commits) and your notes, then writes a context dump to your Obsidian daily note.",
+	Long: `Two-step flow for LLM callers:
+  1. flint park --context  — print git state to stdout (no write)
+  2. flint park "notes"    — write git context + notes to Obsidian daily note
+
+With no args and no --context flag, defaults to printing context.`,
+	Args: cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		dir, err := os.Getwd()
 		if err != nil {
@@ -26,18 +31,14 @@ var parkCmd = &cobra.Command{
 			return fmt.Errorf("git context failed: %w", err)
 		}
 
-		fmt.Println("What were you thinking? (empty line to finish)")
-		var lines []string
-		scanner := bufio.NewScanner(os.Stdin)
-		for scanner.Scan() {
-			line := scanner.Text()
-			if line == "" {
-				break
-			}
-			lines = append(lines, line)
+		// No args: print context and exit
+		if len(args) == 0 {
+			fmt.Print(obsidian.FormatContext(ctx))
+			return nil
 		}
-		notes := strings.Join(lines, " ")
 
+		// With args: write park entry
+		notes := strings.Join(args, " ")
 		if err := client.Park(project, ctx, notes); err != nil {
 			return fmt.Errorf("park failed: %w", err)
 		}

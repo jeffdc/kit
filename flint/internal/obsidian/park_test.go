@@ -36,6 +36,29 @@ func TestFormatPark_includesAllSections(t *testing.T) {
 	}
 }
 
+func TestFormatContext_returnsPlainTextGitState(t *testing.T) {
+	ctx := &git.RepoContext{
+		Branch:        "feat/caching",
+		DirtyFiles:    []string{"?? cache.go", "M  main.go"},
+		RecentCommits: []string{"abc1234 add cache layer", "def5678 initial commit"},
+	}
+
+	result := FormatContext(ctx)
+
+	if !strings.Contains(result, "feat/caching") {
+		t.Error("missing branch")
+	}
+	if !strings.Contains(result, "cache.go") {
+		t.Error("missing dirty files")
+	}
+	if !strings.Contains(result, "add cache layer") {
+		t.Error("missing recent commits")
+	}
+	if strings.Contains(result, "#park") {
+		t.Error("should not contain #park tag")
+	}
+}
+
 func TestFormatPark_appendsViaClient(t *testing.T) {
 	r := &fakeRunner{}
 	client := New(r)
