@@ -24,18 +24,20 @@ const (
 type filterMode int
 
 const (
-	filterNonTerminal filterMode = iota // wishlist, reading, paused, read
+	filterNonTerminal filterMode = iota // wishlist, owned, reading, paused, read
 	filterWishlist
+	filterOwned
 	filterReading
 	filterPaused
 	filterRead
 	filterAll
 )
 
-var filterCycle = []filterMode{filterNonTerminal, filterWishlist, filterReading, filterPaused, filterRead, filterAll}
+var filterCycle = []filterMode{filterNonTerminal, filterWishlist, filterOwned, filterReading, filterPaused, filterRead, filterAll}
 var filterNames = map[filterMode]string{
 	filterNonTerminal: "active",
 	filterWishlist:    "wishlist",
+	filterOwned:       "owned",
 	filterReading:     "reading",
 	filterPaused:      "paused",
 	filterRead:        "read",
@@ -119,6 +121,8 @@ func (a *App) matchesFilter(b model.Book) bool {
 		return !model.IsTerminal(b.Status)
 	case filterWishlist:
 		return b.Status == "wishlist"
+	case filterOwned:
+		return b.Status == "owned"
 	case filterReading:
 		return b.Status == "reading"
 	case filterPaused:
@@ -339,7 +343,7 @@ func (a App) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
-var statusProgression = []string{"wishlist", "reading", "paused", "read"}
+var statusProgression = []string{"wishlist", "owned", "reading", "paused", "read"}
 
 func (a App) cycleBookStatus(b *model.Book) (tea.Model, tea.Cmd) {
 	for i, s := range statusProgression {

@@ -50,7 +50,7 @@ Default status is `wishlist`.
 
 ## Statuses
 
-Valid statuses: `wishlist`, `reading`, `paused`, `read`, `dropped`. No others accepted.
+Valid statuses: `wishlist`, `owned`, `reading`, `paused`, `read`, `dropped`. No others accepted.
 
 ## Portable View
 

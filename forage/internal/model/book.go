@@ -1,12 +1,15 @@
 package model
 
-var validStatuses = map[string]bool{
-	"wishlist": true,
-	"reading":  true,
-	"paused":   true,
-	"read":     true,
-	"dropped":  true,
-}
+// StatusList is the canonical ordered list of valid statuses.
+var StatusList = []string{"wishlist", "owned", "reading", "paused", "read", "dropped"}
+
+var validStatuses = func() map[string]bool {
+	m := make(map[string]bool, len(StatusList))
+	for _, s := range StatusList {
+		m[s] = true
+	}
+	return m
+}()
 
 func ValidStatus(s string) bool {
 	return validStatuses[s]

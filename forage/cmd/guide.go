@@ -25,6 +25,7 @@ func guideText() string {
 ## Statuses
 
   wishlist   — want to read (default on add)
+  owned      — acquired but not yet started
   reading    — currently reading
   paused     — on hold
   read       — finished
@@ -41,7 +42,7 @@ Statuses are set via "forage set <id> status <value>" or shortcuts:
   id          string     no                   4-char hex, auto-generated
   title       string     yes                  required on add
   author      string     yes                  required on add (--author flag)
-  status      string     yes                  one of: wishlist, reading, paused, read, dropped
+  status      string     yes                  one of: wishlist, owned, reading, paused, read, dropped
   tags        []string   yes                  comma-separated in "set", --tag flag on "add"
   rating      int        yes                  1-5 (0 = unrated, omitted from output)
   date_added  string     no                   YYYY-MM-DD, auto-set on add

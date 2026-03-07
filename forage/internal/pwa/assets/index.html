@@ -14,8 +14,9 @@
     <div class="controls">
       <input type="text" id="search" placeholder="Search books..." autocomplete="off">
       <select id="filter">
-        <option value="all">All</option>
-        <option value="wishlist" selected>Wishlist</option>
+        <option value="all" selected>All</option>
+        <option value="wishlist">Wishlist</option>
+        <option value="owned">Owned</option>
         <option value="reading">Reading</option>
         <option value="paused">Paused</option>
         <option value="read">Read</option>
@@ -48,6 +49,7 @@
           <label for="field-status">Status</label>
           <select id="field-status">
             <option value="wishlist">Wishlist</option>
+            <option value="owned">Owned</option>
             <option value="reading">Reading</option>
             <option value="paused">Paused</option>
             <option value="read">Read</option>

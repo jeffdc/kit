@@ -15,7 +15,7 @@ var addCmd = &cobra.Command{
 	Short: "Add a book to your library",
 	Long: `Add a book to your library. Status defaults to "wishlist".
 
-Valid statuses: wishlist, reading, paused, read, dropped.
+Valid statuses: wishlist, owned, reading, paused, read, dropped.
 Rating: 1-5 (0 or omitted = unrated).
 
 Examples:

@@ -347,7 +347,7 @@ func applyMeta(b *model.Book, meta map[string]string) error {
 			b.Author = v
 		case "status":
 			if !model.ValidStatus(v) {
-				return fmt.Errorf("invalid status: %s (valid: wishlist, reading, paused, read, dropped)", v)
+				return fmt.Errorf("invalid status: %s (valid: %s)", v, strings.Join(model.StatusList, ", "))
 			}
 			b.Status = v
 		case "rating":

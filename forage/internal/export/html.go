@@ -62,6 +62,7 @@ h1 { font-size: 1.4em; margin-bottom: 12px; color: #222; }
 .tag { background: #eee8d5; color: #555; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
 .status { font-size: 12px; padding: 2px 8px; border-radius: 4px; font-weight: 500; }
 .status-wishlist { background: #dbeafe; color: #1e40af; }
+.status-owned { background: #ccfbf1; color: #115e59; }
 .status-reading { background: #fef3c7; color: #92400e; }
 .status-paused { background: #f3e8ff; color: #6b21a8; }
 .status-read { background: #d1fae5; color: #065f46; }
@@ -81,8 +82,9 @@ h1 { font-size: 1.4em; margin-bottom: 12px; color: #222; }
 <div class="controls">
   <input type="text" id="search" placeholder="Search books..." autocomplete="off">
   <select id="filter">
-    <option value="all">All</option>
-    <option value="wishlist" selected>Wishlist</option>
+    <option value="all" selected>All</option>
+    <option value="wishlist">Wishlist</option>
+    <option value="owned">Owned</option>
     <option value="reading">Reading</option>
     <option value="paused">Paused</option>
     <option value="read">Read</option>

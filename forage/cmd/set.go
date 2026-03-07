@@ -13,7 +13,7 @@ var setCmd = &cobra.Command{
 	Long: `Update a field on a book.
 
 Valid keys: title, author, status, rating, tags, date_read.
-Valid statuses: wishlist, reading, paused, read, dropped.
+Valid statuses: wishlist, owned, reading, paused, read, dropped.
 For tags, use comma-separated values.
 
 Examples:

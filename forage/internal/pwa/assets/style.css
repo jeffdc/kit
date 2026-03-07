@@ -121,6 +121,7 @@ h1 {
 }
 
 .status-wishlist { background: #dbeafe; color: #1e40af; }
+.status-owned { background: #ccfbf1; color: #115e59; }
 .status-reading { background: #fef3c7; color: #92400e; }
 .status-paused { background: #f3e8ff; color: #6b21a8; }
 .status-read { background: #d1fae5; color: #065f46; }

@@ -9,7 +9,7 @@ func TestGuideContainsKeyInfo(t *testing.T) {
 
 	required := []string{
 		// Statuses
-		"wishlist", "reading", "paused", "read", "dropped",
+		"wishlist", "owned", "reading", "paused", "read", "dropped",
 		// Settable fields
 		"title", "author", "status", "rating", "tags", "date_read",
 		// Commands
