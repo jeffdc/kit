@@ -12,6 +12,7 @@ make install       # Install to GOBIN
 make test          # Run all tests (go test -v ./...)
 make fmt           # Format code (gofmt -s -w)
 make vet           # Run go vet
+make deploy        # Export PWA and deploy to Sprite
 ```
 
 Run a single test: `go test -v ./internal/storage -run TestName`
@@ -47,6 +48,14 @@ Data is stored in `~/.forage/` (global, not project-local). Override with `FORAG
 ~/.forage/
   forage.db    # SQLite database (books, booksellers tables)
 ```
+
+## Deployment
+
+PWA is hosted on a Fly.io Sprite at https://forage-4pbc.sprites.app. Config in `.sprite`.
+
+`make deploy` exports the PWA and copies files to the sprite. The sprite runs a Python HTTP server on port 8080 as a persistent service (survives sleep/wake).
+
+Sprite setup details are in the project memory at `sprite-deploy.md`.
 
 ## Testing
 

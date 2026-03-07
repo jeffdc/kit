@@ -1,4 +1,4 @@
-.PHONY: all build build-tui install test fmt lint vet clean help
+.PHONY: all build build-tui install test fmt lint vet clean help deploy
 
 BINARY_NAME := forage
 TUI_BINARY := forage-tui
@@ -45,9 +45,17 @@ lint:
 vet:
 	go vet ./...
 
+deploy:
+	forage export --pwa -o /tmp/forage-pwa
+	for f in /tmp/forage-pwa/*; do \
+		cat "$$f" | sprite exec -s forage bash -c "cat > /home/sprite/www/$$(basename $$f)"; \
+	done
+	@echo "Deployed to https://forage-4pbc.sprites.app"
+
 clean:
 	rm -f $(BINARY_NAME) $(TUI_BINARY)
 	rm -f coverage.out coverage.html
+	rm -rf /tmp/forage-pwa
 
 help:
 	@echo "Available targets:"
@@ -61,5 +69,6 @@ help:
 	@echo "  fmt-check     - Check if code is formatted"
 	@echo "  lint          - Run golangci-lint (or vet if not installed)"
 	@echo "  vet           - Run go vet"
+	@echo "  deploy        - Export PWA and deploy to Sprite"
 	@echo "  clean         - Remove build artifacts"
 	@echo "  help          - Show this help"
