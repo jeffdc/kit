@@ -22,7 +22,10 @@ Use the base branch version for multi-commit sessions — checking only the last
 
 ### 2. Categorize changed files and check mapped surfaces
 
-For each changed file, find its category in the surface map. For each mapped surface, check whether it also appears in the diff. If it doesn't, flag it.
+For each changed file, find its category in the surface map. Then check each mapped surface:
+
+- **Code surfaces** — check whether the file appears in the diff. Absence means it wasn't touched.
+- **Documentation surfaces** (`*.md` in `docs/`, `runbooks/`, project root, etc.) — **read the file** and check whether its statements about the changed behavior are still factually correct. A doc's absence from the diff tells you nothing; the problem is precisely that it *didn't* change when it should have.
 
 ### 3. Ask the user about each gap
 
@@ -71,6 +74,20 @@ Format — each line is a glob pattern mapping:
 The `→` separates the trigger pattern (left) from the surfaces to check (right). Parenthetical notes after a path indicate a specific section within that file.
 
 If no `## Surface Map` section exists in the project CLAUDE.md, use only the default rules above.
+
+## Documentation Surfaces Require Reading
+
+Documentation is a special surface type. For code files, the diff check works: if a mapped controller isn't in the diff, flag it. For documentation files, absence from the diff is the *expected* failure mode — stale docs don't announce themselves.
+
+**The failure mode:** You scan the diff, see no doc files changed, and conclude "no docs need updating." But the reason no docs changed is that nobody updated them. The doc may describe the old behavior in detail — a range model that was replaced, API fields that were renamed, a workflow that no longer exists. You can only know by reading it.
+
+**When a mapped surface is a doc file** (`.md` in `docs/`, `runbooks/`, admin guides, onboarding docs, `CLAUDE.md` sections, etc.):
+
+1. **Open the file.** Diff-checking is insufficient.
+2. **Search for statements about the changed behavior.** Look for descriptions of the feature, data model, workflow, or API shape you modified.
+3. **Check whether those statements are still factually correct.** If they describe the old behavior, flag them — the doc needs updating.
+
+This applies to every documentation surface in the mapping table: domain model docs, API documentation, developer docs, admin-facing docs, operational runbooks, and component inventories.
 
 ## Example Audit Output
 
