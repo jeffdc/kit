@@ -24,19 +24,17 @@ func renderList(a *App) string {
 	}
 
 	// Column widths
-	idW := 6
 	statusW := 10
 	authorW := 20
 	ratingW := 7
-	padding := idW + statusW + authorW + ratingW + 8
+	padding := statusW + authorW + ratingW + 6
 	titleW := a.width - padding
 	if titleW < 10 {
 		titleW = 10
 	}
 
 	// Header
-	hdr := fmt.Sprintf("  %-*s %-*s %-*s %-*s %s",
-		idW, "ID",
+	hdr := fmt.Sprintf("  %-*s %-*s %-*s %s",
 		titleW, "Title",
 		authorW, "Author",
 		statusW, "Status",
@@ -69,8 +67,7 @@ func renderList(a *App) string {
 		}
 
 		if i == a.cursor {
-			row := fmt.Sprintf("  %-*s %-*s %-*s %-*s %-*s",
-				idW, bk.ID,
+			row := fmt.Sprintf("  %-*s %-*s %-*s %-*s",
 				titleW, title,
 				authorW, author,
 				statusW, bk.Status,
@@ -79,8 +76,7 @@ func renderList(a *App) string {
 			b.WriteString(selectedRow.Width(a.width).Render(row))
 		} else {
 			styledStatus := statusStyle(bk.Status).Render(fmt.Sprintf("%-*s", statusW, bk.Status))
-			row := fmt.Sprintf("  %-*s %-*s %-*s %s %-*s",
-				idW, bk.ID,
+			row := fmt.Sprintf("  %-*s %-*s %s %-*s",
 				titleW, title,
 				authorW, author,
 				styledStatus,
@@ -101,6 +97,7 @@ func renderFilterLine(a *App) string {
 	var parts []string
 
 	parts = append(parts, filterNames[a.filter])
+	parts = append(parts, "sort="+sortLabels[a.sortMode])
 
 	if a.searchQuery != "" {
 		parts = append(parts, fmt.Sprintf("search=%q", a.searchQuery))

@@ -20,6 +20,7 @@ type keyMap struct {
 	FilterPa  key.Binding
 	FilterRd  key.Binding
 	CycleFilt key.Binding
+	CycleSort key.Binding
 }
 
 func newKeyMap() keyMap {
@@ -41,5 +42,6 @@ func newKeyMap() keyMap {
 		FilterPa:  key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "paused")),
 		FilterRd:  key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "read")),
 		CycleFilt: key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "cycle filter")),
+		CycleSort: key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "cycle sort")),
 	}
 }

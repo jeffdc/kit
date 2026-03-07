@@ -60,6 +60,7 @@ type App struct {
 	cursor int
 
 	filter      filterMode
+	sortMode    sortMode
 	searchQuery string
 	searching   bool
 
@@ -112,6 +113,7 @@ func (a *App) filteredBooks() []model.Book {
 		}
 		result = append(result, b)
 	}
+	sortBooks(result, a.sortMode)
 	return result
 }
 
@@ -339,6 +341,11 @@ func (a App) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.filter = filterRead
 		a.cursor = 0
 		return a, nil
+
+	case matchKey(msg, a.keys.CycleSort):
+		a.cycleSort()
+		a.cursor = 0
+		return a, nil
 	}
 	return a, nil
 }
@@ -424,6 +431,7 @@ k/↑  up             a    all            D    mark read
 enter  detail       w    wishlist       X    drop
 esc    back/clear   p    paused         0-5  rate
 /  search           d    read           r    refresh
+                    t    cycle sort
 
 Press ? to close`
 
