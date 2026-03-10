@@ -9,6 +9,7 @@ SKILLS=(
   dispatching-parallel-agents
   executing-plans
   finishing-a-development-branch
+  production-investigation
   receiving-code-review
   requesting-code-review
   user-profile
