@@ -72,7 +72,8 @@ Statuses are set via "forage set <id> status <value>" or shortcuts:
   Output: same shape as "list"
 
 ### forage set <id> <key> <value>
-  Update a field. Valid keys: title, author, status, rating, tags, date_read.
+  Update a field. Valid keys: title, author, status, rating, tags, date_read,
+  sort_author, page_count, first_published, isbn.
   For tags, use comma-separated values: forage set a3f2 tags "sci-fi,classic"
   Output: {"id": "a3f2", "title": "...", "status": "..."}
 
@@ -94,8 +95,9 @@ Statuses are set via "forage set <id> status <value>" or shortcuts:
   Output: {"books": [{...minimal...}], "counts": {"reading": 1, "wishlist": 5, ...}}
 
 ### forage export [-o path]
-  Generate a PWA directory of your library for web deployment.
-  Output: {"exported": "forage-pwa", "books": 17, "pwa": true}
+  Generate a PWA directory for web deployment. The PWA syncs data from the
+  server API at runtime.
+  Output: {"exported": "forage-pwa", "pwa": true}
 
 ### forage import <file.csv> [file2.csv ...] [--dry-run]
   Import from Goodreads or StoryGraph CSV exports. Auto-detects format.
@@ -113,7 +115,7 @@ Statuses are set via "forage set <id> status <value>" or shortcuts:
   Curate:    forage set a3f2 tags "sci-fi,classic"
   Track:     forage set a3f2 status reading → forage read a3f2
   Rate:      forage set a3f2 rating 5
-  Export:    forage export -o my-books.html
+  Export:    forage export -o my-pwa-dir
 
 ## LLM Usage
 
