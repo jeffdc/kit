@@ -1,5 +1,5 @@
 ---
-status: raw
+status: planned
 tags: [forage, design, pwa]
 created: 2026-03-19
 updated: 2026-03-19
@@ -181,4 +181,3 @@ Store the API key locally for CLI use (e.g., in `~/.forage/api_key` or as an env
 
 **Notes:**
 Document the setup in the sprite-deploy memory file. This task should be done last, after all code is tested locally.
-
