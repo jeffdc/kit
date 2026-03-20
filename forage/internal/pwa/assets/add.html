@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Forage Bookmarklet</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f8f7f4; color: #333; padding: 24px; max-width: 600px; margin: 0 auto; line-height: 1.6; }
+    h1 { font-size: 1.4em; margin-bottom: 8px; }
+    p { margin-bottom: 12px; }
+    .bookmarklet-link { display: inline-block; padding: 12px 20px; background: #333; color: #fff; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 15px; margin: 16px 0; cursor: grab; }
+    .bookmarklet-link:hover { background: #555; }
+    .steps { margin: 16px 0; padding-left: 24px; }
+    .steps li { margin-bottom: 8px; }
+    .sites { margin: 8px 0; padding-left: 24px; }
+    .sites li { margin-bottom: 4px; }
+    code { background: #eee8d5; padding: 2px 6px; border-radius: 3px; font-size: 13px; }
+    .back { display: inline-block; margin-top: 20px; color: #555; text-decoration: none; font-size: 14px; }
+    .back:hover { color: #333; }
+  </style>
+</head>
+<body>
+  <h1>Add to Forage</h1>
+  <p>Drag this button to your bookmarks bar:</p>
+
+  <a class="bookmarklet-link" id="bookmarklet">+ Forage</a>
+
+  <p>Then click it on any book page to add it to your library.</p>
+
+  <h2 style="font-size:1.1em; margin-top:24px;">How it works</h2>
+  <ol class="steps">
+    <li>Click the bookmarklet on any book page</li>
+    <li>It scrapes the title and author from the page</li>
+    <li>Opens Forage with the add form pre-filled</li>
+    <li>Auto-triggers an Open Library lookup for extra metadata</li>
+    <li>Review, edit, and save</li>
+  </ol>
+
+  <h2 style="font-size:1.1em; margin-top:24px;">Supported sites</h2>
+  <p>Works on any site with standard metadata. Tested with:</p>
+  <ul class="sites">
+    <li>Amazon</li>
+    <li>Goodreads</li>
+    <li>Bookshop.org</li>
+    <li>Open Library</li>
+    <li>Any site with <code>og:title</code> or JSON-LD Book data</li>
+  </ul>
+
+  <a class="back" href="./">&larr; Back to library</a>
+
+  <script>
+    // Build bookmarklet href from readable source
+    var code = function () {
+      try {
+        var t = '', a = '', d = document;
+
+        // 1. Try JSON-LD structured data
+        var ld = d.querySelectorAll('script[type="application/ld+json"]');
+        for (var i = 0; i < ld.length; i++) {
+          try {
+            var j = JSON.parse(ld[i].textContent);
+            var items = Array.isArray(j) ? j : [j];
+            for (var k = 0; k < items.length; k++) {
+              var it = items[k];
+              if (it['@type'] === 'Book' || it['@type'] === 'Product') {
+                t = t || it.name || '';
+                if (it.author) {
+                  a = a || (typeof it.author === 'string' ? it.author
+                    : (it.author.name || (Array.isArray(it.author)
+                      ? it.author.map(function (x) { return x.name || x; }).join(', ')
+                      : '')));
+                }
+              }
+            }
+          } catch (e) {}
+        }
+
+        // 2. Title: og:title fallback
+        if (!t) {
+          var og = d.querySelector('meta[property="og:title"]');
+          if (og) t = og.content;
+        }
+
+        // 3. Title: page title, strip subtitle/site suffix
+        if (!t) {
+          t = d.title.replace(/\s*[-|:–—].*/,'');
+        }
+
+        // 4. Author: meta author tag
+        if (!a) {
+          var ma = d.querySelector('meta[name="author"]');
+          if (ma) a = ma.content;
+        }
+
+        // 5. Author: Amazon-specific (#bylineInfo .author)
+        if (!a && location.hostname.indexOf('amazon') !== -1) {
+          var amz = d.querySelector('#bylineInfo .author .contributorNameID, #bylineInfo .author a.a-link-normal');
+          if (amz) a = amz.textContent;
+          // Fallback: parse from Amazon title format "Title: ISBN: Last, First: Category"
+          if (!a) {
+            var parts = d.title.split(':');
+            if (parts.length >= 3) {
+              var candidate = parts[parts.length - 2].trim();
+              // Check if it looks like "Last, First" (has a comma, no digits)
+              if (candidate.indexOf(',') !== -1 && !/\d/.test(candidate)) {
+                var np = candidate.split(',');
+                a = np[1].trim() + ' ' + np[0].trim();
+              }
+            }
+          }
+        }
+
+        // 6. Author: Goodreads-specific
+        if (!a && location.hostname.indexOf('goodreads') !== -1) {
+          var gr = d.querySelector('.ContributorLink__name, a.authorName, span[itemprop="name"]');
+          if (gr) a = gr.textContent;
+        }
+
+        // 7. Author: generic selectors (narrow to avoid false positives)
+        if (!a) {
+          var byline = d.querySelector('[itemprop="author"] [itemprop="name"], [itemprop="author"] a, [data-testid="author"], .author-name a, .book-author a');
+          if (byline) a = byline.textContent;
+        }
+
+        t = t.trim();
+        a = a.replace(/^\s*by\s*/i, '').trim();
+
+        window.open('https://forage-4pbc.sprites.app/?title=' + encodeURIComponent(t) + '&author=' + encodeURIComponent(a), '_blank');
+      } catch (e) {
+        window.open('https://forage-4pbc.sprites.app/?title=' + encodeURIComponent(document.title), '_blank');
+      }
+    };
+
+    // Minify by converting function to string
+    var src = '(' + code.toString() + ')()';
+    document.getElementById('bookmarklet').href = 'javascript:void(' + encodeURIComponent(src) + ')';
+  </script>
+</body>
+</html>

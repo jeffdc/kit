@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"os"
 
-	"forage/internal/export"
-	"forage/internal/model"
 	"forage/internal/pwa"
 
 	"github.com/spf13/cobra"
@@ -13,74 +11,34 @@ import (
 
 var exportCmd = &cobra.Command{
 	Use:   "export",
-	Short: "Generate a self-contained HTML file of your library",
-	Long: `Generate a self-contained HTML file (or PWA directory) of your library.
-Dropped books are excluded.
+	Short: "Generate a PWA directory for web deployment",
+	Long: `Generate a PWA directory for web deployment.
+The PWA syncs data from the server API at runtime.
 
 Examples:
   forage export
-  forage export -o my-books.html
-  forage export --pwa                     # generate a PWA directory
+  forage export -o my-pwa-dir
 
-Output: {"exported": "forage-library.html", "books": 17}`,
+Output: {"exported": "forage-pwa", "pwa": true}`,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		output, _ := cmd.Flags().GetString("output")
-		isPWA, _ := cmd.Flags().GetBool("pwa")
 
-		books, err := store.ListBooks(nil)
-		if err != nil {
-			return err
-		}
-
-		// Exclude dropped
-		var included []model.Book
-		for _, b := range books {
-			if !model.IsTerminal(b.Status) {
-				included = append(included, b)
-			}
-		}
-
-		booksellers, err := store.LoadBooksellers()
-		if err != nil {
-			return err
-		}
-
-		if isPWA {
-			if !cmd.Flags().Changed("output") {
-				output = "forage-pwa"
-			}
-
-			if err := pwa.Generate(included, booksellers, output); err != nil {
-				return err
-			}
-
-			return json.NewEncoder(os.Stdout).Encode(map[string]any{
-				"exported": "./" + output,
-				"books":    len(included),
-				"pwa":      true,
-			})
-		}
-
-		f, err := os.Create(output)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-
-		if err := export.Generate(included, booksellers, f); err != nil {
+		if err := pwa.Generate(output); err != nil {
 			return err
 		}
 
 		return json.NewEncoder(os.Stdout).Encode(map[string]any{
-			"exported": output,
-			"books":    len(included),
+			"exported": "./" + output,
+			"pwa":      true,
 		})
 	},
 }
 
 func init() {
-	exportCmd.Flags().StringP("output", "o", "forage-library.html", "Output file path")
-	exportCmd.Flags().Bool("pwa", false, "Generate a PWA directory instead of a single HTML file")
+	exportCmd.Flags().StringP("output", "o", "forage-pwa", "Output directory path")
+	// Keep --pwa flag for backward compatibility (accepted but ignored)
+	exportCmd.Flags().Bool("pwa", false, "Ignored (PWA is now the only export mode)")
+	_ = exportCmd.Flags().MarkHidden("pwa")
 	rootCmd.AddCommand(exportCmd)
 }

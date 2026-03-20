@@ -41,8 +41,11 @@ func New(root string) (*Store, error) {
 			rating      INTEGER DEFAULT 0,
 			date_added  TEXT NOT NULL,
 			date_read   TEXT DEFAULT '',
-			body        TEXT DEFAULT '',
-			sort_author TEXT DEFAULT ''
+			body            TEXT DEFAULT '',
+			sort_author     TEXT DEFAULT '',
+			page_count      INTEGER DEFAULT 0,
+			first_published INTEGER DEFAULT 0,
+			isbn            TEXT DEFAULT ''
 		);
 		CREATE TABLE IF NOT EXISTS booksellers (
 			id   INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,6 +64,22 @@ func New(root string) (*Store, error) {
 		if _, err := db.Exec("ALTER TABLE books ADD COLUMN sort_author TEXT DEFAULT ''"); err != nil {
 			db.Close()
 			return nil, fmt.Errorf("migrating sort_author: %w", err)
+		}
+	}
+
+	// Migrate: add page_count, first_published, isbn columns if missing
+	for _, col := range []struct{ name, def string }{
+		{"page_count", "INTEGER DEFAULT 0"},
+		{"first_published", "INTEGER DEFAULT 0"},
+		{"isbn", "TEXT DEFAULT ''"},
+	} {
+		var n int
+		_ = db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('books') WHERE name=?", col.name).Scan(&n)
+		if n == 0 {
+			if _, err := db.Exec("ALTER TABLE books ADD COLUMN " + col.name + " " + col.def); err != nil {
+				db.Close()
+				return nil, fmt.Errorf("migrating %s: %w", col.name, err)
+			}
 		}
 	}
 
@@ -124,8 +143,8 @@ func (s *Store) CreateBook(title, author string, meta map[string]string) (*model
 
 	tags := strings.Join(b.Tags, ",")
 	_, err = s.db.Exec(
-		"INSERT INTO books (id, title, author, status, tags, rating, date_added, date_read, body, sort_author) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		b.ID, b.Title, b.Author, b.Status, tags, b.Rating, b.DateAdded, b.DateRead, b.Body, b.SortAuthor,
+		"INSERT INTO books (id, title, author, status, tags, rating, date_added, date_read, body, sort_author, page_count, first_published, isbn) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		b.ID, b.Title, b.Author, b.Status, tags, b.Rating, b.DateAdded, b.DateRead, b.Body, b.SortAuthor, b.PageCount, b.FirstPublished, b.ISBN,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("inserting book: %w", err)
@@ -161,8 +180,8 @@ func (s *Store) CreateBookWithID(id, title, author string, meta map[string]strin
 
 	tags := strings.Join(b.Tags, ",")
 	_, err = s.db.Exec(
-		"INSERT INTO books (id, title, author, status, tags, rating, date_added, date_read, body, sort_author) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		b.ID, b.Title, b.Author, b.Status, tags, b.Rating, b.DateAdded, b.DateRead, b.Body, b.SortAuthor,
+		"INSERT INTO books (id, title, author, status, tags, rating, date_added, date_read, body, sort_author, page_count, first_published, isbn) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		b.ID, b.Title, b.Author, b.Status, tags, b.Rating, b.DateAdded, b.DateRead, b.Body, b.SortAuthor, b.PageCount, b.FirstPublished, b.ISBN,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("inserting book: %w", err)
@@ -174,8 +193,8 @@ func (s *Store) GetBook(id string) (*model.Book, error) {
 	b := &model.Book{}
 	var tags string
 	err := s.db.QueryRow(
-		"SELECT id, title, author, status, tags, rating, date_added, date_read, body, sort_author FROM books WHERE id = ?", id,
-	).Scan(&b.ID, &b.Title, &b.Author, &b.Status, &tags, &b.Rating, &b.DateAdded, &b.DateRead, &b.Body, &b.SortAuthor)
+		"SELECT id, title, author, status, tags, rating, date_added, date_read, body, sort_author, page_count, first_published, isbn FROM books WHERE id = ?", id,
+	).Scan(&b.ID, &b.Title, &b.Author, &b.Status, &tags, &b.Rating, &b.DateAdded, &b.DateRead, &b.Body, &b.SortAuthor, &b.PageCount, &b.FirstPublished, &b.ISBN)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("book not found: %s", id)
 	}
@@ -187,7 +206,7 @@ func (s *Store) GetBook(id string) (*model.Book, error) {
 }
 
 func (s *Store) ListBooks(filters map[string]string) ([]model.Book, error) {
-	query := "SELECT id, title, author, status, tags, rating, date_added, date_read, body, sort_author FROM books"
+	query := "SELECT id, title, author, status, tags, rating, date_added, date_read, body, sort_author, page_count, first_published, isbn FROM books"
 	var conditions []string
 	var args []any
 
@@ -221,7 +240,7 @@ func (s *Store) ListBooks(filters map[string]string) ([]model.Book, error) {
 func (s *Store) SearchBooks(query string) ([]model.Book, error) {
 	q := "%" + query + "%"
 	rows, err := s.db.Query(
-		"SELECT id, title, author, status, tags, rating, date_added, date_read, body, sort_author FROM books WHERE title LIKE ? COLLATE NOCASE OR author LIKE ? COLLATE NOCASE OR body LIKE ? COLLATE NOCASE OR tags LIKE ? COLLATE NOCASE",
+		"SELECT id, title, author, status, tags, rating, date_added, date_read, body, sort_author, page_count, first_published, isbn FROM books WHERE title LIKE ? COLLATE NOCASE OR author LIKE ? COLLATE NOCASE OR body LIKE ? COLLATE NOCASE OR tags LIKE ? COLLATE NOCASE",
 		q, q, q, q,
 	)
 	if err != nil {
@@ -235,12 +254,13 @@ func (s *Store) SearchBooks(query string) ([]model.Book, error) {
 var validKeys = map[string]bool{
 	"title": true, "author": true, "status": true,
 	"rating": true, "tags": true, "date_read": true,
-	"sort_author": true,
+	"sort_author": true, "page_count": true,
+	"first_published": true, "isbn": true,
 }
 
 func (s *Store) UpdateBook(id, key, value string) (*model.Book, error) {
 	if !validKeys[key] {
-		return nil, fmt.Errorf("invalid key: %s (valid: title, author, status, rating, tags, date_read, sort_author)", key)
+		return nil, fmt.Errorf("invalid key: %s (valid: title, author, status, rating, tags, date_read, sort_author, page_count, first_published, isbn)", key)
 	}
 
 	b, err := s.GetBook(id)
@@ -269,6 +289,12 @@ func (s *Store) UpdateBook(id, key, value string) (*model.Book, error) {
 		column, dbValue = "date_read", b.DateRead
 	case "sort_author":
 		column, dbValue = "sort_author", b.SortAuthor
+	case "page_count":
+		column, dbValue = "page_count", b.PageCount
+	case "first_published":
+		column, dbValue = "first_published", b.FirstPublished
+	case "isbn":
+		column, dbValue = "isbn", b.ISBN
 	}
 
 	_, err = s.db.Exec("UPDATE books SET "+column+" = ? WHERE id = ?", dbValue, id)
@@ -334,7 +360,7 @@ func scanBooks(rows *sql.Rows) ([]model.Book, error) {
 	for rows.Next() {
 		var b model.Book
 		var tags string
-		if err := rows.Scan(&b.ID, &b.Title, &b.Author, &b.Status, &tags, &b.Rating, &b.DateAdded, &b.DateRead, &b.Body, &b.SortAuthor); err != nil {
+		if err := rows.Scan(&b.ID, &b.Title, &b.Author, &b.Status, &tags, &b.Rating, &b.DateAdded, &b.DateRead, &b.Body, &b.SortAuthor, &b.PageCount, &b.FirstPublished, &b.ISBN); err != nil {
 			return nil, err
 		}
 		b.Tags = splitTags(tags)
@@ -386,6 +412,20 @@ func applyMeta(b *model.Book, meta map[string]string) error {
 			b.Body = v
 		case "sort_author":
 			b.SortAuthor = v
+		case "page_count":
+			n, err := strconv.Atoi(v)
+			if err != nil {
+				return fmt.Errorf("invalid page_count: %s", v)
+			}
+			b.PageCount = n
+		case "first_published":
+			n, err := strconv.Atoi(v)
+			if err != nil {
+				return fmt.Errorf("invalid first_published: %s", v)
+			}
+			b.FirstPublished = n
+		case "isbn":
+			b.ISBN = v
 		}
 	}
 	return nil

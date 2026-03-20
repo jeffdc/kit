@@ -17,7 +17,10 @@ func TestSearch_MatchFound(t *testing.T) {
 			"docs": [{
 				"title": "House of Suns",
 				"author_name": ["Alastair Reynolds"],
-				"first_publish_year": 2008
+				"first_publish_year": 2008,
+				"number_of_pages_median": 473,
+				"isbn": ["9780575082540", "0575082542"],
+				"subject": ["Science fiction", "Space and time", "Fiction"]
 			}]
 		}`))
 	}))
@@ -38,6 +41,15 @@ func TestSearch_MatchFound(t *testing.T) {
 	}
 	if result.FirstPublished != 2008 {
 		t.Errorf("first_published = %d, want 2008", result.FirstPublished)
+	}
+	if result.PageCount != 473 {
+		t.Errorf("page_count = %d, want 473", result.PageCount)
+	}
+	if result.ISBN != "9780575082540" {
+		t.Errorf("isbn = %q, want 9780575082540", result.ISBN)
+	}
+	if len(result.Subjects) != 3 || result.Subjects[0] != "Science fiction" {
+		t.Errorf("subjects = %v, want [Science fiction, Space and time, Fiction]", result.Subjects)
 	}
 }
 

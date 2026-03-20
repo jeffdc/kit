@@ -46,9 +46,12 @@ Statuses are set via "forage set <id> status <value>" or shortcuts:
   tags        []string   yes                  comma-separated in "set", --tag flag on "add"
   rating      int        yes                  1-5 (0 = unrated, omitted from output)
   sort_author string     yes                  "Last, First" sort key, auto-derived from author
-  date_added  string     no                   YYYY-MM-DD, auto-set on add
-  date_read   string     yes                  YYYY-MM-DD, auto-set by "forage read"
-  body        string     no (use add --body)  free-form notes
+  date_added       string     no                   YYYY-MM-DD, auto-set on add
+  date_read        string     yes                  YYYY-MM-DD, auto-set by "forage read"
+  body             string     no (use add --body)  free-form notes
+  page_count       int        yes                  number of pages
+  first_published  int        yes                  year first published
+  isbn             string     yes                  ISBN (prefer ISBN-13)
 
 ## Commands
 
@@ -90,9 +93,9 @@ Statuses are set via "forage set <id> status <value>" or shortcuts:
   the list but includes them in counts.
   Output: {"books": [{...minimal...}], "counts": {"reading": 1, "wishlist": 5, ...}}
 
-### forage export [-o path] [--pwa]
-  Generate a self-contained HTML file (or PWA directory) of your library.
-  Output: {"exported": "forage-library.html", "books": 17}
+### forage export [-o path]
+  Generate a PWA directory of your library for web deployment.
+  Output: {"exported": "forage-pwa", "books": 17, "pwa": true}
 
 ### forage import <file.csv> [file2.csv ...] [--dry-run]
   Import from Goodreads or StoryGraph CSV exports. Auto-detects format.

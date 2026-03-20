@@ -1,4 +1,4 @@
-// Forage PWA - IndexedDB data layer and UI rendering
+// Forage PWA - IndexedDB data layer, API sync, and UI rendering
 (function () {
   "use strict";
 
@@ -6,6 +6,25 @@
   var DB_VERSION = 1;
   var _db = null;
   var _booksellers = [];
+
+  // --- API Key Management ---
+
+  function getApiKey() {
+    return localStorage.getItem("forage_api_key") || null;
+  }
+
+  function setApiKey(key) {
+    localStorage.setItem("forage_api_key", key);
+  }
+
+  function apiHeaders() {
+    return {
+      "Authorization": "Bearer " + getApiKey(),
+      "Content-Type": "application/json"
+    };
+  }
+
+  // --- IndexedDB Helpers ---
 
   function openDB() {
     return new Promise(function (resolve, reject) {
@@ -61,25 +80,169 @@
     return hex;
   }
 
+  // --- API Sync Layer ---
+
+  function getStoredServerVersion() {
+    var t = tx(["meta"], "readonly");
+    return reqToPromise(t.objectStore("meta").get("serverVersion")).then(function (entry) {
+      return entry ? entry.value : "";
+    });
+  }
+
+  function setStoredServerVersion(version) {
+    var t = tx(["meta"], "readwrite");
+    t.objectStore("meta").put({ key: "serverVersion", value: version });
+    return txComplete(t);
+  }
+
+  function syncFromServer() {
+    if (!getApiKey()) return Promise.resolve();
+
+    return fetch("/api/version", { headers: apiHeaders() }).then(function (res) {
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return res.json();
+    }).then(function (data) {
+      var serverVersion = data.version || "";
+      return getStoredServerVersion().then(function (storedVersion) {
+        if (serverVersion && serverVersion > storedVersion) {
+          return Promise.all([
+            fetch("/api/books", { headers: apiHeaders() }).then(function (r) {
+              if (!r.ok) throw new Error("HTTP " + r.status);
+              return r.json();
+            }),
+            fetch("/api/booksellers", { headers: apiHeaders() }).then(function (r) {
+              if (!r.ok) throw new Error("HTTP " + r.status);
+              return r.json();
+            })
+          ]).then(function (results) {
+            var books = results[0] || [];
+            var booksellers = results[1] || [];
+
+            _booksellers = booksellers;
+
+            // Reseed books WITHOUT clearing changes
+            var t = tx(["books", "meta"], "readwrite");
+            var bookStore = t.objectStore("books");
+            var metaStore = t.objectStore("meta");
+
+            bookStore.clear();
+            for (var i = 0; i < books.length; i++) {
+              bookStore.put(books[i]);
+            }
+            metaStore.put({ key: "serverVersion", value: serverVersion });
+            metaStore.put({ key: "dataVersion", value: serverVersion });
+
+            return txComplete(t);
+          });
+        }
+      });
+    }).catch(function () {
+      // Silently continue with local data
+    });
+  }
+
+  function pushChanges() {
+    if (!getApiKey()) return Promise.resolve();
+
+    var t = tx(["changes"], "readonly");
+    return reqToPromise(t.objectStore("changes").getAll()).then(function (changes) {
+      if (!changes || changes.length === 0) return;
+
+      var payload = {
+        version: 1,
+        exported: new Date().toISOString(),
+        changes: changes
+      };
+
+      return fetch("/api/changes", {
+        method: "POST",
+        headers: apiHeaders(),
+        body: JSON.stringify(payload)
+      }).then(function (res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      }).then(function () {
+        return db.clearChanges();
+      }).then(function () {
+        return syncFromServer();
+      });
+    }).catch(function () {
+      // Silently fail -- changes remain in IndexedDB for next attempt
+    });
+  }
+
+  function syncAll() {
+    return pushChanges().then(function () {
+      return syncFromServer();
+    }).then(function () {
+      updateSyncStatus();
+    }).catch(function () {
+      updateSyncStatus();
+    });
+  }
+
+  // --- Database ---
+
   var db = {
     init: function () {
       return openDB().then(function () {
-        // Store booksellers for rendering
-        if (window.__FORAGE_DATA__ && window.__FORAGE_DATA__.booksellers) {
-          _booksellers = window.__FORAGE_DATA__.booksellers;
-        }
-
-        var t = tx(["meta"], "readonly");
-        var store = t.objectStore("meta");
-        return reqToPromise(store.get("dataVersion")).then(function (entry) {
-          var seedVersion = window.__FORAGE_DATA_VERSION__ || "";
-          var storedVersion = entry ? entry.value : "";
-
-          if (!storedVersion || (seedVersion && seedVersion > storedVersion)) {
-            return db._seed(seedVersion);
+        // Try to sync from server first
+        if (getApiKey()) {
+          return syncFromServer().then(function () {
+            // After sync, populate booksellers from server data (already done in syncFromServer)
+            // Fall back to embedded data if booksellers are still empty
+            if (_booksellers.length === 0 && window.__FORAGE_DATA__ && window.__FORAGE_DATA__.booksellers) {
+              _booksellers = window.__FORAGE_DATA__.booksellers;
+            }
+          }).then(function () {
+            // Check if we have any books; if not, fall back to embedded data
+            return db.listBooks().then(function (books) {
+              if (books.length === 0 && window.__FORAGE_DATA__ && window.__FORAGE_DATA__.books && window.__FORAGE_DATA__.books.length > 0) {
+                return db._seedFromEmbedded();
+              }
+            });
+          });
+        } else {
+          // No API key: use embedded data as fallback
+          if (window.__FORAGE_DATA__ && window.__FORAGE_DATA__.booksellers) {
+            _booksellers = window.__FORAGE_DATA__.booksellers;
           }
-        });
+          return db.listBooks().then(function (books) {
+            if (books.length === 0 && window.__FORAGE_DATA__ && window.__FORAGE_DATA__.books && window.__FORAGE_DATA__.books.length > 0) {
+              return db._seedFromEmbedded();
+            } else {
+              // Check version-based seeding for backward compat
+              var t = tx(["meta"], "readonly");
+              var store = t.objectStore("meta");
+              return reqToPromise(store.get("dataVersion")).then(function (entry) {
+                var seedVersion = window.__FORAGE_DATA_VERSION__ || "";
+                var storedVersion = entry ? entry.value : "";
+                if (!storedVersion || (seedVersion && seedVersion > storedVersion)) {
+                  return db._seed(seedVersion);
+                }
+              });
+            }
+          });
+        }
       });
+    },
+
+    _seedFromEmbedded: function () {
+      var books = (window.__FORAGE_DATA__ && window.__FORAGE_DATA__.books) || [];
+      var seedVersion = window.__FORAGE_DATA_VERSION__ || "";
+      var t = tx(["books", "meta"], "readwrite");
+      var bookStore = t.objectStore("books");
+      var metaStore = t.objectStore("meta");
+
+      bookStore.clear();
+      for (var i = 0; i < books.length; i++) {
+        bookStore.put(books[i]);
+      }
+      if (seedVersion) {
+        metaStore.put({ key: "dataVersion", value: seedVersion });
+      }
+
+      return txComplete(t);
     },
 
     _seed: function (version) {
@@ -115,7 +278,11 @@
       var t = tx(["books", "changes"], "readwrite");
       t.objectStore("books").put(book);
       t.objectStore("changes").add({ op: "create", book: book, ts: new Date().toISOString() });
-      return txComplete(t).then(function () { return book; });
+      return txComplete(t).then(function () {
+        // Push changes in background
+        pushChanges().then(function () { updateSyncStatus(); });
+        return book;
+      });
     },
 
     updateBook: function (id, fields) {
@@ -129,7 +296,11 @@
         var t2 = tx(["books", "changes"], "readwrite");
         t2.objectStore("books").put(updated);
         t2.objectStore("changes").add({ op: "update", id: id, fields: fields, ts: new Date().toISOString() });
-        return txComplete(t2).then(function () { return updated; });
+        return txComplete(t2).then(function () {
+          // Push changes in background
+          pushChanges().then(function () { updateSyncStatus(); });
+          return updated;
+        });
       });
     },
 
@@ -137,7 +308,10 @@
       var t = tx(["books", "changes"], "readwrite");
       t.objectStore("books").delete(id);
       t.objectStore("changes").add({ op: "delete", id: id, ts: new Date().toISOString() });
-      return txComplete(t);
+      return txComplete(t).then(function () {
+        // Push changes in background
+        pushChanges().then(function () { updateSyncStatus(); });
+      });
     },
 
     getChanges: function () {
@@ -162,8 +336,8 @@
 
   // --- UI Rendering ---
 
-  var currentSort = "title";
-  var sortDir = 1;
+  var currentSort = "date_added";
+  var sortDir = -1;
   var debounceTimer = null;
 
   function esc(s) {
@@ -228,7 +402,7 @@
         return;
       }
 
-      updateSyncBadge();
+      updateSyncStatus();
 
       document.getElementById("books").innerHTML = filtered.map(function (b) {
         var stars = b.rating ? "\u2605".repeat(b.rating) + "\u2606".repeat(5 - b.rating) : "";
@@ -241,6 +415,14 @@
           return '<a href="' + s.url.replace("{query}", query) + '" target="_blank" rel="noopener">' + esc(s.name) + "</a>";
         }).join("") + "</div>" : "";
 
+        // Secondary info line
+        var infoParts = [];
+        if (b.date_added) infoParts.push("Added " + formatDate(b.date_added));
+        if (b.date_read) infoParts.push("Read " + formatDate(b.date_read));
+        if (b.page_count) infoParts.push(b.page_count + "p");
+        if (b.first_published) infoParts.push(b.first_published);
+        var infoLine = infoParts.length ? '<div class="book-info">' + esc(infoParts.join(" \u00B7 ")) + "</div>" : "";
+
         return '<div class="book" data-id="' + esc(b.id) + '">' +
           '<div class="book-title">' + esc(b.title) + "</div>" +
           '<div class="book-author">' + esc(b.author) + "</div>" +
@@ -249,6 +431,7 @@
             (stars ? '<span class="rating">' + stars + "</span>" : "") +
             tags +
           "</div>" +
+          infoLine +
           notes +
           sellerLinks +
         "</div>";
@@ -274,6 +457,7 @@
 
     form.reset();
     lookupContainer.innerHTML = "";
+    document.getElementById("subject-chips").innerHTML = "";
 
     if (mode === "edit" && book) {
       _editingId = book.id;
@@ -283,15 +467,18 @@
       document.getElementById("field-status").value = book.status || "wishlist";
       document.getElementById("field-rating").value = String(book.rating || 0);
       document.getElementById("field-tags").value = (book.tags || []).join(", ");
+      document.getElementById("field-pages").value = book.page_count || "";
+      document.getElementById("field-year").value = book.first_published || "";
+      document.getElementById("field-isbn").value = book.isbn || "";
       document.getElementById("field-notes").value = book.body || "";
       deleteBtn.classList.remove("hidden");
     } else {
       _editingId = null;
       title.textContent = "Add Book";
       deleteBtn.classList.add("hidden");
-      injectLookup();
     }
 
+    injectLookup();
     overlay.classList.remove("hidden");
   }
 
@@ -310,30 +497,31 @@
     var tags = rawTags ? rawTags.split(",").map(function (t) { return t.trim(); }).filter(Boolean) : [];
     var rating = parseInt(document.getElementById("field-rating").value, 10) || 0;
     var status = document.getElementById("field-status").value;
+    var pageCount = parseInt(document.getElementById("field-pages").value, 10) || 0;
+    var firstPublished = parseInt(document.getElementById("field-year").value, 10) || 0;
+    var isbn = document.getElementById("field-isbn").value.trim();
     var notes = document.getElementById("field-notes").value.trim();
 
+    var fields = {
+      title: titleVal,
+      author: authorVal,
+      status: status,
+      rating: rating,
+      tags: tags,
+      page_count: pageCount,
+      first_published: firstPublished,
+      isbn: isbn,
+      body: notes
+    };
+
     if (_editingId) {
-      db.updateBook(_editingId, {
-        title: titleVal,
-        author: authorVal,
-        status: status,
-        rating: rating,
-        tags: tags,
-        body: notes
-      }).then(function () {
+      db.updateBook(_editingId, fields).then(function () {
         closeModal();
         render();
       });
     } else {
-      db.createBook({
-        title: titleVal,
-        author: authorVal,
-        status: status,
-        rating: rating,
-        tags: tags,
-        body: notes,
-        date_added: new Date().toISOString().slice(0, 10)
-      }).then(function () {
+      fields.date_added = new Date().toISOString().slice(0, 10);
+      db.createBook(fields).then(function () {
         closeModal();
         render();
       });
@@ -364,16 +552,27 @@
       // Remove old results
       var old = container.querySelector(".lookup-results, .lookup-msg");
       if (old) old.remove();
+      document.getElementById("subject-chips").innerHTML = "";
 
-      var url = "https://openlibrary.org/search.json?title=" +
-        encodeURIComponent(titleVal) + "&author=" + encodeURIComponent(authorVal) +
-        "&limit=5&fields=title,author_name,first_publish_year";
+      btn.disabled = true;
+      btn.textContent = "Looking up\u2026";
+
+      var params = [];
+      if (titleVal) params.push("title=" + encodeURIComponent(titleVal));
+      if (authorVal) params.push("author=" + encodeURIComponent(authorVal));
+      if (!titleVal && authorVal) params.push("q=" + encodeURIComponent(authorVal));
+      params.push("limit=5");
+      params.push("fields=title,author_name,first_publish_year,number_of_pages_median,isbn,subject");
+      var url = "https://openlibrary.org/search.json?" + params.join("&");
 
       fetch(url).then(function (res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
         return res.json();
       }).then(function (data) {
         var docs = data.docs || [];
         if (docs.length === 0) {
+          btn.disabled = false;
+          btn.textContent = "Look up on Open Library";
           var msg = document.createElement("div");
           msg.className = "lookup-msg";
           msg.textContent = "No matches found";
@@ -381,80 +580,173 @@
           return;
         }
 
+        btn.disabled = false;
+        btn.textContent = "Look up on Open Library";
+
         var list = document.createElement("div");
         list.className = "lookup-results";
         docs.forEach(function (doc) {
           var item = document.createElement("div");
           item.className = "lookup-result";
           var authors = (doc.author_name || []).join(", ");
-          var year = doc.first_publish_year ? " (" + doc.first_publish_year + ")" : "";
+          var details = [];
+          if (doc.first_publish_year) details.push(doc.first_publish_year);
+          if (doc.number_of_pages_median) details.push(doc.number_of_pages_median + "p");
           item.innerHTML = '<div class="lookup-title">' + esc(doc.title) + '</div>' +
-            '<div class="lookup-detail">' + esc(authors) + esc(year) + '</div>';
+            '<div class="lookup-detail">' + esc(authors) + (details.length ? " \u00B7 " + esc(details.join(", ")) : "") + '</div>';
           item.addEventListener("click", function () {
             document.getElementById("field-title").value = doc.title || "";
             document.getElementById("field-author").value = authors;
+            if (doc.number_of_pages_median) {
+              document.getElementById("field-pages").value = doc.number_of_pages_median;
+            }
+            if (doc.first_publish_year) {
+              document.getElementById("field-year").value = doc.first_publish_year;
+            }
+            // Prefer ISBN-13
+            var isbns = doc.isbn || [];
+            var isbn13 = "";
+            for (var i = 0; i < isbns.length; i++) {
+              if (isbns[i].length === 13) { isbn13 = isbns[i]; break; }
+            }
+            document.getElementById("field-isbn").value = isbn13 || isbns[0] || "";
             list.remove();
+            showSubjectChips(doc.subject || []);
           });
           list.appendChild(item);
         });
         container.appendChild(list);
-      }).catch(function () {
+      }).catch(function (err) {
+        btn.disabled = false;
+        btn.textContent = "Look up on Open Library";
         var msg = document.createElement("div");
         msg.className = "lookup-msg";
-        msg.textContent = "Lookup unavailable offline";
+        msg.textContent = navigator.onLine ? "Lookup failed: " + err.message : "Lookup unavailable offline";
         container.appendChild(msg);
       });
     });
   }
 
-  // --- Sync / Download Changes ---
+  function showSubjectChips(subjects) {
+    var container = document.getElementById("subject-chips");
+    container.innerHTML = "";
+    if (!subjects.length) return;
 
-  function updateSyncBadge() {
+    // Deduplicate and limit to 20 most relevant
+    var seen = {};
+    var unique = [];
+    subjects.forEach(function (s) {
+      var lower = s.toLowerCase();
+      if (!seen[lower]) {
+        seen[lower] = true;
+        unique.push(s);
+      }
+    });
+    unique = unique.slice(0, 20);
+
+    var label = document.createElement("div");
+    label.className = "chips-label";
+    label.textContent = "Tap subjects to add as tags:";
+    container.appendChild(label);
+
+    unique.forEach(function (subj) {
+      var chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "subject-chip";
+      chip.textContent = subj;
+      chip.addEventListener("click", function () {
+        var tagsInput = document.getElementById("field-tags");
+        var existing = tagsInput.value ? tagsInput.value.split(",").map(function (t) { return t.trim(); }) : [];
+        var lower = subj.toLowerCase();
+        if (existing.some(function (t) { return t.toLowerCase() === lower; })) {
+          chip.classList.add("chip-added");
+          return;
+        }
+        existing.push(subj.toLowerCase());
+        tagsInput.value = existing.filter(Boolean).join(", ");
+        chip.classList.add("chip-added");
+      });
+      container.appendChild(chip);
+    });
+  }
+
+  // --- Sync Status UI ---
+
+  function updateSyncStatus() {
+    var btn = document.getElementById("sync-status");
+    if (!btn) return;
+
+    if (!getApiKey()) {
+      btn.innerHTML = '<span class="sync-status"><span class="sync-dot gray"></span> No API key</span>';
+      return;
+    }
+
+    if (!navigator.onLine) {
+      btn.innerHTML = '<span class="sync-status"><span class="sync-dot gray"></span> Offline</span>';
+      return;
+    }
+
     db.getChangeCount().then(function (n) {
-      var btn = document.getElementById("btn-download");
       if (n === 0) {
-        btn.disabled = true;
-        btn.innerHTML = "No changes";
+        btn.innerHTML = '<span class="sync-status"><span class="sync-dot green"></span> Synced</span>';
       } else {
-        btn.disabled = false;
-        btn.innerHTML = "Download Changes <span class=\"badge\">" + n + "</span>";
+        btn.innerHTML = '<span class="sync-status"><span class="sync-dot yellow"></span> ' + n + ' pending</span>';
       }
     });
   }
 
-  function handleDownload() {
-    db.getChanges().then(function (changes) {
-      if (!changes || changes.length === 0) return;
+  function formatDate(dateStr) {
+    if (!dateStr) return "";
+    var parts = dateStr.split("-");
+    if (parts.length !== 3) return dateStr;
+    var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    var m = parseInt(parts[1], 10) - 1;
+    var d = parseInt(parts[2], 10);
+    return months[m] + " " + d + ", " + parts[0];
+  }
 
-      var payload = {
-        version: 1,
-        exported: new Date().toISOString(),
-        changes: changes
-      };
-
-      var blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement("a");
-      a.href = url;
-      a.download = "forage-changes.json";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      if (confirm("Clear changelog?")) {
-        db.clearChanges().then(function () {
-          updateSyncBadge();
-        });
+  function updateSortButtons() {
+    document.querySelectorAll(".sort-controls button").forEach(function (b) {
+      b.classList.remove("active");
+      b.textContent = b.textContent.replace(/ [▲▼]/, "");
+      if (b.dataset.sort === currentSort) {
+        b.classList.add("active");
+        b.textContent += sortDir === 1 ? " ▲" : " ▼";
       }
     });
+  }
+
+  // --- API Key Banner ---
+
+  function showApiKeyBanner() {
+    var banner = document.getElementById("api-key-banner");
+    if (!banner) return;
+    if (getApiKey()) {
+      banner.classList.add("hidden");
+    } else {
+      banner.classList.remove("hidden");
+    }
   }
 
   // --- Event Binding ---
 
+  // Re-render and sync when switching back to this tab
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") {
+      syncAll().then(function () { render(); });
+    }
+  });
+
+  // Sync when coming back online
+  window.addEventListener("online", function () {
+    syncAll().then(function () { render(); });
+  });
+
   document.addEventListener("DOMContentLoaded", function () {
     db.init().then(function () {
       render();
+      updateSyncStatus();
+      showApiKeyBanner();
 
       document.getElementById("search").addEventListener("input", debouncedRender);
       document.getElementById("filter").addEventListener("change", render);
@@ -469,16 +761,30 @@
             currentSort = s;
             sortDir = 1;
           }
-          document.querySelectorAll(".sort-controls button").forEach(function (b) {
-            b.classList.remove("active");
-          });
-          btn.classList.add("active");
+          updateSortButtons();
           render();
         });
       });
 
-      // Download changes button
-      document.getElementById("btn-download").addEventListener("click", handleDownload);
+      // Sync status button — click to trigger manual sync
+      document.getElementById("sync-status").addEventListener("click", function () {
+        var btn = document.getElementById("sync-status");
+        btn.innerHTML = '<span class="sync-status"><span class="sync-dot gray"></span> Syncing...</span>';
+        syncAll().then(function () {
+          render();
+        });
+      });
+
+      // API key banner save
+      document.getElementById("api-key-save").addEventListener("click", function () {
+        var input = document.getElementById("api-key-input");
+        var key = input.value.trim();
+        if (key) {
+          setApiKey(key);
+          showApiKeyBanner();
+          syncAll().then(function () { render(); });
+        }
+      });
 
       // FAB opens add modal
       document.getElementById("fab-add").addEventListener("click", function () {
@@ -510,6 +816,19 @@
       document.getElementById("modal-overlay").addEventListener("click", function (e) {
         if (e.target === this) closeModal();
       });
+
+      // Handle ?title=...&author=... URL params (bookmarklet integration)
+      var params = new URLSearchParams(window.location.search);
+      if (params.has("title") || params.has("author")) {
+        openModal("add");
+        if (params.get("title")) document.getElementById("field-title").value = params.get("title");
+        if (params.get("author")) document.getElementById("field-author").value = params.get("author");
+        // Auto-trigger lookup
+        var lookupBtn = document.querySelector(".lookup-btn");
+        if (lookupBtn) lookupBtn.click();
+        // Clean URL without reloading
+        history.replaceState(null, "", window.location.pathname);
+      }
     });
   });
 })();

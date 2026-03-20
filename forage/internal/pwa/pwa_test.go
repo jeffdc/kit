@@ -6,26 +6,16 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"forage/internal/model"
 )
 
 func TestGenerate_CreatesAllFiles(t *testing.T) {
 	dir := t.TempDir()
 
-	books := []model.Book{
-		{ID: "a1b2", Title: "The Go Programming Language", Author: "Donovan & Kernighan", Status: "read"},
-		{ID: "c3d4", Title: "Designing Data-Intensive Applications", Author: "Martin Kleppmann", Status: "reading"},
-	}
-	booksellers := []model.Bookseller{
-		{ID: 1, Name: "Bookshop", URL: "https://bookshop.org/search?keywords={query}"},
-	}
-
-	if err := Generate(books, booksellers, dir); err != nil {
+	if err := Generate(dir); err != nil {
 		t.Fatalf("Generate returned error: %v", err)
 	}
 
-	expected := []string{"index.html", "app.js", "style.css", "sw.js", "manifest.json"}
+	expected := []string{"index.html", "app.js", "style.css", "sw.js", "manifest.json", "add.html"}
 	for _, name := range expected {
 		path := filepath.Join(dir, name)
 		if _, err := os.Stat(path); os.IsNotExist(err) {
@@ -34,18 +24,10 @@ func TestGenerate_CreatesAllFiles(t *testing.T) {
 	}
 }
 
-func TestGenerate_InjectsBookData(t *testing.T) {
+func TestGenerate_IndexHtmlValid(t *testing.T) {
 	dir := t.TempDir()
 
-	books := []model.Book{
-		{ID: "a1b2", Title: "The Go Programming Language", Author: "Donovan & Kernighan", Status: "read"},
-		{ID: "c3d4", Title: "Designing Data-Intensive Applications", Author: "Martin Kleppmann", Status: "reading"},
-	}
-	booksellers := []model.Bookseller{
-		{ID: 1, Name: "Bookshop", URL: "https://bookshop.org/search?keywords={query}"},
-	}
-
-	if err := Generate(books, booksellers, dir); err != nil {
+	if err := Generate(dir); err != nil {
 		t.Fatalf("Generate returned error: %v", err)
 	}
 
@@ -55,50 +37,18 @@ func TestGenerate_InjectsBookData(t *testing.T) {
 	}
 
 	content := string(data)
-
-	if !strings.Contains(content, "The Go Programming Language") {
-		t.Error("index.html should contain book title 'The Go Programming Language'")
-	}
-	if !strings.Contains(content, "Designing Data-Intensive Applications") {
-		t.Error("index.html should contain book title 'Designing Data-Intensive Applications'")
-	}
-	if !strings.Contains(content, "Bookshop") {
-		t.Error("index.html should contain bookseller name 'Bookshop'")
-	}
 	if !strings.Contains(content, "__FORAGE_DATA__") {
 		t.Error("index.html should contain __FORAGE_DATA__")
 	}
-	if !strings.Contains(content, "__FORAGE_DATA_VERSION__") {
-		t.Error("index.html should contain __FORAGE_DATA_VERSION__")
-	}
-}
-
-func TestGenerate_EmptyLibrary(t *testing.T) {
-	dir := t.TempDir()
-
-	if err := Generate([]model.Book{}, []model.Bookseller{}, dir); err != nil {
-		t.Fatalf("Generate with empty slices returned error: %v", err)
-	}
-
-	data, err := os.ReadFile(filepath.Join(dir, "index.html"))
-	if err != nil {
-		t.Fatalf("failed to read index.html: %v", err)
-	}
-
-	content := string(data)
-	if !strings.Contains(content, "__FORAGE_DATA__") {
-		t.Error("index.html should contain __FORAGE_DATA__ even with empty library")
+	if !strings.Contains(content, "app.js") {
+		t.Error("index.html should reference app.js")
 	}
 }
 
 func TestGenerate_ManifestValid(t *testing.T) {
 	dir := t.TempDir()
 
-	books := []model.Book{
-		{ID: "a1b2", Title: "Test Book", Author: "Test Author", Status: "read"},
-	}
-
-	if err := Generate(books, []model.Bookseller{}, dir); err != nil {
+	if err := Generate(dir); err != nil {
 		t.Fatalf("Generate returned error: %v", err)
 	}
 
@@ -123,11 +73,7 @@ func TestGenerate_ManifestValid(t *testing.T) {
 func TestGenerate_ServiceWorkerExists(t *testing.T) {
 	dir := t.TempDir()
 
-	books := []model.Book{
-		{ID: "a1b2", Title: "Test Book", Author: "Test Author", Status: "read"},
-	}
-
-	if err := Generate(books, []model.Bookseller{}, dir); err != nil {
+	if err := Generate(dir); err != nil {
 		t.Fatalf("Generate returned error: %v", err)
 	}
 

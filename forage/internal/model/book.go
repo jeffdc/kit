@@ -48,8 +48,11 @@ type Book struct {
 	Status    string   `json:"status"`
 	Tags      []string `json:"tags,omitempty"`
 	Rating    int      `json:"rating,omitempty"`
-	DateAdded string   `json:"date_added"`
-	DateRead  string   `json:"date_read,omitempty"`
-	Body       string   `json:"body,omitempty"`
-	SortAuthor string   `json:"sort_author,omitempty"`
+	DateAdded      string   `json:"date_added"`
+	DateRead       string   `json:"date_read,omitempty"`
+	Body           string   `json:"body,omitempty"`
+	SortAuthor     string   `json:"sort_author,omitempty"`
+	PageCount      int      `json:"page_count,omitempty"`
+	FirstPublished int      `json:"first_published,omitempty"`
+	ISBN           string   `json:"isbn,omitempty"`
 }

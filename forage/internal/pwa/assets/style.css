@@ -347,6 +347,47 @@ h1 {
   font-size: 13px;
 }
 
+/* Book info line */
+.book-info {
+  font-size: 12px;
+  color: #888;
+  margin-top: 4px;
+}
+
+/* Subject chips */
+.chips-label {
+  font-size: 12px;
+  color: #666;
+  margin-top: 8px;
+  margin-bottom: 4px;
+}
+
+#subject-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.subject-chip {
+  font-size: 12px;
+  padding: 4px 10px;
+  border: 1px solid #ccc;
+  border-radius: 14px;
+  background: #fff;
+  cursor: pointer;
+  min-height: 32px;
+}
+
+.subject-chip:hover {
+  background: #eee8d5;
+}
+
+.subject-chip.chip-added {
+  background: #d1fae5;
+  border-color: #065f46;
+  color: #065f46;
+}
+
 /* Sync bar */
 .sync-bar {
   margin-bottom: 8px;
@@ -361,28 +402,75 @@ h1 {
   font-size: 13px;
   cursor: pointer;
   min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.sync-btn:disabled {
-  background: #eee;
-  color: #999;
-  border-color: #ddd;
-  cursor: default;
+/* Sync status indicator */
+.sync-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
 }
 
-.sync-btn .badge {
+.sync-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
   display: inline-block;
+  flex-shrink: 0;
+}
+
+.sync-dot.green {
+  background: #22c55e;
+}
+
+.sync-dot.yellow {
+  background: #eab308;
+}
+
+.sync-dot.gray {
+  background: #9ca3af;
+}
+
+/* API key banner */
+.api-key-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #fef3c7;
+  border: 1px solid #fbbf24;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.api-key-banner.hidden {
+  display: none;
+}
+
+.api-key-banner input {
+  padding: 6px 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 13px;
+  flex: 1;
+  min-width: 120px;
+  min-height: 36px;
+}
+
+.api-key-banner button {
+  padding: 6px 12px;
   background: #333;
   color: #fff;
-  font-size: 11px;
-  padding: 1px 6px;
-  border-radius: 10px;
-  margin-left: 4px;
-  vertical-align: middle;
-}
-
-.sync-btn:disabled .badge {
-  display: none;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  min-height: 36px;
 }
 
 /* Mobile optimizations */

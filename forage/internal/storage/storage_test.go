@@ -398,6 +398,96 @@ func TestSortAuthorMigrationBackfill(t *testing.T) {
 	}
 }
 
+func TestCreateBookWithEnrichedMeta(t *testing.T) {
+	s := testStore(t)
+
+	meta := map[string]string{
+		"page_count":      "412",
+		"first_published": "1965",
+		"isbn":            "9780441172719",
+	}
+	b, err := s.CreateBook("Dune", "Frank Herbert", meta)
+	if err != nil {
+		t.Fatalf("CreateBook() error: %v", err)
+	}
+	if b.PageCount != 412 {
+		t.Errorf("PageCount = %d, want 412", b.PageCount)
+	}
+	if b.FirstPublished != 1965 {
+		t.Errorf("FirstPublished = %d, want 1965", b.FirstPublished)
+	}
+	if b.ISBN != "9780441172719" {
+		t.Errorf("ISBN = %q, want 9780441172719", b.ISBN)
+	}
+
+	// Verify round-trip through DB
+	got, err := s.GetBook(b.ID)
+	if err != nil {
+		t.Fatalf("GetBook() error: %v", err)
+	}
+	if got.PageCount != 412 {
+		t.Errorf("persisted PageCount = %d, want 412", got.PageCount)
+	}
+	if got.FirstPublished != 1965 {
+		t.Errorf("persisted FirstPublished = %d, want 1965", got.FirstPublished)
+	}
+	if got.ISBN != "9780441172719" {
+		t.Errorf("persisted ISBN = %q, want 9780441172719", got.ISBN)
+	}
+}
+
+func TestUpdateBookEnrichedFields(t *testing.T) {
+	s := testStore(t)
+	b, _ := s.CreateBook("Dune", "Frank Herbert", nil)
+
+	updated, err := s.UpdateBook(b.ID, "page_count", "412")
+	if err != nil {
+		t.Fatalf("UpdateBook page_count error: %v", err)
+	}
+	if updated.PageCount != 412 {
+		t.Errorf("PageCount = %d, want 412", updated.PageCount)
+	}
+
+	updated, err = s.UpdateBook(b.ID, "first_published", "1965")
+	if err != nil {
+		t.Fatalf("UpdateBook first_published error: %v", err)
+	}
+	if updated.FirstPublished != 1965 {
+		t.Errorf("FirstPublished = %d, want 1965", updated.FirstPublished)
+	}
+
+	updated, err = s.UpdateBook(b.ID, "isbn", "9780441172719")
+	if err != nil {
+		t.Fatalf("UpdateBook isbn error: %v", err)
+	}
+	if updated.ISBN != "9780441172719" {
+		t.Errorf("ISBN = %q, want 9780441172719", updated.ISBN)
+	}
+}
+
+func TestNewFieldsMigration(t *testing.T) {
+	// Simulate a pre-migration database by creating a store,
+	// inserting a row without the new columns, then verifying
+	// the new columns have zero/empty defaults after migration.
+	s := testStore(t)
+
+	b, err := s.CreateBook("Old Book", "Old Author", nil)
+	if err != nil {
+		t.Fatalf("CreateBook() error: %v", err)
+	}
+
+	got, _ := s.GetBook(b.ID)
+	if got.PageCount != 0 {
+		t.Errorf("PageCount = %d, want 0 default", got.PageCount)
+	}
+	if got.FirstPublished != 0 {
+		t.Errorf("FirstPublished = %d, want 0 default", got.FirstPublished)
+	}
+	if got.ISBN != "" {
+		t.Errorf("ISBN = %q, want empty default", got.ISBN)
+	}
+}
+
 func testStore(t *testing.T) *Store {
 	t.Helper()
 	s, err := New(t.TempDir())

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'forage-v1';
+const CACHE_NAME = 'forage-v3';
 const APP_ASSETS = ['./', './index.html', './app.js', './style.css', './manifest.json'];
 
 self.addEventListener('install', (event) => {

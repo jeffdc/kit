@@ -11,9 +11,12 @@ import (
 const baseURL = "https://openlibrary.org"
 
 type SearchResult struct {
-	Title          string `json:"title"`
-	Author         string `json:"author"`
-	FirstPublished int    `json:"first_published,omitempty"`
+	Title          string   `json:"title"`
+	Author         string   `json:"author"`
+	FirstPublished int      `json:"first_published,omitempty"`
+	PageCount      int      `json:"page_count,omitempty"`
+	ISBN           string   `json:"isbn,omitempty"`
+	Subjects       []string `json:"subjects,omitempty"`
 }
 
 type searchResponse struct {
@@ -25,6 +28,9 @@ type searchDoc struct {
 	Title            string   `json:"title"`
 	AuthorName       []string `json:"author_name"`
 	FirstPublishYear int      `json:"first_publish_year"`
+	PagesMedian      int      `json:"number_of_pages_median"`
+	ISBN             []string `json:"isbn"`
+	Subject          []string `json:"subject"`
 }
 
 func Search(title, author string) (*SearchResult, error) {
@@ -38,7 +44,7 @@ func searchWithBase(base, title, author string) (*SearchResult, error) {
 		params.Set("author", author)
 	}
 	params.Set("limit", "1")
-	params.Set("fields", "title,author_name,first_publish_year")
+	params.Set("fields", "title,author_name,first_publish_year,number_of_pages_median,isbn,subject")
 
 	client := &http.Client{Timeout: 5 * time.Second}
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/search.json?%s", base, params.Encode()), nil)
@@ -66,9 +72,21 @@ func searchWithBase(base, title, author string) (*SearchResult, error) {
 	result := &SearchResult{
 		Title:          doc.Title,
 		FirstPublished: doc.FirstPublishYear,
+		PageCount:      doc.PagesMedian,
+		Subjects:       doc.Subject,
 	}
 	if len(doc.AuthorName) > 0 {
 		result.Author = doc.AuthorName[0]
+	}
+	// Prefer ISBN-13 (starts with 978/979, 13 digits)
+	for _, isbn := range doc.ISBN {
+		if len(isbn) == 13 {
+			result.ISBN = isbn
+			break
+		}
+	}
+	if result.ISBN == "" && len(doc.ISBN) > 0 {
+		result.ISBN = doc.ISBN[0]
 	}
 
 	return result, nil

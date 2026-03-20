@@ -30,7 +30,7 @@ Data is stored in `~/.forage/` (global, not project-local). Override with `FORAG
 - `internal/model/` - Data structures (Book, Bookseller)
 - `internal/storage/` - SQLite persistence layer (~/.forage/forage.db)
 - `internal/tui/` - Bubble Tea TUI (book list, detail)
-- `internal/export/` - Static HTML export
+- `internal/pwa/` - PWA export (HTML, JS, service worker)
 
 ### Key Patterns
 
