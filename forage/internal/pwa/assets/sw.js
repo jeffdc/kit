@@ -1,7 +1,8 @@
-const CACHE_NAME = 'forage-v3';
+const CACHE_NAME = 'forage-v4';
 const APP_ASSETS = ['./', './index.html', './app.js', './style.css', './manifest.json'];
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_ASSETS))
   );
@@ -15,7 +16,7 @@ self.addEventListener('activate', (event) => {
           .filter((name) => name !== CACHE_NAME)
           .map((name) => caches.delete(name))
       )
-    )
+    ).then(() => self.clients.claim())
   );
 });
 
@@ -26,6 +27,9 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
+
+  // Skip API calls — let them go straight to network
+  if (url.pathname.startsWith('/api/')) return;
 
   // Network-first for Open Library API
   if (url.origin === 'https://openlibrary.org') {
@@ -44,15 +48,14 @@ self.addEventListener('fetch', (event) => {
   // Skip other cross-origin requests
   if (url.origin !== location.origin) return;
 
-  // Cache-first for same-origin
+  // Network-first for same-origin (cache only for offline fallback)
   event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached;
-      return fetch(request).then((response) => {
+    fetch(request)
+      .then((response) => {
         const clone = response.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
         return response;
-      });
-    })
+      })
+      .catch(() => caches.match(request))
   );
 });
