@@ -91,23 +91,25 @@ Gather ALL of these before analyzing anything. Missing data leads to bad theorie
 
 | Source | What to get | What it tells you |
 |--------|-------------|-------------------|
+| **Host incidents** | **Per-host maintenance/incident events** | **Host-level issues invisible to app metrics and status pages — CHECK THIS FIRST** |
 | Machine events | Process/container event log | Crash timestamps, exit codes, restart history |
 | Recent deploys | Deploy/release history | What changed and when |
 | Deploy diffs | `git diff` between release commits | Actual scope of changes (file count, line count) |
 | Request logs | Download and analyze with scripts | Traffic patterns, gaps, errors, slow requests |
 | Application metrics | Dashboards with tooltip values | Memory, CPU, connections |
-| Platform status | Vendor status page | Known incidents affecting your infrastructure |
+| Platform status | Vendor status page | Known platform-wide incidents (does NOT include per-host events) |
 | Error logs | Application log stream or files | Application errors, warnings, stack traces |
 
 Download logs for analysis — streaming logs are for watching, not investigating.
 
 ### Platform-Specific Commands (Fly.io)
 
+- `fly incidents hosts list` — **check first** — host-level maintenance/incidents (invisible to status page and app metrics)
 - `fly machine status <id>` — event log with exit codes
 - `fly releases --json` — deploy history
 - `fly ssh sftp get <log-path>` — download request logs (don't use `fly logs`)
 - Grafana dashboards — memory, CPU, CPU quota
-- status.flyio.net — platform incidents
+- status.flyio.net — platform-wide incidents only (does NOT include per-host events)
 
 Adapt to your platform. The checklist sources are universal; the commands vary.
 
@@ -137,7 +139,7 @@ Work through each category systematically. For each one, state whether it's **ru
 | Traffic spike | Request volume normal or below historical baseline |
 | Code change | No relevant code path was executed, or change is provably unrelated |
 | Write contention | No write operations occurred during the incident window |
-| Platform issue | Vendor confirms no incidents (check, but don't fully trust) |
+| Platform issue | Vendor confirms no incidents at BOTH platform level (status page) AND host level (host incident commands) |
 | External dependency | No calls to external services timed out or failed |
 
 **"I didn't find it" is not "it's ruled out."** State which evidence rules it out, or say it remains plausible.
