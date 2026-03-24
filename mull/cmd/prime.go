@@ -122,6 +122,9 @@ func outputContext(out primeOutput) error {
 - ` + "`mull search <query>`" + ` to find matters by keyword
 - ` + "`mull list --epic <name>`" + ` to filter by epic
 - ` + "`mull epics`" + ` to list all epics with counts
+- ` + "`mull session save --matter <id> - <<'EOF'`" + ` to save a session log (pipe body via stdin)
+- ` + "`mull session list`" + ` to list sessions (` + "`--matter <id>`" + ` to filter)
+- ` + "`mull session context`" + ` to get recent sessions for LLM context (` + "`--last N --matter <id>`" + `)
 
 ## Statuses and Fields
 

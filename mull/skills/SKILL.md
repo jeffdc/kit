@@ -47,6 +47,15 @@ Run `mull schema` for all valid fields, types, and relationship types.
 - `mull drop <id>` — decided against, matter stays for reference
 - `mull rm <id>` — **permanent delete**, only for junk/mistakes
 
+## Sessions
+
+Session logs capture what happened during a work session — what changed, decisions made, open questions.
+
+- `mull session save --matter <id> - <<'EOF'` to save a session log (pipe body via stdin)
+- `mull session list` — list sessions, most recent first. `--matter <id>` to filter
+- `mull session context` — dump last 3 sessions for LLM context. `--last N` to change count. `--matter <id>` to scope
+- `mull session show <filename>` — show a specific session
+
 ## Cross-Skill Capture
 
 Active matter in context + related work completed elsewhere → `mull append` findings, `mull done <id>` when complete.

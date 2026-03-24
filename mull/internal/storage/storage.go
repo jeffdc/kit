@@ -16,19 +16,24 @@ import (
 )
 
 type Store struct {
-	root       string // path to .mull/ directory
-	mattersDir string
+	root        string // path to .mull/ directory
+	mattersDir  string
+	sessionsDir string
 }
 
 func New(dir string) (*Store, error) {
 	root := filepath.Join(dir, ".mull")
 	mattersDir := filepath.Join(root, "matters")
+	sessionsDir := filepath.Join(root, "sessions")
 
 	if err := os.MkdirAll(mattersDir, 0755); err != nil {
 		return nil, err
 	}
+	if err := os.MkdirAll(sessionsDir, 0755); err != nil {
+		return nil, err
+	}
 
-	return &Store{root: root, mattersDir: mattersDir}, nil
+	return &Store{root: root, mattersDir: mattersDir, sessionsDir: sessionsDir}, nil
 }
 
 func (s *Store) Root() string {
