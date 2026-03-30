@@ -2,10 +2,45 @@ package invoice
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/jung-kurt/gofpdf"
 	"watchmen/internal/model"
 )
+
+// sanitizePDFText replaces non-Latin1 characters (codepoint > 255) with ASCII
+// equivalents. gofpdf's built-in fonts use a 256-element width table and panic
+// on any rune above 255.
+func sanitizePDFText(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if r <= 255 {
+			b.WriteRune(r)
+			continue
+		}
+		switch r {
+		case '\u2192', '\u2794': // → ➔
+			b.WriteString("->")
+		case '\u2190': // ←
+			b.WriteString("<-")
+		case '\u2014': // —
+			b.WriteString("--")
+		case '\u2013': // –
+			b.WriteString("-")
+		case '\u201c', '\u201d': // " "
+			b.WriteByte('"')
+		case '\u2018', '\u2019': // ' '
+			b.WriteByte('\'')
+		case '\u2026': // …
+			b.WriteString("...")
+		case '\u2022': // •
+			b.WriteByte('*')
+		default:
+			b.WriteByte('?')
+		}
+	}
+	return b.String()
+}
 
 // GeneratePDF generates a PDF invoice
 func GeneratePDF(filename string, data *InvoiceData) error {
@@ -48,12 +83,12 @@ func GeneratePDF(filename string, data *InvoiceData) error {
 	// Invoice details
 	pdf.SetFont("Arial", "", 11)
 	pdf.Cell(30, 6, "Invoice #:")
-	pdf.Cell(0, 6, data.InvoiceNumber)
+	pdf.Cell(0, 6, sanitizePDFText(data.InvoiceNumber))
 	pdf.Ln(6)
 
 	if data.PurchaseOrder != "" {
 		pdf.Cell(30, 6, "PO #:")
-		pdf.Cell(0, 6, data.PurchaseOrder)
+		pdf.Cell(0, 6, sanitizePDFText(data.PurchaseOrder))
 		pdf.Ln(6)
 	}
 
@@ -69,13 +104,13 @@ func GeneratePDF(filename string, data *InvoiceData) error {
 	pdf.SetFont("Arial", "B", 11)
 	pdf.Cell(30, 6, "Project:")
 	pdf.SetFont("Arial", "", 11)
-	pdf.Cell(0, 6, data.Project.Name)
+	pdf.Cell(0, 6, sanitizePDFText(data.Project.Name))
 	pdf.Ln(6)
 
 	if data.Project.Description != "" {
 		pdf.Cell(30, 6, "")
 		pdf.SetFont("Arial", "I", 10)
-		pdf.Cell(0, 6, data.Project.Description)
+		pdf.Cell(0, 6, sanitizePDFText(data.Project.Description))
 		pdf.SetFont("Arial", "", 11)
 		pdf.Ln(6)
 	}
@@ -109,6 +144,7 @@ func GeneratePDF(filename string, data *InvoiceData) error {
 
 	// Helper function to draw a single table row
 	drawRow := func(dateStr string, hours float64, note string) {
+		note = sanitizePDFText(note)
 		// Calculate height needed for the note text
 		lines := pdf.SplitText(note, descWidth)
 		lineHeight := 5.0
@@ -181,27 +217,27 @@ func GeneratePDF(filename string, data *InvoiceData) error {
 
 func writeContactPDF(pdf *gofpdf.Fpdf, c *model.ContactInfo) {
 	if c.Name != "" {
-		pdf.Cell(90, 5, c.Name)
+		pdf.Cell(90, 5, sanitizePDFText(c.Name))
 		pdf.Ln(5)
 	}
 	if c.Title != "" {
-		pdf.Cell(90, 5, c.Title)
+		pdf.Cell(90, 5, sanitizePDFText(c.Title))
 		pdf.Ln(5)
 	}
 	if c.Company != "" {
-		pdf.Cell(90, 5, c.Company)
+		pdf.Cell(90, 5, sanitizePDFText(c.Company))
 		pdf.Ln(5)
 	}
 	if c.Address != "" {
-		pdf.Cell(90, 5, c.Address)
+		pdf.Cell(90, 5, sanitizePDFText(c.Address))
 		pdf.Ln(5)
 	}
 	if c.Phone != "" {
-		pdf.Cell(90, 5, c.Phone)
+		pdf.Cell(90, 5, sanitizePDFText(c.Phone))
 		pdf.Ln(5)
 	}
 	if c.Email != "" {
-		pdf.Cell(90, 5, c.Email)
+		pdf.Cell(90, 5, sanitizePDFText(c.Email))
 		pdf.Ln(5)
 	}
 }
@@ -210,32 +246,32 @@ func writeContactPDFAt(pdf *gofpdf.Fpdf, c *model.ContactInfo, x float64) {
 	y := pdf.GetY()
 	if c.Name != "" {
 		pdf.SetXY(x, y)
-		pdf.Cell(90, 5, c.Name)
+		pdf.Cell(90, 5, sanitizePDFText(c.Name))
 		y += 5
 	}
 	if c.Title != "" {
 		pdf.SetXY(x, y)
-		pdf.Cell(90, 5, c.Title)
+		pdf.Cell(90, 5, sanitizePDFText(c.Title))
 		y += 5
 	}
 	if c.Company != "" {
 		pdf.SetXY(x, y)
-		pdf.Cell(90, 5, c.Company)
+		pdf.Cell(90, 5, sanitizePDFText(c.Company))
 		y += 5
 	}
 	if c.Address != "" {
 		pdf.SetXY(x, y)
-		pdf.Cell(90, 5, c.Address)
+		pdf.Cell(90, 5, sanitizePDFText(c.Address))
 		y += 5
 	}
 	if c.Phone != "" {
 		pdf.SetXY(x, y)
-		pdf.Cell(90, 5, c.Phone)
+		pdf.Cell(90, 5, sanitizePDFText(c.Phone))
 		y += 5
 	}
 	if c.Email != "" {
 		pdf.SetXY(x, y)
-		pdf.Cell(90, 5, c.Email)
+		pdf.Cell(90, 5, sanitizePDFText(c.Email))
 		y += 5
 	}
 	pdf.SetY(y)

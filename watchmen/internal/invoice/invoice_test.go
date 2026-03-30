@@ -194,6 +194,73 @@ func TestGenerateTextWithContacts(t *testing.T) {
 	}
 }
 
+func TestGeneratePDFWithNonASCIIDescription(t *testing.T) {
+	baseTime := time.Date(2024, 6, 15, 9, 0, 0, 0, time.Local)
+	endTime := time.Date(2024, 6, 15, 12, 0, 0, 0, time.Local)
+
+	data := &InvoiceData{
+		InvoiceNumber: "INV-001",
+		Date:          baseTime,
+		Project: model.Project{
+			ID:         "test-id",
+			Name:       "Test Project",
+			HourlyRate: 100.0,
+		},
+		Entries: []model.Entry{
+			{
+				ID:        "entry-1",
+				ProjectID: "test-id",
+				Note:      "Infrastructure migration (iad→ewr)",
+				Segments: []model.TimeSegment{
+					{Start: baseTime, End: &endTime},
+				},
+				Completed: true,
+			},
+		},
+		From:                 baseTime,
+		To:                   endTime,
+		Condensed:            true,
+		CondensedDescription: "Infrastructure migration (iad→ewr)",
+	}
+
+	tmpFile := t.TempDir() + "/test-invoice.pdf"
+	err := GeneratePDF(tmpFile, data)
+	if err != nil {
+		t.Fatalf("GeneratePDF() error = %v", err)
+	}
+}
+
+func TestSanitizePDFText(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"ascii only", "Hello world", "Hello world"},
+		{"empty string", "", ""},
+		{"latin1 chars", "café résumé", "café résumé"},
+		{"right arrow", "iad→ewr", "iad->ewr"},
+		{"left arrow", "ewr←iad", "ewr<-iad"},
+		{"em dash", "foo—bar", "foo--bar"},
+		{"en dash", "foo–bar", "foo-bar"},
+		{"smart quotes", "\u201cquoted\u201d", "\"quoted\""},
+		{"smart single quotes", "\u2018quoted\u2019", "'quoted'"},
+		{"ellipsis", "wait\u2026", "wait..."},
+		{"bullet", "\u2022 item", "* item"},
+		{"unknown non-latin1", "test\u4e16\u754cend", "test??end"},
+		{"mixed", "Infrastructure migration (iad\u2192ewr)", "Infrastructure migration (iad->ewr)"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := sanitizePDFText(tt.input)
+			if got != tt.want {
+				t.Errorf("sanitizePDFText(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestHasContactInfo(t *testing.T) {
 	tests := []struct {
 		name    string
