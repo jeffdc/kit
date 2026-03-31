@@ -383,8 +383,9 @@
       });
 
       filtered.sort(function (a, b) {
-        var va = a[currentSort] || "";
-        var vb = b[currentSort] || "";
+        var key = currentSort === "author" ? "sort_author" : currentSort;
+        var va = a[key] || "";
+        var vb = b[key] || "";
         if (currentSort === "rating") {
           va = va || 0;
           vb = vb || 0;

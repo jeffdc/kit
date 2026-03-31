@@ -47,13 +47,14 @@ vet:
 
 deploy: install
 	GOOS=linux GOARCH=amd64 go build -o /tmp/forage-server ./cmd/forage-server
-	cat /tmp/forage-server | sprite exec -s forage bash -c "cat > /home/sprite/forage-server && chmod +x /home/sprite/forage-server"
 	forage export -o /tmp/forage-pwa
+	echo "sprite-env services stop web" | sprite exec -s forage bash
+	cat /tmp/forage-server | sprite exec -s forage bash -c "cat > /home/sprite/forage-server && chmod +x /home/sprite/forage-server"
 	for f in /tmp/forage-pwa/*; do \
 		cat "$$f" | sprite exec -s forage bash -c "cat > /home/sprite/www/$$(basename $$f)"; \
 	done
+	echo "sprite-env services start web" | sprite exec -s forage bash
 	@echo "Deployed to https://forage-4pbc.sprites.app"
-	@echo "Note: restart the Sprite service if the server binary changed"
 
 sync: install
 	@test -n "$(FILE)" || (echo "Usage: make sync FILE=path/to/forage-changes.json"; exit 1)
