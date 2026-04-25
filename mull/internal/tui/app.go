@@ -13,7 +13,6 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
-	"github.com/charmbracelet/glamour/styles"
 	"github.com/charmbracelet/lipgloss"
 	"mull/internal/model"
 	"mull/internal/storage"
@@ -82,15 +81,23 @@ type App struct {
 
 	// Help
 	showHelp bool
+
+	// Working directory (shown in status bar)
+	workingDir string
+
+	// Theme: "light" or "dark" (default: light)
+	theme string
 }
 
-func NewApp(store *storage.Store) App {
+func NewApp(store *storage.Store, workingDir string) App {
 	si := textinput.New()
 	si.Prompt = "/ "
 	si.CharLimit = 64
 
 	return App{
 		store:       store,
+		workingDir:  workingDir,
+		theme:       "light",
 		keys:        newKeyMap(),
 		docketSet:   make(map[string]bool),
 		searchInput: si,
@@ -372,6 +379,18 @@ func (a App) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return a, nil
 
+	case matchKey(msg, a.keys.ToggleTheme):
+		if a.theme == "light" {
+			a.theme = "dark"
+		} else {
+			a.theme = "light"
+		}
+		// Re-render detail view if visible
+		if a.view == viewDetail && a.detailMatter != nil {
+			a.viewport.SetContent(a.renderBody(a.detailMatter.Body))
+		}
+		return a, a.setFlash("Theme: " + a.theme)
+
 	case matchKey(msg, a.keys.Search):
 		if a.view == viewMatters {
 			a.searching = true
@@ -552,6 +571,7 @@ esc    back/clear   s  cycle status     D  mark done
 1  matters          e  cycle epic       X  drop
 2  docket           /  search           O  open in editor
                     t  cycle sort       r  refresh
+                    T  toggle theme     q  quit
 
 Press ? to close`
 
@@ -603,12 +623,8 @@ func placeOverlay(x, y int, fg, bg string) string {
 
 // renderBody renders markdown body text for the detail viewport.
 func (a *App) renderBody(body string) string {
-	style := styles.LightStyleConfig
-	if lipgloss.HasDarkBackground() {
-		style = styles.DarkStyleConfig
-	}
 	r, err := glamour.NewTermRenderer(
-		glamour.WithStyles(style),
+		glamour.WithStandardStyle(a.theme),
 		glamour.WithWordWrap(a.viewport.Width),
 	)
 	if err != nil {

@@ -352,6 +352,56 @@ func TestDeleteMatter(t *testing.T) {
 	}
 }
 
+func TestArchiveMatter(t *testing.T) {
+	s := setupTestStore(t)
+
+	m, err := s.CreateMatter("Archive me", map[string]any{"status": "done"})
+	if err != nil {
+		t.Fatalf("CreateMatter() error: %v", err)
+	}
+	if _, err := s.CreateSession([]string{m.ID}, "session stays put"); err != nil {
+		t.Fatalf("CreateSession() error: %v", err)
+	}
+
+	archived, err := s.ArchiveMatter(m.ID)
+	if err != nil {
+		t.Fatalf("ArchiveMatter() error: %v", err)
+	}
+	if archived.ID != m.ID {
+		t.Errorf("ID = %q, want %q", archived.ID, m.ID)
+	}
+
+	if _, err := s.GetMatter(m.ID); err == nil {
+		t.Fatal("expected archived matter to be absent from active matters")
+	}
+
+	archivePath := filepath.Join(s.root, "archive", m.Filename)
+	if _, err := os.Stat(archivePath); err != nil {
+		t.Fatalf("archived matter file not found: %v", err)
+	}
+
+	sessions, err := s.ListSessions("")
+	if err != nil {
+		t.Fatalf("ListSessions() error: %v", err)
+	}
+	if len(sessions) != 1 {
+		t.Fatalf("session count = %d, want 1", len(sessions))
+	}
+}
+
+func TestArchiveMatterRejectsActiveMatter(t *testing.T) {
+	s := setupTestStore(t)
+
+	m, err := s.CreateMatter("Still active", map[string]any{"status": "active"})
+	if err != nil {
+		t.Fatalf("CreateMatter() error: %v", err)
+	}
+
+	if _, err := s.ArchiveMatter(m.ID); err == nil {
+		t.Fatal("expected error for non-terminal matter")
+	}
+}
+
 func TestSlugify(t *testing.T) {
 	tests := []struct {
 		input string

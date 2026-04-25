@@ -3,6 +3,9 @@ package tui
 import (
 	"fmt"
 	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+	"mull/internal/version"
 )
 
 func renderDocket(a *App) string {
@@ -109,12 +112,12 @@ func renderDocket(a *App) string {
 }
 
 func renderDocketStatusBar(a *App, count int) string {
-	left := statusBarStyle.Render(fmt.Sprintf("  %d items on docket", count))
+	left := statusBarStyle.Render(fmt.Sprintf("  %s | %d items on docket", a.workingDir, count))
 	if a.flash != "" {
 		left += "  " + flashStyle.Render(a.flash)
 	}
-	right := statusBarStyle.Render("? help  q quit")
-	gap := a.width - len(left) - len(right)
+	right := statusBarStyle.Render(fmt.Sprintf("v%s  ? help  q quit", version.Version))
+	gap := a.width - lipgloss.Width(left) - lipgloss.Width(right)
 	if gap < 1 {
 		gap = 1
 	}

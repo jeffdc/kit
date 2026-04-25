@@ -9,17 +9,20 @@ endif
 
 all: fmt vet test build
 
-build:
+build: generate
 	go build -o $(BINARY_NAME) .
 
-build-tui:
+build-tui: generate
 	go build -o $(TUI_BINARY) ./cmd/mull-tui
 
-install:
+install: generate
 	go install .
 	go install ./cmd/mull-tui
 	@echo "Installed $(BINARY_NAME) and $(TUI_BINARY) to $(GOBIN)"
 	@echo "Make sure $(GOBIN) is in your PATH"
+
+generate:
+	go generate ./internal/version/...
 
 test:
 	go test -v ./...

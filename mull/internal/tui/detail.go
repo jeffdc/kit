@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"mull/internal/model"
+	"mull/internal/version"
 )
 
 func renderDetail(a *App) string {
@@ -61,11 +62,11 @@ func writeMetaRow(b *strings.Builder, label1, value1, label2, value2 string) {
 
 func renderDetailStatusBar(a *App) string {
 	m := a.detailMatter
-	left := statusBarStyle.Render(fmt.Sprintf("  %s", matterRef(m)))
+	left := statusBarStyle.Render(fmt.Sprintf("  %s | %s", a.workingDir, matterRef(m)))
 	if a.flash != "" {
 		left += "  " + flashStyle.Render(a.flash)
 	}
-	right := statusBarStyle.Render("esc back  ? help  q quit")
+	right := statusBarStyle.Render(fmt.Sprintf("v%s  esc back  ? help  q quit", version.Version))
 	gap := a.width - len(left) - len(right)
 	if gap < 1 {
 		gap = 1

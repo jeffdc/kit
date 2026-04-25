@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"mull/internal/version"
 )
 
 func renderMatters(a *App) string {
@@ -155,11 +156,11 @@ func renderFilterLine(a *App) string {
 }
 
 func renderStatusBar(a *App, count int) string {
-	left := statusBarStyle.Render(fmt.Sprintf("  %d matters", count))
+	left := statusBarStyle.Render(fmt.Sprintf("  %s | %d matters", a.workingDir, count))
 	if a.flash != "" {
 		left += "  " + flashStyle.Render(a.flash)
 	}
-	right := statusBarStyle.Render("? help  q quit")
+	right := statusBarStyle.Render(fmt.Sprintf("v%s  ? help  q quit", version.Version))
 	gap := a.width - lipgloss.Width(left) - lipgloss.Width(right)
 	if gap < 1 {
 		gap = 1

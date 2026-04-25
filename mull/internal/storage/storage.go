@@ -40,6 +40,10 @@ func (s *Store) Root() string {
 	return s.root
 }
 
+func (s *Store) archiveDir() string {
+	return filepath.Join(s.root, "archive")
+}
+
 // GenerateID produces a 4-char hex ID from title + current time.
 // If there's a collision with existing matters, it retries with incremented timestamps.
 func (s *Store) GenerateID(title string) (string, error) {
@@ -248,6 +252,33 @@ func (s *Store) DeleteMatter(id string) error {
 		return err
 	}
 	return os.Remove(path)
+}
+
+// ArchiveMatter moves a terminal matter into .mull/archive/.
+func (s *Store) ArchiveMatter(id string) (*model.Matter, error) {
+	m, err := s.GetMatter(id)
+	if err != nil {
+		return nil, err
+	}
+	if !m.IsTerminal() {
+		return nil, fmt.Errorf("matter %s is not done or dropped", id)
+	}
+
+	src, err := s.findMatterFile(id)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := os.MkdirAll(s.archiveDir(), 0755); err != nil {
+		return nil, err
+	}
+
+	dst := filepath.Join(s.archiveDir(), m.Filename)
+	if err := os.Rename(src, dst); err != nil {
+		return nil, err
+	}
+
+	return m, nil
 }
 
 // findMatterFile locates a matter file by its ID prefix.

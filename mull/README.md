@@ -102,6 +102,7 @@ Run `mull onboard` to see both options with details.
 | `mull unlink <id> <type> <id>` | Remove relationship |
 | `mull done <id>` | Mark as done (removes from docket) |
 | `mull drop <id>` | Mark as dropped (removes from docket) |
+| `mull archive` | Move done/dropped matters into `.mull/archive/` |
 | `mull rm <id>` | Permanently delete (use sparingly) |
 | `mull docket` | View the prioritized work queue |
 | `mull docket --invert` | View matters NOT on the docket |
@@ -187,6 +188,7 @@ mull list --epic ui-overhaul  # filter by epic
 
 - `mull done <id>` -- marks as done, keeps the file for reference. This is almost always what you want.
 - `mull drop <id>` -- decided against, keeps the file for reference.
+- `mull archive` -- moves done/dropped matter files out of `.mull/matters/` into `.mull/archive/`.
 - `mull rm <id>` -- permanent delete. Only for junk or mistakes.
 
 Both `done` and `drop` automatically remove the matter from the docket. Done/dropped matters are hidden from `list`, `docket --invert`, `epics`, and `prime` by default.
