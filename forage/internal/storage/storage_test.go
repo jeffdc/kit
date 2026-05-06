@@ -2,7 +2,17 @@ package storage
 
 import (
 	"testing"
+
+	"forage/internal/model"
 )
+
+func sellersByName(sellers []model.Bookseller) map[string]model.Bookseller {
+	out := make(map[string]model.Bookseller, len(sellers))
+	for _, seller := range sellers {
+		out[seller.Name] = seller
+	}
+	return out
+}
 
 func TestNew(t *testing.T) {
 	dir := t.TempDir()
@@ -250,8 +260,19 @@ func TestLoadBooksellers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadBooksellers() error: %v", err)
 	}
-	if sellers != nil {
-		t.Errorf("expected nil, got %v", sellers)
+	if len(sellers) != len(defaultBooksellers) {
+		t.Fatalf("got %d sellers, want %d defaults", len(sellers), len(defaultBooksellers))
+	}
+
+	byName := sellersByName(sellers)
+	for _, seller := range defaultBooksellers {
+		got, ok := byName[seller.Name]
+		if !ok {
+			t.Fatalf("missing default seller %q", seller.Name)
+		}
+		if got.URL != seller.URL {
+			t.Fatalf("seller %q URL = %q, want %q", seller.Name, got.URL, seller.URL)
+		}
 	}
 
 	s.AddBookseller("TestShop", "https://example.com/search?q={query}")
@@ -261,19 +282,25 @@ func TestLoadBooksellers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadBooksellers() error: %v", err)
 	}
-	if len(sellers) != 2 {
-		t.Fatalf("got %d sellers, want 2", len(sellers))
+	if len(sellers) != len(defaultBooksellers)+2 {
+		t.Fatalf("got %d sellers, want %d", len(sellers), len(defaultBooksellers)+2)
 	}
-	if sellers[0].Name != "TestShop" {
-		t.Errorf("sellers[0].Name = %q, want TestShop", sellers[0].Name)
+
+	byName = sellersByName(sellers)
+	if got := byName["TestShop"].URL; got != "https://example.com/search?q={query}" {
+		t.Errorf("TestShop URL = %q", got)
 	}
-	if sellers[1].URL != "https://another.com/?s={query}" {
-		t.Errorf("sellers[1].URL = %q", sellers[1].URL)
+	if got := byName["AnotherShop"].URL; got != "https://another.com/?s={query}" {
+		t.Errorf("AnotherShop URL = %q", got)
 	}
 }
 
 func TestAddAndDeleteBookseller(t *testing.T) {
 	s := testStore(t)
+	initial, err := s.LoadBooksellers()
+	if err != nil {
+		t.Fatalf("LoadBooksellers() error: %v", err)
+	}
 
 	bs, err := s.AddBookseller("Shop", "https://shop.com/{query}")
 	if err != nil {
@@ -289,8 +316,61 @@ func TestAddAndDeleteBookseller(t *testing.T) {
 	}
 
 	sellers, _ := s.LoadBooksellers()
-	if len(sellers) != 0 {
-		t.Errorf("expected 0 sellers after delete, got %d", len(sellers))
+	if len(sellers) != len(initial) {
+		t.Errorf("expected %d sellers after delete, got %d", len(initial), len(sellers))
+	}
+}
+
+func TestNewSeedsMissingDefaultBooksellers(t *testing.T) {
+	dir := t.TempDir()
+	s, err := New(dir)
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+
+	sellers, err := s.LoadBooksellers()
+	if err != nil {
+		t.Fatalf("LoadBooksellers() error: %v", err)
+	}
+
+	var betterWorldID int
+	for _, seller := range sellers {
+		if seller.Name == "Better World Books" {
+			betterWorldID = seller.ID
+			break
+		}
+	}
+	if betterWorldID == 0 {
+		t.Fatal("expected Better World Books default seller")
+	}
+
+	if err := s.DeleteBookseller(betterWorldID); err != nil {
+		t.Fatalf("DeleteBookseller() error: %v", err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatalf("Close() error: %v", err)
+	}
+
+	s, err = New(dir)
+	if err != nil {
+		t.Fatalf("New() reopen error: %v", err)
+	}
+	defer s.Close()
+
+	sellers, err = s.LoadBooksellers()
+	if err != nil {
+		t.Fatalf("LoadBooksellers() error: %v", err)
+	}
+
+	byName := sellersByName(sellers)
+	if _, ok := byName["Better World Books"]; !ok {
+		t.Fatal("expected Better World Books to be reseeded on reopen")
+	}
+	if _, ok := byName["Goodreads"]; !ok {
+		t.Fatal("expected Goodreads to be seeded on reopen")
+	}
+	if _, ok := byName["Amazon"]; !ok {
+		t.Fatal("expected Amazon to be seeded on reopen")
 	}
 }
 
@@ -485,6 +565,59 @@ func TestNewFieldsMigration(t *testing.T) {
 	}
 	if got.ISBN != "" {
 		t.Errorf("ISBN = %q, want empty default", got.ISBN)
+	}
+	if len(got.PriceQuotes) != 0 {
+		t.Errorf("PriceQuotes = %v, want empty default", got.PriceQuotes)
+	}
+}
+
+func TestUpdateBookPriceQuotes(t *testing.T) {
+	s := testStore(t)
+
+	b, err := s.CreateBook("Dune", "Frank Herbert", map[string]string{"isbn": "9780441172719"})
+	if err != nil {
+		t.Fatalf("CreateBook() error: %v", err)
+	}
+
+	quotes := []model.PriceQuote{
+		{
+			SellerName: "AbeBooks",
+			SearchURL:  "https://example.com/abebooks?q=9780441172719",
+			Price:      "$12.99",
+			Amount:     12.99,
+			Currency:   "USD",
+			Status:     "ok",
+			FetchedAt:  "2026-05-06T12:00:00Z",
+		},
+		{
+			SellerName: "Amazon",
+			SearchURL:  "https://example.com/amazon?q=9780441172719",
+			Status:     "unavailable",
+			Message:    "no price found",
+			FetchedAt:  "2026-05-06T12:00:00Z",
+		},
+	}
+
+	updated, err := s.UpdateBookPriceQuotes(b.ID, quotes)
+	if err != nil {
+		t.Fatalf("UpdateBookPriceQuotes() error: %v", err)
+	}
+	if len(updated.PriceQuotes) != 2 {
+		t.Fatalf("len(updated.PriceQuotes) = %d, want 2", len(updated.PriceQuotes))
+	}
+	if updated.PriceQuotes[0].Price != "$12.99" {
+		t.Errorf("updated first price = %q, want $12.99", updated.PriceQuotes[0].Price)
+	}
+
+	got, err := s.GetBook(b.ID)
+	if err != nil {
+		t.Fatalf("GetBook() error: %v", err)
+	}
+	if len(got.PriceQuotes) != 2 {
+		t.Fatalf("len(got.PriceQuotes) = %d, want 2", len(got.PriceQuotes))
+	}
+	if got.PriceQuotes[1].Status != "unavailable" {
+		t.Errorf("second quote status = %q, want unavailable", got.PriceQuotes[1].Status)
 	}
 }
 

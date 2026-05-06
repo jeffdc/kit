@@ -41,18 +41,32 @@ type Bookseller struct {
 	URL  string `json:"url"`
 }
 
+type PriceQuote struct {
+	SellerID   int     `json:"seller_id,omitempty"`
+	SellerName string  `json:"seller_name"`
+	SellerURL  string  `json:"seller_url,omitempty"`
+	SearchURL  string  `json:"search_url,omitempty"`
+	Price      string  `json:"price,omitempty"`
+	Amount     float64 `json:"amount,omitempty"`
+	Currency   string  `json:"currency,omitempty"`
+	Status     string  `json:"status,omitempty"`
+	Message    string  `json:"message,omitempty"`
+	FetchedAt  string  `json:"fetched_at,omitempty"`
+}
+
 type Book struct {
-	ID        string   `json:"id"`
-	Title     string   `json:"title"`
-	Author    string   `json:"author"`
-	Status    string   `json:"status"`
-	Tags      []string `json:"tags,omitempty"`
-	Rating    int      `json:"rating,omitempty"`
-	DateAdded      string   `json:"date_added"`
-	DateRead       string   `json:"date_read,omitempty"`
-	Body           string   `json:"body,omitempty"`
-	SortAuthor     string   `json:"sort_author,omitempty"`
-	PageCount      int      `json:"page_count,omitempty"`
-	FirstPublished int      `json:"first_published,omitempty"`
-	ISBN           string   `json:"isbn,omitempty"`
+	ID             string       `json:"id"`
+	Title          string       `json:"title"`
+	Author         string       `json:"author"`
+	Status         string       `json:"status"`
+	Tags           []string     `json:"tags,omitempty"`
+	Rating         int          `json:"rating,omitempty"`
+	DateAdded      string       `json:"date_added"`
+	DateRead       string       `json:"date_read,omitempty"`
+	Body           string       `json:"body,omitempty"`
+	SortAuthor     string       `json:"sort_author,omitempty"`
+	PageCount      int          `json:"page_count,omitempty"`
+	FirstPublished int          `json:"first_published,omitempty"`
+	ISBN           string       `json:"isbn,omitempty"`
+	PriceQuotes    []PriceQuote `json:"price_quotes,omitempty"`
 }

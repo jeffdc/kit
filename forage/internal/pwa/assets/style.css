@@ -139,6 +139,41 @@ h1 {
   white-space: pre-wrap;
 }
 
+.book-price-actions {
+  margin-top: 10px;
+}
+
+.price-fetch-btn {
+  border: 1px solid #1e40af;
+  background: #eff6ff;
+  color: #1e3a8a;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.price-fetch-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.book-prices-updated,
+.book-price-error {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.book-prices-updated {
+  color: #666;
+}
+
+.book-price-error {
+  color: #b45309;
+}
+
 .book-sellers {
   display: flex;
   flex-wrap: wrap;
@@ -157,6 +192,17 @@ h1 {
   min-height: 44px;
   display: inline-flex;
   align-items: center;
+}
+
+.book-sellers a.has-price {
+  border-color: #10b981;
+  color: #065f46;
+  background: #ecfdf5;
+}
+
+.book-sellers a.no-price {
+  border-color: #d6d3d1;
+  color: #78716c;
 }
 
 .book-sellers a:hover {

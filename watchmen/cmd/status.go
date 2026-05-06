@@ -58,7 +58,7 @@ var statusCmd = &cobra.Command{
 		}
 
 		fmt.Printf("Currently tracking: %s (%s)\n", projectName, status)
-		fmt.Printf("  Started: %s\n", entry.StartTime().Format("3:04 PM"))
+		fmt.Printf("  Started: %s\n", formatStartedAt(entry.StartTime(), time.Now()))
 		fmt.Printf("  Accumulated: %s (%.2f hours)\n", formatDuration(duration), duration.Hours())
 		fmt.Printf("  Segments: %d\n", len(entry.Segments))
 		if entry.Note != "" {
@@ -70,6 +70,25 @@ var statusCmd = &cobra.Command{
 
 func init() {
 	statusCmd.Flags().Bool("json", false, "Output status as JSON")
+}
+
+func formatStartedAt(startedAt, now time.Time) string {
+	if startedAt.IsZero() {
+		return ""
+	}
+
+	nowInStartLoc := now.In(startedAt.Location())
+	if sameCalendarDate(startedAt, nowInStartLoc) {
+		return startedAt.Format("3:04 PM")
+	}
+
+	return startedAt.Format("Jan 2, 2006 3:04 PM")
+}
+
+func sameCalendarDate(a, b time.Time) bool {
+	ay, am, ad := a.Date()
+	by, bm, bd := b.Date()
+	return ay == by && am == bm && ad == bd
 }
 
 func formatDuration(d time.Duration) string {

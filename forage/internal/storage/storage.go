@@ -3,6 +3,7 @@ package storage
 import (
 	"crypto/sha256"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -18,6 +19,17 @@ import (
 type Store struct {
 	root string
 	db   *sql.DB
+}
+
+var defaultBooksellers = []model.Bookseller{
+	{Name: "Better World Books", URL: "https://www.betterworldbooks.com/search/results?q={query}"},
+	{Name: "Biblio", URL: "https://www.biblio.com/search.php?keyisbn={query}"},
+	{Name: "Bookshop.org", URL: "https://bookshop.org/search?keywords={query}"},
+	{Name: "ThriftBooks", URL: "https://www.thriftbooks.com/browse/?b.search={query}"},
+	{Name: "AbeBooks", URL: "https://www.abebooks.com/servlet/SearchResults?kn={query}"},
+	{Name: "WorldCat", URL: "https://search.worldcat.org/search?q={query}"},
+	{Name: "Goodreads", URL: "https://www.goodreads.com/search?q={query}"},
+	{Name: "Amazon", URL: "https://www.amazon.com/s?k={query}&i=stripbooks"},
 }
 
 func New(root string) (*Store, error) {
@@ -45,7 +57,8 @@ func New(root string) (*Store, error) {
 			sort_author     TEXT DEFAULT '',
 			page_count      INTEGER DEFAULT 0,
 			first_published INTEGER DEFAULT 0,
-			isbn            TEXT DEFAULT ''
+			isbn            TEXT DEFAULT '',
+			price_quotes    TEXT DEFAULT ''
 		);
 		CREATE TABLE IF NOT EXISTS booksellers (
 			id   INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -72,6 +85,7 @@ func New(root string) (*Store, error) {
 		{"page_count", "INTEGER DEFAULT 0"},
 		{"first_published", "INTEGER DEFAULT 0"},
 		{"isbn", "TEXT DEFAULT ''"},
+		{"price_quotes", "TEXT DEFAULT ''"},
 	} {
 		var n int
 		_ = db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('books') WHERE name=?", col.name).Scan(&n)
@@ -83,7 +97,36 @@ func New(root string) (*Store, error) {
 		}
 	}
 
+	if err := ensureDefaultBooksellers(db); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("seeding booksellers: %w", err)
+	}
+
 	return &Store{root: root, db: db}, nil
+}
+
+func ensureDefaultBooksellers(db *sql.DB) error {
+	for _, seller := range defaultBooksellers {
+		var exists int
+		if err := db.QueryRow(
+			"SELECT COUNT(*) FROM booksellers WHERE name = ? OR url = ?",
+			seller.Name,
+			seller.URL,
+		).Scan(&exists); err != nil {
+			return err
+		}
+		if exists > 0 {
+			continue
+		}
+		if _, err := db.Exec(
+			"INSERT INTO booksellers (name, url) VALUES (?, ?)",
+			seller.Name,
+			seller.URL,
+		); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Store) Close() error {
@@ -142,9 +185,13 @@ func (s *Store) CreateBook(title, author string, meta map[string]string) (*model
 	}
 
 	tags := strings.Join(b.Tags, ",")
+	priceQuotes, err := encodePriceQuotes(b.PriceQuotes)
+	if err != nil {
+		return nil, fmt.Errorf("encoding price quotes: %w", err)
+	}
 	_, err = s.db.Exec(
-		"INSERT INTO books (id, title, author, status, tags, rating, date_added, date_read, body, sort_author, page_count, first_published, isbn) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		b.ID, b.Title, b.Author, b.Status, tags, b.Rating, b.DateAdded, b.DateRead, b.Body, b.SortAuthor, b.PageCount, b.FirstPublished, b.ISBN,
+		"INSERT INTO books (id, title, author, status, tags, rating, date_added, date_read, body, sort_author, page_count, first_published, isbn, price_quotes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		b.ID, b.Title, b.Author, b.Status, tags, b.Rating, b.DateAdded, b.DateRead, b.Body, b.SortAuthor, b.PageCount, b.FirstPublished, b.ISBN, priceQuotes,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("inserting book: %w", err)
@@ -179,9 +226,13 @@ func (s *Store) CreateBookWithID(id, title, author string, meta map[string]strin
 	}
 
 	tags := strings.Join(b.Tags, ",")
+	priceQuotes, err := encodePriceQuotes(b.PriceQuotes)
+	if err != nil {
+		return nil, fmt.Errorf("encoding price quotes: %w", err)
+	}
 	_, err = s.db.Exec(
-		"INSERT INTO books (id, title, author, status, tags, rating, date_added, date_read, body, sort_author, page_count, first_published, isbn) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		b.ID, b.Title, b.Author, b.Status, tags, b.Rating, b.DateAdded, b.DateRead, b.Body, b.SortAuthor, b.PageCount, b.FirstPublished, b.ISBN,
+		"INSERT INTO books (id, title, author, status, tags, rating, date_added, date_read, body, sort_author, page_count, first_published, isbn, price_quotes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		b.ID, b.Title, b.Author, b.Status, tags, b.Rating, b.DateAdded, b.DateRead, b.Body, b.SortAuthor, b.PageCount, b.FirstPublished, b.ISBN, priceQuotes,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("inserting book: %w", err)
@@ -191,10 +242,10 @@ func (s *Store) CreateBookWithID(id, title, author string, meta map[string]strin
 
 func (s *Store) GetBook(id string) (*model.Book, error) {
 	b := &model.Book{}
-	var tags string
+	var tags, priceQuotes string
 	err := s.db.QueryRow(
-		"SELECT id, title, author, status, tags, rating, date_added, date_read, body, sort_author, page_count, first_published, isbn FROM books WHERE id = ?", id,
-	).Scan(&b.ID, &b.Title, &b.Author, &b.Status, &tags, &b.Rating, &b.DateAdded, &b.DateRead, &b.Body, &b.SortAuthor, &b.PageCount, &b.FirstPublished, &b.ISBN)
+		"SELECT id, title, author, status, tags, rating, date_added, date_read, body, sort_author, page_count, first_published, isbn, price_quotes FROM books WHERE id = ?", id,
+	).Scan(&b.ID, &b.Title, &b.Author, &b.Status, &tags, &b.Rating, &b.DateAdded, &b.DateRead, &b.Body, &b.SortAuthor, &b.PageCount, &b.FirstPublished, &b.ISBN, &priceQuotes)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("book not found: %s", id)
 	}
@@ -202,11 +253,15 @@ func (s *Store) GetBook(id string) (*model.Book, error) {
 		return nil, err
 	}
 	b.Tags = splitTags(tags)
+	b.PriceQuotes, err = decodePriceQuotes(priceQuotes)
+	if err != nil {
+		return nil, fmt.Errorf("decoding price quotes for %s: %w", id, err)
+	}
 	return b, nil
 }
 
 func (s *Store) ListBooks(filters map[string]string) ([]model.Book, error) {
-	query := "SELECT id, title, author, status, tags, rating, date_added, date_read, body, sort_author, page_count, first_published, isbn FROM books"
+	query := "SELECT id, title, author, status, tags, rating, date_added, date_read, body, sort_author, page_count, first_published, isbn, price_quotes FROM books"
 	var conditions []string
 	var args []any
 
@@ -240,7 +295,7 @@ func (s *Store) ListBooks(filters map[string]string) ([]model.Book, error) {
 func (s *Store) SearchBooks(query string) ([]model.Book, error) {
 	q := "%" + query + "%"
 	rows, err := s.db.Query(
-		"SELECT id, title, author, status, tags, rating, date_added, date_read, body, sort_author, page_count, first_published, isbn FROM books WHERE title LIKE ? COLLATE NOCASE OR author LIKE ? COLLATE NOCASE OR body LIKE ? COLLATE NOCASE OR tags LIKE ? COLLATE NOCASE",
+		"SELECT id, title, author, status, tags, rating, date_added, date_read, body, sort_author, page_count, first_published, isbn, price_quotes FROM books WHERE title LIKE ? COLLATE NOCASE OR author LIKE ? COLLATE NOCASE OR body LIKE ? COLLATE NOCASE OR tags LIKE ? COLLATE NOCASE",
 		q, q, q, q,
 	)
 	if err != nil {
@@ -317,7 +372,7 @@ func (s *Store) DeleteBook(id string) error {
 }
 
 func (s *Store) LoadBooksellers() ([]model.Bookseller, error) {
-	rows, err := s.db.Query("SELECT id, name, url FROM booksellers")
+	rows, err := s.db.Query("SELECT id, name, url FROM booksellers ORDER BY id")
 	if err != nil {
 		return nil, err
 	}
@@ -355,15 +410,37 @@ func (s *Store) DeleteBookseller(id int) error {
 	return nil
 }
 
+func (s *Store) UpdateBookPriceQuotes(id string, quotes []model.PriceQuote) (*model.Book, error) {
+	if _, err := s.GetBook(id); err != nil {
+		return nil, err
+	}
+
+	encoded, err := encodePriceQuotes(quotes)
+	if err != nil {
+		return nil, fmt.Errorf("encoding price quotes: %w", err)
+	}
+
+	if _, err := s.db.Exec("UPDATE books SET price_quotes = ? WHERE id = ?", encoded, id); err != nil {
+		return nil, fmt.Errorf("updating book price quotes: %w", err)
+	}
+
+	return s.GetBook(id)
+}
+
 func scanBooks(rows *sql.Rows) ([]model.Book, error) {
 	var books []model.Book
 	for rows.Next() {
 		var b model.Book
-		var tags string
-		if err := rows.Scan(&b.ID, &b.Title, &b.Author, &b.Status, &tags, &b.Rating, &b.DateAdded, &b.DateRead, &b.Body, &b.SortAuthor, &b.PageCount, &b.FirstPublished, &b.ISBN); err != nil {
+		var tags, priceQuotes string
+		if err := rows.Scan(&b.ID, &b.Title, &b.Author, &b.Status, &tags, &b.Rating, &b.DateAdded, &b.DateRead, &b.Body, &b.SortAuthor, &b.PageCount, &b.FirstPublished, &b.ISBN, &priceQuotes); err != nil {
 			return nil, err
 		}
 		b.Tags = splitTags(tags)
+		quotes, err := decodePriceQuotes(priceQuotes)
+		if err != nil {
+			return nil, fmt.Errorf("decoding price quotes for %s: %w", b.ID, err)
+		}
+		b.PriceQuotes = quotes
 		books = append(books, b)
 	}
 	return books, rows.Err()
@@ -378,6 +455,28 @@ func splitTags(s string) []string {
 		parts[i] = strings.TrimSpace(parts[i])
 	}
 	return parts
+}
+
+func encodePriceQuotes(quotes []model.PriceQuote) (string, error) {
+	if len(quotes) == 0 {
+		return "", nil
+	}
+	data, err := json.Marshal(quotes)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+func decodePriceQuotes(raw string) ([]model.PriceQuote, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, nil
+	}
+	var quotes []model.PriceQuote
+	if err := json.Unmarshal([]byte(raw), &quotes); err != nil {
+		return nil, err
+	}
+	return quotes, nil
 }
 
 func applyMeta(b *model.Book, meta map[string]string) error {

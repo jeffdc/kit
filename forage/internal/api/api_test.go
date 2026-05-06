@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,14 @@ import (
 	"forage/internal/model"
 	"forage/internal/storage"
 )
+
+type fakePriceFetcher struct {
+	quotes []model.PriceQuote
+}
+
+func (f fakePriceFetcher) FetchPrices(_ context.Context, _ model.Book, _ []model.Bookseller) []model.PriceQuote {
+	return f.quotes
+}
 
 func newTestStore(t *testing.T) *storage.Store {
 	t.Helper()
@@ -247,11 +256,100 @@ func TestGetBooksellers(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &sellers); err != nil {
 		t.Fatalf("unmarshaling response: %v", err)
 	}
-	if len(sellers) != 1 {
-		t.Fatalf("expected 1 bookseller, got %d", len(sellers))
+
+	names := make(map[string]bool, len(sellers))
+	for _, seller := range sellers {
+		names[seller.Name] = true
 	}
-	if sellers[0].Name != "Powell's Books" {
-		t.Fatalf("expected 'Powell's Books', got %q", sellers[0].Name)
+	for _, want := range []string{"Powell's Books", "Goodreads", "Amazon"} {
+		if !names[want] {
+			t.Fatalf("expected booksellers response to include %q", want)
+		}
+	}
+}
+
+func TestPostPrices(t *testing.T) {
+	s := newTestStore(t)
+
+	book, err := s.CreateBook("Dune", "Frank Herbert", map[string]string{"isbn": "9780441172719"})
+	if err != nil {
+		t.Fatalf("creating book: %v", err)
+	}
+
+	h := &handler{
+		store:   s,
+		apiKey:  "test-key",
+		version: time.Now(),
+		priceFetcher: fakePriceFetcher{quotes: []model.PriceQuote{
+			{
+				SellerName: "AbeBooks",
+				SearchURL:  "https://example.com/abebooks?q=9780441172719",
+				Price:      "$12.99",
+				Amount:     12.99,
+				Currency:   "USD",
+				Status:     "ok",
+				FetchedAt:  "2026-05-06T12:00:00Z",
+			},
+			{
+				SellerName: "Amazon",
+				SearchURL:  "https://example.com/amazon?q=9780441172719",
+				Status:     "unavailable",
+				Message:    "no price found",
+				FetchedAt:  "2026-05-06T12:00:00Z",
+			},
+		}},
+	}
+
+	req := httptest.NewRequest("POST", "/api/prices", strings.NewReader(`{"id":"`+book.ID+`"}`))
+	req.Header.Set("Authorization", "Bearer test-key")
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	h.handlePrices(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var updated model.Book
+	if err := json.Unmarshal(w.Body.Bytes(), &updated); err != nil {
+		t.Fatalf("unmarshaling response: %v", err)
+	}
+	if len(updated.PriceQuotes) != 2 {
+		t.Fatalf("len(updated.PriceQuotes) = %d, want 2", len(updated.PriceQuotes))
+	}
+	if updated.PriceQuotes[0].Price != "$12.99" {
+		t.Errorf("first price = %q, want $12.99", updated.PriceQuotes[0].Price)
+	}
+
+	stored, err := s.GetBook(book.ID)
+	if err != nil {
+		t.Fatalf("GetBook() error: %v", err)
+	}
+	if len(stored.PriceQuotes) != 2 {
+		t.Fatalf("len(stored.PriceQuotes) = %d, want 2", len(stored.PriceQuotes))
+	}
+}
+
+func TestPostPrices_Unauthorized(t *testing.T) {
+	s := newTestStore(t)
+	book, err := s.CreateBook("Dune", "Frank Herbert", nil)
+	if err != nil {
+		t.Fatalf("creating book: %v", err)
+	}
+
+	h := &handler{
+		store:        s,
+		apiKey:       "test-key",
+		version:      time.Now(),
+		priceFetcher: fakePriceFetcher{},
+	}
+
+	req := httptest.NewRequest("POST", "/api/prices", strings.NewReader(`{"id":"`+book.ID+`"}`))
+	w := httptest.NewRecorder()
+	h.handlePrices(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", w.Code)
 	}
 }
 

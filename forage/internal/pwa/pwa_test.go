@@ -87,3 +87,51 @@ func TestGenerate_ServiceWorkerExists(t *testing.T) {
 		t.Error("sw.js appears to be a placeholder; expected a real service worker")
 	}
 }
+
+func TestGenerate_AppPersistsBooksellers(t *testing.T) {
+	dir := t.TempDir()
+
+	if err := Generate(dir); err != nil {
+		t.Fatalf("Generate returned error: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "app.js"))
+	if err != nil {
+		t.Fatalf("failed to read app.js: %v", err)
+	}
+
+	content := string(data)
+	if !strings.Contains(content, "booksellers") {
+		t.Fatal("app.js should include bookseller persistence logic")
+	}
+	if !strings.Contains(content, "syncBooksellers") {
+		t.Fatal("app.js should sync booksellers independently")
+	}
+	if !strings.Contains(content, "loadStoredBooksellers") {
+		t.Fatal("app.js should load cached booksellers on startup")
+	}
+}
+
+func TestGenerate_AppSupportsPriceFetching(t *testing.T) {
+	dir := t.TempDir()
+
+	if err := Generate(dir); err != nil {
+		t.Fatalf("Generate returned error: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "app.js"))
+	if err != nil {
+		t.Fatalf("failed to read app.js: %v", err)
+	}
+
+	content := string(data)
+	if !strings.Contains(content, "/api/prices") {
+		t.Fatal("app.js should call the prices API")
+	}
+	if !strings.Contains(content, "price-fetch-btn") {
+		t.Fatal("app.js should render a price fetch button")
+	}
+	if !strings.Contains(content, "price_quotes") {
+		t.Fatal("app.js should render stored price quotes")
+	}
+}

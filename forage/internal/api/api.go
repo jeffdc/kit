@@ -12,22 +12,25 @@ import (
 )
 
 type handler struct {
-	store   *storage.Store
-	apiKey  string
-	version time.Time
-	mu      sync.Mutex
+	store        *storage.Store
+	apiKey       string
+	version      time.Time
+	priceFetcher PriceFetcher
+	mu           sync.Mutex
 }
 
 // NewHandler returns an http.Handler with all API routes and static file serving.
 func NewHandler(store *storage.Store, apiKey string, wwwDir string) http.Handler {
 	h := &handler{
-		store:   store,
-		apiKey:  apiKey,
-		version: time.Now(),
+		store:        store,
+		apiKey:       apiKey,
+		version:      time.Now(),
+		priceFetcher: NewPriceFetcher(nil),
 	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/books", h.handleBooks)
+	mux.HandleFunc("/api/prices", h.handlePrices)
 	mux.HandleFunc("/api/version", h.handleVersion)
 	mux.HandleFunc("/api/changes", h.handleChanges)
 	mux.HandleFunc("/api/booksellers", h.handleBooksellers)

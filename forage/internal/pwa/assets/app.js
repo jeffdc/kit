@@ -3,9 +3,10 @@
   "use strict";
 
   var DB_NAME = "forage";
-  var DB_VERSION = 1;
+  var DB_VERSION = 2;
   var _db = null;
   var _booksellers = [];
+  var _priceFetchState = {};
 
   // --- API Key Management ---
 
@@ -39,6 +40,9 @@
         }
         if (!d.objectStoreNames.contains("meta")) {
           d.createObjectStore("meta", { keyPath: "key" });
+        }
+        if (!d.objectStoreNames.contains("booksellers")) {
+          d.createObjectStore("booksellers", { keyPath: "id" });
         }
       };
       req.onsuccess = function (e) {
@@ -95,7 +99,38 @@
     return txComplete(t);
   }
 
-  function syncFromServer() {
+  function loadStoredBooksellers() {
+    var t = tx(["booksellers"], "readonly");
+    return reqToPromise(t.objectStore("booksellers").getAll()).then(function (booksellers) {
+      return booksellers || [];
+    });
+  }
+
+  function storeBooksellers(booksellers) {
+    var t = tx(["booksellers"], "readwrite");
+    var store = t.objectStore("booksellers");
+
+    store.clear();
+    for (var i = 0; i < booksellers.length; i++) {
+      store.put(booksellers[i]);
+    }
+
+    return txComplete(t);
+  }
+
+  function syncBooksellers() {
+    if (!getApiKey()) return Promise.resolve();
+
+    return fetch("/api/booksellers", { headers: apiHeaders() }).then(function (res) {
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return res.json();
+    }).then(function (booksellers) {
+      _booksellers = booksellers || [];
+      return storeBooksellers(_booksellers);
+    });
+  }
+
+  function syncBooks() {
     if (!getApiKey()) return Promise.resolve();
 
     return fetch("/api/version", { headers: apiHeaders() }).then(function (res) {
@@ -105,27 +140,17 @@
       var serverVersion = data.version || "";
       return getStoredServerVersion().then(function (storedVersion) {
         if (serverVersion && serverVersion > storedVersion) {
-          return Promise.all([
-            fetch("/api/books", { headers: apiHeaders() }).then(function (r) {
-              if (!r.ok) throw new Error("HTTP " + r.status);
-              return r.json();
-            }),
-            fetch("/api/booksellers", { headers: apiHeaders() }).then(function (r) {
-              if (!r.ok) throw new Error("HTTP " + r.status);
-              return r.json();
-            })
-          ]).then(function (results) {
-            var books = results[0] || [];
-            var booksellers = results[1] || [];
-
-            _booksellers = booksellers;
-
+          return fetch("/api/books", { headers: apiHeaders() }).then(function (r) {
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            return r.json();
+          }).then(function (books) {
             // Reseed books WITHOUT clearing changes
             var t = tx(["books", "meta"], "readwrite");
             var bookStore = t.objectStore("books");
             var metaStore = t.objectStore("meta");
 
             bookStore.clear();
+            books = books || [];
             for (var i = 0; i < books.length; i++) {
               bookStore.put(books[i]);
             }
@@ -136,7 +161,16 @@
           });
         }
       });
-    }).catch(function () {
+    });
+  }
+
+  function syncFromServer() {
+    if (!getApiKey()) return Promise.resolve();
+
+    return Promise.all([
+      syncBooksellers(),
+      syncBooks()
+    ]).catch(function () {
       // Silently continue with local data
     });
   }
@@ -186,15 +220,17 @@
   var db = {
     init: function () {
       return openDB().then(function () {
+        return loadStoredBooksellers().then(function (booksellers) {
+          if (booksellers.length > 0) {
+            _booksellers = booksellers;
+          } else if (window.__FORAGE_DATA__ && window.__FORAGE_DATA__.booksellers) {
+            _booksellers = window.__FORAGE_DATA__.booksellers;
+          }
+        });
+      }).then(function () {
         // Try to sync from server first
         if (getApiKey()) {
           return syncFromServer().then(function () {
-            // After sync, populate booksellers from server data (already done in syncFromServer)
-            // Fall back to embedded data if booksellers are still empty
-            if (_booksellers.length === 0 && window.__FORAGE_DATA__ && window.__FORAGE_DATA__.booksellers) {
-              _booksellers = window.__FORAGE_DATA__.booksellers;
-            }
-          }).then(function () {
             // Check if we have any books; if not, fall back to embedded data
             return db.listBooks().then(function (books) {
               if (books.length === 0 && window.__FORAGE_DATA__ && window.__FORAGE_DATA__.books && window.__FORAGE_DATA__.books.length > 0) {
@@ -203,10 +239,6 @@
             });
           });
         } else {
-          // No API key: use embedded data as fallback
-          if (window.__FORAGE_DATA__ && window.__FORAGE_DATA__.booksellers) {
-            _booksellers = window.__FORAGE_DATA__.booksellers;
-          }
           return db.listBooks().then(function (books) {
             if (books.length === 0 && window.__FORAGE_DATA__ && window.__FORAGE_DATA__.books && window.__FORAGE_DATA__.books.length > 0) {
               return db._seedFromEmbedded();
@@ -271,6 +303,12 @@
     getBook: function (id) {
       var t = tx(["books"], "readonly");
       return reqToPromise(t.objectStore("books").get(id));
+    },
+
+    storeServerBook: function (book) {
+      var t = tx(["books"], "readwrite");
+      t.objectStore("books").put(book);
+      return txComplete(t);
     },
 
     createBook: function (book) {
@@ -346,6 +384,47 @@
     return d.innerHTML;
   }
 
+  function buildSellerSearchURL(seller, book) {
+    var query = [book.title || "", book.author || ""].join(" ").trim();
+    if (book.isbn && /isbn/i.test(seller.url)) {
+      query = book.isbn;
+    }
+    if (seller.url.indexOf("{query}") !== -1) {
+      return seller.url.replace("{query}", encodeURIComponent(query));
+    }
+    return seller.url;
+  }
+
+  function quotesBySellerName(book) {
+    var out = {};
+    (book.price_quotes || []).forEach(function (quote) {
+      out[quote.seller_name] = quote;
+    });
+    return out;
+  }
+
+  function latestFetchedAt(book) {
+    var latest = "";
+    (book.price_quotes || []).forEach(function (quote) {
+      if (quote.fetched_at && (!latest || quote.fetched_at > latest)) {
+        latest = quote.fetched_at;
+      }
+    });
+    return latest;
+  }
+
+  function formatDateTime(dateStr) {
+    if (!dateStr) return "";
+    var date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    return date.toLocaleString([], {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit"
+    });
+  }
+
   function populateTagFilter(books) {
     var tagSet = {};
     books.forEach(function (b) {
@@ -411,9 +490,35 @@
           return '<span class="tag">' + esc(t) + "</span>";
         }).join("");
         var notes = b.body ? '<div class="book-notes">' + esc(b.body) + "</div>" : "";
-        var query = encodeURIComponent(b.title + " " + b.author);
+        var quoteMap = quotesBySellerName(b);
+        var fetchState = _priceFetchState[b.id] || {};
+        var fetchButton = "";
+        var fetchedAt = latestFetchedAt(b);
+        var fetchedLabel = fetchedAt ? '<div class="book-prices-updated">Prices checked ' + esc(formatDateTime(fetchedAt)) + "</div>" : "";
+        if (b.status === "wishlist") {
+          var btnLabel = fetchState.loading ? "Fetching prices..." : (b.price_quotes && b.price_quotes.length ? "Refresh prices" : "Fetch prices");
+          fetchButton = '<div class="book-price-actions">' +
+            '<button type="button" class="price-fetch-btn" data-id="' + esc(b.id) + '"' +
+            ((fetchState.loading || !getApiKey() || !navigator.onLine || !_booksellers.length) ? " disabled" : "") +
+            ">" + esc(btnLabel) + "</button>" +
+            "</div>";
+        }
+        var fetchError = fetchState.error ? '<div class="book-price-error">' + esc(fetchState.error) + "</div>" : "";
         var sellerLinks = _booksellers.length ? '<div class="book-sellers">' + _booksellers.map(function (s) {
-          return '<a href="' + s.url.replace("{query}", query) + '" target="_blank" rel="noopener">' + esc(s.name) + "</a>";
+          var sellerURL = buildSellerSearchURL(s, b);
+          var quote = quoteMap[s.name];
+          var label = s.name;
+          var klass = "book-seller-link";
+          if (quote) {
+            if (quote.price) {
+              label += " · " + quote.price;
+              klass += " has-price";
+            } else if (quote.status && quote.status !== "ok") {
+              label += " · no price";
+              klass += " no-price";
+            }
+          }
+          return '<a class="' + klass + '" href="' + esc(sellerURL) + '" target="_blank" rel="noopener">' + esc(label) + "</a>";
         }).join("") + "</div>" : "";
 
         // Secondary info line
@@ -434,6 +539,9 @@
           "</div>" +
           infoLine +
           notes +
+          fetchButton +
+          fetchedLabel +
+          fetchError +
           sellerLinks +
         "</div>";
       }).join("");
@@ -671,6 +779,36 @@
     });
   }
 
+  function handlePriceFetch(id) {
+    if (!id || _priceFetchState[id] && _priceFetchState[id].loading) return;
+    _priceFetchState[id] = { loading: true };
+    render();
+
+    pushChanges().then(function () {
+      return fetch("/api/prices", {
+        method: "POST",
+        headers: apiHeaders(),
+        body: JSON.stringify({ id: id })
+      });
+    }).then(function (res) {
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return res.json();
+    }).then(function (book) {
+      return db.storeServerBook(book).then(function () {
+        return syncFromServer();
+      });
+    }).then(function () {
+      delete _priceFetchState[id];
+      render();
+    }).catch(function (err) {
+      _priceFetchState[id] = {
+        loading: false,
+        error: navigator.onLine ? "Price fetch failed: " + err.message : "Price fetch unavailable offline"
+      };
+      render();
+    });
+  }
+
   // --- Sync Status UI ---
 
   function updateSyncStatus() {
@@ -794,6 +932,11 @@
 
       // Book card tap opens edit modal
       document.getElementById("books").addEventListener("click", function (e) {
+        var priceBtn = e.target.closest(".price-fetch-btn");
+        if (priceBtn) {
+          handlePriceFetch(priceBtn.dataset.id);
+          return;
+        }
         var card = e.target.closest(".book[data-id]");
         if (!card) return;
         // Don't open modal if clicking a seller link
