@@ -60,7 +60,7 @@ backup:
 	@set -eu; \
 	backup="forage-backup-$$(date -u +%Y%m%dT%H%M%SZ).db"; \
 	sprite exec -s forage sqlite3 /home/sprite/forage/forage.db ".timeout 10000" ".backup '/tmp/forage-backup.db'"; \
-	sprite exec -s forage cat /tmp/forage-backup.db > "$$backup"; \
+	printf '\n' | sprite exec -s forage bash -c 'read -r; cat /tmp/forage-backup.db' > "$$backup"; \
 	echo "Backup saved to $$backup"
 
 sync: install
