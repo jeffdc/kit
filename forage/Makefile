@@ -1,4 +1,4 @@
-.PHONY: all build build-tui install test fmt lint vet clean help deploy sync
+.PHONY: all build build-tui install test fmt lint vet clean help deploy sync backup
 
 BINARY_NAME := forage
 TUI_BINARY := forage-tui
@@ -56,6 +56,13 @@ deploy: install
 	echo "sprite-env services start web" | sprite exec -s forage bash
 	@echo "Deployed to https://forage-4pbc.sprites.app"
 
+backup:
+	@set -eu; \
+	backup="forage-backup-$$(date -u +%Y%m%dT%H%M%SZ).db"; \
+	sprite exec -s forage sqlite3 /home/sprite/forage/forage.db ".timeout 10000" ".backup '/tmp/forage-backup.db'"; \
+	sprite exec -s forage cat /tmp/forage-backup.db > "$$backup"; \
+	echo "Backup saved to $$backup"
+
 sync: install
 	@test -n "$(FILE)" || (echo "Usage: make sync FILE=path/to/forage-changes.json"; exit 1)
 	forage import "$(FILE)" --changes
@@ -79,6 +86,7 @@ help:
 	@echo "  lint          - Run golangci-lint (or vet if not installed)"
 	@echo "  vet           - Run go vet"
 	@echo "  deploy        - Build server, export PWA, deploy to Sprite"
+	@echo "  backup        - Back up the Sprite database locally"
 	@echo "  sync          - Import PWA changes and redeploy (FILE=path/to/changes.json)"
 	@echo "  clean         - Remove build artifacts"
 	@echo "  help          - Show this help"
