@@ -29,6 +29,7 @@ def test_configured_host_wraps_url_parser_errors():
     with pytest.raises(MetadataError, match="Invalid MusicBrainz host") as raised:
         MusicBrainzClient("[::1")
 
+    assert "Invalid IPv6 URL" in str(raised.value)
     assert isinstance(raised.value.__cause__, ValueError)
 
 
