@@ -1,4 +1,7 @@
+from dataclasses import FrozenInstanceError
 from pathlib import Path
+
+import pytest
 
 from cd2beets.models import (
     ReleaseMetadata,
@@ -32,3 +35,5 @@ def test_release_exposes_expected_recording_ids():
 def test_verification_report_is_immutable_and_boolean_by_errors():
     report = VerificationReport(errors=("missing track",), destination_paths=(Path("/nas/a.mp3"),))
     assert report.ok is False
+    with pytest.raises(FrozenInstanceError):
+        report.errors = ()
