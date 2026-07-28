@@ -1,0 +1,4 @@
+ Vendor   Product           Rev 
+ hp       CDDVDW TS-L633R   0200
+
+           Type: Audio CD
