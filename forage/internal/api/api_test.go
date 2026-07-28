@@ -182,6 +182,68 @@ func TestPostChanges_Create(t *testing.T) {
 	}
 }
 
+func TestPostChanges_UpdateFromPWA(t *testing.T) {
+	s := newTestStore(t)
+	book, err := s.CreateBook("Dune", "Frank Herbert", map[string]string{"status": "reading"})
+	if err != nil {
+		t.Fatalf("creating book: %v", err)
+	}
+	handler := NewHandler(s, "test-key", "")
+
+	body := `{
+		"version": 1,
+		"exported": "2026-07-28T00:00:00Z",
+		"changes": [{
+			"op": "update",
+			"id": "` + book.ID + `",
+			"fields": {
+				"title": "Dune",
+				"author": "Frank Herbert",
+				"status": "read",
+				"rating": 5,
+				"tags": ["science fiction"],
+				"page_count": 412,
+				"first_published": 1965,
+				"isbn": "9780441172719",
+				"body": "Finished."
+			},
+			"ts": "2026-07-28T00:00:00Z"
+		}]
+	}`
+
+	req := httptest.NewRequest("POST", "/api/changes", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer test-key")
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var summary map[string]int
+	if err := json.Unmarshal(w.Body.Bytes(), &summary); err != nil {
+		t.Fatalf("unmarshaling summary: %v", err)
+	}
+	if summary["applied"] != 1 || summary["skipped"] != 0 || summary["errors"] != 0 {
+		t.Fatalf("expected one applied PWA update, got %#v", summary)
+	}
+
+	updated, err := s.GetBook(book.ID)
+	if err != nil {
+		t.Fatalf("getting updated book: %v", err)
+	}
+	if updated.Status != "read" {
+		t.Errorf("status = %q, want read", updated.Status)
+	}
+	if updated.Body != "Finished." {
+		t.Errorf("body = %q, want Finished.", updated.Body)
+	}
+	if updated.Rating != 5 {
+		t.Errorf("rating = %d, want 5", updated.Rating)
+	}
+}
+
 func TestPostChanges_BumpsVersion(t *testing.T) {
 	s := newTestStore(t)
 	handler := NewHandler(s, "test-key", "")

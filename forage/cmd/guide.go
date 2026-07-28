@@ -48,7 +48,7 @@ Statuses are set via "forage set <id> status <value>" or shortcuts:
   sort_author string     yes                  "Last, First" sort key, auto-derived from author
   date_added       string     no                   YYYY-MM-DD, auto-set on add
   date_read        string     yes                  YYYY-MM-DD, auto-set by "forage read"
-  body             string     no (use add --body)  free-form notes
+  body             string     yes                  free-form notes
   page_count       int        yes                  number of pages
   first_published  int        yes                  year first published
   isbn             string     yes                  ISBN (prefer ISBN-13)
@@ -73,7 +73,7 @@ Statuses are set via "forage set <id> status <value>" or shortcuts:
 
 ### forage set <id> <key> <value>
   Update a field. Valid keys: title, author, status, rating, tags, date_read,
-  sort_author, page_count, first_published, isbn.
+  body, sort_author, page_count, first_published, isbn.
   For tags, use comma-separated values: forage set a3f2 tags "sci-fi,classic"
   Output: {"id": "a3f2", "title": "...", "status": "..."}
 

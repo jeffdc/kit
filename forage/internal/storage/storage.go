@@ -308,14 +308,14 @@ func (s *Store) SearchBooks(query string) ([]model.Book, error) {
 
 var validKeys = map[string]bool{
 	"title": true, "author": true, "status": true,
-	"rating": true, "tags": true, "date_read": true,
+	"rating": true, "tags": true, "date_read": true, "body": true,
 	"sort_author": true, "page_count": true,
 	"first_published": true, "isbn": true,
 }
 
 func (s *Store) UpdateBook(id, key, value string) (*model.Book, error) {
 	if !validKeys[key] {
-		return nil, fmt.Errorf("invalid key: %s (valid: title, author, status, rating, tags, date_read, sort_author, page_count, first_published, isbn)", key)
+		return nil, fmt.Errorf("invalid key: %s (valid: title, author, status, rating, tags, date_read, body, sort_author, page_count, first_published, isbn)", key)
 	}
 
 	b, err := s.GetBook(id)
@@ -342,6 +342,8 @@ func (s *Store) UpdateBook(id, key, value string) (*model.Book, error) {
 		column, dbValue = "tags", strings.Join(b.Tags, ",")
 	case "date_read":
 		column, dbValue = "date_read", b.DateRead
+	case "body":
+		column, dbValue = "body", b.Body
 	case "sort_author":
 		column, dbValue = "sort_author", b.SortAuthor
 	case "page_count":
