@@ -59,6 +59,14 @@ The package is divided into small adapters coordinated by a workflow state machi
 
 External commands are executed as argument vectors without a shell.
 
+## macOS Music Insertion Handling
+
+Before the first batch run, the operator must open **Music > Settings > General** and set **When a CD is inserted** to **Ignore CD**, using Apple's supported user-interface setting documented in the [Music General settings guide](https://support.apple.com/guide/music/change-general-settings-mus1719/mac).
+
+`cd2beets` must not incorporate Music's importer. That would introduce a second managed library, Music-controlled encoding and destinations, and no reliable copy-verification boundary. The tool also must not write undocumented Music preference keys, quit Music, or terminate it automatically.
+
+Startup prints the one-time **Ignore CD** prerequisite. If disc identification or extraction reports that the drive is busy and the Music process is running, the tool pauses, explains the likely contention, and asks the operator to close Music manually or abort. It does not change Music or retry automatically.
+
 ## Foreground Workflow
 
 ### 1. Preflight
@@ -247,7 +255,7 @@ The implementation may install and use:
 - the already installed LAME and beets CLI;
 - a project-local Python virtual environment containing a beets version compatible with 2.8.0 and `python-discid`.
 
-Setup is explicit and one-time. Runtime preflight reports missing dependencies but does not install packages automatically.
+Setup is explicit and one-time. It includes selecting **Ignore CD** in Music as described above. Runtime preflight reports missing dependencies and reminds the operator about the Music setting but does not install packages or change application preferences automatically.
 
 ## Test and Verification Strategy
 
@@ -282,6 +290,8 @@ With no CD inserted, start the foreground watcher, observe the waiting state, an
 Insert one test CD and prove:
 
 - `drutil`, `libdiscid`, and `cdda2wav` can address the current HP CDDVDW TS-L633R drive;
+- Music does not react to or begin importing the inserted CD;
+- `cd2beets` retains access to the drive without terminating Music;
 - TOC and MusicBrainz disc ID agree on track count;
 - metadata candidates are displayed correctly;
 - every selected track streams through LAME to a playable 320 kbps MP3.
