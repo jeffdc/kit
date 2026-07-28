@@ -52,15 +52,23 @@ class MusicBrainzClient:
             raise MetadataError("MusicBrainz host is empty")
 
         host = configured_host.strip()
-        parsed = parse.urlsplit(host if "://" in host else f"http://{host}")
         try:
-            port = parsed.port or 80
+            parsed = parse.urlsplit(host if "://" in host else f"http://{host}")
+            hostname = parsed.hostname
+            parsed_port = parsed.port
         except ValueError as exc:
-            raise MetadataError(f"Invalid MusicBrainz host {configured_host!r}: {exc}") from exc
+            raise MetadataError(
+                f"Invalid MusicBrainz host {configured_host!r}: {exc}"
+            ) from exc
+        port = 80 if parsed_port is None else parsed_port
+        if not 1 <= port <= 65535:
+            raise MetadataError(
+                "Invalid MusicBrainz host: port must be between 1 and 65535"
+            )
 
         if (
             parsed.scheme != "http"
-            or not parsed.hostname
+            or not hostname
             or parsed.username is not None
             or parsed.password is not None
             or parsed.path not in ("", "/")
@@ -70,7 +78,7 @@ class MusicBrainzClient:
             raise MetadataError(f"Invalid MusicBrainz host: {configured_host!r}")
 
         self.base_url = f"http://{parsed.netloc}"
-        self._hostname = parsed.hostname
+        self._hostname = hostname
         self._port = port
 
     def ping(self) -> None:
@@ -249,14 +257,11 @@ class MusicBrainzClient:
         source: Mapping[str, Any], key: str, description: str
     ) -> int:
         value = source.get(key)
-        if value is None or isinstance(value, bool):
+        if value is None:
             raise MetadataError(f"MusicBrainz response is missing {description}")
-        try:
-            return int(value)
-        except (TypeError, ValueError) as exc:
-            raise MetadataError(
-                f"MusicBrainz response has invalid {description}"
-            ) from exc
+        if type(value) is not int:
+            raise MetadataError(f"MusicBrainz response has invalid {description}")
+        return value
 
     @staticmethod
     def _optional_text(source: Mapping[str, Any], key: str) -> str:

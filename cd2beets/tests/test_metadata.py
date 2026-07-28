@@ -25,6 +25,18 @@ def test_configured_host_without_scheme_produces_http_base_url():
     assert client.base_url == "http://10.6.9.160:5000"
 
 
+def test_configured_host_wraps_url_parser_errors():
+    with pytest.raises(MetadataError, match="Invalid MusicBrainz host") as raised:
+        MusicBrainzClient("[::1")
+
+    assert isinstance(raised.value.__cause__, ValueError)
+
+
+def test_configured_host_rejects_port_zero():
+    with pytest.raises(MetadataError, match="port must be between 1 and 65535"):
+        MusicBrainzClient("musicbrainz.local:0")
+
+
 def test_parse_lookup_filters_matching_medium_and_normalizes_tracks():
     releases = MusicBrainzClient("10.6.9.160:5000").parse_lookup_response(
         TOC, fixture_payload()
@@ -131,6 +143,15 @@ def test_parse_lookup_rejects_incomplete_matching_identity(mutation, message):
     mutation(release, medium, medium["tracks"][0])
 
     with pytest.raises(MetadataError, match=message):
+        MusicBrainzClient("musicbrainz.local").parse_lookup_response(TOC, payload)
+
+
+@pytest.mark.parametrize("value", [True, 1.5, "1"])
+def test_parse_lookup_rejects_non_integer_positions(value):
+    payload = fixture_payload()
+    payload["releases"][0]["media"][1]["position"] = value
+
+    with pytest.raises(MetadataError, match="invalid medium position"):
         MusicBrainzClient("musicbrainz.local").parse_lookup_response(TOC, payload)
 
 
