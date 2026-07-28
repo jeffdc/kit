@@ -1,0 +1,87 @@
+{
+  "id": "disc-1",
+  "releases": [
+    {
+      "id": "release-1",
+      "title": "The Album",
+      "date": "2001-02-03",
+      "country": "US",
+      "disambiguation": "second pressing",
+      "artist-credit": [
+        {
+          "name": "Primary Artist",
+          "joinphrase": " feat. "
+        },
+        {
+          "name": "Guest Artist"
+        }
+      ],
+      "media": [
+        {
+          "position": 1,
+          "discs": [
+            {
+              "id": "another-disc"
+            }
+          ],
+          "tracks": []
+        },
+        {
+          "position": 2,
+          "discs": [
+            {
+              "id": "disc-1"
+            }
+          ],
+          "tracks": [
+            {
+              "position": 2,
+              "length": 222000,
+              "recording": {
+                "id": "recording-2",
+                "title": "Second Track"
+              }
+            },
+            {
+              "position": 1,
+              "length": 111000,
+              "recording": {
+                "id": "recording-1",
+                "title": "First Track"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "release-2",
+      "title": "Unrelated Album",
+      "artist-credit": [
+        {
+          "name": "Another Artist"
+        }
+      ],
+      "media": [
+        {
+          "position": 1,
+          "discs": [
+            {
+              "id": "unrelated-disc"
+            }
+          ],
+          "tracks": [
+            {
+              "position": 1,
+              "length": 333000,
+              "recording": {
+                "id": "recording-3",
+                "title": "Unrelated Track"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
