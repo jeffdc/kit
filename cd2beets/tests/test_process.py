@@ -1,4 +1,6 @@
+from io import BytesIO
 from pathlib import Path
+from subprocess import TimeoutExpired
 
 import pytest
 
@@ -41,20 +43,74 @@ def test_pipeline_reaps_source_when_sink_fails_to_start(monkeypatch, tmp_path: P
     with destination.open("xb") as output:
         with pytest.raises(FileNotFoundError):
             ProcessRunner().pipeline(
-                ["/usr/bin/yes"],
+                ["/bin/sleep", "30"],
                 ["/definitely/not/a/command"],
                 output,
             )
     source = started[0]
     try:
-        assert source.poll() is not None
+        assert source.returncode is not None
         assert source.stdout is not None and source.stdout.closed
         assert source.stderr is not None and source.stderr.closed
     finally:
-        if source.poll() is None:
+        if source.returncode is None:
             source.terminate()
             source.wait()
         if source.stdout is not None:
             source.stdout.close()
         if source.stderr is not None:
             source.stderr.close()
+
+
+def test_pipeline_kills_source_that_does_not_terminate(monkeypatch):
+    class StubbornSource:
+        def __init__(self):
+            self.stdout = BytesIO()
+            self.stderr = BytesIO()
+            self.returncode = None
+            self.terminated = False
+            self.killed = False
+            self.wait_timeouts = []
+
+        def poll(self):
+            return self.returncode
+
+        def terminate(self):
+            self.terminated = True
+
+        def kill(self):
+            self.killed = True
+
+        def wait(self, timeout=None):
+            self.wait_timeouts.append(timeout)
+            if not self.killed:
+                if timeout is None:
+                    raise AssertionError("terminate wait must be bounded")
+                raise TimeoutExpired(["quiet-source"], timeout)
+            self.returncode = -9
+            return self.returncode
+
+    source = StubbornSource()
+    calls = 0
+
+    def failing_sink_popen(args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return source
+        raise FileNotFoundError("sink executable missing")
+
+    monkeypatch.setattr(process_module, "Popen", failing_sink_popen)
+
+    with pytest.raises(FileNotFoundError, match="sink executable missing"):
+        ProcessRunner().pipeline(
+            ["quiet-source"],
+            ["missing-sink"],
+            BytesIO(),
+        )
+
+    assert source.terminated
+    assert source.killed
+    assert source.wait_timeouts[0] is not None
+    assert source.wait_timeouts[-1] is None
+    assert source.returncode == -9

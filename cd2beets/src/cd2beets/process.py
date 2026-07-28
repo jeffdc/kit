@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from subprocess import PIPE, Popen, run
+from subprocess import PIPE, Popen, TimeoutExpired, run
 from threading import Thread
 from typing import BinaryIO, Sequence
 
@@ -81,20 +81,38 @@ class ProcessRunner:
             )
         except BaseException:
             if source.stdout is not None:
-                source.stdout.close()
+                try:
+                    source.stdout.close()
+                except Exception:
+                    pass
             for process in (sink, source):
-                if process is not None and process.poll() is None:
+                if process is None:
+                    continue
+                if process.poll() is None:
                     try:
                         process.terminate()
                     except ProcessLookupError:
                         pass
-            for process in (sink, source):
-                if process is not None:
-                    process.wait()
+                try:
+                    process.wait(timeout=1.0)
+                except TimeoutExpired:
+                    try:
+                        process.kill()
+                    except ProcessLookupError:
+                        pass
+                    try:
+                        process.wait()
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
             for pipe in (
                 source.stderr,
                 sink.stderr if sink is not None else None,
             ):
                 if pipe is not None:
-                    pipe.close()
+                    try:
+                        pipe.close()
+                    except Exception:
+                        pass
             raise
