@@ -44,34 +44,57 @@ class ProcessRunner:
         destination: BinaryIO,
     ) -> PipelineResult:
         source = Popen(list(source_args), stdout=PIPE, stderr=PIPE, shell=False)
-        if source.stdout is None or source.stderr is None:
-            raise RuntimeError("source process pipes unavailable")
-        sink = Popen(
-            list(sink_args),
-            stdin=source.stdout,
-            stdout=destination,
-            stderr=PIPE,
-            shell=False,
-        )
-        source.stdout.close()
-        if sink.stderr is None:
-            raise RuntimeError("sink process stderr unavailable")
-        captured: dict[str, bytes] = {}
+        sink = None
+        try:
+            if source.stdout is None or source.stderr is None:
+                raise RuntimeError("source process pipes unavailable")
+            sink = Popen(
+                list(sink_args),
+                stdin=source.stdout,
+                stdout=destination,
+                stderr=PIPE,
+                shell=False,
+            )
+            source.stdout.close()
+            if sink.stderr is None:
+                raise RuntimeError("sink process stderr unavailable")
+            captured: dict[str, bytes] = {}
 
-        def drain(name: str, pipe: BinaryIO) -> None:
-            captured[name] = pipe.read()
+            def drain(name: str, pipe: BinaryIO) -> None:
+                captured[name] = pipe.read()
 
-        source_thread = Thread(target=drain, args=("source", source.stderr), daemon=True)
-        sink_thread = Thread(target=drain, args=("sink", sink.stderr), daemon=True)
-        source_thread.start()
-        sink_thread.start()
-        sink_returncode = sink.wait()
-        source_returncode = source.wait()
-        source_thread.join()
-        sink_thread.join()
-        return PipelineResult(
-            source_returncode,
-            sink_returncode,
-            captured["source"].decode(errors="replace"),
-            captured["sink"].decode(errors="replace"),
-        )
+            source_thread = Thread(
+                target=drain, args=("source", source.stderr), daemon=True
+            )
+            sink_thread = Thread(target=drain, args=("sink", sink.stderr), daemon=True)
+            source_thread.start()
+            sink_thread.start()
+            sink_returncode = sink.wait()
+            source_returncode = source.wait()
+            source_thread.join()
+            sink_thread.join()
+            return PipelineResult(
+                source_returncode,
+                sink_returncode,
+                captured["source"].decode(errors="replace"),
+                captured["sink"].decode(errors="replace"),
+            )
+        except BaseException:
+            if source.stdout is not None:
+                source.stdout.close()
+            for process in (sink, source):
+                if process is not None and process.poll() is None:
+                    try:
+                        process.terminate()
+                    except ProcessLookupError:
+                        pass
+            for process in (sink, source):
+                if process is not None:
+                    process.wait()
+            for pipe in (
+                source.stderr,
+                sink.stderr if sink is not None else None,
+            ):
+                if pipe is not None:
+                    pipe.close()
+            raise
