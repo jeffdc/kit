@@ -151,6 +151,25 @@ def test_unreadable_library_database_is_named(tmp_path):
 
     assert "library database is unreadable" in error_text(report)
 
+def test_library_database_must_be_a_regular_file(tmp_path):
+    configured = settings(tmp_path)
+    library_path = configured.library_path.resolve()
+    library_root = configured.library_root.resolve()
+    root = Path("/").resolve()
+    modes = {
+        library_path: stat.S_IFDIR,
+        library_root: stat.S_IFDIR,
+        root: stat.S_IFDIR,
+    }
+
+    report = make_preflight(
+        tmp_path,
+        configured=configured,
+        modes=modes,
+    ).run()
+
+    assert "library database is not a regular file" in error_text(report)
+
 
 @pytest.mark.parametrize(
     ("failure", "message"),

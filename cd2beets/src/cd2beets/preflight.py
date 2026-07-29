@@ -109,12 +109,16 @@ class Preflight:
         self, library_path: Path, errors: list[str]
     ) -> None:
         try:
-            self._stat_path(library_path)
+            library_details = self._stat_path(library_path)
         except OSError as error:
             errors.append(
                 f"library database is unreadable: {library_path}: {error}"
             )
             return
+        if not stat.S_ISREG(library_details.st_mode):
+            errors.append(
+                f"library database is not a regular file: {library_path}"
+            )
         try:
             readable = self._access(library_path, os.R_OK)
         except Exception as error:
