@@ -1,3 +1,4 @@
+import stat
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -6,20 +7,22 @@ import pytest
 from cd2beets.drive import DriveInfo
 from cd2beets.library import BeetsSettings
 from cd2beets.preflight import Preflight
-from cd2beets.process import CommandResult
 
 
 DRIVE = DriveInfo(1, "hp", "CDDVDW TS-L633R", "0200", "USB", "Unsupported")
 
 
-class FakeRunner:
-    def __init__(self, result=CommandResult(0, "beets version 2.8.0\n", "")):
-        self.result = result
+class FakeVersionProbe:
+    def __init__(self, installed="2.8.0", error=None):
+        self.installed = installed
+        self.error = error
         self.calls = []
 
-    def run(self, args):
-        self.calls.append(list(args))
-        return self.result
+    def __call__(self, distribution):
+        self.calls.append(distribution)
+        if self.error is not None:
+            raise self.error
+        return self.installed
 
 
 class FakeDrive:
@@ -62,7 +65,8 @@ def settings(tmp_path, **overrides):
 
 
 def make_preflight(tmp_path, *, configured=None, existing=None, writable=None, readable=True,
-                   devices=None, which=None, runner=None, drive=None, metadata=None):
+                   devices=None, modes=None, which=None, version_probe=None, drive=None,
+                   metadata=None):
     configured = configured or settings(tmp_path)
     staging = tmp_path / "staging"
     library_path = configured.library_path.resolve()
@@ -71,12 +75,20 @@ def make_preflight(tmp_path, *, configured=None, existing=None, writable=None, r
     existing = {library_path, library_root, root} if existing is None else set(existing)
     writable = {library_root} if writable is None else set(writable)
     devices = {library_path: 20, library_root: 20, root: 10} if devices is None else devices
+    modes = {
+        library_path: stat.S_IFREG,
+        library_root: stat.S_IFDIR,
+        root: stat.S_IFDIR,
+    } if modes is None else modes
 
     def fake_stat(path):
         resolved = Path(path).resolve()
         if resolved not in existing:
             raise FileNotFoundError(resolved)
-        return SimpleNamespace(st_dev=devices.get(resolved, 20))
+        return SimpleNamespace(
+            st_dev=devices.get(resolved, 20),
+            st_mode=modes.get(resolved, stat.S_IFREG),
+        )
 
     def fake_access(path, mode):
         resolved = Path(path).resolve()
@@ -89,10 +101,10 @@ def make_preflight(tmp_path, *, configured=None, existing=None, writable=None, r
     return Preflight(
         configured,
         staging,
-        runner or FakeRunner(),
         drive or FakeDrive(),
         metadata or FakeMetadata(),
         which=which or (lambda name: f"/usr/bin/{name}"),
+        version_probe=version_probe or FakeVersionProbe(),
         stat_path=fake_stat,
         access=fake_access,
     )
@@ -114,21 +126,24 @@ def test_missing_prerequisite_is_named(tmp_path, binary):
     assert f"missing prerequisite: {binary}" in report.errors
 
 
-@pytest.mark.parametrize(
-    "output",
-    [
-        "beets version 2.7.0\n",
-        "beets version 2.8.1\n",
-        "beets version 2.8.0.dev1\n",
-        "unexpected output\n",
-    ],
-)
-def test_beets_version_must_be_exactly_2_8_0(tmp_path, output):
+@pytest.mark.parametrize("installed", ["2.7.0", "2.8.1", "2.8.0.dev1", "unexpected"])
+def test_installed_beets_distribution_must_be_exactly_2_8_0(
+    tmp_path, installed
+):
     report = make_preflight(
-        tmp_path, runner=FakeRunner(CommandResult(0, output, ""))
+        tmp_path, version_probe=FakeVersionProbe(installed)
     ).run()
 
     assert any("beets version" in error and "2.8.0" in error for error in report.errors)
+
+
+def test_beets_version_probe_is_read_only_and_does_not_start_beet_cli(tmp_path):
+    version_probe = FakeVersionProbe()
+
+    report = make_preflight(tmp_path, version_probe=version_probe).run()
+
+    assert report.errors == ()
+    assert version_probe.calls == ["beets"]
 
 
 def test_unreadable_library_database_is_named(tmp_path):
@@ -169,6 +184,25 @@ def test_nas_root_failures_are_named(tmp_path, failure, message):
     ).run()
 
     assert message in error_text(report)
+
+def test_nas_root_must_be_a_directory(tmp_path):
+    configured = settings(tmp_path)
+    library_path = configured.library_path.resolve()
+    library_root = configured.library_root.resolve()
+    root = Path("/").resolve()
+    modes = {
+        library_path: stat.S_IFREG,
+        library_root: stat.S_IFREG,
+        root: stat.S_IFDIR,
+    }
+
+    report = make_preflight(
+        tmp_path,
+        configured=configured,
+        modes=modes,
+    ).run()
+
+    assert "NAS library root is not a directory" in error_text(report)
 
 
 def test_staging_must_not_be_nested_under_library_root(tmp_path):
@@ -259,11 +293,14 @@ def test_failures_are_aggregated_in_one_report(tmp_path):
 
 
 def test_success_returns_resolved_paths_and_selected_drive_without_mutation(tmp_path):
-    runner = FakeRunner()
+    version_probe = FakeVersionProbe()
     drive = FakeDrive()
     metadata = FakeMetadata()
     preflight = make_preflight(
-        tmp_path, runner=runner, drive=drive, metadata=metadata
+        tmp_path,
+        version_probe=version_probe,
+        drive=drive,
+        metadata=metadata,
     )
 
     report = preflight.run()
@@ -273,7 +310,7 @@ def test_success_returns_resolved_paths_and_selected_drive_without_mutation(tmp_
     assert report.library_root == preflight.settings.library_root.resolve()
     assert report.staging_dir == preflight.staging_dir.resolve()
     assert report.drive == DRIVE
-    assert runner.calls == [["beet", "version"]]
+    assert version_probe.calls == ["beets"]
     assert drive.calls == ["list"]
     assert metadata.calls == ["ping"]
     assert not preflight.staging_dir.exists()

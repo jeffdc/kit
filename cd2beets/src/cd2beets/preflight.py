@@ -2,21 +2,20 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from importlib.metadata import version as distribution_version
 import os
+import stat
 from pathlib import Path
-import re
 import shutil
 from typing import Any
 
 from cd2beets.drive import DriveInfo
 from cd2beets.library import BeetsSettings
-from cd2beets.process import ProcessRunner
 
 
 _REQUIRED_BINARIES = ("drutil", "cdda2wav", "lame", "beet", "pgrep")
 _ALLOWED_PLUGINS = frozenset({"musicbrainz", "web", "duplicates", "missing"})
 _REQUIRED_BEETS_VERSION = "2.8.0"
-_BEETS_VERSION_LINE = re.compile(r"^beets version (\S+)\s*$", re.MULTILINE)
 
 
 @dataclass(frozen=True)
@@ -43,17 +42,17 @@ class Preflight:
         self,
         settings: BeetsSettings,
         staging_dir: Path,
-        runner: ProcessRunner,
         drive: Any,
         metadata: Any,
         *,
         which: Callable[[str], str | None] = shutil.which,
+        version_probe: Callable[[str], str] = distribution_version,
         stat_path: Callable[[Path], Any] = _stat_path,
         access: Callable[[Path, int], bool] = os.access,
     ) -> None:
         self.settings = settings
         self.staging_dir = Path(staging_dir)
-        self._runner = runner
+        self._version_probe = version_probe
         self._drive = drive
         self._metadata = metadata
         self._which = which
@@ -66,9 +65,8 @@ class Preflight:
         library_root = self.settings.library_root.expanduser().resolve()
         staging_dir = self.staging_dir.expanduser().resolve()
 
-        available = self._check_binaries(errors)
-        if "beet" in available:
-            self._check_beets_version(errors)
+        self._check_binaries(errors)
+        self._check_beets_version(errors)
 
         self._check_library_database(library_path, errors)
         self._check_nas_root(library_root, errors)
@@ -85,8 +83,7 @@ class Preflight:
             selected_drive,
         )
 
-    def _check_binaries(self, errors: list[str]) -> set[str]:
-        available: set[str] = set()
+    def _check_binaries(self, errors: list[str]) -> None:
         for binary in _REQUIRED_BINARIES:
             try:
                 location = self._which(binary)
@@ -95,23 +92,13 @@ class Preflight:
                 continue
             if location is None:
                 errors.append(f"missing prerequisite: {binary}")
-            else:
-                available.add(binary)
-        return available
 
     def _check_beets_version(self, errors: list[str]) -> None:
         try:
-            result = self._runner.run(["beet", "version"])
+            actual = self._version_probe("beets")
         except Exception as error:
             errors.append(f"beets version check failed: {error}")
             return
-        if result.returncode != 0:
-            errors.append(
-                f"beets version check failed with exit status {result.returncode}"
-            )
-            return
-        match = _BEETS_VERSION_LINE.search(result.stdout)
-        actual = match.group(1) if match is not None else "unrecognized output"
         if actual != _REQUIRED_BEETS_VERSION:
             errors.append(
                 "beets version must be exactly "
@@ -146,6 +133,8 @@ class Preflight:
         except OSError as error:
             errors.append(f"NAS library root is absent: {library_root}: {error}")
             return
+        if not stat.S_ISDIR(library_details.st_mode):
+            errors.append(f"NAS library root is not a directory: {library_root}")
 
         try:
             writable = self._access(library_root, os.W_OK)

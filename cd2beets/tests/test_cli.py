@@ -107,11 +107,10 @@ class Runtime:
                 runtime.metadata = self
 
         class FakePreflight:
-            def __init__(self, settings, staging_dir, runner, drive, metadata):
+            def __init__(self, settings, staging_dir, drive, metadata):
                 runtime.preflight_args = (
                     settings,
                     staging_dir,
-                    runner,
                     drive,
                     metadata,
                 )
@@ -239,8 +238,8 @@ def test_main_composes_reviewed_adapters_after_successful_preflight(
     assert result == 0
     assert runtime.preflight_args[0] is runtime.settings
     assert runtime.preflight_args[1] == staging.resolve()
-    assert runtime.preflight_args[3] is runtime.drive
-    assert runtime.preflight_args[4] is runtime.metadata
+    assert runtime.preflight_args[2] is runtime.drive
+    assert runtime.preflight_args[3] is runtime.metadata
     assert runtime.metadata.host == "musicbrainz.org"
     assert runtime.journal.path == staging.resolve() / "lifecycle.jsonl"
     assert runtime.staging_initializations == [staging.resolve()]

@@ -82,7 +82,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         report = Preflight(
             settings,
             staging_dir,
-            runner,
             drive,
             metadata,
         ).run()
