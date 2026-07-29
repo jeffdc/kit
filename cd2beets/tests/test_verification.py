@@ -702,6 +702,24 @@ def test_repeated_recording_id_newness_is_proved_per_track_occurrence(
     ) in report.errors
 
 
+def test_existing_occurrence_cannot_borrow_another_pre_item_id(tmp_path):
+    scenario = make_scenario(tmp_path)
+    first, second = scenario.post_snapshot.exact_items
+    borrowed = replace(second, item_id=first.item_id)
+    scenario = replace(
+        with_post_items(scenario, (first, borrowed)),
+        pre_snapshot=LibrarySnapshot((first, second), ()),
+    )
+
+    report = verify(scenario)
+
+    assert report.ok is False
+    assert (
+        "post item ID 101 for track 2 recording recording-2 belonged to "
+        "a different pre-import occurrence"
+    ) in report.errors
+
+
 @pytest.mark.parametrize(
     ("change", "expected"),
     [

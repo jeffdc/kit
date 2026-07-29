@@ -88,9 +88,12 @@ def verify_import(
     }
     pre_items = pre_snapshot.exact_items + pre_snapshot.plausible_items
     pre_item_ids = {item.item_id for item in pre_items}
-    pre_occurrences = {
-        (item.medium, item.track, item.recording_id) for item in pre_items
-    }
+    pre_ids_by_occurrence: defaultdict[
+        tuple[int, int, str], set[int]
+    ] = defaultdict(set)
+    for item in pre_items:
+        occurrence = (item.medium, item.track, item.recording_id)
+        pre_ids_by_occurrence[occurrence].add(item.item_id)
 
     resolved_staging = _resolve_root(staging_root, "staging", errors)
     resolved_library = _resolve_root(library_root, "library", errors)
@@ -151,7 +154,7 @@ def verify_import(
                     track.position,
                     track.recording_id,
                     item,
-                    pre_occurrences,
+                    pre_ids_by_occurrence,
                     pre_item_ids,
                     errors,
                 )
@@ -164,7 +167,7 @@ def verify_import(
             track.position,
             track.recording_id,
             item,
-            pre_occurrences,
+            pre_ids_by_occurrence,
             pre_item_ids,
             errors,
         )
@@ -220,15 +223,28 @@ def _verify_new_item_id(
     track_position: int,
     recording_id: str,
     item: LibraryItem,
-    pre_occurrences: set[tuple[int, int, str]],
+    pre_ids_by_occurrence: dict[tuple[int, int, str], set[int]],
     pre_item_ids: set[int],
     errors: list[str],
 ) -> None:
     occurrence = (medium, track_position, recording_id)
-    if occurrence not in pre_occurrences and item.item_id in pre_item_ids:
+    if occurrence not in pre_ids_by_occurrence:
+        if item.item_id in pre_item_ids:
+            errors.append(
+                f"expected track {track_position} recording {recording_id} "
+                "was absent before import but post item ID "
+                f"{item.item_id} is not new"
+            )
+        return
+
+    if (
+        item.item_id in pre_item_ids
+        and item.item_id not in pre_ids_by_occurrence[occurrence]
+    ):
         errors.append(
-            f"expected track {track_position} recording {recording_id} was "
-            f"absent before import but post item ID {item.item_id} is not new"
+            f"post item ID {item.item_id} for track {track_position} "
+            f"recording {recording_id} belonged to a different pre-import "
+            "occurrence"
         )
 
 
