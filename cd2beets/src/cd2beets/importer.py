@@ -57,11 +57,14 @@ class BeetsImporter:
         try:
             result = self._runner.run(args)
         except BaseException as error:
-            self._journal.append(
-                "beets_import_failed",
-                **common_fields,
-                error=str(error),
-            )
+            try:
+                self._journal.append(
+                    "beets_import_failed",
+                    **common_fields,
+                    error=str(error),
+                )
+            except BaseException as journal_error:
+                raise error from journal_error
             raise
 
         result_fields = {
@@ -71,7 +74,11 @@ class BeetsImporter:
             "stderr": result.stderr,
         }
         if result.returncode != 0:
-            self._journal.append("beets_import_failed", **result_fields)
-            raise BeetsImportError(result)
+            import_error = BeetsImportError(result)
+            try:
+                self._journal.append("beets_import_failed", **result_fields)
+            except BaseException as journal_error:
+                raise import_error from journal_error
+            raise import_error
         self._journal.append("beets_import_succeeded", **result_fields)
         return result

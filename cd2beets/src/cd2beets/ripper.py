@@ -33,27 +33,27 @@ class Ripper:
         staging: StagingRun,
     ) -> OwnedMp3:
         owned, destination = staging.reserve(track.position)
-        common_fields = {
-            "run_id": staging.run_id,
-            "track_position": track.position,
-            "path": str(owned.path),
-        }
-        source_args = [
-            "cdda2wav",
-            "-D",
-            toc.device,
-            "-paranoia",
-            "-O",
-            "wav",
-            "-no-infofile",
-            "-t",
-            str(track.position),
-            "-",
-        ]
-        sink_args = ["lame", "--silent", "-b", "320", "-", "-"]
-        self._journal.append("track_rip_started", **common_fields)
-
         try:
+            common_fields = {
+                "run_id": staging.run_id,
+                "track_position": track.position,
+                "path": str(owned.path),
+            }
+            source_args = [
+                "cdda2wav",
+                "-D",
+                toc.device,
+                "-paranoia",
+                "-O",
+                "wav",
+                "-no-infofile",
+                "-t",
+                str(track.position),
+                "-",
+            ]
+            sink_args = ["lame", "--silent", "-b", "320", "-", "-"]
+            self._journal.append("track_rip_started", **common_fields)
+
             try:
                 result = self._runner.pipeline(
                     source_args,
@@ -61,11 +61,14 @@ class Ripper:
                     destination,
                 )
             except BaseException as error:
-                self._journal.append(
-                    "track_rip_failed",
-                    **common_fields,
-                    error=str(error),
-                )
+                try:
+                    self._journal.append(
+                        "track_rip_failed",
+                        **common_fields,
+                        error=str(error),
+                    )
+                except BaseException as journal_error:
+                    raise error from journal_error
                 raise
 
             result_fields = {
@@ -76,8 +79,12 @@ class Ripper:
                 "sink_stderr": result.sink_stderr,
             }
             if not result.ok:
-                self._journal.append("track_rip_failed", **result_fields)
-                raise RipError(result)
+                rip_error = RipError(result)
+                try:
+                    self._journal.append("track_rip_failed", **result_fields)
+                except BaseException as journal_error:
+                    raise rip_error from journal_error
+                raise rip_error
             self._journal.append("track_rip_succeeded", **result_fields)
             return owned
         finally:

@@ -18,6 +18,18 @@ class RecordingJournal:
         self.records.append((event, fields))
 
 
+class RaisingJournal(RecordingJournal):
+    def __init__(self, failing_event: str):
+        super().__init__()
+        self.failing_event = failing_event
+        self.error = OSError(f"cannot journal {failing_event}")
+
+    def append(self, event, **fields):
+        if event == self.failing_event:
+            raise self.error
+        super().append(event, **fields)
+
+
 class FakeRunner:
     def __init__(self, result: CommandResult):
         self.result = result
@@ -139,3 +151,17 @@ def test_import_failure_preserves_stdout_and_stderr():
             },
         ),
     ]
+
+
+def test_import_error_is_not_masked_when_failure_journal_raises():
+    failed = CommandResult(4, "partial stdout", "specific stderr")
+    runner = FakeRunner(failed)
+    journal = RaisingJournal("beets_import_failed")
+
+    with pytest.raises(BeetsImportError) as raised:
+        BeetsImporter(runner, journal).import_release(RELEASE_ID, RUN_DIR)
+
+    assert raised.value.result is failed
+    assert raised.value.__cause__ is journal.error
+    assert "partial stdout" in str(raised.value)
+    assert "specific stderr" in str(raised.value)

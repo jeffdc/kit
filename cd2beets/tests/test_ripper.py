@@ -15,6 +15,18 @@ class RecordingJournal:
         self.records.append((event, fields))
 
 
+class RaisingJournal(RecordingJournal):
+    def __init__(self, failing_event: str):
+        super().__init__()
+        self.failing_event = failing_event
+        self.error = OSError(f"cannot journal {failing_event}")
+
+    def append(self, event, **fields):
+        if event == self.failing_event:
+            raise self.error
+        super().append(event, **fields)
+
+
 class FakeStaging:
     def __init__(self, tmp_path: Path):
         self.run_id = "run-1"
@@ -163,3 +175,37 @@ def test_rip_closes_and_preserves_destination_when_pipeline_cannot_start(tmp_pat
         "track_rip_failed",
     ]
     assert journal.records[-1][1]["error"] == "lame unavailable"
+
+
+def test_rip_closes_and_preserves_destination_when_started_journal_fails(
+    tmp_path: Path,
+):
+    runner = FakeRunner(PipelineResult(0, 0, "", ""))
+    journal = RaisingJournal("track_rip_started")
+    staging = FakeStaging(tmp_path)
+
+    with pytest.raises(OSError, match="cannot journal track_rip_started"):
+        Ripper(runner, journal).rip_track(make_toc(), make_track(), staging)
+
+    assert runner.calls == []
+    assert staging.output is not None and staging.output.closed
+    assert staging.path.exists()
+    assert len(staging.owned) == 1
+
+
+def test_rip_error_is_not_masked_when_failure_journal_raises(tmp_path: Path):
+    failed = PipelineResult(1, 2, "reader failed", "encoder failed")
+    runner = FakeRunner(failed)
+    journal = RaisingJournal("track_rip_failed")
+    staging = FakeStaging(tmp_path)
+
+    with pytest.raises(RipError) as raised:
+        Ripper(runner, journal).rip_track(make_toc(), make_track(), staging)
+
+    assert raised.value.result is failed
+    assert raised.value.__cause__ is journal.error
+    assert "reader failed" in str(raised.value)
+    assert "encoder failed" in str(raised.value)
+    assert staging.output is not None and staging.output.closed
+    assert staging.path.exists()
+    assert len(staging.owned) == 1
