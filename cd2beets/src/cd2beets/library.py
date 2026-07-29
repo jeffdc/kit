@@ -38,6 +38,11 @@ class BeetsSettings:
         else:
             loader()
 
+        config["musicbrainz"].add({"host": "musicbrainz.org"})
+        config["duplicates"].add(
+            {"delete": False, "remove": False, "move": ""}
+        )
+
         return cls(
             library_path=Path(config["library"].as_filename()),
             library_root=Path(config["directory"].as_filename()),
@@ -100,6 +105,7 @@ class BeetsLibrary:
 def _catalog_item(item) -> LibraryItem:
     return LibraryItem(
         item_id=int(item.id),
+        album_id=_optional_integer(item.album_id),
         release_id=_text(item.mb_albumid),
         recording_id=_text(item.mb_trackid),
         albumartist=_text(item.albumartist),
@@ -121,6 +127,10 @@ def _integer(value: object) -> int:
     return 0 if value is None else int(value)
 
 
+def _optional_integer(value: object) -> int | None:
+    return None if value is None else int(value)
+
+
 def classify_presence(
     release: ReleaseMetadata,
     snapshot: LibrarySnapshot,
@@ -129,9 +139,20 @@ def classify_presence(
     reasons: set[str] = set()
 
     if snapshot.exact_items:
-        _check_recordings(release, snapshot.exact_items, reasons)
-        _check_medium_and_tracks(release, snapshot.exact_items, reasons)
-        _check_paths(snapshot.exact_items, library_root, reasons)
+        selected_items = tuple(
+            item
+            for item in snapshot.exact_items
+            if item.medium == release.medium
+        )
+        if selected_items:
+            _check_album_group(selected_items, reasons)
+            _check_recordings(release, selected_items, reasons)
+            _check_medium_and_tracks(release, selected_items, reasons)
+            _check_paths(selected_items, library_root, reasons)
+        else:
+            reasons.add(
+                f"exact release has no items for medium {release.medium}"
+            )
 
     if snapshot.plausible_items:
         reasons.add(
@@ -146,6 +167,24 @@ def classify_presence(
     if snapshot.exact_items:
         return Classification(Presence.PRESENT, (), snapshot)
     return Classification(Presence.ABSENT, (), snapshot)
+
+
+def _check_album_group(
+    items: tuple[LibraryItem, ...],
+    reasons: set[str],
+) -> None:
+    album_ids = {item.album_id for item in items}
+    if None in album_ids:
+        reasons.add("selected medium is missing Beets album identity")
+
+    known_album_ids = {
+        album_id for album_id in album_ids if album_id is not None
+    }
+    if len(known_album_ids) > 1:
+        reasons.add(
+            "selected medium split across Beets albums: "
+            f"{_format_integers(known_album_ids)}"
+        )
 
 
 def _check_recordings(
@@ -187,13 +226,6 @@ def _check_medium_and_tracks(
     items: tuple[LibraryItem, ...],
     reasons: set[str],
 ) -> None:
-    media = {item.medium for item in items}
-    if media != {release.medium}:
-        reasons.add(
-            f"medium mismatch: expected {release.medium}; "
-            f"found {_format_integers(media)}"
-        )
-
     expected_total = len(release.tracks)
     track_totals = {item.tracktotal for item in items}
     if len(track_totals) > 1:

@@ -47,9 +47,11 @@ def item(
     medium: int = 1,
     track: int = 1,
     tracktotal: int = 2,
+    album_id: int | None = 10,
 ) -> LibraryItem:
     return LibraryItem(
         item_id=item_id,
+        album_id=album_id,
         release_id=release_id,
         recording_id=recording_id,
         albumartist=albumartist,
@@ -194,7 +196,65 @@ def test_exact_release_on_different_medium_is_uncertain(tmp_path):
     result = classify(release(), tmp_path, exact=exact)
 
     assert result.presence is Presence.UNCERTAIN
-    assert "medium mismatch: expected 1; found 2" in result.reasons
+    assert "exact release has no items for medium 1" in result.reasons
+
+
+def test_complete_selected_medium_ignores_other_release_media(tmp_path):
+    selected = complete_items(tmp_path)
+    other_path = tmp_path / "disc-2-01.mp3"
+    other_path.write_bytes(b"other medium")
+    other_medium = item(
+        other_path,
+        item_id=3,
+        recording_id="recording-on-disc-2",
+        medium=2,
+        tracktotal=1,
+    )
+
+    result = classify(
+        release(), tmp_path, exact=(*selected, other_medium)
+    )
+
+    assert result.presence is Presence.PRESENT
+    assert result.reasons == ()
+
+
+def test_selected_medium_split_across_beets_albums_is_uncertain(tmp_path):
+    first, second = complete_items(tmp_path)
+    split = (
+        first,
+        item(
+            second.path,
+            item_id=2,
+            album_id=20,
+            recording_id="recording-2",
+            track=2,
+        ),
+    )
+
+    result = classify(release(), tmp_path, exact=split)
+
+    assert result.presence is Presence.UNCERTAIN
+    assert "selected medium split across Beets albums: 10, 20" in result.reasons
+
+
+def test_selected_medium_missing_beets_album_identity_is_uncertain(tmp_path):
+    first, second = complete_items(tmp_path)
+    unidentified = (
+        item(first.path, album_id=None),
+        item(
+            second.path,
+            item_id=2,
+            album_id=None,
+            recording_id="recording-2",
+            track=2,
+        ),
+    )
+
+    result = classify(release(), tmp_path, exact=unidentified)
+
+    assert result.presence is Presence.UNCERTAIN
+    assert "selected medium is missing Beets album identity" in result.reasons
 
 
 def test_exact_release_with_inconsistent_track_totals_is_uncertain(tmp_path):
@@ -289,6 +349,10 @@ class ConfigValue:
         assert self.expected_method == f"get({value_type.__name__})"
         return self.value
 
+    def add(self, values):
+        for key, value in values.items():
+            self.children.setdefault(key, ConfigValue(value))
+
 
 def config_tree(tmp_path: Path) -> ConfigValue:
     root = ConfigValue(None)
@@ -345,6 +409,41 @@ def test_settings_loads_active_beets_configuration(monkeypatch, tmp_path):
         settings.library_path = tmp_path / "other.db"
 
 
+def test_settings_loads_real_beets_plugin_defaults(monkeypatch, tmp_path):
+    from beets import IncludeLazyConfig
+
+    from cd2beets import library as library_module
+
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "config.yaml").write_text(
+        "\n".join(
+            (
+                f"library: {tmp_path / 'active.db'}",
+                f"directory: {tmp_path / 'music'}",
+                "plugins: [musicbrainz, duplicates]",
+                "import:",
+                "    duplicate_action: ask",
+            )
+        )
+    )
+    monkeypatch.setenv("BEETSDIR", str(config_dir))
+    active_config = IncludeLazyConfig("beets", "beets")
+    monkeypatch.setattr(library_module, "config", active_config)
+    monkeypatch.delattr(library_module.ui, "load_config", raising=False)
+
+    loaded = BeetsSettings.load()
+
+    assert loaded.library_path == tmp_path / "active.db"
+    assert loaded.library_root == tmp_path / "music"
+    assert loaded.musicbrainz_host == "musicbrainz.org"
+    assert loaded.plugins == ("musicbrainz", "duplicates")
+    assert loaded.duplicate_action == "ask"
+    assert loaded.duplicates_delete is False
+    assert loaded.duplicates_remove is False
+    assert loaded.duplicates_move == ""
+
+
 class RawItem:
     def __init__(
         self,
@@ -355,8 +454,10 @@ class RawItem:
         recording_id: str,
         albumartist: str,
         album: str,
+        album_id: int | None = 10,
     ):
         self.id = item_id
+        self.album_id = album_id
         self.mb_albumid = release_id
         self.mb_trackid = recording_id
         self.albumartist = albumartist

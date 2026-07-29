@@ -78,6 +78,7 @@ class ReleaseMetadata:
 @dataclass(frozen=True)
 class LibraryItem:
     item_id: int
+    album_id: int | None
     release_id: str
     recording_id: str
     albumartist: str
