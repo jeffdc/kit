@@ -264,3 +264,22 @@ def test_failure_prompt_rejects_empty_or_duplicate_decision_sets() -> None:
         ui.decide_failure(
             "failed", (FailureDecision.EJECT, FailureDecision.EJECT)
         )
+
+
+def test_polling_interrupt_guidance_does_not_claim_eject_or_loaded_media() -> None:
+    ui, output = make_ui()
+
+    ui.report_preservation("polling")
+
+    text = output.getvalue()
+    assert "polling" in text.casefold()
+    assert "after eject" not in text.casefold()
+    assert "disc remains loaded" not in text.casefold()
+
+
+def test_non_mutating_error_report_prints_verbatim() -> None:
+    ui, output = make_ui()
+
+    ui.report_error("cleanup refused\noriginal stderr")
+
+    assert output.getvalue() == "cleanup refused\noriginal stderr\n"

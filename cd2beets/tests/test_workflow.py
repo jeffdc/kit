@@ -21,7 +21,7 @@ from cd2beets.models import (
     VerificationReport,
 )
 from cd2beets.process import CommandResult
-from cd2beets.staging import PartialCleanupError
+from cd2beets.staging import CleanupRefused, PartialCleanupError
 from cd2beets.workflow import (
     DiscOutcome,
     DiscWorkflow,
@@ -33,9 +33,13 @@ class FakeJournal:
     def __init__(self, log: list[str]) -> None:
         self.log = log
         self.events: list[tuple[str, dict[str, Any]]] = []
+        self.failures: dict[str, list[Exception]] = {}
 
     def append(self, event: str, **fields: Any) -> None:
         self.log.append(f"journal:{event}")
+        failures = self.failures.get(event, [])
+        if failures:
+            raise failures.pop(0)
         self.events.append((event, fields))
 
 
@@ -112,10 +116,13 @@ class FakeLibrary:
     def __init__(self, log: list[str]) -> None:
         self.log = log
         self.snapshots = 0
+        self.snapshot_error: Exception | None = None
 
     def snapshot(self, release: ReleaseMetadata) -> LibrarySnapshot:
         self.snapshots += 1
         self.log.append(f"library.snapshot:{self.snapshots}")
+        if self.snapshot_error is not None:
+            raise self.snapshot_error
         return LibrarySnapshot((), ())
 
     def refresh(self) -> None:
@@ -246,6 +253,7 @@ class FakeUI:
         self.preservation_messages = 0
         self.preservation_states: list[str] = []
         self.busy_messages = 0
+        self.reported_errors: list[str] = []
 
     def select_release(
         self, candidates: tuple[ReleaseMetadata, ...]
@@ -269,6 +277,11 @@ class FakeUI:
         decision = self.failures.pop(0)
         assert decision in allowed
         return decision
+
+    def report_error(self, error: BaseException | str) -> None:
+        self.reported_errors.append(str(error))
+        self.log.append("ui.report_error")
+
 
     def report_unusable_media(self) -> None:
         self.log.append("ui.unusable_media")
@@ -312,6 +325,7 @@ class Scenario:
         cleanup_error: Exception | None = None,
         statuses: list[MediaState | BaseException] | None = None,
         music_running: bool = False,
+        interrupt_sleep: bool = False,
     ) -> None:
         self.log: list[str] = []
         self.release = ReleaseMetadata(
@@ -370,6 +384,8 @@ class Scenario:
         def sleep(seconds: float) -> None:
             self.sleeps.append(seconds)
             self.log.append(f"sleep:{seconds}")
+            if interrupt_sleep:
+                raise KeyboardInterrupt
 
         self.workflow = DiscWorkflow(
             drive=self.drive,
@@ -915,3 +931,126 @@ def test_failure_eject_error_retains_generated_track_evidence() -> None:
     assert outcome is DiscOutcome.QUIT
     held = event_fields(scenario, "workflow_held")[0]
     assert [track["track_position"] for track in held["preserved_tracks"]] == [1, 2]
+
+
+@pytest.mark.parametrize(
+    ("journal_event", "options", "original_error"),
+    [
+        (
+            "workflow_failed",
+            {"metadata_error": RuntimeError("metadata original")},
+            "metadata original",
+        ),
+        (
+            "import_outcome",
+            {"import_outcomes": [RuntimeError("import original")]},
+            "import original",
+        ),
+        (
+            "verification_report",
+            {
+                "verification_outcomes": [
+                    VerificationReport(("verification original",), ())
+                ]
+            },
+            "verification original",
+        ),
+    ],
+)
+def test_journal_failure_never_masks_stage_error_or_bypasses_safe_prompt(
+    journal_event: str,
+    options: dict[str, Any],
+    original_error: str,
+) -> None:
+    scenario = Scenario(failures=[FailureDecision.QUIT], **options)
+    scenario.journal.failures[journal_event] = [OSError("journal unavailable")]
+
+    outcome = scenario.workflow.process_disc()
+
+    assert outcome is DiscOutcome.QUIT
+    shown, allowed = scenario.ui.failure_prompts[-1]
+    assert original_error in shown
+    assert "journal unavailable" in shown
+    assert "journal append failed" in shown.casefold()
+    assert allowed[-1] is FailureDecision.QUIT
+    assert "staging.cleanup" not in scenario.log
+    assert "drive.eject" not in scenario.log
+
+
+@pytest.mark.parametrize("journal_event", ["import_outcome", "verification_report"])
+def test_successful_stage_with_failed_lifecycle_append_stops_before_cleanup(
+    journal_event: str,
+) -> None:
+    scenario = Scenario(failures=[FailureDecision.QUIT])
+    scenario.journal.failures[journal_event] = [OSError("journal full")]
+
+    outcome = scenario.workflow.process_disc()
+
+    assert outcome is DiscOutcome.QUIT
+    assert "journal full" in scenario.ui.failure_prompts[-1][0]
+    assert "staging.cleanup" not in scenario.log
+    assert "drive.eject" not in scenario.log
+
+
+@pytest.mark.parametrize(
+    "cleanup_error",
+    [
+        CleanupRefused("cleanup guard refused"),
+        PartialCleanupError((), (), OSError("partial cleanup stopped")),
+    ],
+)
+def test_cleanup_failure_is_reported_verbatim_and_held_even_if_journal_fails(
+    cleanup_error: Exception,
+) -> None:
+    scenario = Scenario(cleanup_error=cleanup_error)
+    scenario.journal.failures = {
+        "track_cleanup_result": [OSError("cleanup result journal failed")],
+        "workflow_failed": [OSError("failure journal failed")],
+        "workflow_held": [OSError("held journal failed")],
+    }
+
+    outcome = scenario.workflow.process_disc()
+
+    assert outcome is DiscOutcome.HELD
+    assert scenario.ui.reported_errors[0] == str(cleanup_error)
+    assert all(
+        message.startswith("Journal append failed:")
+        for message in scenario.ui.reported_errors[1:]
+    )
+    assert "drive.eject" not in scenario.log
+
+
+@pytest.mark.parametrize("busy_source", ["metadata", "journal", "library"])
+def test_music_guidance_is_not_shown_for_non_disc_access_busy_errors(
+    busy_source: str,
+) -> None:
+    options: dict[str, Any] = {
+        "music_running": True,
+        "failures": [FailureDecision.QUIT],
+    }
+    if busy_source == "metadata":
+        options["metadata_error"] = RuntimeError("metadata busy")
+    scenario = Scenario(**options)
+    if busy_source == "journal":
+        scenario.journal.failures["disc_identified"] = [
+            OSError(EBUSY, "journal busy")
+        ]
+    elif busy_source == "library":
+        scenario.library.snapshot_error = OSError(EBUSY, "library busy")
+
+    assert scenario.workflow.process_disc() is DiscOutcome.QUIT
+
+    assert scenario.music.calls == 0
+    assert scenario.ui.busy_messages == 0
+
+
+def test_interrupt_during_unusable_media_poll_reports_polling_state() -> None:
+    scenario = Scenario(
+        statuses=[MediaState.UNUSABLE],
+        interrupt_sleep=True,
+    )
+
+    assert scenario.workflow.run(once=False, poll_interval=0.5) is None
+
+    assert scenario.ui.preservation_states == ["polling"]
+    assert event_fields(scenario, "workflow_interrupted")[0]["media_state"] == "polling"

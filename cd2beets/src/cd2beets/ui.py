@@ -128,6 +128,13 @@ class TerminalUI:
                 return decision
             self._write("Invalid choice.\n")
 
+    def report_error(self, error: BaseException | str) -> None:
+        message = str(error)
+        self._write(message)
+        if not message.endswith("\n"):
+            self._write("\n")
+
+
     def report_unusable_media(self) -> None:
         self._write("Optical media is present but is not an audio CD.\n")
 
@@ -143,10 +150,15 @@ class TerminalUI:
                 "Interrupted while no disc workflow was active; no loaded "
                 "disc or generated files are being claimed."
             )
-        else:
+        elif state == "after_eject":
             message = (
                 "Interrupted after eject. No further disc or file action "
                 "will be started."
+            )
+        else:
+            message = (
+                "Interrupted while polling optical media state is unknown. "
+                "No cleanup or eject was initiated by the interrupt."
             )
         self._write(f"{message}\n")
 

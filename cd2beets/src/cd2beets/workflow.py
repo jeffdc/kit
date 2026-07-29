@@ -92,7 +92,22 @@ class DiscWorkflow:
         try:
             device = self._disc_reader.default_device()
             toc = self._disc_reader.read(device)
-            disc_id = toc.disc_id
+        except Exception as error:
+            if self._is_busy_error(error) and self._music_is_running():
+                self._ui.report_busy_music()
+            decision = self._prompt_failure(
+                "disc_access",
+                error,
+                (),
+                None,
+                (FailureDecision.EJECT, FailureDecision.QUIT),
+            )
+            return self._finish_failure(
+                "disc_access", decision, (), None
+            )
+
+        disc_id = toc.disc_id
+        try:
             self._journal.append(
                 "disc_identified",
                 disc_id=toc.disc_id,
@@ -128,8 +143,6 @@ class DiscWorkflow:
                 snapshot=self._snapshot_fields(classification.snapshot),
             )
         except Exception as error:
-            if self._is_busy_error(error) and self._music_is_running():
-                self._ui.report_busy_music()
             decision = self._prompt_failure(
                 "metadata",
                 error,
@@ -181,7 +194,7 @@ class DiscWorkflow:
                 try:
                     owned = self._ripper.rip_track(toc, track, staging)
                 except Exception as error:
-                    self._journal.append(
+                    journal_error = self._append_journal(
                         "track_generation_interrupted",
                         disc_id=disc_id,
                         run_id=staging.run_id,
@@ -190,6 +203,10 @@ class DiscWorkflow:
                         error=str(error),
                         preservation="staging run left intact",
                     )
+                    if journal_error is not None:
+                        raise self._supplement_error(
+                            error, (journal_error,)
+                        ) from error
                     raise
                 generated.append(owned)
                 self._journal.append(
@@ -218,7 +235,7 @@ class DiscWorkflow:
                     release.release_id, staging.run_dir
                 )
             except Exception as error:
-                self._journal.append(
+                outcome_journal_error = self._append_journal(
                     "import_outcome",
                     disc_id=disc_id,
                     run_id=staging.run_id,
@@ -237,13 +254,18 @@ class DiscWorkflow:
                         FailureDecision.EJECT,
                         FailureDecision.QUIT,
                     ),
+                    (
+                        ()
+                        if outcome_journal_error is None
+                        else (outcome_journal_error,)
+                    ),
                 )
                 if decision is FailureDecision.RETRY_IMPORT:
                     continue
                 return self._finish_failure(
                     "import", decision, tuple(generated), disc_id
                 )
-            self._journal.append(
+            outcome_journal_error = self._append_journal(
                 "import_outcome",
                 disc_id=disc_id,
                 run_id=staging.run_id,
@@ -251,6 +273,21 @@ class DiscWorkflow:
                 attempt=import_attempt,
                 ok=True,
             )
+            if outcome_journal_error is not None:
+                error = RuntimeError(
+                    "Import completed but its lifecycle event was not recorded"
+                )
+                decision = self._prompt_failure(
+                    "import",
+                    error,
+                    tuple(generated),
+                    disc_id,
+                    (FailureDecision.EJECT, FailureDecision.QUIT),
+                    (outcome_journal_error,),
+                )
+                return self._finish_failure(
+                    "import", decision, tuple(generated), disc_id
+                )
             break
 
         verification_attempt = 0
@@ -269,7 +306,7 @@ class DiscWorkflow:
                     self._library_root,
                 )
             except Exception as error:
-                self._journal.append(
+                report_journal_error = self._append_journal(
                     "verification_report",
                     disc_id=disc_id,
                     run_id=staging.run_id,
@@ -293,6 +330,11 @@ class DiscWorkflow:
                         FailureDecision.EJECT,
                         FailureDecision.QUIT,
                     ),
+                    (
+                        ()
+                        if report_journal_error is None
+                        else (report_journal_error,)
+                    ),
                 )
                 if decision is FailureDecision.RETRY_VERIFY:
                     continue
@@ -300,7 +342,7 @@ class DiscWorkflow:
                     "verification", decision, tuple(generated), disc_id
                 )
 
-            self._journal.append(
+            report_journal_error = self._append_journal(
                 "verification_report",
                 disc_id=disc_id,
                 run_id=staging.run_id,
@@ -312,6 +354,32 @@ class DiscWorkflow:
                 ],
                 post_snapshot=self._snapshot_fields(post_snapshot),
             )
+            if report_journal_error is not None:
+                error = (
+                    RuntimeError("\n".join(report.errors))
+                    if not report.ok
+                    else RuntimeError(
+                        "Verification completed but its lifecycle event "
+                        "was not recorded"
+                    )
+                )
+                decision = self._prompt_failure(
+                    "verification",
+                    error,
+                    tuple(generated),
+                    disc_id,
+                    (
+                        FailureDecision.RETRY_VERIFY,
+                        FailureDecision.EJECT,
+                        FailureDecision.QUIT,
+                    ),
+                    (report_journal_error,),
+                )
+                if decision is FailureDecision.RETRY_VERIFY:
+                    continue
+                return self._finish_failure(
+                    "verification", decision, tuple(generated), disc_id
+                )
             if report.ok:
                 break
 
@@ -336,8 +404,9 @@ class DiscWorkflow:
         try:
             removed = staging.cleanup(tuple(generated), report)
         except PartialCleanupError as error:
+            self._ui.report_error(error)
             for track in error.removed:
-                self._journal.append(
+                self._append_or_report(
                     "track_cleanup_result",
                     disc_id=disc_id,
                     run_id=staging.run_id,
@@ -345,17 +414,19 @@ class DiscWorkflow:
                     **self._owned_fields(track),
                 )
             for track in error.remaining:
-                self._journal.append(
+                self._append_or_report(
                     "track_cleanup_result",
                     disc_id=disc_id,
                     run_id=staging.run_id,
                     result="preserved",
                     **self._owned_fields(track),
                 )
-            self._journal_failure(
+            failure_journal_error = self._journal_failure(
                 "cleanup", error, tuple(error.remaining), disc_id
             )
-            self._journal.append(
+            if failure_journal_error is not None:
+                self._report_journal_error(failure_journal_error)
+            self._append_or_report(
                 "workflow_held",
                 disc_id=disc_id,
                 reason="partial_cleanup",
@@ -365,18 +436,21 @@ class DiscWorkflow:
             )
             return DiscOutcome.HELD
         except Exception as error:
+            self._ui.report_error(error)
             for track in generated:
-                self._journal.append(
+                self._append_or_report(
                     "track_cleanup_result",
                     disc_id=disc_id,
                     run_id=staging.run_id,
                     result="preserved",
                     **self._owned_fields(track),
                 )
-            self._journal_failure(
+            failure_journal_error = self._journal_failure(
                 "cleanup", error, tuple(generated), disc_id
             )
-            self._journal.append(
+            if failure_journal_error is not None:
+                self._report_journal_error(failure_journal_error)
+            self._append_or_report(
                 "workflow_held",
                 disc_id=disc_id,
                 reason="cleanup_failure",
@@ -456,15 +530,24 @@ class DiscWorkflow:
         generated: tuple[OwnedMp3, ...],
         disc_id: str | None,
         allowed: tuple[FailureDecision, ...],
+        supplemental_journal_errors: tuple[Exception, ...] = (),
     ) -> FailureDecision:
-        self._journal_failure(stage, error, generated, disc_id)
-        decision = self._ui.decide_failure(error, allowed)
-        self._journal.append(
+        journal_errors = list(supplemental_journal_errors)
+        failure_journal_error = self._journal_failure(
+            stage, error, generated, disc_id
+        )
+        if failure_journal_error is not None:
+            journal_errors.append(failure_journal_error)
+        displayed_error = self._supplement_error(error, tuple(journal_errors))
+        decision = self._ui.decide_failure(displayed_error, allowed)
+        decision_journal_error = self._append_journal(
             "failure_decision",
             disc_id=disc_id,
             stage=stage,
             decision=decision.value,
         )
+        if decision_journal_error is not None:
+            self._report_journal_error(decision_journal_error)
         return decision
 
     def _finish_failure(
@@ -485,7 +568,7 @@ class DiscWorkflow:
             FailureDecision.RETRY_VERIFY,
         }:
             raise RuntimeError(f"unhandled retry decision for {stage}: {decision}")
-        self._journal.append(
+        journal_error = self._append_journal(
             "workflow_quit",
             disc_id=disc_id,
             stage=stage,
@@ -493,6 +576,8 @@ class DiscWorkflow:
                 self._owned_fields(track) for track in generated
             ],
         )
+        if journal_error is not None:
+            self._report_journal_error(journal_error)
         return DiscOutcome.QUIT
 
     def _eject(
@@ -505,7 +590,7 @@ class DiscWorkflow:
         try:
             self._drive.eject()
         except Exception as error:
-            self._journal.append(
+            outcome_journal_error = self._append_journal(
                 "eject_outcome",
                 disc_id=disc_id,
                 reason=reason,
@@ -518,8 +603,13 @@ class DiscWorkflow:
                 preserved_tracks,
                 disc_id,
                 (FailureDecision.QUIT,),
+                (
+                    ()
+                    if outcome_journal_error is None
+                    else (outcome_journal_error,)
+                ),
             )
-            self._journal.append(
+            self._append_or_report(
                 "workflow_held",
                 disc_id=disc_id,
                 reason="eject_failure",
@@ -532,12 +622,14 @@ class DiscWorkflow:
                     f"unsupported eject failure decision: {decision}"
                 )
             return DiscOutcome.QUIT
-        self._journal.append(
+        outcome_journal_error = self._append_journal(
             "eject_outcome",
             disc_id=disc_id,
             reason=reason,
             ok=True,
         )
+        if outcome_journal_error is not None:
+            self._report_journal_error(outcome_journal_error)
         return DiscOutcome.EJECTED
 
     def _journal_failure(
@@ -546,8 +638,8 @@ class DiscWorkflow:
         error: Exception,
         generated: tuple[OwnedMp3, ...],
         disc_id: str | None,
-    ) -> None:
-        self._journal.append(
+    ) -> Exception | None:
+        return self._append_journal(
             "workflow_failed",
             disc_id=disc_id,
             stage=stage,
@@ -556,6 +648,36 @@ class DiscWorkflow:
                 self._owned_fields(track) for track in generated
             ],
         )
+
+    def _append_journal(self, event: str, **fields: Any) -> Exception | None:
+        try:
+            self._journal.append(event, **fields)
+        except Exception as error:
+            return error
+        return None
+
+    def _append_or_report(self, event: str, **fields: Any) -> None:
+        error = self._append_journal(event, **fields)
+        if error is not None:
+            self._report_journal_error(error)
+
+    def _report_journal_error(self, error: Exception) -> None:
+        self._ui.report_error(f"Journal append failed: {error}")
+
+    @staticmethod
+    def _supplement_error(
+        original: Exception,
+        journal_errors: tuple[Exception, ...],
+    ) -> Exception:
+        if not journal_errors:
+            return original
+        details = [str(original)]
+        details.extend(
+            f"Journal append failed: {error}" for error in journal_errors
+        )
+        supplemented = RuntimeError("\n".join(details))
+        supplemented.__cause__ = original
+        return supplemented
 
     def _music_is_running(self) -> bool:
         if self._music_detector is None:
