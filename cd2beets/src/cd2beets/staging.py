@@ -14,6 +14,10 @@ class CleanupRefused(RuntimeError):
     """Raised before cleanup when any deletion guard is not satisfied."""
 
 
+class StagingRootError(RuntimeError):
+    """Raised when the staging root is not the private directory recorded."""
+
+
 class PartialCleanupError(RuntimeError):
     """Raised when cleanup stops after one or more filesystem side effects."""
 
@@ -43,23 +47,57 @@ class StagingRun:
         if Path(self.run_id).name != self.run_id or self.run_id in {".", ".."}:
             raise ValueError("run ID must be a single path component")
 
-        self._ensure_private_directory(self.staging_root)
+        self._staging_identity = self._initialize_staging_root(
+            self.staging_root
+        )
         self.run_dir = self.staging_root / self.run_id
         self.run_dir.mkdir(mode=0o700)
         self.run_dir.chmod(0o700)
+        self._revalidate_staging_root()
         self._owned: dict[Path, OwnedMp3] = {}
 
-    @staticmethod
-    def _ensure_private_directory(path: Path) -> None:
+    @classmethod
+    def _initialize_staging_root(cls, path: Path) -> tuple[int, int]:
         try:
             path.mkdir(mode=0o700)
         except FileExistsError:
-            if not path.is_dir():
-                raise
+            pass
         else:
             path.chmod(0o700)
+        details = cls._validate_staging_root(path)
+        return details.st_dev, details.st_ino
+
+    @staticmethod
+    def _validate_staging_root(path: Path):
+        try:
+            details = path.lstat()
+        except OSError as error:
+            raise StagingRootError(
+                f"cannot lstat staging root: {path}: {error}"
+            ) from error
+        if stat.S_ISLNK(details.st_mode):
+            raise StagingRootError(f"staging root is a symlink: {path}")
+        if not stat.S_ISDIR(details.st_mode):
+            raise StagingRootError(f"staging root is not a directory: {path}")
+        if details.st_uid != os.geteuid():
+            raise StagingRootError(
+                f"staging root has the wrong owner: {path}"
+            )
+        if stat.S_IMODE(details.st_mode) != 0o700:
+            raise StagingRootError(f"staging root mode is not 0700: {path}")
+        if not os.access(path, os.W_OK):
+            raise StagingRootError(f"staging root is not writable: {path}")
+        return details
+
+    def _revalidate_staging_root(self) -> None:
+        details = self._validate_staging_root(self.staging_root)
+        if (details.st_dev, details.st_ino) != self._staging_identity:
+            raise StagingRootError(
+                f"staging root identity changed: {self.staging_root}"
+            )
 
     def reserve(self, track_position: int) -> tuple[OwnedMp3, BinaryIO]:
+        self._revalidate_staging_root()
         path = self.run_dir / f"{self.run_id}-track{track_position:02d}.mp3"
         self.journal.append(
             "track_reserved",
@@ -100,6 +138,7 @@ class StagingRun:
     ) -> tuple[OwnedMp3, ...]:
         if not report.ok:
             raise CleanupRefused("cleanup requires a successful verification report")
+        self._revalidate_staging_root()
 
         candidates = tuple(tracks)
         normalized_root = self.staging_root.resolve(strict=True)
@@ -148,12 +187,22 @@ class StagingRun:
 
         for index, candidate in enumerate(candidates):
             path = candidate.path
-            self.journal.append(
-                "track_cleanup_started",
-                run_id=self.run_id,
-                track_position=candidate.track_position,
-                path=str(path),
-            )
+            try:
+                self.journal.append(
+                    "track_cleanup_started",
+                    run_id=self.run_id,
+                    track_position=candidate.track_position,
+                    path=str(path),
+                )
+            except OSError as cause:
+                removed_tracks = tuple(removed)
+                remaining = candidates[index:]
+                self._journal_cleanup_failed(
+                    candidate, removed_tracks, remaining, cause
+                )
+                raise PartialCleanupError(
+                    removed_tracks, remaining, cause
+                ) from cause
             try:
                 path.unlink()
             except OSError as cause:

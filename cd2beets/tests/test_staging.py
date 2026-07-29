@@ -55,20 +55,86 @@ def test_staging_root_and_run_directory_are_private(tmp_path):
     assert stat.S_IMODE(run.run_dir.stat().st_mode) == 0o700
 
 
-def test_existing_staging_root_is_not_chmodded(tmp_path):
+def test_existing_staging_root_with_wrong_mode_is_rejected_without_chmod(
+    tmp_path,
+):
     root = tmp_path / "staging"
     root.mkdir(mode=0o750)
     root.chmod(0o750)
 
-    run = StagingRun(root, Journal(root / "lifecycle.jsonl"), run_id="new-run")
+    with pytest.raises(RuntimeError, match="mode"):
+        StagingRun(root, Journal(root / "lifecycle.jsonl"), run_id="new-run")
 
     assert stat.S_IMODE(root.stat().st_mode) == 0o750
+    assert not (root / "new-run").exists()
+
+
+def test_existing_private_staging_root_is_accepted_without_chmod(tmp_path):
+    root = tmp_path / "staging"
+    root.mkdir(mode=0o700)
+    root.chmod(0o700)
+
+    run = StagingRun(root, Journal(root / "lifecycle.jsonl"), run_id="new-run")
+
+    assert stat.S_IMODE(root.stat().st_mode) == 0o700
     assert stat.S_IMODE(run.run_dir.stat().st_mode) == 0o700
+
+
+def test_staging_root_symlink_is_rejected(tmp_path):
+    target = tmp_path / "target"
+    target.mkdir(mode=0o700)
+    target.chmod(0o700)
+    root = tmp_path / "staging"
+    root.symlink_to(target, target_is_directory=True)
+
+    with pytest.raises(RuntimeError, match="symlink"):
+        StagingRun(root, Journal(root / "lifecycle.jsonl"), run_id="new-run")
+
+    assert root.is_symlink()
+
+
+def test_non_directory_staging_root_is_rejected(tmp_path):
+    root = tmp_path / "staging"
+    root.write_bytes(b"not a directory")
+
+    with pytest.raises(RuntimeError, match="directory"):
+        StagingRun(root, Journal(root / "lifecycle.jsonl"), run_id="new-run")
+
+    assert root.read_bytes() == b"not a directory"
+
+
+def test_staging_root_owned_by_other_user_is_rejected(tmp_path, monkeypatch):
+    root = tmp_path / "staging"
+    root.mkdir(mode=0o700)
+    root.chmod(0o700)
+    owner = root.lstat().st_uid
+    monkeypatch.setattr("cd2beets.staging.os.geteuid", lambda: owner + 1)
+
+    with pytest.raises(RuntimeError, match="owner"):
+        StagingRun(root, Journal(root / "lifecycle.jsonl"), run_id="new-run")
+
+
+def test_non_writable_staging_root_is_rejected(tmp_path, monkeypatch):
+    root = tmp_path / "staging"
+    root.mkdir(mode=0o700)
+    root.chmod(0o700)
+    original_access = os.access
+
+    def access_spy(path, mode):
+        if Path(path) == root and mode == os.W_OK:
+            return False
+        return original_access(path, mode)
+
+    monkeypatch.setattr("cd2beets.staging.os.access", access_spy)
+
+    with pytest.raises(RuntimeError, match="writable"):
+        StagingRun(root, Journal(root / "lifecycle.jsonl"), run_id="new-run")
 
 
 def test_preexisting_run_directory_is_rejected(tmp_path):
     root = tmp_path / "staging"
     root.mkdir()
+    root.chmod(0o700)
     collision = root / "run-abc"
     collision.mkdir()
     marker = collision / "existing"
@@ -83,6 +149,7 @@ def test_preexisting_run_directory_is_rejected(tmp_path):
 def test_preexisting_run_directory_symlink_is_rejected(tmp_path):
     root = tmp_path / "staging"
     root.mkdir()
+    root.chmod(0o700)
     target = tmp_path / "other"
     target.mkdir()
     collision = root / "run-abc"
@@ -174,6 +241,47 @@ def test_second_reservation_fails_without_overwriting_first(tmp_path):
 
     assert first.path.read_bytes() == original
     assert first.path.stat().st_ino == first.inode
+
+
+def test_reserve_rejects_replaced_staging_root_before_journaling(tmp_path):
+    run, journal_path = make_run(tmp_path)
+    original_root = tmp_path / "original-staging"
+    run.staging_root.rename(original_root)
+    run.staging_root.mkdir(mode=0o700)
+    run.staging_root.chmod(0o700)
+    assert run.staging_root.lstat().st_ino != original_root.lstat().st_ino
+
+    with pytest.raises(RuntimeError, match="identity"):
+        run.reserve(1)
+
+    assert not journal_path.exists()
+    assert not (run.run_dir / "run-abc-track01.mp3").exists()
+
+
+def test_cleanup_rejects_replaced_staging_root_before_unlink(
+    tmp_path, monkeypatch
+):
+    run, _ = make_run(tmp_path)
+    track = reserve(run)
+    original_root = tmp_path / "original-staging"
+    run.staging_root.rename(original_root)
+    run.staging_root.mkdir(mode=0o700)
+    run.staging_root.chmod(0o700)
+    calls: list[Path] = []
+
+    def unlink_spy(path, *args, **kwargs):
+        calls.append(path)
+        raise AssertionError("replaced staging root reached unlink")
+
+    monkeypatch.setattr(Path, "unlink", unlink_spy)
+
+    with pytest.raises(RuntimeError, match="identity"):
+        run.cleanup((track,), VERIFIED)
+
+    assert calls == []
+    assert (
+        original_root / run.run_id / track.path.name
+    ).read_bytes() == b"track-1"
 
 
 def assert_cleanup_refused_without_unlink(
@@ -451,6 +559,73 @@ def test_success_journal_error_reports_deleted_and_remaining_state(
         run.cleanup((first, second), VERIFIED)
 
     assert str(raised.value.cause) == "success journal fsync failed"
+    assert raised.value.removed == (first,)
+    assert raised.value.remaining == (second,)
+    assert not first.path.exists()
+    assert second.path.exists()
+
+
+def test_start_journal_error_reports_prior_deletions_and_remaining(
+    tmp_path, monkeypatch
+):
+    run, journal_path = make_run(tmp_path)
+    first = reserve(run, 1)
+    second = reserve(run, 2)
+    third = reserve(run, 3)
+    original_append = run.journal.append
+
+    def append_spy(event, **fields):
+        if (
+            event == "track_cleanup_started"
+            and fields["path"] == str(second.path)
+        ):
+            raise OSError("start journal fsync failed")
+        return original_append(event, **fields)
+
+    monkeypatch.setattr(run.journal, "append", append_spy)
+
+    with pytest.raises(PartialCleanupError) as raised:
+        run.cleanup((first, second, third), VERIFIED)
+
+    assert str(raised.value.cause) == "start journal fsync failed"
+    assert raised.value.removed == (first,)
+    assert raised.value.remaining == (second, third)
+    assert not first.path.exists()
+    assert second.path.exists()
+    assert third.path.exists()
+    failure = cleanup_events(journal_path)[-1]
+    assert failure["event"] == "track_cleanup_failed"
+    assert failure["removed"] == [track_identity(first)]
+    assert failure["remaining"] == [
+        track_identity(second),
+        track_identity(third),
+    ]
+
+
+def test_start_journal_cause_survives_failure_journal_error(
+    tmp_path, monkeypatch
+):
+    run, _ = make_run(tmp_path)
+    first = reserve(run, 1)
+    second = reserve(run, 2)
+    original_append = run.journal.append
+
+    def append_spy(event, **fields):
+        if (
+            event == "track_cleanup_started"
+            and fields["path"] == str(second.path)
+        ):
+            raise OSError("start journal fsync failed")
+        if event == "track_cleanup_failed":
+            raise OSError("failure journal fsync failed")
+        return original_append(event, **fields)
+
+    monkeypatch.setattr(run.journal, "append", append_spy)
+
+    with pytest.raises(PartialCleanupError) as raised:
+        run.cleanup((first, second), VERIFIED)
+
+    assert str(raised.value.cause) == "start journal fsync failed"
     assert raised.value.removed == (first,)
     assert raised.value.remaining == (second,)
     assert not first.path.exists()
