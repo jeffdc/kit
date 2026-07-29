@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 import stat
 
@@ -34,52 +34,124 @@ def verify_import(
         _verify_owned_source(source, errors)
 
     post_by_recording: defaultdict[str, list[LibraryItem]] = defaultdict(list)
-    for item in post_snapshot.exact_items:
+    for item in post_snapshot.exact_items + post_snapshot.plausible_items:
         post_by_recording[item.recording_id].append(item)
+    selected_items = tuple(
+        sorted(
+            (
+                item
+                for item in post_snapshot.exact_items
+                if item.release_id == release.release_id
+                and item.medium == release.medium
+            ),
+            key=lambda item: (
+                item.track,
+                item.recording_id,
+                item.item_id,
+                str(item.path),
+            ),
+        )
+    )
+    _verify_album_group(selected_items, errors)
+    selected_by_occurrence: defaultdict[
+        tuple[str, int], list[LibraryItem]
+    ] = defaultdict(list)
+    for item in selected_items:
+        selected_by_occurrence[(item.recording_id, item.track)].append(item)
 
+    expected_counts = Counter(track.recording_id for track in release.tracks)
+    selected_counts = Counter(item.recording_id for item in selected_items)
+    ordered_recordings = tuple(
+        dict.fromkeys(
+            track.recording_id
+            for track in sorted(
+                release.tracks, key=lambda candidate: candidate.position
+            )
+        )
+    )
+    for recording_id in ordered_recordings:
+        actual_count = selected_counts[recording_id]
+        expected_count = expected_counts[recording_id]
+        if actual_count != expected_count:
+            expectation = (
+                "exactly 1"
+                if expected_count == 1
+                else str(expected_count)
+            )
+            errors.append(
+                f"expected recording {recording_id} has {actual_count} "
+                f"post-import items (expected {expectation})"
+            )
+
+    expected_occurrences = {
+        (track.recording_id, track.position) for track in release.tracks
+    }
     pre_items = pre_snapshot.exact_items + pre_snapshot.plausible_items
     pre_item_ids = {item.item_id for item in pre_items}
-    pre_recordings = {item.recording_id for item in pre_items}
+    pre_occurrences = {
+        (item.medium, item.track, item.recording_id) for item in pre_items
+    }
 
     resolved_staging = _resolve_root(staging_root, "staging", errors)
     resolved_library = _resolve_root(library_root, "library", errors)
 
+    for item in selected_items:
+        occurrence = (item.recording_id, item.track)
+        if occurrence not in expected_occurrences:
+            errors.append(
+                "unexpected selected post item recording "
+                f"{item.recording_id} at track {item.track}"
+            )
+        _verify_destination(
+            item,
+            resolved_staging,
+            resolved_library,
+            errors,
+        )
+
     for track in sorted(release.tracks, key=lambda candidate: candidate.position):
         recording_items = post_by_recording.get(track.recording_id, ())
         occurrence_items = tuple(
-            item for item in recording_items if item.track == track.position
+            sorted(
+                (
+                    item
+                    for item in recording_items
+                    if item.track == track.position
+                ),
+                key=lambda item: (
+                    item.release_id,
+                    item.medium,
+                    item.item_id,
+                    str(item.path),
+                ),
+            )
         )
         matches = tuple(
-            item
-            for item in occurrence_items
-            if item.release_id == release.release_id
-            and item.medium == release.medium
+            selected_by_occurrence.get(
+                (track.recording_id, track.position), ()
+            )
+        )
+        count_is_valid = (
+            selected_counts[track.recording_id]
+            == expected_counts[track.recording_id]
         )
         if len(matches) != 1:
-            errors.append(
-                f"expected recording {track.recording_id} has {len(matches)} "
-                "post-import items (expected exactly 1)"
-            )
+            if count_is_valid:
+                errors.append(
+                    f"expected track {track.position} recording "
+                    f"{track.recording_id} has {len(matches)} post-import "
+                    "items (expected exactly 1)"
+                )
             if not matches:
                 for item in occurrence_items:
                     _verify_selected_release(item, release, errors)
-            for item in sorted(
-                matches,
-                key=lambda candidate: (
-                    candidate.item_id,
-                    str(candidate.path),
-                ),
-            ):
-                _verify_destination(
-                    item,
-                    resolved_staging,
-                    resolved_library,
-                    errors,
-                )
+            for item in matches:
                 _verify_new_item_id(
+                    release.medium,
+                    track.position,
                     track.recording_id,
                     item,
-                    pre_recordings,
+                    pre_occurrences,
                     pre_item_ids,
                     errors,
                 )
@@ -87,16 +159,12 @@ def verify_import(
 
         item = matches[0]
         destination_paths.append(item.path)
-        _verify_destination(
-            item,
-            resolved_staging,
-            resolved_library,
-            errors,
-        )
         _verify_new_item_id(
+            release.medium,
+            track.position,
             track.recording_id,
             item,
-            pre_recordings,
+            pre_occurrences,
             pre_item_ids,
             errors,
         )
@@ -148,16 +216,19 @@ def _verify_selected_release(
 
 
 def _verify_new_item_id(
+    medium: int,
+    track_position: int,
     recording_id: str,
     item: LibraryItem,
-    pre_recordings: set[str],
+    pre_occurrences: set[tuple[int, int, str]],
     pre_item_ids: set[int],
     errors: list[str],
 ) -> None:
-    if recording_id not in pre_recordings and item.item_id in pre_item_ids:
+    occurrence = (medium, track_position, recording_id)
+    if occurrence not in pre_occurrences and item.item_id in pre_item_ids:
         errors.append(
-            f"expected recording {recording_id} was absent before import but "
-            f"post item ID {item.item_id} is not new"
+            f"expected track {track_position} recording {recording_id} was "
+            f"absent before import but post item ID {item.item_id} is not new"
         )
 
 
@@ -221,3 +292,22 @@ def _strictly_beneath(path: Path, root: Path) -> bool:
 
 def _beneath_or_equal(path: Path, root: Path) -> bool:
     return path == root or path.is_relative_to(root)
+
+
+def _verify_album_group(
+    selected_items: tuple[LibraryItem, ...], errors: list[str]
+) -> None:
+    album_ids = {item.album_id for item in selected_items}
+    if len(album_ids) == 1 and None not in album_ids:
+        return
+
+    found = ", ".join(
+        "none" if album_id is None else str(album_id)
+        for album_id in sorted(
+            album_ids, key=lambda value: (value is not None, value or 0)
+        )
+    )
+    errors.append(
+        "selected post items must share one non-null album ID; "
+        f"found {found or 'none'}"
+    )

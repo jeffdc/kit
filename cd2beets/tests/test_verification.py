@@ -152,6 +152,30 @@ def test_complete_copy_to_valid_nas_mp3s_succeeds_without_mutation(tmp_path):
     assert after == before
 
 
+@pytest.mark.parametrize(
+    ("album_id", "found"),
+    [(None, "none, 10"), (11, "10, 11")],
+)
+def test_selected_post_items_share_one_non_null_album_id(
+    tmp_path, album_id, found
+):
+    scenario = make_scenario(tmp_path)
+    first = replace(
+        scenario.post_snapshot.exact_items[0], album_id=album_id
+    )
+    scenario = with_post_items(
+        scenario, (first, scenario.post_snapshot.exact_items[1])
+    )
+
+    report = verify(scenario)
+
+    assert report.ok is False
+    assert (
+        "selected post items must share one non-null album ID; "
+        f"found {found}"
+    ) in report.errors
+
+
 def test_destination_paths_are_ordered_by_expected_track_position(tmp_path):
     scenario = make_scenario(tmp_path)
     reversed_release = replace(
@@ -385,6 +409,60 @@ def test_duplicate_items_still_accumulate_independent_destination_errors(
     ) in report.errors
 
 
+def test_recording_count_includes_duplicates_at_extra_positions(tmp_path):
+    scenario = make_scenario(tmp_path)
+    extra_path = make_destination(scenario.library_root, 9)
+    extra = replace(
+        scenario.post_snapshot.exact_items[0],
+        item_id=109,
+        track=9,
+        path=extra_path,
+    )
+    scenario = with_post_items(
+        scenario, scenario.post_snapshot.exact_items + (extra,)
+    )
+
+    report = verify(scenario)
+
+    assert report.ok is False
+    assert (
+        "expected recording recording-1 has 2 post-import items "
+        "(expected exactly 1)"
+    ) in report.errors
+    assert (
+        "unexpected selected post item recording recording-1 at track 9"
+        in report.errors
+    )
+
+
+@pytest.mark.parametrize(
+    ("change", "expected"),
+    [
+        (
+            {"track": 9},
+            "unexpected selected post item recording recording-1 at track 9",
+        ),
+        (
+            {"recording_id": "unexpected", "track": 3},
+            "unexpected selected post item recording unexpected at track 3",
+        ),
+    ],
+)
+def test_unmatched_selected_recording_or_track_position_fails(
+    tmp_path, change, expected
+):
+    scenario = make_scenario(tmp_path)
+    first = replace(scenario.post_snapshot.exact_items[0], **change)
+    scenario = with_post_items(
+        scenario, (first, scenario.post_snapshot.exact_items[1])
+    )
+
+    report = verify(scenario)
+
+    assert report.ok is False
+    assert expected in report.errors
+
+
 def test_destination_must_not_remain_under_staging(tmp_path):
     scenario = make_scenario(tmp_path)
     first = replace(
@@ -563,8 +641,64 @@ def test_pre_absent_recording_must_have_a_new_post_item_id(tmp_path):
 
     assert report.ok is False
     assert (
-        "expected recording recording-2 was absent before import but post "
-        "item ID 101 is not new"
+        "expected track 2 recording recording-2 was absent before import "
+        "but post item ID 101 is not new"
+    ) in report.errors
+
+
+@pytest.mark.parametrize("change", [{"medium": 2}, {"track": 9}])
+def test_preexisting_recording_at_other_occurrence_does_not_excuse_new_id(
+    tmp_path, change
+):
+    scenario = make_scenario(tmp_path)
+    wrong_occurrence = replace(
+        scenario.post_snapshot.exact_items[0], **change
+    )
+    scenario = replace(
+        scenario,
+        pre_snapshot=LibrarySnapshot((wrong_occurrence,), ()),
+    )
+
+    report = verify(scenario)
+
+    assert report.ok is False
+    assert (
+        "expected track 1 recording recording-1 was absent before import "
+        "but post item ID 101 is not new"
+    ) in report.errors
+
+
+def test_repeated_recording_id_newness_is_proved_per_track_occurrence(
+    tmp_path,
+):
+    scenario = make_scenario(tmp_path)
+    repeated_release = replace(
+        scenario.release,
+        tracks=(
+            scenario.release.tracks[0],
+            replace(
+                scenario.release.tracks[1], recording_id="recording-1"
+            ),
+        ),
+    )
+    preexisting = scenario.post_snapshot.exact_items[0]
+    reused = replace(
+        scenario.post_snapshot.exact_items[1],
+        item_id=preexisting.item_id,
+        recording_id="recording-1",
+    )
+    scenario = replace(
+        with_post_items(scenario, (preexisting, reused)),
+        release=repeated_release,
+        pre_snapshot=LibrarySnapshot((preexisting,), ()),
+    )
+
+    report = verify(scenario)
+
+    assert report.ok is False
+    assert (
+        "expected track 2 recording recording-1 was absent before import "
+        "but post item ID 101 is not new"
     ) in report.errors
 
 
@@ -596,6 +730,29 @@ def test_post_item_must_match_selected_release_and_medium(
 
     assert report.ok is False
     assert expected in report.errors
+
+
+def test_wrong_release_in_plausible_post_partition_is_diagnosed(tmp_path):
+    scenario = make_scenario(tmp_path)
+    wrong_release = replace(
+        scenario.post_snapshot.exact_items[0],
+        release_id="other-release",
+    )
+    scenario = replace(
+        scenario,
+        post_snapshot=LibrarySnapshot(
+            (scenario.post_snapshot.exact_items[1],),
+            (wrong_release,),
+        ),
+    )
+
+    report = verify(scenario)
+
+    assert report.ok is False
+    assert (
+        "post item for recording recording-1 has unexpected release ID "
+        "other-release (expected release-1)"
+    ) in report.errors
 
 
 def test_verification_accumulates_failures_in_deterministic_order(tmp_path):
