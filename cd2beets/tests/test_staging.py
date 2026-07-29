@@ -39,11 +39,60 @@ def cleanup_events(journal_path: Path) -> list[dict]:
     ]
 
 
+def track_identity(track: OwnedMp3) -> dict:
+    return {
+        "path": str(track.path),
+        "device": track.device,
+        "inode": track.inode,
+        "track_position": track.track_position,
+    }
+
+
 def test_staging_root_and_run_directory_are_private(tmp_path):
     run, _ = make_run(tmp_path)
 
     assert stat.S_IMODE(run.staging_root.stat().st_mode) == 0o700
     assert stat.S_IMODE(run.run_dir.stat().st_mode) == 0o700
+
+
+def test_existing_staging_root_is_not_chmodded(tmp_path):
+    root = tmp_path / "staging"
+    root.mkdir(mode=0o750)
+    root.chmod(0o750)
+
+    run = StagingRun(root, Journal(root / "lifecycle.jsonl"), run_id="new-run")
+
+    assert stat.S_IMODE(root.stat().st_mode) == 0o750
+    assert stat.S_IMODE(run.run_dir.stat().st_mode) == 0o700
+
+
+def test_preexisting_run_directory_is_rejected(tmp_path):
+    root = tmp_path / "staging"
+    root.mkdir()
+    collision = root / "run-abc"
+    collision.mkdir()
+    marker = collision / "existing"
+    marker.write_text("keep")
+
+    with pytest.raises(FileExistsError):
+        StagingRun(root, Journal(root / "lifecycle.jsonl"), run_id="run-abc")
+
+    assert marker.read_text() == "keep"
+
+
+def test_preexisting_run_directory_symlink_is_rejected(tmp_path):
+    root = tmp_path / "staging"
+    root.mkdir()
+    target = tmp_path / "other"
+    target.mkdir()
+    collision = root / "run-abc"
+    collision.symlink_to(target, target_is_directory=True)
+
+    with pytest.raises(FileExistsError):
+        StagingRun(root, Journal(root / "lifecycle.jsonl"), run_id="run-abc")
+
+    assert collision.is_symlink()
+    assert target.is_dir()
 
 
 def test_staging_run_uses_uuid_hex_by_default(tmp_path, monkeypatch):
@@ -100,6 +149,19 @@ def test_reserve_exclusively_creates_no_follow_private_mp3_and_records_fstat(
     assert events[-1]["path"] == str(owned.path)
     assert events[-1]["device"] == owned.device
     assert events[-1]["inode"] == owned.inode
+
+
+def test_reserve_fchmods_mp3_to_0600_under_restrictive_umask(tmp_path):
+    run, journal_path = make_run(tmp_path)
+    journal_path.touch(mode=0o600)
+    previous_umask = os.umask(0o777)
+    try:
+        owned, output = run.reserve(1)
+        output.close()
+    finally:
+        os.umask(previous_umask)
+
+    assert stat.S_IMODE(owned.path.stat().st_mode) == 0o600
 
 
 def test_second_reservation_fails_without_overwriting_first(tmp_path):
@@ -334,3 +396,62 @@ def test_later_unlink_failure_reports_partial_cleanup_and_preserves_remaining(
     ]
     assert events[-1]["path"] == str(second.path)
     assert "unlink denied" in events[-1]["error"]
+    assert events[-1]["removed"] == [track_identity(first)]
+    assert events[-1]["remaining"] == [
+        track_identity(second),
+        track_identity(third),
+    ]
+
+
+def test_unlink_cause_survives_failure_journal_error(tmp_path, monkeypatch):
+    run, _ = make_run(tmp_path)
+    track = reserve(run)
+    original_append = run.journal.append
+
+    def append_spy(event, **fields):
+        if event == "track_cleanup_failed":
+            raise OSError("failure journal fsync failed")
+        return original_append(event, **fields)
+
+    monkeypatch.setattr(run.journal, "append", append_spy)
+
+    def unlink_failure(path, *args, **kwargs):
+        raise PermissionError("unlink denied")
+
+    monkeypatch.setattr(Path, "unlink", unlink_failure)
+
+    with pytest.raises(PartialCleanupError) as raised:
+        run.cleanup((track,), VERIFIED)
+
+    assert isinstance(raised.value.cause, PermissionError)
+    assert str(raised.value.cause) == "unlink denied"
+    assert raised.value.removed == ()
+    assert raised.value.remaining == (track,)
+    assert track.path.exists()
+
+
+def test_success_journal_error_reports_deleted_and_remaining_state(
+    tmp_path, monkeypatch
+):
+    run, _ = make_run(tmp_path)
+    first = reserve(run, 1)
+    second = reserve(run, 2)
+    original_append = run.journal.append
+
+    def append_spy(event, **fields):
+        if event == "track_cleanup_succeeded":
+            raise OSError("success journal fsync failed")
+        if event == "track_cleanup_failed":
+            raise OSError("failure journal fsync failed")
+        return original_append(event, **fields)
+
+    monkeypatch.setattr(run.journal, "append", append_spy)
+
+    with pytest.raises(PartialCleanupError) as raised:
+        run.cleanup((first, second), VERIFIED)
+
+    assert str(raised.value.cause) == "success journal fsync failed"
+    assert raised.value.removed == (first,)
+    assert raised.value.remaining == (second,)
+    assert not first.path.exists()
+    assert second.path.exists()

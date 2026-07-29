@@ -15,7 +15,7 @@ class CleanupRefused(RuntimeError):
 
 
 class PartialCleanupError(RuntimeError):
-    """Raised after an unlink failure leaves part of a validated set present."""
+    """Raised when cleanup stops after one or more filesystem side effects."""
 
     def __init__(
         self,
@@ -45,7 +45,8 @@ class StagingRun:
 
         self._ensure_private_directory(self.staging_root)
         self.run_dir = self.staging_root / self.run_id
-        self._ensure_private_directory(self.run_dir)
+        self.run_dir.mkdir(mode=0o700)
+        self.run_dir.chmod(0o700)
         self._owned: dict[Path, OwnedMp3] = {}
 
     @staticmethod
@@ -69,6 +70,7 @@ class StagingRun:
         flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW
         descriptor = os.open(path, flags, 0o600)
         try:
+            os.fchmod(descriptor, 0o600)
             details = os.fstat(descriptor)
             owned = OwnedMp3(
                 path=path,
@@ -155,21 +157,62 @@ class StagingRun:
             try:
                 path.unlink()
             except OSError as cause:
+                removed_tracks = tuple(removed)
                 remaining = candidates[index:]
+                self._journal_cleanup_failed(
+                    candidate, removed_tracks, remaining, cause
+                )
+                raise PartialCleanupError(
+                    removed_tracks, remaining, cause
+                ) from cause
+            removed.append(candidate)
+            try:
                 self.journal.append(
-                    "track_cleanup_failed",
+                    "track_cleanup_succeeded",
                     run_id=self.run_id,
                     track_position=candidate.track_position,
                     path=str(path),
-                    error=str(cause),
                 )
-                raise PartialCleanupError(tuple(removed), remaining, cause) from cause
-            removed.append(candidate)
-            self.journal.append(
-                "track_cleanup_succeeded",
-                run_id=self.run_id,
-                track_position=candidate.track_position,
-                path=str(path),
-            )
+            except OSError as cause:
+                removed_tracks = tuple(removed)
+                remaining = candidates[index + 1 :]
+                self._journal_cleanup_failed(
+                    candidate, removed_tracks, remaining, cause
+                )
+                raise PartialCleanupError(
+                    removed_tracks, remaining, cause
+                ) from cause
 
         return tuple(removed)
+
+
+    @staticmethod
+    def _track_identity(track: OwnedMp3) -> dict[str, str | int]:
+        return {
+            "path": str(track.path),
+            "device": track.device,
+            "inode": track.inode,
+            "track_position": track.track_position,
+        }
+
+    def _journal_cleanup_failed(
+        self,
+        candidate: OwnedMp3,
+        removed: tuple[OwnedMp3, ...],
+        remaining: tuple[OwnedMp3, ...],
+        cause: OSError,
+    ) -> None:
+        try:
+            self.journal.append(
+                "track_cleanup_failed",
+                run_id=self.run_id,
+                track_position=candidate.track_position,
+                path=str(candidate.path),
+                error=str(cause),
+                removed=[self._track_identity(track) for track in removed],
+                remaining=[
+                    self._track_identity(track) for track in remaining
+                ],
+            )
+        except OSError:
+            pass
