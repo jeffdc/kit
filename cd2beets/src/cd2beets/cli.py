@@ -20,9 +20,9 @@ from cd2beets.workflow import DiscOutcome, DiscWorkflow, MusicProcessDetector
 
 
 _DEFAULT_STAGING_DIR = Path("~/Music/cd2beets-staging").expanduser()
-_IGNORE_CD_REMINDER = (
+_SHOW_CD_REMINDER = (
     "Before continuing, set Music > Settings > General > "
-    "When a CD is inserted to Ignore CD."
+    "When a CD is inserted to Show CD; do not select an import option."
 )
 
 
@@ -70,7 +70,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    print(_IGNORE_CD_REMINDER, flush=True)
+    print(_SHOW_CD_REMINDER, flush=True)
 
     try:
         settings = BeetsSettings.load()

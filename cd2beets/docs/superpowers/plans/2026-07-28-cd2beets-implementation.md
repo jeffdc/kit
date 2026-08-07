@@ -12,7 +12,7 @@
 
 - Implementation root is `~/dev/kit/cd2beets`.
 - Runtime is macOS with Python `>=3.12,<3.13`.
-- The operator manually sets **Music > Settings > General > When a CD is inserted > Ignore CD**; the tool never changes Music preferences or terminates Music.
+- The operator manually sets **Music > Settings > General > When a CD is inserted > Show CD**; the tool never changes Music preferences or terminates Music, and Music must not play, import, or eject the disc.
 - The tool runs in the foreground and supports continuous processing plus `--once`.
 - Default staging is `~/Music/cd2beets-staging`; staging must not be beneath the beets library root.
 - The active beets library/import configuration is discovered dynamically; both direct lookup and beets import must use the public `musicbrainz.org` service, with beets limited to one request per second.
@@ -1015,7 +1015,7 @@ poll_interval == 2.0
 once is False
 ```
 
-Require `--staging-dir`, `--poll-interval`, and `--once`. Reject non-positive poll intervals. `main()` prints the **Ignore CD** reminder before preflight, returns 2 for preflight errors, 1 for held/failed workflows, 0 for clean `--once` completion or user interrupt, and does not expose arbitrary beets or cleanup arguments.
+Require `--staging-dir`, `--poll-interval`, and `--once`. Reject non-positive poll intervals. `main()` prints the **Show CD** reminder before preflight, returns 2 for preflight errors, 1 for held/failed workflows, 0 for clean `--once` completion or user interrupt, and does not expose arbitrary beets or cleanup arguments.
 
 - [ ] **Step 3: Run tests to verify they fail**
 
@@ -1076,7 +1076,7 @@ Expected: compile exits 0; all tests pass; help lists only `--staging-dir`, `--p
 
 - [ ] **Step 2: Verify the no-media path on the actual Mac**
 
-With no CD inserted and Music set to **Ignore CD**, run:
+With no CD inserted and Music set to **Show CD**, run:
 
 ```bash
 .venv/bin/cd2beets
@@ -1088,7 +1088,7 @@ Observe: preflight names any unavailable prerequisite, the HP USB drive is detec
 
 Insert a test audio CD and run `--once`. Observe and record in the existing append-only journal:
 
-- Music does not react to or import the CD;
+- Music may open and display the CD but does not play, import, or eject it;
 - `drutil`, libdiscid, and cdda2wav can access the HP drive;
 - TOC and selected MusicBrainz medium have the same track count;
 - candidate display has complete release/medium data;

@@ -191,12 +191,14 @@ class Runtime:
         monkeypatch.setattr(cli, "DiscWorkflow", FakeWorkflow)
 
 
-def test_main_prints_ignore_cd_reminder_before_preflight(tmp_path, monkeypatch, capsys):
+def test_main_prints_show_cd_reminder_before_preflight(tmp_path, monkeypatch, capsys):
     runtime = Runtime(tmp_path, monkeypatch)
     original_run = cli.Preflight.run
 
     def assert_reminder_then_run(preflight):
-        assert "Ignore CD" in capsys.readouterr().out
+        reminder = capsys.readouterr().out
+        assert "Show CD" in reminder
+        assert "do not select an import option" in reminder
         return original_run(preflight)
 
     monkeypatch.setattr(cli.Preflight, "run", assert_reminder_then_run)
