@@ -15,7 +15,7 @@
 - The operator manually sets **Music > Settings > General > When a CD is inserted > Ignore CD**; the tool never changes Music preferences or terminates Music.
 - The tool runs in the foreground and supports continuous processing plus `--once`.
 - Default staging is `~/Music/cd2beets-staging`; staging must not be beneath the beets library root.
-- The active beets configuration and MusicBrainz host are discovered dynamically.
+- The active beets library/import configuration is discovered dynamically; both direct lookup and beets import must use the public `musicbrainz.org` service, with beets limited to one request per second.
 - The configured NAS library root must exist, be writable, and be on a mounted filesystem distinct from `/` before ripping begins.
 - The current beets configuration has `import.move: yes`; every tool import must explicitly use `--copy`.
 - The only mutating beets command is the fixed copy-only `beet import`; no arbitrary beets command or arguments are accepted.
@@ -569,7 +569,7 @@ git commit -m "Add macOS optical drive adapter"
 - Create: `tests/fixtures/musicbrainz_disc.json`
 
 **Interfaces:**
-- Consumes: `DiscToc`, `TrackMetadata`, `ReleaseMetadata`, python-discid `discid.get_default_device()`/`discid.read(device)`, and a beets-configured host string such as `10.6.9.160:5000`.
+- Consumes: `DiscToc`, `TrackMetadata`, `ReleaseMetadata`, python-discid `discid.get_default_device()`/`discid.read(device)`, and the fixed public endpoint `https://musicbrainz.org`.
 - Produces: `DiscidReader.default_device() -> str`, `DiscidReader.read(device) -> DiscToc`, `MusicBrainzClient.ping()`, `MusicBrainzClient.lookup(toc) -> tuple[ReleaseMetadata, ...]`, `MusicBrainzClient.parse_lookup_response(toc, payload)`, and `MetadataError`.
 
 - [ ] **Step 1: Create a minimal sanitized MusicBrainz fixture and failing tests**
@@ -584,7 +584,7 @@ assert releases[0].medium == 2
 assert releases[0].recording_ids == ("recording-1", "recording-2")
 ```
 
-Also test that a medium with missing recording IDs raises `MetadataError` rather than inventing metadata, and that `10.6.9.160:5000` produces base URL `http://10.6.9.160:5000`.
+Also test that a medium with missing recording IDs raises `MetadataError` rather than inventing metadata, that an explicit HTTPS endpoint uses TLS port 443, and that a host without a scheme remains compatible with HTTP mirrors.
 
 - [ ] **Step 2: Run tests to verify they fail**
 
@@ -596,12 +596,12 @@ Expected: FAIL because `cd2beets.metadata` does not exist.
 
 `DiscidReader.default_device()` must call `discid.get_default_device()`, require a non-empty device string, and wrap libdiscid exceptions as `MetadataError`. `DiscidReader.read(device)` calls `discid.read(device)`, converts `.id`, `.first_track_num`, `.last_track_num`, and `.sectors` into `DiscToc`, and preserves the selected device in that value. This device string is the single source used later by cdda2wav.
 
-- [ ] **Step 4: Implement deterministic MusicBrainz HTTP lookup**
+- [ ] **Step 4: Implement deterministic public MusicBrainz HTTPS lookup**
 
-Use stdlib `urllib.request` with no write methods. `ping()` opens a TCP connection to the parsed host/port with a two-second timeout. `lookup()` performs:
+Use stdlib `urllib.request` with no write methods. `ping()` opens a TCP connection to `musicbrainz.org:443` with a two-second timeout. `lookup()` performs:
 
 ```text
-GET http://<configured-host>/ws/2/discid/<urlquoted-disc-id>?inc=artist-credits+recordings&fmt=json
+GET https://musicbrainz.org/ws/2/discid/<urlquoted-disc-id>?inc=artist-credits+recordings&fmt=json
 User-Agent: cd2beets/0.1 (local batch ripper)
 Accept: application/json
 ```
@@ -1059,7 +1059,7 @@ git commit -m "Add cd2beets preflight and CLI"
 - No new cleanup script or acceptance-only deletion command.
 
 **Interfaces:**
-- Consumes: installed CLI, HP CDDVDW TS-L633R drive, one audio CD, active beets config, MusicBrainz mirror, and mounted `/Volumes/music/library`.
+- Consumes: installed CLI, HP CDDVDW TS-L633R drive, one audio CD, active beets config limited to one public MusicBrainz request per second, and mounted `/Volumes/music/library`.
 - Produces: observed no-media, hardware-rip, NAS-copy, cleanup, eject, and second-insertion evidence.
 
 - [ ] **Step 1: Run static package verification**

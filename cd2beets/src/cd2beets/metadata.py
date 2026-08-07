@@ -13,6 +13,10 @@ from cd2beets.models import DiscToc, ReleaseMetadata, TrackMetadata
 
 
 _USER_AGENT = "cd2beets/0.1 (local batch ripper)"
+PUBLIC_MUSICBRAINZ_HOST = "musicbrainz.org"
+PUBLIC_MUSICBRAINZ_URL = f"https://{PUBLIC_MUSICBRAINZ_HOST}"
+
+
 
 
 class MetadataError(RuntimeError):
@@ -60,14 +64,15 @@ class MusicBrainzClient:
             raise MetadataError(
                 f"Invalid MusicBrainz host {configured_host!r}: {exc}"
             ) from exc
-        port = 80 if parsed_port is None else parsed_port
+        default_port = 443 if parsed.scheme == "https" else 80
+        port = default_port if parsed_port is None else parsed_port
         if not 1 <= port <= 65535:
             raise MetadataError(
                 "Invalid MusicBrainz host: port must be between 1 and 65535"
             )
 
         if (
-            parsed.scheme != "http"
+            parsed.scheme not in ("http", "https")
             or not hostname
             or parsed.username is not None
             or parsed.password is not None
@@ -77,7 +82,7 @@ class MusicBrainzClient:
         ):
             raise MetadataError(f"Invalid MusicBrainz host: {configured_host!r}")
 
-        self.base_url = f"http://{parsed.netloc}"
+        self.base_url = f"{parsed.scheme}://{parsed.netloc}"
         self._hostname = hostname
         self._port = port
 

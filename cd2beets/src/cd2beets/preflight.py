@@ -11,6 +11,7 @@ from typing import Any
 
 from cd2beets.drive import DriveInfo
 from cd2beets.library import BeetsSettings
+from cd2beets.metadata import PUBLIC_MUSICBRAINZ_HOST
 
 
 _REQUIRED_BINARIES = ("drutil", "cdda2wav", "lame", "beet", "pgrep")
@@ -173,6 +174,12 @@ class Preflight:
             )
 
     def _check_configuration(self, errors: list[str]) -> None:
+        if self.settings.musicbrainz_host != PUBLIC_MUSICBRAINZ_HOST:
+            errors.append(
+                "beets musicbrainz.host must be "
+                f"{PUBLIC_MUSICBRAINZ_HOST!r}; found "
+                f"{self.settings.musicbrainz_host!r}"
+            )
         for plugin in sorted(set(self.settings.plugins) - _ALLOWED_PLUGINS):
             errors.append(f"unknown active beets plugin: {plugin}")
 

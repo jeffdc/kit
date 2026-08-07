@@ -9,7 +9,7 @@ from cd2beets.drive import DrutilDrive
 from cd2beets.importer import BeetsImporter
 from cd2beets.journal import Journal
 from cd2beets.library import BeetsLibrary, BeetsSettings
-from cd2beets.metadata import DiscidReader, MusicBrainzClient
+from cd2beets.metadata import DiscidReader, MusicBrainzClient, PUBLIC_MUSICBRAINZ_URL
 from cd2beets.preflight import Preflight
 from cd2beets.process import ProcessRunner
 from cd2beets.ripper import Ripper
@@ -77,7 +77,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         staging_dir = args.staging_dir.expanduser().resolve()
         runner = ProcessRunner()
         drive = DrutilDrive(runner)
-        metadata = MusicBrainzClient(settings.musicbrainz_host)
+        metadata = MusicBrainzClient(PUBLIC_MUSICBRAINZ_URL)
         journal = Journal(staging_dir / "lifecycle.jsonl")
         report = Preflight(
             settings,

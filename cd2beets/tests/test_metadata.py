@@ -25,6 +25,14 @@ def test_configured_host_without_scheme_produces_http_base_url():
     assert client.base_url == "http://10.6.9.160:5000"
 
 
+def test_public_https_endpoint_uses_tls_port():
+    client = MusicBrainzClient("https://musicbrainz.org")
+
+    assert client.base_url == "https://musicbrainz.org"
+    assert client._hostname == "musicbrainz.org"
+    assert client._port == 443
+
+
 def test_configured_host_wraps_url_parser_errors():
     with pytest.raises(MetadataError, match="Invalid MusicBrainz host") as raised:
         MusicBrainzClient("[::1")

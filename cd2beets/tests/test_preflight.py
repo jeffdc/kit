@@ -257,6 +257,17 @@ def test_unknown_active_plugins_are_rejected(tmp_path):
     assert "unknown active beets plugin: lastgenre" in report.errors
 
 
+def test_non_public_musicbrainz_host_is_rejected(tmp_path):
+    configured = settings(tmp_path, musicbrainz_host="10.6.9.160:5000")
+
+    report = make_preflight(tmp_path, configured=configured).run()
+
+    assert (
+        "beets musicbrainz.host must be 'musicbrainz.org'; found "
+        "'10.6.9.160:5000'"
+    ) in report.errors
+
+
 def test_duplicate_action_must_be_skip(tmp_path):
     configured = settings(tmp_path, duplicate_action="merge")
 
