@@ -494,10 +494,12 @@ class DiscWorkflow:
                 phase = "processing"
                 outcome = self.process_disc()
                 if outcome is DiscOutcome.EJECTED:
+                    if once:
+                        return outcome
                     phase = "after_eject"
                     self._wait_for_no_media(poll_interval)
                     last_media_state = MediaState.NO_MEDIA
-                if once or outcome is not DiscOutcome.EJECTED:
+                if outcome is not DiscOutcome.EJECTED:
                     return outcome
         except KeyboardInterrupt:
             if phase == "processing":

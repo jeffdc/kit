@@ -750,6 +750,18 @@ def test_continuous_mode_waits_for_no_media_before_accepting_next_disc() -> None
     assert interrupted["media_state"] == "no_media"
 
 
+def test_once_returns_after_successful_eject_without_waiting_for_no_media() -> None:
+    scenario = Scenario(
+        presence=Presence.PRESENT,
+        statuses=[MediaState.AUDIO],
+    )
+
+    outcome = scenario.workflow.run(once=True, poll_interval=0.5)
+
+    assert outcome is DiscOutcome.EJECTED
+    assert scenario.log.count("drive.status:audio") == 1
+
+
 def test_once_ignores_empty_polls_then_exits_after_one_processed_disc() -> None:
     scenario = Scenario(
         presence=Presence.PRESENT,
@@ -768,7 +780,7 @@ def test_once_ignores_empty_polls_then_exits_after_one_processed_disc() -> None:
     assert scenario.log.count("reader.default_device") == 1
     assert scenario.sleeps == [0.5, 0.5]
     assert scenario.ui.log.count("ui.unusable_media") == 1
-    assert scenario.drive.statuses == [MediaState.AUDIO]
+    assert scenario.drive.statuses == [MediaState.NO_MEDIA, MediaState.AUDIO]
 
 
 def test_keyboard_interrupt_is_caught_only_by_outer_loop_and_preserves_everything() -> None:
