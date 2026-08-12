@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import re
 
-
 from cd2beets.journal import Journal
-from cd2beets.models import DiscToc, OwnedMp3, TrackMetadata
+from cd2beets.models import DiscToc, OwnedMp3, ReleaseMetadata, TrackMetadata
 from cd2beets.process import PipelineResult, ProcessRunner
 from cd2beets.staging import StagingRun
 
@@ -42,6 +41,7 @@ class Ripper:
     def rip_track(
         self,
         toc: DiscToc,
+        release: ReleaseMetadata,
         track: TrackMetadata,
         staging: StagingRun,
     ) -> OwnedMp3:
@@ -67,9 +67,24 @@ class Ripper:
                 "-r",
                 "-b",
                 "320",
-                "-",
-                "-",
+                "--id3v2-only",
+                "--tt",
+                track.title,
+                "--ta",
+                release.albumartist,
+                "--tl",
+                release.album,
             ]
+            if release.date:
+                sink_args.extend(["--ty", release.date.split("-", 1)[0]])
+            sink_args.extend(
+                [
+                    "--tn",
+                    f"{track.position}/{len(release.tracks)}",
+                    "-",
+                    "-",
+                ]
+            )
             self._journal.append("track_rip_started", **common_fields)
 
             try:

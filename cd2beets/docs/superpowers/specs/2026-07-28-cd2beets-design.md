@@ -149,7 +149,7 @@ For each expected audio track:
 1. Reserve a unique destination path with exclusive-create semantics so existing content can never be overwritten.
 2. Record that exact path as owned by the current run in memory and in the append-only journal.
 3. Stream the selected track from `cd-paranoia` in full verification mode with abort-on-skip into LAME.
-4. Encode constant bitrate MP3 audio with an explicit 320 kbps setting.
+4. Encode constant bitrate MP3 audio with an explicit 320 kbps setting and write the selected release's title, album artist, album title, year when known, and track number/total as ID3v2 metadata so beets can evaluate the fixed release match non-interactively.
 5. Treat any extractor or encoder failure as a hard workflow failure.
 
 No WAV intermediate is created. A failed or interrupted track remains preserved as a generated MP3 artifact and is never considered importable until a later explicit recovery flow verifies it.

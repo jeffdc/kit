@@ -192,7 +192,7 @@ class DiscWorkflow:
                 release.tracks, key=lambda candidate: candidate.position
             ):
                 try:
-                    owned = self._ripper.rip_track(toc, track, staging)
+                    owned = self._ripper.rip_track(toc, release, track, staging)
                 except Exception as error:
                     journal_error = self._append_journal(
                         "track_generation_interrupted",

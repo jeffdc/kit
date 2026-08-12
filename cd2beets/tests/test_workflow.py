@@ -143,7 +143,11 @@ class FakeRipper:
         self.generated: list[OwnedMp3] = []
 
     def rip_track(
-        self, toc: DiscToc, track: TrackMetadata, staging: "FakeStaging"
+        self,
+        toc: DiscToc,
+        release: ReleaseMetadata,
+        track: TrackMetadata,
+        staging: "FakeStaging",
     ) -> OwnedMp3:
         self.log.append(f"ripper.rip:{track.position}")
         if track.position == self.interrupt_position:

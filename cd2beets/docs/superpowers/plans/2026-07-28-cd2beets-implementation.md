@@ -794,7 +794,7 @@ The ripper test uses fake staging and runner objects and requires:
 source_args == [
     "cd-paranoia", "-q", "-e", "-X", "-p", "3", "-",
 ]
-sink_args == ["lame", "--silent", "-r", "-b", "320", "-", "-"]
+sink_args == ["lame", "--silent", "-r", "-b", "320", "--id3v2-only", "--tt", "Track Three", "--ta", "Album Artist", "--tl", "Album Title", "--ty", "1992", "--tn", "3/10", "-", "-"]
 ```
 
 It must assert the reserved binary handle is the pipeline destination, both process statuses must be zero, stderr appears in `RipError`, and a failed rip leaves the owned MP3 registered/present.
@@ -820,7 +820,7 @@ Expected: FAIL because ripper/importer modules do not exist.
 
 - [ ] **Step 4: Implement ripping and import**
 
-`Ripper.rip_track()` reserves the MP3 before launching processes, streams `cd-paranoia` host-endian raw PCM into LAME, passes the open MP3 handle to the pipeline, closes it in `finally`, journals source/sink return codes and stderr, and returns the `OwnedMp3` only when both return codes are zero and stderr contains no exact `cd-paranoia` skip event. Full paranoia verification plus `-X` aborts on an uncorrected skip, but `cd-paranoia` returns zero after that abort; the ripper therefore treats its machine-readable `##: 6 [skip] @ <sector>` diagnostic as a hard failure. It never removes failed output.
+`Ripper.rip_track()` reserves the MP3 before launching processes, streams `cd-paranoia` host-endian raw PCM into LAME, supplies the selected track/release title, album artist, year when known, and track number/total as ID3v2 fields, passes the open MP3 handle to the pipeline, closes it in `finally`, journals source/sink return codes and stderr, and returns the `OwnedMp3` only when both return codes are zero and stderr contains no exact `cd-paranoia` skip event. The tags are required because the generated staging names intentionally carry no release identity and beets' fixed non-interactive release match otherwise skips them. Full paranoia verification plus `-X` aborts on an uncorrected skip, but `cd-paranoia` returns zero after that abort; the ripper therefore treats its machine-readable `##: 6 [skip] @ <sector>` diagnostic as a hard failure. It never removes failed output.
 
 `BeetsImporter.import_release()` validates the release ID against UUID syntax, builds only the fixed vector above, runs it with no shell, journals start/success/failure, and returns the `CommandResult` on zero. It has no generic subcommand or extra-argument parameter.
 
