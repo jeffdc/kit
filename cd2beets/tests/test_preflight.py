@@ -114,7 +114,7 @@ def error_text(report):
     return "\n".join(report.errors)
 
 
-@pytest.mark.parametrize("binary", ["drutil", "cdda2wav", "lame", "beet", "pgrep"])
+@pytest.mark.parametrize("binary", ["drutil", "cd-paranoia", "lame", "beet", "pgrep"])
 def test_missing_prerequisite_is_named(tmp_path, binary):
     preflight = make_preflight(
         tmp_path,
@@ -124,6 +124,7 @@ def test_missing_prerequisite_is_named(tmp_path, binary):
     report = preflight.run()
 
     assert f"missing prerequisite: {binary}" in report.errors
+
 
 
 @pytest.mark.parametrize("installed", ["2.7.0", "2.8.1", "2.8.0.dev1", "unexpected"])

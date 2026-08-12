@@ -49,10 +49,13 @@ def parse_drive_list(text: str) -> tuple[DriveInfo, ...]:
 
 
 def parse_media_state(text: str) -> MediaState:
-    types = {line.strip() for line in text.splitlines()}
-    if "Type: No Media Inserted" in types:
+    lines = tuple(line.strip() for line in text.splitlines())
+    if "Type: No Media Inserted" in lines:
         return MediaState.NO_MEDIA
-    if "Type: Audio CD" in types:
+    if any(
+        line.startswith(("Type: Audio CD", "Type: CD-ROM"))
+        for line in lines
+    ):
         return MediaState.AUDIO
     return MediaState.UNUSABLE
 

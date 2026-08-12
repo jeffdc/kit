@@ -6,7 +6,7 @@
 
 **Architecture:** A small Python package coordinates narrow adapters for subprocesses, `drutil`, libdiscid, MusicBrainz HTTP, read-only beets access, staging/journaling, ripping, import, verification, and terminal decisions. Pure domain functions own classification and verification; side effects sit behind injectable adapters so the complete workflow can be tested without a CD, NAS, or real beets mutation.
 
-**Tech Stack:** Python 3.12, beets 2.8.0, python-discid 1.4.2/libdiscid, cdrtools `cdda2wav`, LAME, macOS `drutil`, stdlib `urllib`, pytest.
+**Tech Stack:** Python 3.12, beets 2.8.0, python-discid 1.4.2/libdiscid, `libcdio-paranoia`, LAME, macOS `drutil`, stdlib `urllib`, pytest.
 
 ## Global Constraints
 
@@ -20,7 +20,7 @@
 - The current beets configuration has `import.move: yes`; every tool import must explicitly use `--copy`.
 - The only mutating beets command is the fixed copy-only `beet import`; no arbitrary beets command or arguments are accepted.
 - Presence is exactly `PRESENT`, `ABSENT`, or `UNCERTAIN`; every uncertain result requires an operator decision and defaults to `skip/eject`.
-- Audio extraction streams directly into LAME; no WAV intermediate or cdda2wav information sidecar is created.
+- Audio extraction streams directly from verified `cd-paranoia` into LAME; no WAV intermediate is created.
 - Encoding is constant 320 kbps MP3.
 - The tool never deletes a directory, journal, log, non-MP3, unrelated file, beets item, or MP3 it did not exclusively create and record.
 - Cleanup requires complete post-import beets/NAS verification plus path, suffix, regular-file, device, and inode checks for every candidate before the first unlink.
@@ -40,7 +40,7 @@
 - `src/cd2beets/library.py` — beets configuration loading, read-only catalog snapshots, presence classification.
 - `src/cd2beets/journal.py` — append-only JSONL lifecycle journal.
 - `src/cd2beets/staging.py` — private run directories, exclusive MP3 reservation, ownership checks, guarded cleanup.
-- `src/cd2beets/ripper.py` — cdda2wav-to-LAME track streaming.
+- `src/cd2beets/ripper.py` — verified cd-paranoia-to-LAME track streaming.
 - `src/cd2beets/importer.py` — fixed copy-only beets import command.
 - `src/cd2beets/verification.py` — post-import beets, staging, format, bitrate, path, and copy verification.
 - `src/cd2beets/ui.py` — terminal rendering and conservative decisions.
@@ -70,11 +70,11 @@
 Run:
 
 ```bash
-brew install cdrtools libdiscid
+brew install libcdio-paranoia libdiscid
 python3 -m venv .venv
 ```
 
-Expected: Homebrew reports `cdrtools` and `libdiscid` installed; `.venv/bin/python --version` reports Python 3.12.x. Do not install anything automatically from runtime code.
+Expected: Homebrew reports `libcdio-paranoia` and `libdiscid` installed; `.venv/bin/python --version` reports Python 3.12.x. Do not install anything automatically from runtime code.
 
 - [ ] **Step 2: Create package metadata and ignores**
 
@@ -594,7 +594,7 @@ Expected: FAIL because `cd2beets.metadata` does not exist.
 
 - [ ] **Step 3: Implement default-device discovery and libdiscid reading**
 
-`DiscidReader.default_device()` must call `discid.get_default_device()`, require a non-empty device string, and wrap libdiscid exceptions as `MetadataError`. `DiscidReader.read(device)` calls `discid.read(device)`, converts `.id`, `.first_track_num`, `.last_track_num`, and `.sectors` into `DiscToc`, and preserves the selected device in that value. This device string is the single source used later by cdda2wav.
+`DiscidReader.default_device()` must call `discid.get_default_device()`, require a non-empty device string, and wrap libdiscid exceptions as `MetadataError`. `DiscidReader.read(device)` calls `discid.read(device)`, converts `.id`, `.first_track_num`, `.last_track_num`, and `.sectors` into `DiscToc`, and preserves the selected device in that value. `cd-paranoia` independently auto-detects the same sole optical drive; the matching TOC and track count are verified during hardware acceptance.
 
 - [ ] **Step 4: Implement deterministic public MusicBrainz HTTPS lookup**
 
@@ -779,12 +779,12 @@ git commit -m "Add guarded MP3 staging cleanup"
 Run:
 
 ```bash
-cdda2wav -help
+cd-paranoia --help
 lame --help
 beet import --help
 ```
 
-Expected cdda2wav help contains `-D`, `-paranoia`, `-O`, `-no-infofile`, and `-stdout`; LAME help accepts stdin/output `-` and `-b`; beets help contains `--copy`, `--quiet-fallback`, `--noresume`, `--noincremental`, and `--search-id`. If Homebrew's cdda2wav spells a confirmed option differently, update the single command constructor and its exact contract test together before proceeding; do not introduce shell redirection or a WAV file.
+Expected cd-paranoia help contains `-q`, `-e`, `-X`, and `-p`; LAME help accepts raw PCM input/output `-`, `-r`, and `-b`; beets help contains `--copy`, `--quiet-fallback`, `--noresume`, `--noincremental`, and `--search-id`. Do not introduce shell redirection or a WAV file.
 
 - [ ] **Step 2: Write failing exact-command tests**
 
@@ -792,10 +792,9 @@ The ripper test uses fake staging and runner objects and requires:
 
 ```python
 source_args == [
-    "cdda2wav", "-D", "/dev/disk4", "-paranoia", "-O", "wav",
-    "-no-infofile", "-stdout", "3",
+    "cd-paranoia", "-q", "-e", "-X", "-p", "3", "-",
 ]
-sink_args == ["lame", "--silent", "-b", "320", "-", "-"]
+sink_args == ["lame", "--silent", "-r", "-b", "320", "-", "-"]
 ```
 
 It must assert the reserved binary handle is the pipeline destination, both process statuses must be zero, stderr appears in `RipError`, and a failed rip leaves the owned MP3 registered/present.
@@ -821,7 +820,7 @@ Expected: FAIL because ripper/importer modules do not exist.
 
 - [ ] **Step 4: Implement ripping and import**
 
-`Ripper.rip_track()` reserves the MP3 before launching processes, passes the open handle to the pipeline, closes it in `finally`, journals source/sink return codes and stderr, and returns the `OwnedMp3` only when both return codes are zero. It never removes failed output.
+`Ripper.rip_track()` reserves the MP3 before launching processes, streams `cd-paranoia` host-endian raw PCM into LAME, passes the open MP3 handle to the pipeline, closes it in `finally`, journals source/sink return codes and stderr, and returns the `OwnedMp3` only when both return codes are zero and stderr contains no exact `cd-paranoia` skip event. Full paranoia verification plus `-X` aborts on an uncorrected skip, but `cd-paranoia` returns zero after that abort; the ripper therefore treats its machine-readable `##: 6 [skip] @ <sector>` diagnostic as a hard failure. It never removes failed output.
 
 `BeetsImporter.import_release()` validates the release ID against UUID syntax, builds only the fixed vector above, runs it with no shell, journals start/success/failure, and returns the `CommandResult` on zero. It has no generic subcommand or extra-argument parameter.
 
@@ -992,7 +991,7 @@ git commit -m "Add conservative CD processing workflow"
 
 Use injected probes and require one named error for each failure:
 
-- missing `drutil`, `cdda2wav`, `lame`, `beet`, or `pgrep`;
+- missing `drutil`, `cd-paranoia`, `lame`, `beet`, or `pgrep`;
 - beets CLI version not exactly 2.8.0;
 - unreadable library database;
 - NAS root absent, unwritable, or same `st_dev` as `/`;
@@ -1089,7 +1088,7 @@ Observe: preflight names any unavailable prerequisite, the HP USB drive is detec
 Insert a test audio CD and run `--once`. Observe and record in the existing append-only journal:
 
 - Music may open and display the CD but does not play, import, or eject it;
-- `drutil`, libdiscid, and cdda2wav can access the HP drive;
+- `drutil`, libdiscid, and `cd-paranoia` can access the HP drive;
 - TOC and selected MusicBrainz medium have the same track count;
 - candidate display has complete release/medium data;
 - uncertain library evidence requires an operator decision.

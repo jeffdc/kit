@@ -14,7 +14,7 @@ from cd2beets.library import BeetsSettings
 from cd2beets.metadata import PUBLIC_MUSICBRAINZ_HOST
 
 
-_REQUIRED_BINARIES = ("drutil", "cdda2wav", "lame", "beet", "pgrep")
+_REQUIRED_BINARIES = ("drutil", "cd-paranoia", "lame", "beet", "pgrep")
 _ALLOWED_PLUGINS = frozenset({"musicbrainz", "web", "duplicates", "missing"})
 _REQUIRED_BEETS_VERSION = "2.8.0"
 

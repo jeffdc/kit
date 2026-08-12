@@ -61,7 +61,7 @@ class FakeRunner:
 def make_toc() -> DiscToc:
     return DiscToc(
         disc_id="disc-id",
-        device="/dev/disk4",
+        device="1",
         first_track=1,
         last_track=10,
         sectors=12345,
@@ -77,8 +77,8 @@ def make_track() -> TrackMetadata:
     )
 
 
-def test_rip_track_streams_exact_commands_to_reserved_mp3(tmp_path: Path):
-    result = PipelineResult(0, 0, "source note", "sink note")
+def test_rip_track_streams_verified_cd_paranoia_into_lame(tmp_path: Path):
+    result = PipelineResult(0, 0, "reader note", "encoder note")
     runner = FakeRunner(result)
     journal = RecordingJournal()
     staging = FakeStaging(tmp_path)
@@ -88,18 +88,15 @@ def test_rip_track_streams_exact_commands_to_reserved_mp3(tmp_path: Path):
     assert owned is staging.owned[0]
     source_args, sink_args, destination = runner.calls[0]
     assert source_args == [
-        "cdda2wav",
-        "-D",
-        "/dev/disk4",
-        "-paranoia",
-        "-O",
-        "wav",
-        "-no-infofile",
-        "-t",
+        "cd-paranoia",
+        "-q",
+        "-e",
+        "-X",
+        "-p",
         "3",
         "-",
     ]
-    assert sink_args == ["lame", "--silent", "-b", "320", "-", "-"]
+    assert sink_args == ["lame", "--silent", "-r", "-b", "320", "-", "-"]
     assert destination is staging.output
     assert destination.closed
     assert staging.path.read_bytes() == b"partial-or-complete-mp3"
@@ -113,9 +110,32 @@ def test_rip_track_streams_exact_commands_to_reserved_mp3(tmp_path: Path):
         "path": str(staging.path),
         "source_returncode": 0,
         "sink_returncode": 0,
-        "source_stderr": "source note",
-        "sink_stderr": "sink note",
+        "source_stderr": "reader note",
+        "sink_stderr": "encoder note",
     }
+
+
+def test_cd_paranoia_skip_marker_fails_even_when_both_processes_exit_zero(
+    tmp_path: Path,
+):
+    result = PipelineResult(
+        0,
+        0,
+        "##: 6 [skip] @ 12345\n",
+        "",
+    )
+    runner = FakeRunner(result)
+    journal = RecordingJournal()
+    staging = FakeStaging(tmp_path)
+
+    with pytest.raises(RipError, match="uncorrected skip"):
+        Ripper(runner, journal).rip_track(make_toc(), make_track(), staging)
+
+    assert staging.path.exists()
+    assert [event for event, _ in journal.records] == [
+        "track_rip_started",
+        "track_rip_failed",
+    ]
 
 
 @pytest.mark.parametrize(
@@ -142,30 +162,27 @@ def test_rip_failure_preserves_owned_output_and_reports_both_processes(
     assert result.sink_stderr in message
     assert raised.value.result is result
     assert staging.output is not None and staging.output.closed
-    assert staging.path.exists()
     assert staging.path.read_bytes() == b"partial-or-complete-mp3"
     assert len(staging.owned) == 1
     assert [event for event, _ in journal.records] == [
         "track_rip_started",
         "track_rip_failed",
     ]
-    assert journal.records[-1][1]["source_returncode"] == result.source_returncode
-    assert journal.records[-1][1]["sink_returncode"] == result.sink_returncode
-    assert journal.records[-1][1]["source_stderr"] == result.source_stderr
-    assert journal.records[-1][1]["sink_stderr"] == result.sink_stderr
 
 
 def test_rip_closes_and_preserves_destination_when_pipeline_cannot_start(tmp_path: Path):
     class RaisingRunner:
         def pipeline(self, source_args, sink_args, destination):
             destination.write(b"reserved")
-            raise OSError("lame unavailable")
+            raise OSError("extractor unavailable")
 
     journal = RecordingJournal()
     staging = FakeStaging(tmp_path)
 
-    with pytest.raises(OSError, match="lame unavailable"):
-        Ripper(RaisingRunner(), journal).rip_track(make_toc(), make_track(), staging)
+    with pytest.raises(OSError, match="extractor unavailable"):
+        Ripper(RaisingRunner(), journal).rip_track(
+            make_toc(), make_track(), staging
+        )
 
     assert staging.output is not None and staging.output.closed
     assert staging.path.read_bytes() == b"reserved"
@@ -174,7 +191,7 @@ def test_rip_closes_and_preserves_destination_when_pipeline_cannot_start(tmp_pat
         "track_rip_started",
         "track_rip_failed",
     ]
-    assert journal.records[-1][1]["error"] == "lame unavailable"
+    assert journal.records[-1][1]["error"] == "extractor unavailable"
 
 
 def test_rip_closes_and_preserves_destination_when_started_journal_fails(

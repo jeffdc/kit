@@ -15,6 +15,7 @@ def test_run_captures_output_without_a_shell():
     assert result.stderr == ""
 
 
+
 def test_pipeline_streams_source_through_sink(tmp_path: Path):
     destination = tmp_path / "pipeline.mp3"
     with destination.open("xb") as output:

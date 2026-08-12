@@ -32,7 +32,7 @@ Use a Python 3.12 orchestrator with narrow external dependencies:
 - Homebrew `libdiscid` plus Python `discid` for MusicBrainz disc identification;
 - the public MusicBrainz service at `https://musicbrainz.org` for release metadata;
 - the beets Python API for read-only library inspection;
-- Homebrew `cdrtools` (`cdda2wav`) for audio extraction;
+- Homebrew `libcdio-paranoia` (`cd-paranoia`) for verified audio extraction;
 - LAME for constant 320 kbps MP3 encoding;
 - the `beet` CLI for one fixed, copy-only import operation.
 
@@ -50,7 +50,7 @@ The package is divided into small adapters coordinated by a workflow state machi
 - **Drive adapter:** reports no media, audio media, or an unusable disc; reads the physical drive identifier; ejects only when requested by a successful or operator-approved transition.
 - **Disc metadata adapter:** reads the disc TOC and MusicBrainz disc ID, queries `https://musicbrainz.org`, and normalizes release candidates and expected tracks.
 - **Library adapter:** reads the active beets configuration and library, classifies candidates, and verifies post-import state. It exposes no mutation method.
-- **Ripper adapter:** streams one selected audio track from `cdda2wav` into LAME and writes one exclusively created MP3.
+- **Ripper adapter:** streams one selected audio track from `cd-paranoia` into LAME and writes one exclusively created MP3.
 - **Importer adapter:** invokes only the fixed beets import command described below.
 - **Filesystem safety adapter:** owns generated-path registration, local staging checks, NAS path checks, and the narrowly guarded MP3 unlink operation.
 - **Journal:** appends structured lifecycle events without truncating or deleting previous events.
@@ -148,7 +148,7 @@ For each expected audio track:
 
 1. Reserve a unique destination path with exclusive-create semantics so existing content can never be overwritten.
 2. Record that exact path as owned by the current run in memory and in the append-only journal.
-3. Stream the selected track from `cdda2wav` directly into LAME.
+3. Stream the selected track from `cd-paranoia` in full verification mode with abort-on-skip into LAME.
 4. Encode constant bitrate MP3 audio with an explicit 320 kbps setting.
 5. Treat any extractor or encoder failure as a hard workflow failure.
 
@@ -250,7 +250,7 @@ The implementation must not include a general-purpose cleanup command, arbitrary
 
 The implementation may install and use:
 
-- Homebrew `cdrtools`;
+- Homebrew `libcdio-paranoia`;
 - Homebrew `libdiscid`;
 - the already installed LAME and beets CLI;
 - a project-local Python virtual environment containing a beets version compatible with 2.8.0 and `python-discid`.
@@ -289,7 +289,7 @@ With no CD inserted, start the foreground watcher, observe the waiting state, an
 
 Insert one test CD and prove:
 
-- `drutil`, `libdiscid`, and `cdda2wav` can address the current HP CDDVDW TS-L633R drive;
+- `drutil`, `libdiscid`, and `cd-paranoia` can address the current HP CDDVDW TS-L633R drive;
 - Music may open and display the inserted CD but does not play, import, or eject it;
 - `cd2beets` retains access to the drive without terminating Music;
 - TOC and MusicBrainz disc ID agree on track count;

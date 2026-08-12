@@ -252,6 +252,7 @@ def test_main_composes_reviewed_adapters_after_successful_preflight(
     assert runtime.workflow_kwargs["library_root"] == runtime.settings.library_root.resolve()
     assert runtime.workflow_kwargs["journal"] is runtime.journal
     assert runtime.workflow_kwargs["ripper"] is runtime.ripper
+    assert runtime.ripper.args == (runtime.preflight_args[2].runner, runtime.journal)
     assert runtime.workflow_kwargs["importer"] is runtime.importer
     assert runtime.workflow_kwargs["ui"] is runtime.ui
     assert runtime.workflow_kwargs["music_detector"] is runtime.detector

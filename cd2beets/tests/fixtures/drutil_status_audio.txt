@@ -1,4 +1,9 @@
  Vendor   Product           Rev 
  hp       CDDVDW TS-L633R   0200
 
-           Type: Audio CD
+           Type: CD-ROM               Name: /dev/disk7
+       Sessions: 1                  Tracks: 6 
+   Overwritable:   00:00:00         blocks:        0 /   0.00MB /   0.00MiB
+     Space Free:   00:00:00         blocks:        0 /   0.00MB /   0.00MiB
+     Space Used:   31:42:08         blocks:   142658 / 292.16MB / 278.63MiB
+    Writability: 
