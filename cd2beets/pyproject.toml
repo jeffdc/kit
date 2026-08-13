@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cd2beets"
+version = "0.1.0"
+description = "Safely rip audio CDs into a beets library"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "beets==2.8.0",
+  "discid==1.4.2",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8,<10"]
+
+[project.scripts]
+cd2beets = "cd2beets.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["tests"]

@@ -30,9 +30,9 @@ Use a Python 3.12 orchestrator with narrow external dependencies:
 
 - macOS `drutil` for drive status and ejection;
 - Homebrew `libdiscid` plus Python `discid` for MusicBrainz disc identification;
-- the MusicBrainz server configured in beets for release metadata;
+- the public MusicBrainz service at `https://musicbrainz.org` for release metadata;
 - the beets Python API for read-only library inspection;
-- Homebrew `cdrtools` (`cdda2wav`) for audio extraction;
+- Homebrew `libcdio-paranoia` (`cd-paranoia`) for verified audio extraction;
 - LAME for constant 320 kbps MP3 encoding;
 - the `beet` CLI for one fixed, copy-only import operation.
 
@@ -48,9 +48,9 @@ This provides explicit state transitions and safety gates while delegating CD ex
 The package is divided into small adapters coordinated by a workflow state machine:
 
 - **Drive adapter:** reports no media, audio media, or an unusable disc; reads the physical drive identifier; ejects only when requested by a successful or operator-approved transition.
-- **Disc metadata adapter:** reads the disc TOC and MusicBrainz disc ID, queries the configured MusicBrainz host, and normalizes release candidates and expected tracks.
+- **Disc metadata adapter:** reads the disc TOC and MusicBrainz disc ID, queries `https://musicbrainz.org`, and normalizes release candidates and expected tracks.
 - **Library adapter:** reads the active beets configuration and library, classifies candidates, and verifies post-import state. It exposes no mutation method.
-- **Ripper adapter:** streams one selected audio track from `cdda2wav` into LAME and writes one exclusively created MP3.
+- **Ripper adapter:** streams one selected audio track from `cd-paranoia` into LAME and writes one exclusively created MP3.
 - **Importer adapter:** invokes only the fixed beets import command described below.
 - **Filesystem safety adapter:** owns generated-path registration, local staging checks, NAS path checks, and the narrowly guarded MP3 unlink operation.
 - **Journal:** appends structured lifecycle events without truncating or deleting previous events.
@@ -61,11 +61,11 @@ External commands are executed as argument vectors without a shell.
 
 ## macOS Music Insertion Handling
 
-Before the first batch run, the operator must open **Music > Settings > General** and set **When a CD is inserted** to **Ignore CD**, using Apple's supported user-interface setting documented in the [Music General settings guide](https://support.apple.com/guide/music/change-general-settings-mus1719/mac).
+Before the first batch run, the operator must open **Music > Settings > General** and set **When a CD is inserted** to **Show CD**, using the non-importing option available in this macOS version and documented in the [Music General settings guide](https://support.apple.com/guide/music/change-general-settings-mus1719/mac). The operator must not select **Import CD** or **Import CD and Eject**.
 
 `cd2beets` must not incorporate Music's importer. That would introduce a second managed library, Music-controlled encoding and destinations, and no reliable copy-verification boundary. The tool also must not write undocumented Music preference keys, quit Music, or terminate it automatically.
 
-Startup prints the one-time **Ignore CD** prerequisite. If disc identification or extraction reports that the drive is busy and the Music process is running, the tool pauses, explains the likely contention, and asks the operator to close Music manually or abort. It does not change Music or retry automatically.
+Startup prints the one-time **Show CD** prerequisite. Music may open and display the inserted disc, but it must not play, import, or eject it. If disc identification or extraction reports that the drive is busy and the Music process is running, the tool pauses, explains the likely contention, and asks the operator to close Music manually or abort. It does not change Music or retry automatically.
 
 ## Foreground Workflow
 
@@ -77,14 +77,14 @@ It must verify:
 
 - required binaries and Python modules are available;
 - beets is version-compatible with the library API used by the tool;
-- the configured MusicBrainz host is available before metadata lookup;
+- the active beets configuration uses `musicbrainz.host: musicbrainz.org`, and the public MusicBrainz service is available before metadata lookup;
 - the configured beets library database is readable;
 - the configured library directory exists, is writable, and is on a mounted filesystem distinct from the Mac root filesystem;
 - the local staging root is not within the beets library root;
 - active beets plugins and import configuration cannot delete, move, or replace existing library files through the tool's import invocation;
 - exactly one optical drive is selected.
 
-The current beets configuration has `directory: /Volumes/music/library` and `import.move: yes`. The tool must discover these values dynamically. It must stop before ripping while `/Volumes/music/library` is unavailable. The import operation must explicitly override `import.move: yes` with copy semantics.
+The current beets configuration has `directory: /Volumes/music/library` and `import.move: yes`. The one-time setup must set `musicbrainz.host: musicbrainz.org`, `musicbrainz.ratelimit: 1`, and `musicbrainz.ratelimit_interval: 1` so both direct metadata lookup and `beet import --search-id` use the public service without exceeding one request per second. The tool must discover the library and import values dynamically and reject any non-public MusicBrainz host. It must stop before ripping while `/Volumes/music/library` is unavailable. The import operation must explicitly override `import.move: yes` with copy semantics.
 
 ### 2. Wait for a Disc
 
@@ -94,7 +94,7 @@ Normal mode loops until interrupted. `--once` processes at most one detected dis
 
 ### 3. Identify and Select Metadata
 
-For an audio CD, the tool reads the TOC, computes the MusicBrainz disc ID, and queries the MusicBrainz host from the active beets configuration.
+For an audio CD, the tool reads the TOC, computes the MusicBrainz disc ID, and queries the public MusicBrainz service over HTTPS.
 
 - One complete, exact release candidate is selected automatically.
 - Multiple release candidates require an operator selection.
@@ -148,8 +148,8 @@ For each expected audio track:
 
 1. Reserve a unique destination path with exclusive-create semantics so existing content can never be overwritten.
 2. Record that exact path as owned by the current run in memory and in the append-only journal.
-3. Stream the selected track from `cdda2wav` directly into LAME.
-4. Encode constant bitrate MP3 audio with an explicit 320 kbps setting.
+3. Stream the selected track from `cd-paranoia` in full verification mode with abort-on-skip into LAME.
+4. Encode constant bitrate MP3 audio with an explicit 320 kbps setting and write the selected release's title, album artist, album title, year when known, and track number/total as ID3v2 metadata so beets can evaluate the fixed release match non-interactively.
 5. Treat any extractor or encoder failure as a hard workflow failure.
 
 No WAV intermediate is created. A failed or interrupted track remains preserved as a generated MP3 artifact and is never considered importable until a later explicit recovery flow verifies it.
@@ -241,7 +241,7 @@ Defaults:
 - foreground continuous mode;
 - staging at `~/Music/cd2beets-staging`;
 - a short, non-busy polling interval;
-- active beets configuration and MusicBrainz host;
+- active beets library/import configuration, with the public MusicBrainz endpoint fixed as described above;
 - conservative terminal prompt defaults.
 
 The implementation must not include a general-purpose cleanup command, arbitrary beets passthrough, daemon installation, launchd agent, GUI, cover-art workflow, lossless archive, or multi-drive orchestration.
@@ -250,12 +250,12 @@ The implementation must not include a general-purpose cleanup command, arbitrary
 
 The implementation may install and use:
 
-- Homebrew `cdrtools`;
+- Homebrew `libcdio-paranoia`;
 - Homebrew `libdiscid`;
 - the already installed LAME and beets CLI;
 - a project-local Python virtual environment containing a beets version compatible with 2.8.0 and `python-discid`.
 
-Setup is explicit and one-time. It includes selecting **Ignore CD** in Music as described above. Runtime preflight reports missing dependencies and reminds the operator about the Music setting but does not install packages or change application preferences automatically.
+Setup is explicit and one-time. It includes selecting **Show CD** in Music as described above and setting `musicbrainz.host: musicbrainz.org`, `musicbrainz.ratelimit: 1`, and `musicbrainz.ratelimit_interval: 1` in the active beets configuration. Runtime preflight reports missing dependencies, rejects a different MusicBrainz host, and reminds the operator about the Music setting, but it does not install packages or change application preferences automatically.
 
 ## Test and Verification Strategy
 
@@ -289,8 +289,8 @@ With no CD inserted, start the foreground watcher, observe the waiting state, an
 
 Insert one test CD and prove:
 
-- `drutil`, `libdiscid`, and `cdda2wav` can address the current HP CDDVDW TS-L633R drive;
-- Music does not react to or begin importing the inserted CD;
+- `drutil`, `libdiscid`, and `cd-paranoia` can address the current HP CDDVDW TS-L633R drive;
+- Music may open and display the inserted CD but does not play, import, or eject it;
 - `cd2beets` retains access to the drive without terminating Music;
 - TOC and MusicBrainz disc ID agree on track count;
 - metadata candidates are displayed correctly;

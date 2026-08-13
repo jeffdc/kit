@@ -1,0 +1,2 @@
+   Vendor   Product           Rev   Bus       SupportLevel
+1  hp       CDDVDW TS-L633R   0200  USB       Unsupported
