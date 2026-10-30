@@ -430,13 +430,17 @@ func (s *Store) ListInvoices(projectID string, status model.InvoiceStatus) []mod
 	return result
 }
 
-// MarkInvoicePaid marks an invoice as paid
-func (s *Store) MarkInvoicePaid(id string) (*model.Invoice, error) {
+// MarkInvoicePaid marks an invoice as paid.
+// If paidAt is nil, the current time is used.
+func (s *Store) MarkInvoicePaid(id string, paidAt *time.Time) (*model.Invoice, error) {
 	for i := range s.data.Invoices {
 		if s.data.Invoices[i].ID == id {
-			now := time.Now()
 			s.data.Invoices[i].Status = model.InvoiceStatusPaid
-			s.data.Invoices[i].PaidAt = &now
+			if paidAt == nil {
+				now := time.Now()
+				paidAt = &now
+			}
+			s.data.Invoices[i].PaidAt = paidAt
 			if err := s.save(); err != nil {
 				return nil, err
 			}

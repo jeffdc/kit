@@ -50,11 +50,11 @@ Investigate production incidents by collecting evidence, building a timeline, an
 
 ### Check for prior investigations
 
-Before collecting new data, check `docs/investigations/` for previous incident reports. Look for similar symptoms, same service/machine, or recurring patterns. Prior investigations may have already ruled out causes or deployed partial fixes — don't repeat that work.
+Before collecting new data, check `docs/incidents/` for previous incident reports. Look for similar symptoms, same service/machine, or recurring patterns. Prior investigations may have already ruled out causes or deployed partial fixes — don't repeat that work.
 
 ### Create the investigation doc
 
-Create `docs/investigations/<YYYYMMDD>-<slug>.md` immediately using this template:
+Create `docs/incidents/<YYYYMMDD>-<slug>.md` immediately using this template:
 
 ```markdown
 # P<severity>: <Title> - <Date>

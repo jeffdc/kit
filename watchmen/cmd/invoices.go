@@ -93,7 +93,18 @@ var invoicesPaidCmd = &cobra.Command{
 	Short: "Mark an invoice as paid",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		inv, err := store.MarkInvoicePaid(args[0])
+		paidAtStr, _ := cmd.Flags().GetString("paid-at")
+
+		var paidAt *time.Time
+		if paidAtStr != "" {
+			parsed, err := time.Parse("2006-01-02", paidAtStr)
+			if err != nil {
+				return fmt.Errorf("invalid date format for --paid-at, use YYYY-MM-DD")
+			}
+			paidAt = &parsed
+		}
+
+		inv, err := store.MarkInvoicePaid(args[0], paidAt)
 		if err != nil {
 			return fmt.Errorf("invoice %q not found", args[0])
 		}
@@ -154,6 +165,8 @@ func init() {
 	invoicesCmd.Flags().StringP("project", "p", "", "Filter by project name or ID")
 	invoicesCmd.Flags().BoolP("outstanding", "o", false, "Show only unpaid invoices")
 	invoicesCmd.Flags().Bool("paid", false, "Show only paid invoices")
+
+	invoicesPaidCmd.Flags().String("paid-at", "", "Set payment date (YYYY-MM-DD)")
 
 	invoicesCmd.AddCommand(invoicesPaidCmd)
 	invoicesCmd.AddCommand(invoicesShowCmd)

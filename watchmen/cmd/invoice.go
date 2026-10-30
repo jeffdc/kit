@@ -24,7 +24,8 @@ Examples:
   watchmen invoice myproject --week -d "Weekly dev"     # This week's entries
   watchmen invoice myproject --since 2024-01-01 --until 2024-01-31 -d "Jan work"
   watchmen invoice myproject --pdf invoice.pdf -d "Dev" # Generate PDF
-  watchmen invoice myproject --one-shot -d "Dev"        # Auto-generate invoice + report`,
+  watchmen invoice myproject --one-shot -d "Dev"        # Auto-generate invoice + report
+  watchmen invoice myproject --files -d "Dev"           # Generate PDF + markdown + report`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		sinceStr, _ := cmd.Flags().GetString("since")
@@ -41,6 +42,7 @@ Examples:
 		condensedDesc, _ := cmd.Flags().GetString("desc")
 		noSave, _ := cmd.Flags().GetBool("no-save")
 		oneShot, _ := cmd.Flags().GetBool("one-shot")
+		files, _ := cmd.Flags().GetBool("files")
 
 		// --detailed overrides --condensed
 		if detailed {
@@ -139,8 +141,8 @@ Examples:
 			CondensedDescription: condensedDesc,
 		}
 
-		if oneShot {
-			// One-shot mode: generate PDF, markdown invoice, and report
+		if oneShot || files {
+			// Generate PDF, markdown invoice, and stakeholder report
 			pdfFileName := invoiceNum + ".pdf"
 			mdFileName := invoiceNum + ".md"
 			reportFileName := fmt.Sprintf("report-%s-%s.md", project.Name, now.Format("20060102"))
@@ -285,4 +287,5 @@ func init() {
 	invoiceCmd.Flags().StringP("desc", "d", "", "Description for condensed invoice line item (required for condensed)")
 	invoiceCmd.Flags().Bool("no-save", false, "Don't save invoice record (preview only)")
 	invoiceCmd.Flags().Bool("one-shot", false, "Generate invoice + report, auto-calculating dates from last invoice")
+	invoiceCmd.Flags().Bool("files", false, "Generate PDF + markdown invoice + stakeholder report")
 }
