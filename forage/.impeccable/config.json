@@ -11,6 +11,24 @@
         ],
         "createdAt": "2026-11-08T21:04:58.906Z",
         "reason": "agent decision: throwaway direction-round sketch imitating iOS 10px tab labels; not shipped"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/model-pick.html"
+        ],
+        "createdAt": "2026-11-08T21:16:03.299Z",
+        "reason": "agent decision: unchosen direction-round sketch with its own world's fonts; gitignored, never shipped"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/canon.html"
+        ],
+        "createdAt": "2026-11-08T21:16:03.317Z",
+        "reason": "agent decision: unchosen direction-round sketch with its own world's fonts; gitignored, never shipped"
       }
     ]
   }
