@@ -6,7 +6,7 @@ export const STATUSES = ["wishlist", "owned", "reading", "paused", "read", "drop
 
 export const STATUS_LABEL = {
   wishlist: "Wishlist", owned: "Owned", reading: "Reading",
-  paused: "Paused", read: "Read", dropped: "Dropped",
+  paused: "Paused", read: "Read", dropped: "Abandoned", // stored as "dropped"
 };
 
 // --- IDs and dates ---
@@ -239,19 +239,20 @@ export function initial(book, sort) {
   return /[A-Z]/.test(c) ? c : "#";
 }
 
-/** Wishlist tab: wishlist and owned books. */
+/** Wishlist tab: books you want and don't have. */
 export function wishlistBooks(view, sort = "author") {
-  const list = [...view.books.values()].filter((b) => b.status === "wishlist" || b.status === "owned");
+  const list = [...view.books.values()].filter((b) => b.status === "wishlist");
   return list.sort((SORTS[sort] || SORTS.author).fn);
 }
 
-/** Reading tab: reading, then paused. */
+/** Reading tab: reading, paused, and owned books not started yet. */
 export function readingBooks(view, sort = "title") {
   const fn = (SORTS[sort] || SORTS.title).fn;
   const all = [...view.books.values()];
   return {
     reading: all.filter((b) => b.status === "reading").sort(fn),
     paused: all.filter((b) => b.status === "paused").sort(fn),
+    owned: all.filter((b) => b.status === "owned").sort(fn),
   };
 }
 
@@ -276,7 +277,10 @@ export function historyGroups(view, sort = "date") {
   }
   const out = [];
   for (const [key, entries] of groups) {
-    entries.sort((x, y) => (y.read.date_finished || "").localeCompare(x.read.date_finished || "") || byAuthor(x.book, y.book));
+    // Undated reads: most recently added first, so recent ones needing a date are on top.
+    entries.sort(key === "undated"
+      ? (x, y) => byAdded(x.book, y.book)
+      : (x, y) => (y.read.date_finished || "").localeCompare(x.read.date_finished || "") || byAuthor(x.book, y.book));
     out.push({ key, label: key === "undated" ? "Undated" : key, count: entries.length, entries });
   }
   out.sort((a, b) => (a.key === "undated") - (b.key === "undated") || b.key.localeCompare(a.key));

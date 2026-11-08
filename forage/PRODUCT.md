@@ -42,7 +42,7 @@ A private, single-user tool built around the owner's own jobs: a quick wishlist 
 ## Capabilities and Constraints
 
 - About 2,100 books: roughly 1,900 read, 150 on the wishlist, plus reading, paused, owned and dropped.
-- Statuses: wishlist, owned, reading, paused, read, dropped. All six stay.
+- Statuses: wishlist, owned, reading, paused, read, dropped (shown as "Abandoned"; Goodreads called it abandoned). All six stay. Owned books sit on the Reading tab ("On your shelf, not started"), not the wishlist.
 - Reads: a book can be read many times, and each read has a date finished (day precision). 1,345 older reads have no date (imported history).
 - Rating (0–5 stars) belongs to the book, not to each read.
 - Open Library supplies book metadata. A server-side resolver turns a URL, ISBN, Bluesky post or text into candidate books and flags ones already in the library.

@@ -49,7 +49,7 @@ function shelfHead(tab, title, count, sortHTML) {
 export function wishlistView(view, sort, pending) {
   const books = wishlistBooks(view, sort);
   const head = shelfHead("wishlist", "Wishlist", plural(books.length, "book"), sortSelect("wishlist", sort, ["author", "title", "added", "year"]));
-  if (!books.length) return head + empty("Nothing on the wishlist yet.", "Add a book with the + button, or share a link to Forage.");
+  if (!books.length) return head + empty("Nothing on the wishlist.", "Add a book with the + button.");
   const lettered = sort === "author" || sort === "title";
   let html = head + '<ul class="list">';
   let letter = "";
@@ -61,22 +61,24 @@ export function wishlistView(view, sort, pending) {
         html += `<li class="letter" aria-hidden="true">${l}</li>`;
       }
     }
-    const meta = (b.status === "owned" ? tag("owned") : "") + (b.first_published ? `<span>${b.first_published}</span>` : "");
+    const meta = b.first_published ? `<span>${b.first_published}</span>` : "";
     html += row(b, meta, pending.has(b.id));
   }
   return html + "</ul>";
 }
 
 export function readingView(view, sort, pending) {
-  const { reading, paused } = readingBooks(view, sort);
-  let html = shelfHead("reading", "Reading", plural(reading.length + paused.length, "book"), sortSelect("reading", sort, ["title", "author", "added"]));
-  if (!reading.length && !paused.length) return html + empty("You're not reading anything.", "Open a book and tap Start reading.");
-  html += '<ul class="list">' + reading.map((b) => row(b, "", pending.has(b.id))).join("") + "</ul>";
-  if (paused.length) {
-    html += `<h2 class="sub-head s-paused"><span class="swatch" aria-hidden="true"></span>Paused <span class="count">${paused.length}</span></h2>`;
-    html += '<ul class="list">' + paused.map((b) => row(b, "", pending.has(b.id))).join("") + "</ul>";
-  }
-  return html;
+  const { reading, paused, owned } = readingBooks(view, sort);
+  let html = shelfHead("reading", "Reading", plural(reading.length, "book"), sortSelect("reading", sort, ["title", "author", "added"]));
+  if (!reading.length && !paused.length && !owned.length) return html + empty("You're not reading anything.", "Open a book and tap Start reading.");
+  html += reading.length
+    ? '<ul class="list">' + reading.map((b) => row(b, "", pending.has(b.id))).join("") + "</ul>"
+    : '<p class="hint">Nothing in progress.</p>';
+  const section = (status, title, books) => books.length
+    ? `<h2 class="sub-head s-${status}"><span class="swatch" aria-hidden="true"></span>${title} <span class="count">${books.length}</span></h2>` +
+      '<ul class="list">' + books.map((b) => row(b, "", pending.has(b.id))).join("") + "</ul>"
+    : "";
+  return html + section("paused", "Paused", paused) + section("owned", "On your shelf, not started", owned);
 }
 
 export function historyView(view, sort, pending) {
@@ -127,7 +129,7 @@ function primaryActions(b) {
     case "reading": return btn("finish", "Finished", "primary") + btn("pause", "Pause");
     case "paused": return btn("resume", "Resume", "primary") + btn("finish", "Finished");
     case "read": return btn("reread", "Read again", "primary");
-    case "dropped": return btn("undrop", "Undrop", "primary");
+    case "dropped": return btn("undrop", "Back to wishlist", "primary");
     default: return "";
   }
 }
@@ -201,7 +203,7 @@ export function detailView(b, reads, sellers, ui) {
       ${b.body ? `<p class="notes">${esc(b.body)}</p>` : ""}
       <div class="detail-actions">
         <button class="btn" data-act="edit">${ic.pencil()}Edit details</button>
-        ${b.status === "dropped" ? "" : `<button class="btn" data-act="drop">Drop</button>`}
+        ${b.status === "dropped" ? "" : `<button class="btn" data-act="drop">Abandon</button>`}
         <button class="btn danger${ui.confirmDelete ? " armed" : ""}" data-act="delete">${ic.trash()}${ui.confirmDelete ? "Tap again to delete" : "Delete"}</button>
       </div>
     </section>
@@ -312,7 +314,7 @@ export function settingsView(st, ui) {
     </section>
     <section class="detail-sec"><h3>Library</h3>
       <p class="muted">${joinFacts([plural(st.view.books.size, "book"), plural(undated, "undated read") + " (listed at the end of History)"])}</p>
-      ${dropped.length ? `<details class="dropped"><summary>Dropped books (${dropped.length})</summary><ul class="list">${dropped.map((b) => row(b, "", false)).join("")}</ul></details>` : ""}
+      ${dropped.length ? `<details class="dropped"><summary>Abandoned books (${dropped.length})</summary><ul class="list">${dropped.map((b) => row(b, "", false)).join("")}</ul></details>` : ""}
     </section>
     <p class="build muted">Build ${esc(ui.build || "…")}</p>`;
 }

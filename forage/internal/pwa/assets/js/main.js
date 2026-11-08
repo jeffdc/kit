@@ -49,7 +49,7 @@ function renderMain() {
     html = V.wishlistView(st.view, ui.sorts.wishlist, pending);
   }
   $("#main").innerHTML = html;
-  document.body.dataset.tab = ui.query.trim() ? "search" : ui.tab;
+  document.body.dataset.view = ui.query.trim() ? "search" : ui.tab;
   for (const b of document.querySelectorAll(".tab[data-tab]")) {
     const on = !ui.query.trim() && b.dataset.tab === ui.tab;
     b.setAttribute("aria-current", on ? "page" : "false");
@@ -447,7 +447,7 @@ function bind() {
     }
     const bookBtn = t.closest("[data-book]");
     if (bookBtn) return openDetail(bookBtn.dataset.book);
-    const tab = t.closest("[data-tab]");
+    const tab = t.closest("button.tab[data-tab]"); // only the tab bar (not any ancestor)
     if (tab) {
       ui.tab = tab.dataset.tab;
       setQuery("");

@@ -229,9 +229,9 @@ h1, h2, h3, p { margin: 0; }
   font-size: 13px; font-weight: 600; letter-spacing: .04em; color: var(--n2);
 }
 .tab[aria-current="page"] { color: var(--ink); }
-body[data-tab="wishlist"] .tab[data-tab="wishlist"] { border-top-color: var(--band-wishlist); }
-body[data-tab="reading"] .tab[data-tab="reading"] { border-top-color: var(--band-reading); }
-body[data-tab="history"] .tab[data-tab="history"] { border-top-color: var(--band-read); }
+body[data-view="wishlist"] .tab[data-tab="wishlist"] { border-top-color: var(--band-wishlist); }
+body[data-view="reading"] .tab[data-tab="reading"] { border-top-color: var(--band-reading); }
+body[data-view="history"] .tab[data-tab="history"] { border-top-color: var(--band-read); }
 .add-btn {
   flex: none; align-self: center;
   width: 58px; height: 48px; margin-left: 6px;

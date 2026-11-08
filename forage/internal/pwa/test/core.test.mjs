@@ -132,19 +132,25 @@ test("tab lists", () => {
     [read("r1", "6", "2025-03-01"), read("r2", "6", "2022-01-01"), read("r3", "6", ""), read("r4", "4", "2019-01-01")],
   );
   const v = overlay(s, []);
-  assert.deepEqual(wishlistBooks(v).map((b) => b.id), ["3", "1", "2"], "by surname, owned included");
-  assert.deepEqual(wishlistBooks(v, "title").map((b) => b.id), ["3", "1", "2"].sort((a, b) => ({ 3: "genius", 1: "pastoral", 2: "ring" })[a].localeCompare(({ 3: "genius", 1: "pastoral", 2: "ring" })[b])));
+  assert.deepEqual(wishlistBooks(v).map((b) => b.id), ["3", "1"], "by surname; owned books are not on the wishlist");
+  assert.deepEqual(wishlistBooks(v, "title").map((b) => b.id), ["3", "1"], "genius, pastoral");
   assert.equal(initial(v.books.get("3"), "title"), "G", "leading article ignored");
   const r = readingBooks(v);
-  assert.deepEqual([r.reading.map((b) => b.id), r.paused.map((b) => b.id)], [["4"], ["5"]]);
+  assert.deepEqual([r.reading.map((b) => b.id), r.paused.map((b) => b.id), r.owned.map((b) => b.id)], [["4"], ["5"], ["2"]]);
 
-  const groups = historyGroups(v);
+  // Undated reads list the most recently added book first.
+  s.books.set("8", book("8", "Older", "A. Writer", { status: "read", date_added: "2020-01-01" }));
+  s.books.set("9", book("9", "Newer", "B. Writer", { status: "read", date_added: "2026-06-01" }));
+  s.reads.set("r8", read("r8", "8", "")); s.reads.set("r9", read("r9", "9", ""));
+  const groups = historyGroups(overlay(s, []));
   assert.deepEqual(groups.map((g) => g.label), ["2025", "2022", "2019", "Undated"]);
   assert.equal(groups[0].entries[0].book.id, "6");
-  const flat = historyGroups(v, "author");
+  // Book 6 (Babel) was added 2026-01-01 by the helper: between the two.
+  assert.deepEqual(groups[3].entries.map((e) => e.book.id), ["9", "6", "8"], "undated: newest added first");
+  const flat = historyGroups(overlay(s, []), "author");
   assert.equal(flat.length, 1);
-  assert.deepEqual(flat[0].entries.map((e) => e.book.id), ["4", "6"], "one entry per book");
-  assert.equal(flat[0].entries[1].read.date_finished, "2025-03-01");
+  assert.deepEqual(flat[0].entries.map((e) => e.book.id), ["4", "6", "8", "9"], "one entry per book, by surname");
+  assert.equal(flat[0].entries[1].read.date_finished, "2025-03-01", "latest read shown");
 });
 
 test("sellers: used first, Amazon last; ISBN where the URL wants it", () => {
