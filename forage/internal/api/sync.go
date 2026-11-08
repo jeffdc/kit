@@ -1,20 +1,26 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"forage/internal/model"
+	"forage/internal/resolve"
 	"forage/internal/storage"
 )
 
 // maxOpsPerRequest bounds one POST /api/ops batch; clients send more in
 // several requests.
 const maxOpsPerRequest = 500
+
+// resolveTimeout bounds one /api/resolve call (several outbound requests).
+const resolveTimeout = 20 * time.Second
 
 // handleSync serves GET /api/sync?since=REV: everything changed after REV,
 // or a full snapshot when since is 0, missing, or ahead of the server.
@@ -145,4 +151,38 @@ func writeStoreError(w http.ResponseWriter, err error) {
 	default:
 		writeError(w, http.StatusInternalServerError, err.Error())
 	}
+}
+
+type resolveRequest struct {
+	Input string `json:"input"`
+}
+
+// handleResolve serves POST /api/resolve: turn a shared URL, ISBN or text
+// into candidate books, each marked if it's already in the library.
+func (h *handler) handleResolve(w http.ResponseWriter, r *http.Request) {
+	var req resolveRequest
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), resolveTimeout)
+	defer cancel()
+
+	res, err := h.resolver.Resolve(ctx, req.Input)
+	if errors.Is(err, resolve.ErrEmptyInput) {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err != nil {
+		log.Printf("resolve %q: %v", req.Input, err)
+		writeError(w, http.StatusBadGateway, "lookup failed: "+err.Error())
+		return
+	}
+	books, err := h.store.ListBooks()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	resolve.MarkLibraryMatches(res.Candidates, books)
+	writeJSON(w, res)
 }

@@ -2,7 +2,10 @@ module forage
 
 go 1.25.0
 
-require modernc.org/sqlite v1.46.1
+require (
+	golang.org/x/text v0.21.0
+	modernc.org/sqlite v1.46.1
+)
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect

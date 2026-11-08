@@ -12,6 +12,7 @@ import (
 
 	"forage/internal/changes"
 	"forage/internal/model"
+	"forage/internal/resolve"
 	"forage/internal/storage"
 )
 
@@ -19,21 +20,23 @@ import (
 const maxBodyBytes = 1 << 20
 
 type handler struct {
-	store   *storage.Store
-	apiKey  string
-	build   string
-	mu      sync.Mutex
-	version time.Time
+	store    *storage.Store
+	resolver *resolve.Resolver
+	apiKey   string
+	build    string
+	mu       sync.Mutex
+	version  time.Time
 }
 
 // NewHandler returns an http.Handler serving the API and, if static is non-nil,
 // the PWA files. Every /api route except /api/health requires the API key.
 func NewHandler(store *storage.Store, apiKey, build string, static fs.FS) http.Handler {
 	h := &handler{
-		store:   store,
-		apiKey:  apiKey,
-		build:   build,
-		version: time.Now(),
+		store:    store,
+		resolver: resolve.New(),
+		apiKey:   apiKey,
+		build:    build,
+		version:  time.Now(),
 	}
 
 	mux := http.NewServeMux()
@@ -45,6 +48,7 @@ func NewHandler(store *storage.Store, apiKey, build string, static fs.FS) http.H
 	mux.Handle("GET /api/sync", h.auth(h.handleSync))
 	mux.Handle("POST /api/ops", h.auth(h.handleOps))
 	mux.Handle("POST /api/books", h.auth(h.handleCreateBook))
+	mux.Handle("POST /api/resolve", h.auth(h.handleResolve))
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not found")
 	})

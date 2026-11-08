@@ -81,24 +81,33 @@ The existing API keeps working throughout this phase, because the old PWA on the
 
 ## Phase 2: Data model and sync API
 
-- [ ] Add a `reads` table: id, book_id, date_finished, optional date_started.
+- [x] Add a `reads` table: id, book_id, date_finished, optional date_started.
   - Migrate the existing `date_read` values into it. Books marked read with no date get a read with an empty date, which History shows under "Undated".
   - A book is "read" when it has at least one read and isn't currently being read again.
-- [ ] Every row gets `rev`, `updated_at` and `deleted`:
+- [x] Every row gets `rev`, `updated_at` and `deleted`:
   - `rev` comes from one global counter.
   - `deleted` makes deletes soft (tombstones).
-- [ ] Book updates change multiple fields in one transaction, and recompute `sort_author` whenever the author changes.
-- [ ] New IDs are 12 hex characters, generated on the client so offline adds work. A collision is rejected explicitly, never skipped silently. Existing 4-character IDs are kept.
-- [ ] `GET /api/sync?since=REV` returns changed books and reads (including tombstones) plus the new revision.
-- [ ] `POST /api/ops` takes ops that each carry a client op ID, and returns a result per op. The client deletes only the ops that succeeded.
-- [ ] `POST /api/books` is a simple create, for the Shortcut.
-- [ ] `POST /api/resolve` takes a URL, ISBN or text and returns book candidates, each marked if it's already in the library ("read 2019 ★★★★", "on wishlist").
+- [x] Book updates change multiple fields in one transaction, and recompute `sort_author` whenever the author changes.
+- [x] New IDs are 12 hex characters, generated on the client so offline adds work. A collision is rejected explicitly, never skipped silently. Existing 4-character IDs are kept.
+- [x] `GET /api/sync?since=REV` returns changed books and reads (including tombstones) plus the new revision.
+- [x] `POST /api/ops` takes ops that each carry a client op ID, and returns a result per op. The client deletes only the ops that succeeded.
+- [x] `POST /api/books` is a simple create, for the Shortcut.
+- [x] `POST /api/resolve` takes a URL, ISBN or text and returns book candidates, each marked if it's already in the library ("read 2019 ★★★★", "on wishlist").
   - **ISBN:** Open Library edition → work → title and authors.
   - **URL:** fetch the page (with an SSRF guard, size and time limits). Pull JSON-LD Book data, og tags, and ISBNs from known URL patterns (Amazon, Bookshop, Goodreads, AbeBooks, etc.). Then search Open Library.
   - **Bluesky post URL:** fetch the post through Bluesky's public API. If it has a link card, resolve that link; otherwise return the post text.
   - **Text:** Open Library search.
   - Library matching normalizes titles and authors (accents, punctuation, a leading "The", subtitles).
-- [ ] Tests for migrations, sync semantics, and the resolver extractors (using saved fixture pages).
+- [x] Tests for migrations, sync semantics, and the resolver extractors (using saved fixture pages).
+- [x] Added: legacy `/api/changes` maps onto reads. Marking a book read records a read dated today; creating a book as read records an undated read. This fixes missing read dates even before the PWA rewrite.
+- [x] Added: optional `FORAGE_TZ` so "today" is local time, not UTC.
+
+Notes for Phase 3:
+- 1,345 of 1,889 reads are undated (old imports), so History needs a good "Undated" section.
+- The client should drop and surface "rejected" ops, retry the whole batch on a 5xx, and do a full resync when `epoch` changes.
+- The Sprite's proxy already compresses responses (Brotli), so the full sync (~740 KB raw) is fine.
+- The resolver handles Goodreads, Amazon, Bookshop, ThriftBooks, Wikipedia, Penguin Random House and Open Library links, as well as Bluesky posts with link cards. Posts without links return their text for manual entry.
+- [ ] Deploy to production.
 
 ## Phase 3: PWA rewrite
 

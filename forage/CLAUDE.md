@@ -28,9 +28,10 @@ For browser testing, `.claude/launch.json` defines `forage-local` (runs `make ru
 
 - `cmd/forage-server/` - Entry point: config from env, HTTP server with timeouts and graceful shutdown
 - `internal/api/` - HTTP handlers, auth, request logging, static file serving
-- `internal/changes/` - Applies the PWA's change log (`POST /api/changes`)
-- `internal/model/` - Book and Bookseller types, statuses, author sort keys
-- `internal/storage/` - SQLite store and versioned migrations (`migrate.go`)
+- `internal/changes/` - Legacy: applies the original PWA's change log (`POST /api/changes`) onto the current schema
+- `internal/model/` - Book, Read, Op and Bookseller types, statuses, author sort keys
+- `internal/resolve/` - Turns a shared URL, ISBN, Bluesky post or text into candidate books (Open Library) and marks library matches
+- `internal/storage/` - SQLite store, versioned migrations (`migrate.go`), op application (`ops.go`)
 - `internal/pwa/` - Embedded PWA files (`assets/`), served by the server
 
 ## Key Patterns
@@ -43,22 +44,35 @@ For browser testing, `.claude/launch.json` defines `forage-local` (runs `make ru
 
 **PWA**: plain JS, no build step, no framework. IndexedDB holds books and a queue of pending changes. The service worker is network-first and bypasses the HTTP cache so deploys show up. Bump `CACHE_NAME` in `sw.js` when changing app files.
 
-**Book IDs**: new IDs are 12 hex characters (`storage.NewID`, `genId` in the PWA). Older books keep 4-character IDs.
+**Book IDs**: new IDs are 12 hex characters (`storage.NewID`, `genId` in the PWA). Older books keep 4-character IDs. Reads use the same ID format.
+
+**Reads**: read history lives in the `reads` table (one row per reading, `date_finished` may be empty for unknown). A book's `date_read` in API responses is derived from its latest read. `books.date_read` is a legacy column, unused since migration 2.
+
+**Revisions and sync**: every write runs in `Store.write`, which bumps a global revision (`meta.rev`) and stamps the changed rows. Deletes are soft (tombstones). `GET /api/sync?since=REV` returns changes after REV. `meta.epoch` identifies the database: after restoring a backup, change it (`UPDATE meta SET value = value + 1 WHERE key = 'epoch'`) so clients start over with a full sync.
+
+**Ops**: clients send `POST /api/ops` batches; each op has a client `op_id`, and `applied_ops` makes replays harmless. A "rejected" result is permanent (bad input, unknown ID, ID taken): the client should drop the op and tell the user, not retry. A 5xx means retry the whole batch.
+
+**Resolver**: deterministic, no LLM. It tries, in order, an ISBN in the URL, Open Library's own IDs, the page's JSON-LD/Open Graph data, and the URL slug. Bluesky posts are read through the public API and their link card and links are followed. Page fetches use a client that refuses internal addresses (checked on the dialed IP, including redirects). Loose searches are filtered for relevance.
 
 ## Server environment
 
 - `FORAGE_API_KEY` (required)
 - `FORAGE_DIR` (default `/home/sprite/forage`)
 - `PORT` (default 8080)
+- `FORAGE_TZ`: IANA zone used for "today" (default: system zone, UTC on the Sprite)
 - `FORAGE_DEV_WWW`: development only; serve PWA files from disk instead of the embedded copy
 
 ## API
 
+All routes except `/api/health` need `Authorization: Bearer <key>`.
+
 - `GET /api/health`: build version (public)
-- `GET /api/books`: non-dropped books
-- `GET /api/version`: data version timestamp
-- `POST /api/changes`: apply a change log from the PWA
+- `GET /api/sync?since=REV`: books and reads changed after REV (or a full snapshot), plus `rev` and `epoch`
+- `POST /api/ops`: `{"ops": [...]}` → `{"results": [...]}`, one ok/rejected result per op (see `model.Op`)
+- `POST /api/books`: create one book with a server ID (for the iOS Shortcut)
+- `POST /api/resolve`: `{"input": "<url, isbn or text>"}` → candidate books with library matches
 - `GET /api/booksellers`: seller search URL templates
+- Legacy, used by the current PWA until its rewrite: `GET /api/books` (non-dropped books), `GET /api/version`, `POST /api/changes`. Through `/api/changes`, marking a book read records a read dated today, and creating a book as read records an undated read.
 
 ## Deployment
 
