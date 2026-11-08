@@ -1,12 +1,9 @@
 package api
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -14,14 +11,6 @@ import (
 	"forage/internal/model"
 	"forage/internal/storage"
 )
-
-type fakePriceFetcher struct {
-	quotes []model.PriceQuote
-}
-
-func (f fakePriceFetcher) FetchPrices(_ context.Context, _ model.Book, _ []model.Bookseller) []model.PriceQuote {
-	return f.quotes
-}
 
 func newTestStore(t *testing.T) *storage.Store {
 	t.Helper()
@@ -51,8 +40,8 @@ func TestGetBooks(t *testing.T) {
 		t.Fatalf("updating book status: %v", err)
 	}
 
-	handler := NewHandler(s, "test-key", "")
-	req := httptest.NewRequest("GET", "/api/books", nil)
+	handler := NewHandler(s, "test-key", "test", nil)
+	req := authed("GET", "/api/books", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -77,9 +66,9 @@ func TestGetBooks(t *testing.T) {
 
 func TestGetVersion(t *testing.T) {
 	s := newTestStore(t)
-	handler := NewHandler(s, "test-key", "")
+	handler := NewHandler(s, "test-key", "test", nil)
 
-	req := httptest.NewRequest("GET", "/api/version", nil)
+	req := authed("GET", "/api/version", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -102,7 +91,7 @@ func TestGetVersion(t *testing.T) {
 
 func TestPostChanges_Unauthorized(t *testing.T) {
 	s := newTestStore(t)
-	handler := NewHandler(s, "correct-key", "")
+	handler := NewHandler(s, "correct-key", "test", nil)
 
 	body := `{"version":1,"exported":"2025-01-01T00:00:00Z","changes":[]}`
 
@@ -131,7 +120,7 @@ func TestPostChanges_Unauthorized(t *testing.T) {
 
 func TestPostChanges_Create(t *testing.T) {
 	s := newTestStore(t)
-	handler := NewHandler(s, "test-key", "")
+	handler := NewHandler(s, "test-key", "test", nil)
 
 	body := `{
 		"version": 1,
@@ -168,7 +157,7 @@ func TestPostChanges_Create(t *testing.T) {
 	}
 
 	// Verify the book now appears in GET /api/books
-	req = httptest.NewRequest("GET", "/api/books", nil)
+	req = authed("GET", "/api/books", nil)
 	w = httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -188,7 +177,7 @@ func TestPostChanges_UpdateFromPWA(t *testing.T) {
 	if err != nil {
 		t.Fatalf("creating book: %v", err)
 	}
-	handler := NewHandler(s, "test-key", "")
+	handler := NewHandler(s, "test-key", "test", nil)
 
 	body := `{
 		"version": 1,
@@ -246,10 +235,10 @@ func TestPostChanges_UpdateFromPWA(t *testing.T) {
 
 func TestPostChanges_BumpsVersion(t *testing.T) {
 	s := newTestStore(t)
-	handler := NewHandler(s, "test-key", "")
+	handler := NewHandler(s, "test-key", "test", nil)
 
 	// Get initial version
-	req := httptest.NewRequest("GET", "/api/version", nil)
+	req := authed("GET", "/api/version", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -284,7 +273,7 @@ func TestPostChanges_BumpsVersion(t *testing.T) {
 	}
 
 	// Get version again
-	req = httptest.NewRequest("GET", "/api/version", nil)
+	req = authed("GET", "/api/version", nil)
 	w = httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -300,13 +289,8 @@ func TestPostChanges_BumpsVersion(t *testing.T) {
 func TestGetBooksellers(t *testing.T) {
 	s := newTestStore(t)
 
-	_, err := s.AddBookseller("Powell's Books", "https://powells.com")
-	if err != nil {
-		t.Fatalf("adding bookseller: %v", err)
-	}
-
-	handler := NewHandler(s, "test-key", "")
-	req := httptest.NewRequest("GET", "/api/booksellers", nil)
+	handler := NewHandler(s, "test-key", "test", nil)
+	req := authed("GET", "/api/booksellers", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -323,145 +307,9 @@ func TestGetBooksellers(t *testing.T) {
 	for _, seller := range sellers {
 		names[seller.Name] = true
 	}
-	for _, want := range []string{"Powell's Books", "Goodreads", "Amazon"} {
+	for _, want := range []string{"Better World Books", "Goodreads", "Amazon"} {
 		if !names[want] {
 			t.Fatalf("expected booksellers response to include %q", want)
 		}
-	}
-}
-
-func TestPostPrices(t *testing.T) {
-	s := newTestStore(t)
-
-	book, err := s.CreateBook("Dune", "Frank Herbert", map[string]string{"isbn": "9780441172719"})
-	if err != nil {
-		t.Fatalf("creating book: %v", err)
-	}
-
-	h := &handler{
-		store:   s,
-		apiKey:  "test-key",
-		version: time.Now(),
-		priceFetcher: fakePriceFetcher{quotes: []model.PriceQuote{
-			{
-				SellerName: "AbeBooks",
-				SearchURL:  "https://example.com/abebooks?q=9780441172719",
-				Price:      "$12.99",
-				Amount:     12.99,
-				Currency:   "USD",
-				Status:     "ok",
-				FetchedAt:  "2026-05-06T12:00:00Z",
-			},
-			{
-				SellerName: "Amazon",
-				SearchURL:  "https://example.com/amazon?q=9780441172719",
-				Status:     "unavailable",
-				Message:    "no price found",
-				FetchedAt:  "2026-05-06T12:00:00Z",
-			},
-		}},
-	}
-
-	req := httptest.NewRequest("POST", "/api/prices", strings.NewReader(`{"id":"`+book.ID+`"}`))
-	req.Header.Set("Authorization", "Bearer test-key")
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	h.handlePrices(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
-	}
-
-	var updated model.Book
-	if err := json.Unmarshal(w.Body.Bytes(), &updated); err != nil {
-		t.Fatalf("unmarshaling response: %v", err)
-	}
-	if len(updated.PriceQuotes) != 2 {
-		t.Fatalf("len(updated.PriceQuotes) = %d, want 2", len(updated.PriceQuotes))
-	}
-	if updated.PriceQuotes[0].Price != "$12.99" {
-		t.Errorf("first price = %q, want $12.99", updated.PriceQuotes[0].Price)
-	}
-
-	stored, err := s.GetBook(book.ID)
-	if err != nil {
-		t.Fatalf("GetBook() error: %v", err)
-	}
-	if len(stored.PriceQuotes) != 2 {
-		t.Fatalf("len(stored.PriceQuotes) = %d, want 2", len(stored.PriceQuotes))
-	}
-}
-
-func TestPostPrices_Unauthorized(t *testing.T) {
-	s := newTestStore(t)
-	book, err := s.CreateBook("Dune", "Frank Herbert", nil)
-	if err != nil {
-		t.Fatalf("creating book: %v", err)
-	}
-
-	h := &handler{
-		store:        s,
-		apiKey:       "test-key",
-		version:      time.Now(),
-		priceFetcher: fakePriceFetcher{},
-	}
-
-	req := httptest.NewRequest("POST", "/api/prices", strings.NewReader(`{"id":"`+book.ID+`"}`))
-	w := httptest.NewRecorder()
-	h.handlePrices(w, req)
-
-	if w.Code != http.StatusUnauthorized {
-		t.Fatalf("expected 401, got %d", w.Code)
-	}
-}
-
-func TestStaticFiles(t *testing.T) {
-	s := newTestStore(t)
-
-	wwwDir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(wwwDir, "index.html"), []byte("<html>hello</html>"), 0644); err != nil {
-		t.Fatalf("writing test file: %v", err)
-	}
-
-	handler := NewHandler(s, "test-key", wwwDir)
-	req := httptest.NewRequest("GET", "/", nil)
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
-	}
-	if !strings.Contains(w.Body.String(), "<html>hello</html>") {
-		t.Fatalf("expected html content, got %q", w.Body.String())
-	}
-}
-
-func TestCORS(t *testing.T) {
-	s := newTestStore(t)
-	handler := NewHandler(s, "test-key", "")
-
-	req := httptest.NewRequest("OPTIONS", "/api/books", nil)
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
-
-	if w.Code != http.StatusNoContent {
-		t.Fatalf("expected 204 for OPTIONS, got %d", w.Code)
-	}
-	if v := w.Header().Get("Access-Control-Allow-Origin"); v != "*" {
-		t.Fatalf("expected CORS origin *, got %q", v)
-	}
-	if v := w.Header().Get("Access-Control-Allow-Headers"); v != "Authorization, Content-Type" {
-		t.Fatalf("expected CORS headers 'Authorization, Content-Type', got %q", v)
-	}
-	if v := w.Header().Get("Access-Control-Allow-Methods"); v != "GET, POST, OPTIONS" {
-		t.Fatalf("expected CORS methods 'GET, POST, OPTIONS', got %q", v)
-	}
-
-	// Also verify CORS headers on a regular GET request
-	req = httptest.NewRequest("GET", "/api/version", nil)
-	w = httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
-	if v := w.Header().Get("Access-Control-Allow-Origin"); v != "*" {
-		t.Fatalf("expected CORS origin on GET, got %q", v)
 	}
 }

@@ -2,136 +2,65 @@ package pwa
 
 import (
 	"encoding/json"
-	"os"
-	"path/filepath"
+	"io/fs"
 	"strings"
 	"testing"
 )
 
-func TestGenerate_CreatesAllFiles(t *testing.T) {
-	dir := t.TempDir()
-
-	if err := Generate(dir); err != nil {
-		t.Fatalf("Generate returned error: %v", err)
-	}
-
-	expected := []string{"index.html", "app.js", "style.css", "sw.js", "manifest.json", "add.html"}
-	for _, name := range expected {
-		path := filepath.Join(dir, name)
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			t.Errorf("expected file %s to exist, but it does not", name)
+func TestAssetsContainAppShell(t *testing.T) {
+	for _, name := range []string{"index.html", "app.js", "style.css", "sw.js", "manifest.json"} {
+		if _, err := fs.Stat(Assets(), name); err != nil {
+			t.Errorf("missing %s: %v", name, err)
 		}
 	}
 }
 
-func TestGenerate_IndexHtmlValid(t *testing.T) {
-	dir := t.TempDir()
-
-	if err := Generate(dir); err != nil {
-		t.Fatalf("Generate returned error: %v", err)
-	}
-
-	data, err := os.ReadFile(filepath.Join(dir, "index.html"))
+func TestIndexReferencesScriptsAndServiceWorker(t *testing.T) {
+	data, err := fs.ReadFile(Assets(), "index.html")
 	if err != nil {
-		t.Fatalf("failed to read index.html: %v", err)
+		t.Fatal(err)
 	}
-
-	content := string(data)
-	if !strings.Contains(content, "__FORAGE_DATA__") {
-		t.Error("index.html should contain __FORAGE_DATA__")
-	}
-	if !strings.Contains(content, "app.js") {
-		t.Error("index.html should reference app.js")
-	}
-}
-
-func TestGenerate_ManifestValid(t *testing.T) {
-	dir := t.TempDir()
-
-	if err := Generate(dir); err != nil {
-		t.Fatalf("Generate returned error: %v", err)
-	}
-
-	data, err := os.ReadFile(filepath.Join(dir, "manifest.json"))
-	if err != nil {
-		t.Fatalf("failed to read manifest.json: %v", err)
-	}
-
-	var manifest map[string]interface{}
-	if err := json.Unmarshal(data, &manifest); err != nil {
-		t.Fatalf("manifest.json is not valid JSON: %v", err)
-	}
-
-	required := []string{"name", "short_name", "start_url", "display", "theme_color"}
-	for _, field := range required {
-		if _, ok := manifest[field]; !ok {
-			t.Errorf("manifest.json missing required field %q", field)
+	html := string(data)
+	for _, want := range []string{"app.js", "style.css", "manifest.json", "sw.js"} {
+		if !strings.Contains(html, want) {
+			t.Errorf("index.html does not reference %s", want)
 		}
 	}
 }
 
-func TestGenerate_ServiceWorkerExists(t *testing.T) {
-	dir := t.TempDir()
-
-	if err := Generate(dir); err != nil {
-		t.Fatalf("Generate returned error: %v", err)
-	}
-
-	data, err := os.ReadFile(filepath.Join(dir, "sw.js"))
+func TestManifestIsValidJSON(t *testing.T) {
+	data, err := fs.ReadFile(Assets(), "manifest.json")
 	if err != nil {
-		t.Fatalf("failed to read sw.js: %v", err)
+		t.Fatal(err)
 	}
-
-	content := string(data)
-	if len(strings.TrimSpace(content)) < 50 {
-		t.Error("sw.js appears to be a placeholder; expected a real service worker")
+	var m map[string]any
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("manifest.json: %v", err)
+	}
+	if m["name"] == nil || m["start_url"] == nil {
+		t.Errorf("manifest missing name or start_url: %v", m)
 	}
 }
 
-func TestGenerate_AppPersistsBooksellers(t *testing.T) {
-	dir := t.TempDir()
-
-	if err := Generate(dir); err != nil {
-		t.Fatalf("Generate returned error: %v", err)
-	}
-
-	data, err := os.ReadFile(filepath.Join(dir, "app.js"))
+func TestServiceWorkerPrecachesExistingFiles(t *testing.T) {
+	data, err := fs.ReadFile(Assets(), "sw.js")
 	if err != nil {
-		t.Fatalf("failed to read app.js: %v", err)
+		t.Fatal(err)
 	}
-
-	content := string(data)
-	if !strings.Contains(content, "booksellers") {
-		t.Fatal("app.js should include bookseller persistence logic")
+	sw := string(data)
+	start := strings.Index(sw, "APP_ASSETS = [")
+	if start < 0 {
+		t.Fatal("sw.js: APP_ASSETS not found")
 	}
-	if !strings.Contains(content, "syncBooksellers") {
-		t.Fatal("app.js should sync booksellers independently")
-	}
-	if !strings.Contains(content, "loadStoredBooksellers") {
-		t.Fatal("app.js should load cached booksellers on startup")
-	}
-}
-
-func TestGenerate_AppSupportsPriceFetching(t *testing.T) {
-	dir := t.TempDir()
-
-	if err := Generate(dir); err != nil {
-		t.Fatalf("Generate returned error: %v", err)
-	}
-
-	data, err := os.ReadFile(filepath.Join(dir, "app.js"))
-	if err != nil {
-		t.Fatalf("failed to read app.js: %v", err)
-	}
-
-	content := string(data)
-	if !strings.Contains(content, "/api/prices") {
-		t.Fatal("app.js should call the prices API")
-	}
-	if !strings.Contains(content, "price-fetch-btn") {
-		t.Fatal("app.js should render a price fetch button")
-	}
-	if !strings.Contains(content, "price_quotes") {
-		t.Fatal("app.js should render stored price quotes")
+	list := sw[start+len("APP_ASSETS = [") : start+strings.Index(sw[start:], "]")]
+	for _, item := range strings.Split(list, ",") {
+		name := strings.Trim(strings.TrimSpace(item), `'"`)
+		name = strings.TrimPrefix(name, "./")
+		if name == "" {
+			continue // "./" is the root
+		}
+		if _, err := fs.Stat(Assets(), name); err != nil {
+			t.Errorf("sw.js precaches %q, which is not in the assets", name)
+		}
 	}
 }

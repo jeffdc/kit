@@ -1,7 +1,7 @@
-/forage
-/forage-tui
+/forage-server
+/build/
+/.dev/
 coverage.out
 coverage.html
-pwa/
 .sprite
 /forage-backup-*.db

@@ -29,19 +29,6 @@ func TestNew(t *testing.T) {
 	}
 }
 
-func TestDefaultRoot(t *testing.T) {
-	t.Setenv("FORAGE_DIR", "/tmp/test-forage")
-	if got := DefaultRoot(); got != "/tmp/test-forage" {
-		t.Errorf("DefaultRoot() with FORAGE_DIR = %q, want /tmp/test-forage", got)
-	}
-
-	t.Setenv("FORAGE_DIR", "")
-	got := DefaultRoot()
-	if got == "" {
-		t.Error("DefaultRoot() returned empty string")
-	}
-}
-
 func TestCreateAndGetBook(t *testing.T) {
 	s := testStore(t)
 
@@ -50,8 +37,8 @@ func TestCreateAndGetBook(t *testing.T) {
 		t.Fatalf("CreateBook() error: %v", err)
 	}
 
-	if len(b.ID) != 4 {
-		t.Errorf("ID length = %d, want 4", len(b.ID))
+	if len(b.ID) != 12 || !ValidID(b.ID) {
+		t.Errorf("ID = %q, want 12 hex characters", b.ID)
 	}
 	if b.Title != "The Left Hand of Darkness" {
 		t.Errorf("Title = %q", b.Title)
@@ -137,27 +124,12 @@ func TestListBooks(t *testing.T) {
 	s.CreateBook("Book B", "Author B", map[string]string{"status": "read", "tags": "fantasy"})
 	s.CreateBook("Book C", "Author C", map[string]string{"status": "dropped"})
 
-	all, err := s.ListBooks(nil)
+	all, err := s.ListBooks()
 	if err != nil {
 		t.Fatalf("ListBooks() error: %v", err)
 	}
 	if len(all) != 3 {
 		t.Errorf("len = %d, want 3", len(all))
-	}
-
-	wishlist, _ := s.ListBooks(map[string]string{"status": "wishlist"})
-	if len(wishlist) != 1 || wishlist[0].Title != "Book A" {
-		t.Errorf("status filter: got %d books", len(wishlist))
-	}
-
-	fantasy, _ := s.ListBooks(map[string]string{"tag": "fantasy"})
-	if len(fantasy) != 1 || fantasy[0].Title != "Book B" {
-		t.Errorf("tag filter: got %d books", len(fantasy))
-	}
-
-	byAuthor, _ := s.ListBooks(map[string]string{"author": "Author A"})
-	if len(byAuthor) != 1 || byAuthor[0].Title != "Book A" {
-		t.Errorf("author filter: got %d books", len(byAuthor))
 	}
 }
 
@@ -213,38 +185,6 @@ func TestDeleteBook(t *testing.T) {
 	}
 }
 
-func TestSearchBooks(t *testing.T) {
-	s := testStore(t)
-	s.CreateBook("The Left Hand of Darkness", "Ursula K. Le Guin", map[string]string{"tags": "sci-fi"})
-	s.CreateBook("Blood Meridian", "Cormac McCarthy", map[string]string{"body": "A dark western novel."})
-	s.CreateBook("Dune", "Frank Herbert", nil)
-
-	results, _ := s.SearchBooks("darkness")
-	if len(results) != 1 {
-		t.Errorf("title search: got %d, want 1", len(results))
-	}
-
-	results, _ = s.SearchBooks("mccarthy")
-	if len(results) != 1 {
-		t.Errorf("author search: got %d, want 1", len(results))
-	}
-
-	results, _ = s.SearchBooks("western")
-	if len(results) != 1 {
-		t.Errorf("body search: got %d, want 1", len(results))
-	}
-
-	results, _ = s.SearchBooks("sci-fi")
-	if len(results) != 1 {
-		t.Errorf("tag search: got %d, want 1", len(results))
-	}
-
-	results, _ = s.SearchBooks("zzzzz")
-	if len(results) != 0 {
-		t.Errorf("no-match search: got %d, want 0", len(results))
-	}
-}
-
 func TestGetBookNotFound(t *testing.T) {
 	s := testStore(t)
 	_, err := s.GetBook("zzzz")
@@ -275,8 +215,8 @@ func TestLoadBooksellers(t *testing.T) {
 		}
 	}
 
-	s.AddBookseller("TestShop", "https://example.com/search?q={query}")
-	s.AddBookseller("AnotherShop", "https://another.com/?s={query}")
+	s.db.Exec("INSERT INTO booksellers (name, url) VALUES (?, ?)", "TestShop", "https://example.com/search?q={query}")
+	s.db.Exec("INSERT INTO booksellers (name, url) VALUES (?, ?)", "AnotherShop", "https://another.com/?s={query}")
 
 	sellers, err = s.LoadBooksellers()
 	if err != nil {
@@ -292,32 +232,6 @@ func TestLoadBooksellers(t *testing.T) {
 	}
 	if got := byName["AnotherShop"].URL; got != "https://another.com/?s={query}" {
 		t.Errorf("AnotherShop URL = %q", got)
-	}
-}
-
-func TestAddAndDeleteBookseller(t *testing.T) {
-	s := testStore(t)
-	initial, err := s.LoadBooksellers()
-	if err != nil {
-		t.Fatalf("LoadBooksellers() error: %v", err)
-	}
-
-	bs, err := s.AddBookseller("Shop", "https://shop.com/{query}")
-	if err != nil {
-		t.Fatalf("AddBookseller() error: %v", err)
-	}
-	if bs.ID == 0 {
-		t.Error("expected non-zero ID")
-	}
-
-	err = s.DeleteBookseller(bs.ID)
-	if err != nil {
-		t.Fatalf("DeleteBookseller() error: %v", err)
-	}
-
-	sellers, _ := s.LoadBooksellers()
-	if len(sellers) != len(initial) {
-		t.Errorf("expected %d sellers after delete, got %d", len(initial), len(sellers))
 	}
 }
 
@@ -344,8 +258,8 @@ func TestNewSeedsMissingDefaultBooksellers(t *testing.T) {
 		t.Fatal("expected Better World Books default seller")
 	}
 
-	if err := s.DeleteBookseller(betterWorldID); err != nil {
-		t.Fatalf("DeleteBookseller() error: %v", err)
+	if _, err := s.db.Exec("DELETE FROM booksellers WHERE id = ?", betterWorldID); err != nil {
+		t.Fatalf("deleting bookseller: %v", err)
 	}
 	if err := s.Close(); err != nil {
 		t.Fatalf("Close() error: %v", err)
@@ -454,30 +368,6 @@ func TestSortAuthorManualOverride(t *testing.T) {
 	}
 }
 
-func TestSortAuthorMigrationBackfill(t *testing.T) {
-	s := testStore(t)
-
-	// Insert a book with empty sort_author (simulating pre-migration data)
-	_, err := s.db.Exec(
-		"INSERT INTO books (id, title, author, status, tags, rating, date_added, date_read, body, sort_author) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		"aaaa", "Dune", "Frank Herbert", "wishlist", "", 0, "2026-01-01", "", "", "",
-	)
-	if err != nil {
-		t.Fatalf("manual insert: %v", err)
-	}
-
-	// Run backfill
-	err = s.BackfillSortAuthor()
-	if err != nil {
-		t.Fatalf("BackfillSortAuthor() error: %v", err)
-	}
-
-	got, _ := s.GetBook("aaaa")
-	if got.SortAuthor != "Herbert, Frank" {
-		t.Errorf("backfilled SortAuthor = %q, want %q", got.SortAuthor, "Herbert, Frank")
-	}
-}
-
 func TestCreateBookWithEnrichedMeta(t *testing.T) {
 	s := testStore(t)
 
@@ -565,59 +455,6 @@ func TestNewFieldsMigration(t *testing.T) {
 	}
 	if got.ISBN != "" {
 		t.Errorf("ISBN = %q, want empty default", got.ISBN)
-	}
-	if len(got.PriceQuotes) != 0 {
-		t.Errorf("PriceQuotes = %v, want empty default", got.PriceQuotes)
-	}
-}
-
-func TestUpdateBookPriceQuotes(t *testing.T) {
-	s := testStore(t)
-
-	b, err := s.CreateBook("Dune", "Frank Herbert", map[string]string{"isbn": "9780441172719"})
-	if err != nil {
-		t.Fatalf("CreateBook() error: %v", err)
-	}
-
-	quotes := []model.PriceQuote{
-		{
-			SellerName: "AbeBooks",
-			SearchURL:  "https://example.com/abebooks?q=9780441172719",
-			Price:      "$12.99",
-			Amount:     12.99,
-			Currency:   "USD",
-			Status:     "ok",
-			FetchedAt:  "2026-05-06T12:00:00Z",
-		},
-		{
-			SellerName: "Amazon",
-			SearchURL:  "https://example.com/amazon?q=9780441172719",
-			Status:     "unavailable",
-			Message:    "no price found",
-			FetchedAt:  "2026-05-06T12:00:00Z",
-		},
-	}
-
-	updated, err := s.UpdateBookPriceQuotes(b.ID, quotes)
-	if err != nil {
-		t.Fatalf("UpdateBookPriceQuotes() error: %v", err)
-	}
-	if len(updated.PriceQuotes) != 2 {
-		t.Fatalf("len(updated.PriceQuotes) = %d, want 2", len(updated.PriceQuotes))
-	}
-	if updated.PriceQuotes[0].Price != "$12.99" {
-		t.Errorf("updated first price = %q, want $12.99", updated.PriceQuotes[0].Price)
-	}
-
-	got, err := s.GetBook(b.ID)
-	if err != nil {
-		t.Fatalf("GetBook() error: %v", err)
-	}
-	if len(got.PriceQuotes) != 2 {
-		t.Fatalf("len(got.PriceQuotes) = %d, want 2", len(got.PriceQuotes))
-	}
-	if got.PriceQuotes[1].Status != "unavailable" {
-		t.Errorf("second quote status = %q, want unavailable", got.PriceQuotes[1].Status)
 	}
 }
 

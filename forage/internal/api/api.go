@@ -1,8 +1,12 @@
 package api
 
 import (
+	"crypto/subtle"
 	"encoding/json"
+	"io/fs"
+	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -11,147 +15,153 @@ import (
 	"forage/internal/storage"
 )
 
+// maxBodyBytes caps request bodies. A changelog of a few hundred edits is well under this.
+const maxBodyBytes = 1 << 20
+
 type handler struct {
-	store        *storage.Store
-	apiKey       string
-	version      time.Time
-	priceFetcher PriceFetcher
-	mu           sync.Mutex
+	store   *storage.Store
+	apiKey  string
+	build   string
+	mu      sync.Mutex
+	version time.Time
 }
 
-// NewHandler returns an http.Handler with all API routes and static file serving.
-func NewHandler(store *storage.Store, apiKey string, wwwDir string) http.Handler {
+// NewHandler returns an http.Handler serving the API and, if static is non-nil,
+// the PWA files. Every /api route except /api/health requires the API key.
+func NewHandler(store *storage.Store, apiKey, build string, static fs.FS) http.Handler {
 	h := &handler{
-		store:        store,
-		apiKey:       apiKey,
-		version:      time.Now(),
-		priceFetcher: NewPriceFetcher(nil),
+		store:   store,
+		apiKey:  apiKey,
+		build:   build,
+		version: time.Now(),
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/books", h.handleBooks)
-	mux.HandleFunc("/api/prices", h.handlePrices)
-	mux.HandleFunc("/api/version", h.handleVersion)
-	mux.HandleFunc("/api/changes", h.handleChanges)
-	mux.HandleFunc("/api/booksellers", h.handleBooksellers)
+	mux.HandleFunc("GET /api/health", h.handleHealth)
+	mux.Handle("GET /api/books", h.auth(h.handleBooks))
+	mux.Handle("GET /api/version", h.auth(h.handleVersion))
+	mux.Handle("POST /api/changes", h.auth(h.handleChanges))
+	mux.Handle("GET /api/booksellers", h.auth(h.handleBooksellers))
+	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
+		writeError(w, http.StatusNotFound, "not found")
+	})
 
-	if wwwDir != "" {
-		mux.Handle("/", http.FileServer(http.Dir(wwwDir)))
+	if static != nil {
+		files := http.FileServerFS(static)
+		mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Always revalidate: the service worker is network-first and
+			// relies on getting fresh files whenever the network is up.
+			w.Header().Set("Cache-Control", "no-cache")
+			files.ServeHTTP(w, r)
+		}))
 	}
 
-	return corsMiddleware(mux)
+	return logRequests(mux)
 }
 
-func corsMiddleware(next http.Handler) http.Handler {
+func (h *handler) auth(next http.HandlerFunc) http.Handler {
+	want := []byte("Bearer " + h.apiKey)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
+		got := []byte(r.Header.Get("Authorization"))
+		if subtle.ConstantTimeCompare(got, want) != 1 {
+			writeError(w, http.StatusUnauthorized, "unauthorized")
 			return
 		}
-
-		next.ServeHTTP(w, r)
+		next(w, r)
 	})
 }
 
-func (h *handler) handleBooks(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
+func (h *handler) bumpVersion() {
+	h.mu.Lock()
+	h.version = time.Now()
+	h.mu.Unlock()
+}
 
-	books, err := h.store.ListBooks(nil)
+func (h *handler) handleHealth(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, map[string]string{"status": "ok", "build": h.build})
+}
+
+func (h *handler) handleBooks(w http.ResponseWriter, r *http.Request) {
+	books, err := h.store.ListBooks()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	// Filter out dropped books
-	var active []model.Book
+	// The current PWA can't show dropped books; this goes away with the new sync API.
+	active := []model.Book{}
 	for _, b := range books {
 		if b.Status != "dropped" {
 			active = append(active, b)
 		}
 	}
-
-	if active == nil {
-		active = []model.Book{}
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(active)
+	writeJSON(w, active)
 }
 
 func (h *handler) handleVersion(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-
 	h.mu.Lock()
 	v := h.version.UTC().Format(time.RFC3339Nano)
 	h.mu.Unlock()
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"version": v})
+	writeJSON(w, map[string]string{"version": v})
 }
 
 func (h *handler) handleChanges(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-
-	// Check auth
-	auth := r.Header.Get("Authorization")
-	if auth != "Bearer "+h.apiKey {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
-		return
-	}
-
 	var cl changes.Changelog
-	if err := json.NewDecoder(r.Body).Decode(&cl); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes)).Decode(&cl); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return
 	}
 
 	summary := changes.Apply(h.store, cl)
-
-	h.mu.Lock()
-	h.version = time.Now()
-	h.mu.Unlock()
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(summary)
+	if summary.Skipped > 0 || summary.Errors > 0 {
+		log.Printf("changes: applied=%d skipped=%d errors=%d", summary.Applied, summary.Skipped, summary.Errors)
+	}
+	h.bumpVersion()
+	writeJSON(w, summary)
 }
 
 func (h *handler) handleBooksellers(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-
 	sellers, err := h.store.LoadBooksellers()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-
 	if sellers == nil {
 		sellers = []model.Bookseller{}
 	}
+	writeJSON(w, sellers)
+}
 
+func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(sellers)
+	json.NewEncoder(w).Encode(v)
 }
 
 func writeError(w http.ResponseWriter, code int, msg string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	json.NewEncoder(w).Encode(map[string]string{"error": msg})
+}
+
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (s *statusRecorder) WriteHeader(code int) {
+	s.status = code
+	s.ResponseWriter.WriteHeader(code)
+}
+
+// logRequests logs API calls and any failed request. Successful static file
+// requests are skipped to keep the log readable.
+func logRequests(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(rec, r)
+		if strings.HasPrefix(r.URL.Path, "/api/") || rec.status >= 400 {
+			log.Printf("%s %s %d %s", r.Method, r.URL.Path, rec.status, time.Since(start).Round(time.Millisecond))
+		}
+	})
 }

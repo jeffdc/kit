@@ -1,9 +1,10 @@
 package storage
 
 import (
-	"crypto/sha256"
+	"crypto/rand"
 	"database/sql"
-	"encoding/json"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,9 +17,11 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+// ErrExists is returned when creating a book whose ID is already taken.
+var ErrExists = errors.New("book already exists")
+
 type Store struct {
-	root string
-	db   *sql.DB
+	db *sql.DB
 }
 
 var defaultBooksellers = []model.Bookseller{
@@ -32,69 +35,28 @@ var defaultBooksellers = []model.Bookseller{
 	{Name: "Amazon", URL: "https://www.amazon.com/s?k={query}&i=stripbooks"},
 }
 
-func New(root string) (*Store, error) {
-	if err := os.MkdirAll(root, 0755); err != nil {
+const bookColumns = "id, title, author, status, tags, rating, date_added, date_read, body, sort_author, page_count, first_published, isbn"
+
+// New opens (creating if needed) the database in dir and brings its schema up to date.
+func New(dir string) (*Store, error) {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
 	}
 
-	dbPath := filepath.Join(root, "forage.db")
-	db, err := sql.Open("sqlite", dbPath)
+	dsn := "file:" + filepath.Join(dir, "forage.db") +
+		"?_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)"
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("opening database: %w", err)
 	}
+	// One process, one writer: a single connection serializes access and
+	// avoids SQLITE_BUSY without needing WAL (whose shared-memory file may
+	// not behave on the Sprite's filesystem).
+	db.SetMaxOpenConns(1)
 
-	if _, err := db.Exec(`
-		CREATE TABLE IF NOT EXISTS books (
-			id          TEXT PRIMARY KEY,
-			title       TEXT NOT NULL,
-			author      TEXT NOT NULL,
-			status      TEXT NOT NULL DEFAULT 'wishlist',
-			tags        TEXT DEFAULT '',
-			rating      INTEGER DEFAULT 0,
-			date_added  TEXT NOT NULL,
-			date_read   TEXT DEFAULT '',
-			body            TEXT DEFAULT '',
-			sort_author     TEXT DEFAULT '',
-			page_count      INTEGER DEFAULT 0,
-			first_published INTEGER DEFAULT 0,
-			isbn            TEXT DEFAULT '',
-			price_quotes    TEXT DEFAULT ''
-		);
-		CREATE TABLE IF NOT EXISTS booksellers (
-			id   INTEGER PRIMARY KEY AUTOINCREMENT,
-			name TEXT NOT NULL,
-			url  TEXT NOT NULL
-		);
-	`); err != nil {
+	if err := migrate(db); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("creating tables: %w", err)
-	}
-
-	// Migrate: add sort_author column if missing (existing databases)
-	var colCount int
-	_ = db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('books') WHERE name='sort_author'").Scan(&colCount)
-	if colCount == 0 {
-		if _, err := db.Exec("ALTER TABLE books ADD COLUMN sort_author TEXT DEFAULT ''"); err != nil {
-			db.Close()
-			return nil, fmt.Errorf("migrating sort_author: %w", err)
-		}
-	}
-
-	// Migrate: add page_count, first_published, isbn columns if missing
-	for _, col := range []struct{ name, def string }{
-		{"page_count", "INTEGER DEFAULT 0"},
-		{"first_published", "INTEGER DEFAULT 0"},
-		{"isbn", "TEXT DEFAULT ''"},
-		{"price_quotes", "TEXT DEFAULT ''"},
-	} {
-		var n int
-		_ = db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('books') WHERE name=?", col.name).Scan(&n)
-		if n == 0 {
-			if _, err := db.Exec("ALTER TABLE books ADD COLUMN " + col.name + " " + col.def); err != nil {
-				db.Close()
-				return nil, fmt.Errorf("migrating %s: %w", col.name, err)
-			}
-		}
+		return nil, err
 	}
 
 	if err := ensureDefaultBooksellers(db); err != nil {
@@ -102,7 +64,11 @@ func New(root string) (*Store, error) {
 		return nil, fmt.Errorf("seeding booksellers: %w", err)
 	}
 
-	return &Store{root: root, db: db}, nil
+	return &Store{db: db}, nil
+}
+
+func (s *Store) Close() error {
+	return s.db.Close()
 }
 
 func ensureDefaultBooksellers(db *sql.DB) error {
@@ -110,200 +76,119 @@ func ensureDefaultBooksellers(db *sql.DB) error {
 		var exists int
 		if err := db.QueryRow(
 			"SELECT COUNT(*) FROM booksellers WHERE name = ? OR url = ?",
-			seller.Name,
-			seller.URL,
+			seller.Name, seller.URL,
 		).Scan(&exists); err != nil {
 			return err
 		}
 		if exists > 0 {
 			continue
 		}
-		if _, err := db.Exec(
-			"INSERT INTO booksellers (name, url) VALUES (?, ?)",
-			seller.Name,
-			seller.URL,
-		); err != nil {
+		if _, err := db.Exec("INSERT INTO booksellers (name, url) VALUES (?, ?)", seller.Name, seller.URL); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (s *Store) Close() error {
-	return s.db.Close()
-}
-
-func DefaultRoot() string {
-	if dir := os.Getenv("FORAGE_DIR"); dir != "" {
-		return dir
+// NewID returns a random 12-hex-character book ID.
+func NewID() (string, error) {
+	b := make([]byte, 6)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
 	}
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".forage")
+	return hex.EncodeToString(b), nil
 }
 
-func (s *Store) Root() string { return s.root }
-
-func (s *Store) generateID(title, author string) (string, error) {
-	t := time.Now()
-	for i := range 100 {
-		ts := t.Add(time.Duration(i) * time.Nanosecond).Format(time.RFC3339Nano)
-		h := sha256.Sum256([]byte(title + author + ts))
-		id := fmt.Sprintf("%x", h[:2])
-
-		var exists int
-		err := s.db.QueryRow("SELECT COUNT(*) FROM books WHERE id = ?", id).Scan(&exists)
-		if err != nil {
-			return "", err
-		}
-		if exists == 0 {
-			return id, nil
+// ValidID reports whether id is an acceptable book ID: 4–32 lowercase hex characters.
+func ValidID(id string) bool {
+	if len(id) < 4 || len(id) > 32 {
+		return false
+	}
+	for _, r := range id {
+		if !(r >= '0' && r <= '9' || r >= 'a' && r <= 'f') {
+			return false
 		}
 	}
-	return "", fmt.Errorf("could not generate unique ID after 100 attempts")
+	return true
 }
 
+// CreateBook creates a book with a freshly generated ID.
 func (s *Store) CreateBook(title, author string, meta map[string]string) (*model.Book, error) {
-	id, err := s.generateID(title, author)
-	if err != nil {
-		return nil, err
-	}
-
-	today := time.Now().Format("2006-01-02")
-	b := &model.Book{
-		ID:         id,
-		Title:      title,
-		Author:     author,
-		Status:     "wishlist",
-		SortAuthor: model.AuthorSortKey(author),
-		DateAdded:  today,
-	}
-
-	if meta != nil {
-		if err := applyMeta(b, meta); err != nil {
+	for range 5 {
+		id, err := NewID()
+		if err != nil {
 			return nil, err
 		}
+		b, err := s.CreateBookWithID(id, title, author, meta)
+		if errors.Is(err, ErrExists) {
+			continue
+		}
+		return b, err
 	}
-
-	tags := strings.Join(b.Tags, ",")
-	priceQuotes, err := encodePriceQuotes(b.PriceQuotes)
-	if err != nil {
-		return nil, fmt.Errorf("encoding price quotes: %w", err)
-	}
-	_, err = s.db.Exec(
-		"INSERT INTO books (id, title, author, status, tags, rating, date_added, date_read, body, sort_author, page_count, first_published, isbn, price_quotes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		b.ID, b.Title, b.Author, b.Status, tags, b.Rating, b.DateAdded, b.DateRead, b.Body, b.SortAuthor, b.PageCount, b.FirstPublished, b.ISBN, priceQuotes,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("inserting book: %w", err)
-	}
-	return b, nil
+	return nil, fmt.Errorf("could not generate a unique ID")
 }
 
+// CreateBookWithID creates a book with a caller-chosen ID (used for PWA-created books).
 func (s *Store) CreateBookWithID(id, title, author string, meta map[string]string) (*model.Book, error) {
-	var exists int
-	err := s.db.QueryRow("SELECT COUNT(*) FROM books WHERE id = ?", id).Scan(&exists)
-	if err != nil {
-		return nil, err
+	if !ValidID(id) {
+		return nil, fmt.Errorf("invalid book id: %q", id)
 	}
-	if exists > 0 {
-		return nil, fmt.Errorf("book already exists: %s", id)
+	if strings.TrimSpace(title) == "" || strings.TrimSpace(author) == "" {
+		return nil, fmt.Errorf("title and author are required")
 	}
 
-	today := time.Now().Format("2006-01-02")
 	b := &model.Book{
 		ID:         id,
 		Title:      title,
 		Author:     author,
 		Status:     "wishlist",
 		SortAuthor: model.AuthorSortKey(author),
-		DateAdded:  today,
+		DateAdded:  time.Now().Format("2006-01-02"),
+	}
+	if err := applyMeta(b, meta); err != nil {
+		return nil, err
 	}
 
-	if meta != nil {
-		if err := applyMeta(b, meta); err != nil {
-			return nil, err
-		}
-	}
-
-	tags := strings.Join(b.Tags, ",")
-	priceQuotes, err := encodePriceQuotes(b.PriceQuotes)
-	if err != nil {
-		return nil, fmt.Errorf("encoding price quotes: %w", err)
-	}
-	_, err = s.db.Exec(
-		"INSERT INTO books (id, title, author, status, tags, rating, date_added, date_read, body, sort_author, page_count, first_published, isbn, price_quotes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		b.ID, b.Title, b.Author, b.Status, tags, b.Rating, b.DateAdded, b.DateRead, b.Body, b.SortAuthor, b.PageCount, b.FirstPublished, b.ISBN, priceQuotes,
+	res, err := s.db.Exec(
+		"INSERT INTO books ("+bookColumns+") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING",
+		b.ID, b.Title, b.Author, b.Status, strings.Join(b.Tags, ","), b.Rating, b.DateAdded, b.DateRead,
+		b.Body, b.SortAuthor, b.PageCount, b.FirstPublished, b.ISBN,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("inserting book: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return nil, fmt.Errorf("%w: %s", ErrExists, id)
 	}
 	return b, nil
 }
 
 func (s *Store) GetBook(id string) (*model.Book, error) {
-	b := &model.Book{}
-	var tags, priceQuotes string
-	err := s.db.QueryRow(
-		"SELECT id, title, author, status, tags, rating, date_added, date_read, body, sort_author, page_count, first_published, isbn, price_quotes FROM books WHERE id = ?", id,
-	).Scan(&b.ID, &b.Title, &b.Author, &b.Status, &tags, &b.Rating, &b.DateAdded, &b.DateRead, &b.Body, &b.SortAuthor, &b.PageCount, &b.FirstPublished, &b.ISBN, &priceQuotes)
+	row := s.db.QueryRow("SELECT "+bookColumns+" FROM books WHERE id = ?", id)
+	b, err := scanBook(row)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("book not found: %s", id)
 	}
+	return b, err
+}
+
+// ListBooks returns all books.
+func (s *Store) ListBooks() ([]model.Book, error) {
+	rows, err := s.db.Query("SELECT " + bookColumns + " FROM books")
 	if err != nil {
 		return nil, err
 	}
-	b.Tags = splitTags(tags)
-	b.PriceQuotes, err = decodePriceQuotes(priceQuotes)
-	if err != nil {
-		return nil, fmt.Errorf("decoding price quotes for %s: %w", id, err)
-	}
-	return b, nil
-}
+	defer rows.Close()
 
-func (s *Store) ListBooks(filters map[string]string) ([]model.Book, error) {
-	query := "SELECT id, title, author, status, tags, rating, date_added, date_read, body, sort_author, page_count, first_published, isbn, price_quotes FROM books"
-	var conditions []string
-	var args []any
-
-	for k, v := range filters {
-		switch k {
-		case "status":
-			conditions = append(conditions, "status = ?")
-			args = append(args, v)
-		case "tag":
-			conditions = append(conditions, "(tags = ? OR tags LIKE ? OR tags LIKE ? OR tags LIKE ?)")
-			args = append(args, v, v+",%", "%,"+v, "%,"+v+",%")
-		case "author":
-			conditions = append(conditions, "author = ? COLLATE NOCASE")
-			args = append(args, v)
+	var books []model.Book
+	for rows.Next() {
+		b, err := scanBook(rows)
+		if err != nil {
+			return nil, err
 		}
+		books = append(books, *b)
 	}
-
-	if len(conditions) > 0 {
-		query += " WHERE " + strings.Join(conditions, " AND ")
-	}
-
-	rows, err := s.db.Query(query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	return scanBooks(rows)
-}
-
-func (s *Store) SearchBooks(query string) ([]model.Book, error) {
-	q := "%" + query + "%"
-	rows, err := s.db.Query(
-		"SELECT id, title, author, status, tags, rating, date_added, date_read, body, sort_author, page_count, first_published, isbn, price_quotes FROM books WHERE title LIKE ? COLLATE NOCASE OR author LIKE ? COLLATE NOCASE OR body LIKE ? COLLATE NOCASE OR tags LIKE ? COLLATE NOCASE",
-		q, q, q, q,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	return scanBooks(rows)
+	return books, rows.Err()
 }
 
 var validKeys = map[string]bool{
@@ -313,48 +198,27 @@ var validKeys = map[string]bool{
 	"first_published": true, "isbn": true,
 }
 
+// UpdateBook sets one field on a book. Changing the author also refreshes
+// the author sort key.
 func (s *Store) UpdateBook(id, key, value string) (*model.Book, error) {
 	if !validKeys[key] {
-		return nil, fmt.Errorf("invalid key: %s (valid: title, author, status, rating, tags, date_read, body, sort_author, page_count, first_published, isbn)", key)
+		return nil, fmt.Errorf("invalid key: %s", key)
 	}
 
 	b, err := s.GetBook(id)
 	if err != nil {
 		return nil, err
 	}
-
 	if err := applyMeta(b, map[string]string{key: value}); err != nil {
 		return nil, err
 	}
 
-	var column string
-	var dbValue any
-	switch key {
-	case "title":
-		column, dbValue = "title", b.Title
-	case "author":
-		column, dbValue = "author", b.Author
-	case "status":
-		column, dbValue = "status", b.Status
-	case "rating":
-		column, dbValue = "rating", b.Rating
-	case "tags":
-		column, dbValue = "tags", strings.Join(b.Tags, ",")
-	case "date_read":
-		column, dbValue = "date_read", b.DateRead
-	case "body":
-		column, dbValue = "body", b.Body
-	case "sort_author":
-		column, dbValue = "sort_author", b.SortAuthor
-	case "page_count":
-		column, dbValue = "page_count", b.PageCount
-	case "first_published":
-		column, dbValue = "first_published", b.FirstPublished
-	case "isbn":
-		column, dbValue = "isbn", b.ISBN
-	}
-
-	_, err = s.db.Exec("UPDATE books SET "+column+" = ? WHERE id = ?", dbValue, id)
+	_, err = s.db.Exec(
+		`UPDATE books SET title = ?, author = ?, status = ?, tags = ?, rating = ?, date_read = ?, body = ?,
+		 sort_author = ?, page_count = ?, first_published = ?, isbn = ? WHERE id = ?`,
+		b.Title, b.Author, b.Status, strings.Join(b.Tags, ","), b.Rating, b.DateRead, b.Body,
+		b.SortAuthor, b.PageCount, b.FirstPublished, b.ISBN, id,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("updating book: %w", err)
 	}
@@ -366,8 +230,7 @@ func (s *Store) DeleteBook(id string) error {
 	if err != nil {
 		return err
 	}
-	n, _ := result.RowsAffected()
-	if n == 0 {
+	if n, _ := result.RowsAffected(); n == 0 {
 		return fmt.Errorf("book not found: %s", id)
 	}
 	return nil
@@ -391,102 +254,43 @@ func (s *Store) LoadBooksellers() ([]model.Bookseller, error) {
 	return sellers, rows.Err()
 }
 
-func (s *Store) AddBookseller(name, url string) (*model.Bookseller, error) {
-	result, err := s.db.Exec("INSERT INTO booksellers (name, url) VALUES (?, ?)", name, url)
-	if err != nil {
+type scanner interface {
+	Scan(dest ...any) error
+}
+
+func scanBook(sc scanner) (*model.Book, error) {
+	var b model.Book
+	var tags string
+	if err := sc.Scan(&b.ID, &b.Title, &b.Author, &b.Status, &tags, &b.Rating, &b.DateAdded, &b.DateRead,
+		&b.Body, &b.SortAuthor, &b.PageCount, &b.FirstPublished, &b.ISBN); err != nil {
 		return nil, err
 	}
-	id, _ := result.LastInsertId()
-	return &model.Bookseller{ID: int(id), Name: name, URL: url}, nil
-}
-
-func (s *Store) DeleteBookseller(id int) error {
-	result, err := s.db.Exec("DELETE FROM booksellers WHERE id = ?", id)
-	if err != nil {
-		return err
-	}
-	n, _ := result.RowsAffected()
-	if n == 0 {
-		return fmt.Errorf("bookseller not found: %d", id)
-	}
-	return nil
-}
-
-func (s *Store) UpdateBookPriceQuotes(id string, quotes []model.PriceQuote) (*model.Book, error) {
-	if _, err := s.GetBook(id); err != nil {
-		return nil, err
-	}
-
-	encoded, err := encodePriceQuotes(quotes)
-	if err != nil {
-		return nil, fmt.Errorf("encoding price quotes: %w", err)
-	}
-
-	if _, err := s.db.Exec("UPDATE books SET price_quotes = ? WHERE id = ?", encoded, id); err != nil {
-		return nil, fmt.Errorf("updating book price quotes: %w", err)
-	}
-
-	return s.GetBook(id)
-}
-
-func scanBooks(rows *sql.Rows) ([]model.Book, error) {
-	var books []model.Book
-	for rows.Next() {
-		var b model.Book
-		var tags, priceQuotes string
-		if err := rows.Scan(&b.ID, &b.Title, &b.Author, &b.Status, &tags, &b.Rating, &b.DateAdded, &b.DateRead, &b.Body, &b.SortAuthor, &b.PageCount, &b.FirstPublished, &b.ISBN, &priceQuotes); err != nil {
-			return nil, err
-		}
-		b.Tags = splitTags(tags)
-		quotes, err := decodePriceQuotes(priceQuotes)
-		if err != nil {
-			return nil, fmt.Errorf("decoding price quotes for %s: %w", b.ID, err)
-		}
-		b.PriceQuotes = quotes
-		books = append(books, b)
-	}
-	return books, rows.Err()
+	b.Tags = splitTags(tags)
+	return &b, nil
 }
 
 func splitTags(s string) []string {
-	if s == "" {
-		return nil
+	var out []string
+	for _, t := range strings.Split(s, ",") {
+		if t = strings.TrimSpace(t); t != "" {
+			out = append(out, t)
+		}
 	}
-	parts := strings.Split(s, ",")
-	for i := range parts {
-		parts[i] = strings.TrimSpace(parts[i])
-	}
-	return parts
-}
-
-func encodePriceQuotes(quotes []model.PriceQuote) (string, error) {
-	if len(quotes) == 0 {
-		return "", nil
-	}
-	data, err := json.Marshal(quotes)
-	if err != nil {
-		return "", err
-	}
-	return string(data), nil
-}
-
-func decodePriceQuotes(raw string) ([]model.PriceQuote, error) {
-	if strings.TrimSpace(raw) == "" {
-		return nil, nil
-	}
-	var quotes []model.PriceQuote
-	if err := json.Unmarshal([]byte(raw), &quotes); err != nil {
-		return nil, err
-	}
-	return quotes, nil
+	return out
 }
 
 func applyMeta(b *model.Book, meta map[string]string) error {
+	_, sortGiven := meta["sort_author"]
 	for k, v := range meta {
 		switch k {
 		case "title":
 			b.Title = v
 		case "author":
+			// The PWA sends the author on every save, so only a real change
+			// may reset the sort key (which can be a manual override).
+			if v != b.Author && !sortGiven {
+				b.SortAuthor = model.AuthorSortKey(v)
+			}
 			b.Author = v
 		case "status":
 			if !model.ValidStatus(v) {
@@ -495,16 +299,12 @@ func applyMeta(b *model.Book, meta map[string]string) error {
 			b.Status = v
 		case "rating":
 			n, err := strconv.Atoi(v)
-			if err != nil {
+			if err != nil || n < 0 || n > 5 {
 				return fmt.Errorf("invalid rating: %s", v)
 			}
 			b.Rating = n
 		case "tags":
-			tags := strings.Split(v, ",")
-			for i := range tags {
-				tags[i] = strings.TrimSpace(tags[i])
-			}
-			b.Tags = tags
+			b.Tags = splitTags(v)
 		case "date_added":
 			b.DateAdded = v
 		case "date_read":
@@ -527,37 +327,6 @@ func applyMeta(b *model.Book, meta map[string]string) error {
 			b.FirstPublished = n
 		case "isbn":
 			b.ISBN = v
-		}
-	}
-	return nil
-}
-
-func (s *Store) BackfillSortAuthor() error {
-	rows, err := s.db.Query("SELECT id, author FROM books WHERE sort_author = '' AND author != ''")
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-
-	type entry struct {
-		id, author string
-	}
-	var entries []entry
-	for rows.Next() {
-		var e entry
-		if err := rows.Scan(&e.id, &e.author); err != nil {
-			return err
-		}
-		entries = append(entries, e)
-	}
-	if err := rows.Err(); err != nil {
-		return err
-	}
-
-	for _, e := range entries {
-		sortKey := model.AuthorSortKey(e.author)
-		if _, err := s.db.Exec("UPDATE books SET sort_author = ? WHERE id = ?", sortKey, e.id); err != nil {
-			return err
 		}
 	}
 	return nil

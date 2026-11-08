@@ -6,7 +6,6 @@
   var DB_VERSION = 2;
   var _db = null;
   var _booksellers = [];
-  var _priceFetchState = {};
 
   // --- API Key Management ---
 
@@ -74,8 +73,10 @@
     });
   }
 
+  // 12 hex chars: collisions with existing books are effectively impossible
+  // (4-char IDs collided ~3% of the time at 2,000 books).
   function genId() {
-    var bytes = new Uint8Array(2);
+    var bytes = new Uint8Array(6);
     crypto.getRandomValues(bytes);
     var hex = "";
     for (var i = 0; i < bytes.length; i++) {
@@ -175,11 +176,36 @@
     });
   }
 
+  // One push at a time. A push requested while one is in flight runs once
+  // the current one finishes, so every queued change gets sent.
+  var _pushInFlight = null;
+  var _pushAgain = false;
+
   function pushChanges() {
     if (!getApiKey()) return Promise.resolve();
+    if (_pushInFlight) {
+      _pushAgain = true;
+      return _pushInFlight;
+    }
+    _pushInFlight = pushOnce().then(function () {
+      _pushInFlight = null;
+      if (_pushAgain) {
+        _pushAgain = false;
+        return pushChanges();
+      }
+    });
+    return _pushInFlight;
+  }
 
+  function pushOnce() {
     var t = tx(["changes"], "readonly");
-    return reqToPromise(t.objectStore("changes").getAll()).then(function (changes) {
+    var store = t.objectStore("changes");
+    return Promise.all([
+      reqToPromise(store.getAllKeys()),
+      reqToPromise(store.getAll())
+    ]).then(function (res) {
+      var keys = res[0];
+      var changes = res[1];
       if (!changes || changes.length === 0) return;
 
       var payload = {
@@ -196,12 +222,13 @@
         if (!res.ok) throw new Error("HTTP " + res.status);
         return res.json();
       }).then(function () {
-        return db.clearChanges();
+        // Remove only what was sent; anything queued meanwhile stays.
+        return db.deleteChanges(keys);
       }).then(function () {
         return syncFromServer();
       });
     }).catch(function () {
-      // Silently fail -- changes remain in IndexedDB for next attempt
+      // Changes remain in IndexedDB for the next attempt
     });
   }
 
@@ -357,9 +384,10 @@
       return reqToPromise(t.objectStore("changes").getAll());
     },
 
-    clearChanges: function () {
+    deleteChanges: function (keys) {
       var t = tx(["changes"], "readwrite");
-      t.objectStore("changes").clear();
+      var store = t.objectStore("changes");
+      for (var i = 0; i < keys.length; i++) store.delete(keys[i]);
       return txComplete(t);
     },
 
@@ -393,36 +421,6 @@
       return seller.url.replace("{query}", encodeURIComponent(query));
     }
     return seller.url;
-  }
-
-  function quotesBySellerName(book) {
-    var out = {};
-    (book.price_quotes || []).forEach(function (quote) {
-      out[quote.seller_name] = quote;
-    });
-    return out;
-  }
-
-  function latestFetchedAt(book) {
-    var latest = "";
-    (book.price_quotes || []).forEach(function (quote) {
-      if (quote.fetched_at && (!latest || quote.fetched_at > latest)) {
-        latest = quote.fetched_at;
-      }
-    });
-    return latest;
-  }
-
-  function formatDateTime(dateStr) {
-    if (!dateStr) return "";
-    var date = new Date(dateStr);
-    if (isNaN(date.getTime())) return dateStr;
-    return date.toLocaleString([], {
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit"
-    });
   }
 
   function populateTagFilter(books) {
@@ -490,35 +488,9 @@
           return '<span class="tag">' + esc(t) + "</span>";
         }).join("");
         var notes = b.body ? '<div class="book-notes">' + esc(b.body) + "</div>" : "";
-        var quoteMap = quotesBySellerName(b);
-        var fetchState = _priceFetchState[b.id] || {};
-        var fetchButton = "";
-        var fetchedAt = latestFetchedAt(b);
-        var fetchedLabel = fetchedAt ? '<div class="book-prices-updated">Prices checked ' + esc(formatDateTime(fetchedAt)) + "</div>" : "";
-        if (b.status === "wishlist") {
-          var btnLabel = fetchState.loading ? "Fetching prices..." : (b.price_quotes && b.price_quotes.length ? "Refresh prices" : "Fetch prices");
-          fetchButton = '<div class="book-price-actions">' +
-            '<button type="button" class="price-fetch-btn" data-id="' + esc(b.id) + '"' +
-            ((fetchState.loading || !getApiKey() || !navigator.onLine || !_booksellers.length) ? " disabled" : "") +
-            ">" + esc(btnLabel) + "</button>" +
-            "</div>";
-        }
-        var fetchError = fetchState.error ? '<div class="book-price-error">' + esc(fetchState.error) + "</div>" : "";
         var sellerLinks = _booksellers.length ? '<div class="book-sellers">' + _booksellers.map(function (s) {
           var sellerURL = buildSellerSearchURL(s, b);
-          var quote = quoteMap[s.name];
-          var label = s.name;
-          var klass = "book-seller-link";
-          if (quote) {
-            if (quote.price) {
-              label += " · " + quote.price;
-              klass += " has-price";
-            } else if (quote.status && quote.status !== "ok") {
-              label += " · no price";
-              klass += " no-price";
-            }
-          }
-          return '<a class="' + klass + '" href="' + esc(sellerURL) + '" target="_blank" rel="noopener">' + esc(label) + "</a>";
+          return '<a class="book-seller-link" href="' + esc(sellerURL) + '" target="_blank" rel="noopener">' + esc(s.name) + "</a>";
         }).join("") + "</div>" : "";
 
         // Secondary info line
@@ -539,9 +511,6 @@
           "</div>" +
           infoLine +
           notes +
-          fetchButton +
-          fetchedLabel +
-          fetchError +
           sellerLinks +
         "</div>";
       }).join("");
@@ -779,36 +748,6 @@
     });
   }
 
-  function handlePriceFetch(id) {
-    if (!id || _priceFetchState[id] && _priceFetchState[id].loading) return;
-    _priceFetchState[id] = { loading: true };
-    render();
-
-    pushChanges().then(function () {
-      return fetch("/api/prices", {
-        method: "POST",
-        headers: apiHeaders(),
-        body: JSON.stringify({ id: id })
-      });
-    }).then(function (res) {
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      return res.json();
-    }).then(function (book) {
-      return db.storeServerBook(book).then(function () {
-        return syncFromServer();
-      });
-    }).then(function () {
-      delete _priceFetchState[id];
-      render();
-    }).catch(function (err) {
-      _priceFetchState[id] = {
-        loading: false,
-        error: navigator.onLine ? "Price fetch failed: " + err.message : "Price fetch unavailable offline"
-      };
-      render();
-    });
-  }
-
   // --- Sync Status UI ---
 
   function updateSyncStatus() {
@@ -932,11 +871,6 @@
 
       // Book card tap opens edit modal
       document.getElementById("books").addEventListener("click", function (e) {
-        var priceBtn = e.target.closest(".price-fetch-btn");
-        if (priceBtn) {
-          handlePriceFetch(priceBtn.dataset.id);
-          return;
-        }
         var card = e.target.closest(".book[data-id]");
         if (!card) return;
         // Don't open modal if clicking a seller link

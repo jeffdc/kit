@@ -1,28 +1,24 @@
-.PHONY: all build build-tui install test fmt lint vet clean help deploy sync backup
+.PHONY: all build test test-coverage fmt fmt-check vet lint run dev-data wake backup deploy clean help
 
-BINARY_NAME := forage
-TUI_BINARY := forage-tui
-GOBIN := $(shell go env GOBIN)
-ifeq ($(GOBIN),)
-	GOBIN := $(shell go env GOPATH)/bin
-endif
+# Last commit touching this folder, plus -dirty if this folder has uncommitted changes.
+VERSION := $(shell git log -1 --format=%h -- . 2>/dev/null || echo dev)$(shell test -z "$$(git status --porcelain -- . 2>/dev/null)" || echo -dirty)
+LDFLAGS := -X main.version=$(VERSION)
+
+SPRITE    := sprite exec -s forage
+SITE      := https://forage-4pbc.sprites.app
+REMOTE    := /home/sprite/forage-server
+REMOTE_DB := /home/sprite/forage/forage.db
+
+DEV_DIR  := .dev
+DEV_PORT := 8091
 
 all: fmt vet test build
 
 build:
-	go build -o $(BINARY_NAME) .
-
-build-tui:
-	go build -o $(TUI_BINARY) ./cmd/forage-tui
-
-install:
-	go install .
-	go install ./cmd/forage-tui
-	@echo "Installed $(BINARY_NAME) and $(TUI_BINARY) to $(GOBIN)"
-	@echo "Make sure $(GOBIN) is in your PATH"
+	go build -ldflags "$(LDFLAGS)" -o forage-server ./cmd/forage-server
 
 test:
-	go test -v ./...
+	go test ./...
 
 test-coverage:
 	go test -coverprofile=coverage.out ./...
@@ -34,59 +30,67 @@ fmt:
 fmt-check:
 	@test -z "$$(gofmt -l .)" || (echo "Files need formatting:"; gofmt -l .; exit 1)
 
-lint:
-	@if command -v golangci-lint >/dev/null 2>&1; then \
-		golangci-lint run; \
-	else \
-		echo "golangci-lint not installed, running go vet only"; \
-		go vet ./...; \
-	fi
-
 vet:
 	go vet ./...
 
-deploy: install
-	GOOS=linux GOARCH=amd64 go build -o /tmp/forage-server ./cmd/forage-server
-	forage export -o /tmp/forage-pwa
-	echo "sprite-env services stop web" | sprite exec -s forage bash
-	cat /tmp/forage-server | sprite exec -s forage bash -c "cat > /home/sprite/forage-server && chmod +x /home/sprite/forage-server"
-	for f in /tmp/forage-pwa/*; do \
-		cat "$$f" | sprite exec -s forage bash -c "cat > /home/sprite/www/$$(basename $$f)"; \
-	done
-	echo "sprite-env services start web" | sprite exec -s forage bash
-	@echo "Deployed to https://forage-4pbc.sprites.app"
+lint:
+	@if command -v golangci-lint >/dev/null 2>&1; then golangci-lint run; else go vet ./...; fi
 
-backup:
+# Local server on :$(DEV_PORT) with API key "dev". PWA files are served from
+# disk, so edits to internal/pwa/assets show on reload without a rebuild.
+run:
+	@test -f $(DEV_DIR)/forage.db || echo "No dev database; starting empty (run 'make dev-data' to copy the latest backup)."
+	FORAGE_DIR=$(DEV_DIR) FORAGE_API_KEY=dev FORAGE_DEV_WWW=internal/pwa/assets PORT=$(DEV_PORT) \
+		go run -ldflags "$(LDFLAGS)" ./cmd/forage-server
+
+# Copy the newest local backup into the dev data directory (overwrites it).
+dev-data:
+	@latest=$$(ls -t forage-backup-*.db 2>/dev/null | head -1); \
+	test -n "$$latest" || { echo "No forage-backup-*.db found; run 'make backup' first."; exit 1; }; \
+	mkdir -p $(DEV_DIR) && cp "$$latest" $(DEV_DIR)/forage.db && echo "Dev data: $$latest"
+
+# The Sprite sleeps when idle; any HTTP request wakes it.
+wake:
+	@curl -s -m 60 -o /dev/null $(SITE)/api/health || true
+
+backup: wake
 	@set -eu; \
 	backup="forage-backup-$$(date -u +%Y%m%dT%H%M%SZ).db"; \
-	sprite exec -s forage sqlite3 /home/sprite/forage/forage.db ".timeout 10000" ".backup '/tmp/forage-backup.db'"; \
-	printf '\n' | sprite exec -s forage bash -c 'read -r; cat /tmp/forage-backup.db' > "$$backup"; \
+	$(SPRITE) sqlite3 $(REMOTE_DB) ".timeout 10000" ".backup '/tmp/forage-backup.db'"; \
+	printf '\n' | $(SPRITE) bash -c 'read -r; cat /tmp/forage-backup.db' > "$$backup"; \
+	test "$$(sqlite3 "$$backup" 'PRAGMA integrity_check')" = ok || { echo "Backup $$backup failed integrity check"; exit 1; }; \
 	echo "Backup saved to $$backup"
 
-sync: install
-	@test -n "$(FILE)" || (echo "Usage: make sync FILE=path/to/forage-changes.json"; exit 1)
-	forage import "$(FILE)" --changes
-	$(MAKE) deploy
+# Tests, then a verified backup, then upload beside the running binary, swap,
+# restart, and confirm the new build is answering. If any step fails, make
+# stops and the old server keeps running (the swap is the last step before
+# the restart).
+deploy: test backup
+	@set -eu; \
+	mkdir -p build; \
+	GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o build/forage-server-linux ./cmd/forage-server; \
+	echo "Uploading $(VERSION)..."; \
+	cat build/forage-server-linux | $(SPRITE) bash -c "cat > $(REMOTE).new && chmod +x $(REMOTE).new"; \
+	$(SPRITE) mv $(REMOTE).new $(REMOTE); \
+	echo "sprite-env services stop web && sprite-env services start web" | $(SPRITE) bash; \
+	for i in 1 2 3 4 5 6 7 8 9 10; do \
+		if curl -s -m 10 $(SITE)/api/health | grep -q '"build":"$(VERSION)"'; then \
+			echo "Deployed $(VERSION) to $(SITE)"; exit 0; \
+		fi; \
+		sleep 3; \
+	done; \
+	echo "Deploy uploaded, but $(SITE)/api/health is not reporting $(VERSION)"; exit 1
 
 clean:
-	rm -f $(BINARY_NAME) $(TUI_BINARY)
-	rm -f coverage.out coverage.html
-	rm -rf /tmp/forage-pwa
+	rm -rf forage-server build coverage.out coverage.html
 
 help:
-	@echo "Available targets:"
-	@echo "  all           - fmt, vet, test, build (default)"
-	@echo "  build         - Build the binary"
-	@echo "  build-tui     - Build the TUI binary"
-	@echo "  install       - Install to $(GOBIN)"
-	@echo "  test          - Run tests"
-	@echo "  test-coverage - Run tests with coverage report"
-	@echo "  fmt           - Format code"
-	@echo "  fmt-check     - Check if code is formatted"
-	@echo "  lint          - Run golangci-lint (or vet if not installed)"
-	@echo "  vet           - Run go vet"
-	@echo "  deploy        - Build server, export PWA, deploy to Sprite"
-	@echo "  backup        - Back up the Sprite database locally"
-	@echo "  sync          - Import PWA changes and redeploy (FILE=path/to/changes.json)"
-	@echo "  clean         - Remove build artifacts"
-	@echo "  help          - Show this help"
+	@echo "Targets:"
+	@echo "  all       fmt, vet, test, build (default)"
+	@echo "  build     build ./forage-server"
+	@echo "  test      run tests"
+	@echo "  run       local server on :$(DEV_PORT) (API key: dev)"
+	@echo "  dev-data  copy the newest backup into $(DEV_DIR)/ for 'make run'"
+	@echo "  backup    download a verified copy of the production database"
+	@echo "  deploy    test, back up, upload, swap, restart, verify"
+	@echo "  clean     remove build output"
