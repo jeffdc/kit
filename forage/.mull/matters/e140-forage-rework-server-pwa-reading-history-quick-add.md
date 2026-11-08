@@ -77,7 +77,7 @@ The existing API keeps working throughout this phase, because the old PWA on the
 - [x] Update CLAUDE.md and the sprite-deploy memory.
 - [x] Added: interim PWA data-loss fixes ahead of the Phase 3 rewrite. New IDs are 12 hex characters; pushes run one at a time; only changes that were sent are removed from the queue; the price UI is removed.
 - [x] Added: the service worker bypasses the browser's HTTP cache. The old server sent no cache headers, so browsers kept stale `app.js` and the "network-first" worker still got old files. After this deploy the phone needs one or two reopens to pick up the new version.
-- [ ] Deploy to production, and check on the phone that pending changes flush and new adds get 12-character IDs.
+- [x] Deployed (build 8859439) and checked on the phone that pending changes flush and new adds get 12-character IDs.
 
 ## Phase 2: Data model and sync API
 
@@ -107,7 +107,7 @@ Notes for Phase 3:
 - The client should drop and surface "rejected" ops, retry the whole batch on a 5xx, and do a full resync when `epoch` changes.
 - The Sprite's proxy already compresses responses (Brotli), so the full sync (~740 KB raw) is fine.
 - The resolver handles Goodreads, Amazon, Bookshop, ThriftBooks, Wikipedia, Penguin Random House and Open Library links, as well as Bluesky posts with link cards. Posts without links return their text for manual entry.
-- [ ] Deploy to production.
+- [x] Deployed as build b89ad63 on 2026-11-08, with `FORAGE_TZ=America/New_York` added to `serve.sh`. The migration produced 1,889 reads (544 dated) for 2,131 books.
 
 ## Phase 3: PWA rewrite
 
