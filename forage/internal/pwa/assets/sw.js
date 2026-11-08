@@ -1,5 +1,5 @@
-// Service worker. The server replaces __FORAGE_BUILD__ with the build
-// version, so each deploy installs a fresh cache and the app reloads into it.
+// Service worker. The server stamps the build version into BUILD below, so
+// each deploy installs a fresh cache and the app reloads into it.
 const BUILD = "__FORAGE_BUILD__";
 const CACHE = "forage-" + BUILD;
 const DEV = BUILD.startsWith("dev");

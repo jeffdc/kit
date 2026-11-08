@@ -132,7 +132,8 @@ Plain JS as native ES modules, with no build step and no framework.
 - [x] Visual direction "Paperback Bands" (colour-coded mid-century paperback): status band colours, a three-band detail cover, a band sweep on status change, Gill Sans. Recorded in PRODUCT.md, DESIGN.md and `.impeccable/surfaces/`. The finish review shipped after one fix round.
 - [x] Server stamps the build version into `sw.js` (no manual cache bumps). App files are cache-first in production and network-first in dev.
 - [x] Checked in a browser on a copy of production data: upgrade from the old app's database, full sync of 2,132 books and 1,891 reads, finish and re-read, add via the resolver, editing, offline queue and reload, a refused change (kept in Settings until dismissed), dark mode, the desktop drawer.
-- [ ] Deploy, then check on the iPhone: install/update, offline in a store, and opening a book from search.
+- [x] Deployed as build 81b2b08 on 2026-11-08. Production is healthy: schema 2, 2,131 books, 1,889 reads, all app files served, the API needs the key.
+- [ ] Check on the iPhone: the update takes, offline works in a store, opening a book from search works.
 
 ## Phase 4: Quick add from the iOS share sheet
 
