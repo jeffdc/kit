@@ -2,7 +2,8 @@
 status: planned
 tags: [forage, design, pwa]
 created: 2026-03-19
-updated: 2026-03-19
+updated: 2026-11-08
+relates: [e140]
 ---
 
 # Server-side persistence for PWA
