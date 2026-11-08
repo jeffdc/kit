@@ -146,7 +146,7 @@ Home-screen web apps on iOS keep their own storage, separate from Safari, so a S
 ## Phase 5: Cleanup
 
 - [ ] After the new PWA is on the phone and its old queue has flushed, remove `/api/books`, `/api/changes`, `/api/version` and the `changes` package.
-- [ ] Fill in finish dates for the 14 books read since March, using the new UI.
+- [x] Filled in finish dates for 17 books read in 2026, from your estimates (month-only answers recorded as the 15th), via /api/ops on 2026-11-08. Five more (McSweeney's 16, Poe, two Lovecraft, Mammals of North America) were read in earlier years, so they keep undated reads.
 - [ ] Close the obsolete mull matters (0aab sync to CLI, 7a39 StoryGraph import) and mark fc51 as superseded.
 
 ## Parallel: automated off-Sprite backups
