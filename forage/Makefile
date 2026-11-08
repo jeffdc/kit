@@ -19,6 +19,7 @@ build:
 
 test:
 	go test ./...
+	node --test internal/pwa/test/*.test.mjs
 
 test-coverage:
 	go test -coverprofile=coverage.out ./...
@@ -88,7 +89,7 @@ help:
 	@echo "Targets:"
 	@echo "  all       fmt, vet, test, build (default)"
 	@echo "  build     build ./forage-server"
-	@echo "  test      run tests"
+	@echo "  test      run Go and PWA (node) tests"
 	@echo "  run       local server on :$(DEV_PORT) (API key: dev)"
 	@echo "  dev-data  copy the newest backup into $(DEV_DIR)/ for 'make run'"
 	@echo "  backup    download a verified copy of the production database"

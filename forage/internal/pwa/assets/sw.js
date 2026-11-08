@@ -1,60 +1,45 @@
-const CACHE_NAME = 'forage-v6';
-const APP_ASSETS = ['./', './index.html', './app.js', './style.css', './manifest.json'];
+// Service worker. The server replaces __FORAGE_BUILD__ with the build
+// version, so each deploy installs a fresh cache and the app reloads into it.
+const BUILD = "__FORAGE_BUILD__";
+const CACHE = "forage-" + BUILD;
+const DEV = BUILD.startsWith("dev");
 
-self.addEventListener('install', (event) => {
+const APP = [
+  "./", "index.html", "style.css", "manifest.json",
+  "js/main.js", "js/core.js", "js/store.js", "js/sync.js", "js/idb.js", "js/views.js", "js/icons.js",
+  "icons/icon-180.png", "icons/icon-192.png",
+];
+
+self.addEventListener("install", (event) => {
   self.skipWaiting();
-  // cache: 'reload' skips the browser's HTTP cache, which may hold stale
-  // copies from before the server sent Cache-Control: no-cache.
+  // cache: "reload" skips the HTTP cache so the new build's files are fetched fresh.
+  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(APP.map((u) => new Request(u, { cache: "reload" })))));
+});
+
+self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) =>
-      cache.addAll(APP_ASSETS.map((url) => new Request(url, { cache: 'reload' })))
-    )
+    caches.keys()
+      .then((names) => Promise.all(names.filter((n) => n !== CACHE).map((n) => caches.delete(n))))
+      .then(() => self.clients.claim()),
   );
 });
 
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((names) =>
-      Promise.all(
-        names
-          .filter((name) => name !== CACHE_NAME)
-          .map((name) => caches.delete(name))
-      )
-    ).then(() => self.clients.claim())
-  );
-});
+self.addEventListener("fetch", (event) => {
+  const req = event.request;
+  if (req.method !== "GET") return;
+  const url = new URL(req.url);
+  if (url.origin !== location.origin || url.pathname.startsWith("/api/")) return;
 
-// Network-first: try the network, keep a copy for offline use, and fall back
-// to that copy when the network fails.
-function networkFirst(request, fetchRequest) {
-  return fetch(fetchRequest)
-    .then((response) => {
-      if (response.ok) {
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-      }
-      return response;
-    })
-    .catch(() => caches.match(request));
-}
+  // Pages load the app shell, whatever query they carry (?add=…).
+  const key = req.mode === "navigate" ? "./" : req;
 
-self.addEventListener('fetch', (event) => {
-  const { request } = event;
-
-  if (request.method !== 'GET') return;
-
-  const url = new URL(request.url);
-
-  // API calls always go straight to the network.
-  if (url.pathname.startsWith('/api/')) return;
-
-  if (url.origin === 'https://openlibrary.org') {
-    event.respondWith(networkFirst(request, request));
+  if (DEV) {
+    // Development: always fetch, so edits show on reload.
+    event.respondWith(fetch(req).catch(() => caches.match(key)));
     return;
   }
-
-  if (url.origin !== location.origin) return;
-
-  // Revalidate app files with the server rather than trusting the HTTP cache.
-  event.respondWith(networkFirst(request, new Request(request, { cache: 'no-cache' })));
+  // Production: the cache holds exactly this build's files.
+  event.respondWith(
+    caches.match(key, { ignoreSearch: req.mode === "navigate" }).then((hit) => hit || fetch(req)),
+  );
 });

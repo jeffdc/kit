@@ -92,3 +92,18 @@ func TestStaticFilesServedWithNoCache(t *testing.T) {
 		t.Errorf("unexpected CORS header %q", acao)
 	}
 }
+
+func TestServiceWorkerGetsBuildStamp(t *testing.T) {
+	static := fstest.MapFS{"sw.js": {Data: []byte(`const BUILD = "__FORAGE_BUILD__";`)}}
+	h := NewHandler(newTestStore(t), "test-key", "abc123", static)
+	w := serve(h, httptest.NewRequest("GET", "/sw.js", nil))
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"abc123"`) || strings.Contains(w.Body.String(), "__FORAGE_BUILD__") {
+		t.Fatalf("sw.js: %d %q", w.Code, w.Body.String())
+	}
+	if ct := w.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/javascript") {
+		t.Errorf("Content-Type = %q", ct)
+	}
+	if cc := w.Header().Get("Cache-Control"); cc != "no-cache" {
+		t.Errorf("Cache-Control = %q", cc)
+	}
+}

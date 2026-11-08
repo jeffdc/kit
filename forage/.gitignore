@@ -5,3 +5,5 @@ coverage.out
 coverage.html
 .sprite
 /forage-backup-*.db
+/.impeccable/mocks/
+/.impeccable/review/

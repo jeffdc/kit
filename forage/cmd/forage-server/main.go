@@ -52,6 +52,9 @@ func main() {
 	if dir := os.Getenv("FORAGE_DEV_WWW"); dir != "" {
 		static = os.DirFS(dir)
 		staticDesc = dir
+		// A "dev" build makes the service worker fetch every file fresh,
+		// so edits show on reload.
+		version = "dev-" + version
 	}
 
 	store, err := storage.New(forageDir)

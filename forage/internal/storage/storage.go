@@ -44,6 +44,7 @@ var defaultBooksellers = []model.Bookseller{
 	{Name: "WorldCat", URL: "https://search.worldcat.org/search?q={query}"},
 	{Name: "Goodreads", URL: "https://www.goodreads.com/search?q={query}"},
 	{Name: "Amazon", URL: "https://www.amazon.com/s?k={query}&i=stripbooks"},
+	{Name: "BookFinder", URL: "https://www.bookfinder.com/search/?keywords={query}&mode=basic&st=sr&ac=qr"},
 }
 
 // appliedOpsRetention bounds how long op IDs are remembered for replay.

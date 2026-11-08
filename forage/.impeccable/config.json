@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "undersized-ui-text",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/canon.html"
+        ],
+        "createdAt": "2026-11-08T21:04:58.906Z",
+        "reason": "agent decision: throwaway direction-round sketch imitating iOS 10px tab labels; not shipped"
+      }
+    ]
+  }
+}

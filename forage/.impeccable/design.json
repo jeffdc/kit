@@ -1,0 +1,912 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-08T21:14:40+00:00",
+  "title": "Design System: Forage",
+  "extensions": {
+    "colorMeta": {
+      "ground": {
+        "role": "neutral",
+        "displayName": "Ground",
+        "canonical": "#FBFBF9",
+        "tonalRamp": [
+          "#1C1C1A",
+          "#3A3A37",
+          "#5E5E59",
+          "#8C8C86",
+          "#D9D9D4",
+          "#EFEFEB",
+          "#FBFBF9",
+          "#FFFFFF"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Paper",
+        "canonical": "#FFFFFF",
+        "tonalRamp": [
+          "#1C1C1A",
+          "#3A3A37",
+          "#5E5E59",
+          "#8C8C86",
+          "#D9D9D4",
+          "#EFEFEB",
+          "#FBFBF9",
+          "#FFFFFF"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#1C1C1A",
+        "tonalRamp": [
+          "#1C1C1A",
+          "#3A3A37",
+          "#5E5E59",
+          "#8C8C86",
+          "#D9D9D4",
+          "#EFEFEB",
+          "#FBFBF9",
+          "#FFFFFF"
+        ]
+      },
+      "n1": {
+        "role": "neutral",
+        "displayName": "Neutral 1",
+        "canonical": "#3A3A37",
+        "tonalRamp": [
+          "#1C1C1A",
+          "#3A3A37",
+          "#5E5E59",
+          "#8C8C86",
+          "#D9D9D4",
+          "#EFEFEB",
+          "#FBFBF9",
+          "#FFFFFF"
+        ]
+      },
+      "n2": {
+        "role": "neutral",
+        "displayName": "Neutral 2",
+        "canonical": "#5E5E59",
+        "tonalRamp": [
+          "#1C1C1A",
+          "#3A3A37",
+          "#5E5E59",
+          "#8C8C86",
+          "#D9D9D4",
+          "#EFEFEB",
+          "#FBFBF9",
+          "#FFFFFF"
+        ]
+      },
+      "n3": {
+        "role": "neutral",
+        "displayName": "Neutral 3",
+        "canonical": "#8C8C86",
+        "tonalRamp": [
+          "#1C1C1A",
+          "#3A3A37",
+          "#5E5E59",
+          "#8C8C86",
+          "#D9D9D4",
+          "#EFEFEB",
+          "#FBFBF9",
+          "#FFFFFF"
+        ]
+      },
+      "n4": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "#D9D9D4",
+        "tonalRamp": [
+          "#1C1C1A",
+          "#3A3A37",
+          "#5E5E59",
+          "#8C8C86",
+          "#D9D9D4",
+          "#EFEFEB",
+          "#FBFBF9",
+          "#FFFFFF"
+        ]
+      },
+      "n5": {
+        "role": "neutral",
+        "displayName": "Pressed Fill",
+        "canonical": "#EFEFEB",
+        "tonalRamp": [
+          "#1C1C1A",
+          "#3A3A37",
+          "#5E5E59",
+          "#8C8C86",
+          "#D9D9D4",
+          "#EFEFEB",
+          "#FBFBF9",
+          "#FFFFFF"
+        ]
+      },
+      "band-wishlist": {
+        "role": "primary",
+        "displayName": "Paperback Orange",
+        "canonical": "#C4471B",
+        "tonalRamp": [
+          "oklch(15% 0.046 38)",
+          "oklch(26% 0.081 38)",
+          "oklch(38% 0.116 38)",
+          "oklch(49% 0.151 38)",
+          "oklch(61% 0.151 38)",
+          "oklch(72% 0.116 38)",
+          "oklch(84% 0.081 38)",
+          "oklch(95% 0.046 38)"
+        ]
+      },
+      "on-wishlist": {
+        "role": "on-color",
+        "displayName": "On Wishlist",
+        "canonical": "#FFFFFF",
+        "tonalRamp": [
+          "#1C1C1A",
+          "#3A3A37",
+          "#5E5E59",
+          "#8C8C86",
+          "#D9D9D4",
+          "#EFEFEB",
+          "#FBFBF9",
+          "#FFFFFF"
+        ]
+      },
+      "band-owned": {
+        "role": "primary",
+        "displayName": "Cerise",
+        "canonical": "#A62B5C",
+        "tonalRamp": [
+          "oklch(15% 0.044 1)",
+          "oklch(26% 0.078 1)",
+          "oklch(38% 0.112 1)",
+          "oklch(49% 0.146 1)",
+          "oklch(61% 0.146 1)",
+          "oklch(72% 0.112 1)",
+          "oklch(84% 0.078 1)",
+          "oklch(95% 0.044 1)"
+        ]
+      },
+      "on-owned": {
+        "role": "on-color",
+        "displayName": "On Owned",
+        "canonical": "#FFFFFF",
+        "tonalRamp": [
+          "#1C1C1A",
+          "#3A3A37",
+          "#5E5E59",
+          "#8C8C86",
+          "#D9D9D4",
+          "#EFEFEB",
+          "#FBFBF9",
+          "#FFFFFF"
+        ]
+      },
+      "band-reading": {
+        "role": "primary",
+        "displayName": "Reading Green",
+        "canonical": "#2B6B43",
+        "tonalRamp": [
+          "oklch(15% 0.025 153)",
+          "oklch(26% 0.044 153)",
+          "oklch(38% 0.064 153)",
+          "oklch(49% 0.083 153)",
+          "oklch(61% 0.083 153)",
+          "oklch(72% 0.064 153)",
+          "oklch(84% 0.044 153)",
+          "oklch(95% 0.025 153)"
+        ]
+      },
+      "on-reading": {
+        "role": "on-color",
+        "displayName": "On Reading",
+        "canonical": "#FFFFFF",
+        "tonalRamp": [
+          "#1C1C1A",
+          "#3A3A37",
+          "#5E5E59",
+          "#8C8C86",
+          "#D9D9D4",
+          "#EFEFEB",
+          "#FBFBF9",
+          "#FFFFFF"
+        ]
+      },
+      "band-paused": {
+        "role": "primary",
+        "displayName": "Ochre",
+        "canonical": "#D4A82A",
+        "tonalRamp": [
+          "oklch(15% 0.039 88)",
+          "oklch(26% 0.068 88)",
+          "oklch(38% 0.098 88)",
+          "oklch(49% 0.127 88)",
+          "oklch(61% 0.127 88)",
+          "oklch(72% 0.098 88)",
+          "oklch(84% 0.068 88)",
+          "oklch(95% 0.039 88)"
+        ]
+      },
+      "on-paused": {
+        "role": "on-color",
+        "displayName": "On Paused",
+        "canonical": "#1C1C1A",
+        "tonalRamp": [
+          "#1C1C1A",
+          "#3A3A37",
+          "#5E5E59",
+          "#8C8C86",
+          "#D9D9D4",
+          "#EFEFEB",
+          "#FBFBF9",
+          "#FFFFFF"
+        ]
+      },
+      "band-read": {
+        "role": "primary",
+        "displayName": "Series Blue",
+        "canonical": "#24488A",
+        "tonalRamp": [
+          "oklch(15% 0.032 261)",
+          "oklch(26% 0.057 261)",
+          "oklch(38% 0.081 261)",
+          "oklch(49% 0.105 261)",
+          "oklch(61% 0.105 261)",
+          "oklch(72% 0.081 261)",
+          "oklch(84% 0.057 261)",
+          "oklch(95% 0.032 261)"
+        ]
+      },
+      "on-read": {
+        "role": "on-color",
+        "displayName": "On Read",
+        "canonical": "#FFFFFF",
+        "tonalRamp": [
+          "#1C1C1A",
+          "#3A3A37",
+          "#5E5E59",
+          "#8C8C86",
+          "#D9D9D4",
+          "#EFEFEB",
+          "#FBFBF9",
+          "#FFFFFF"
+        ]
+      },
+      "band-dropped": {
+        "role": "primary",
+        "displayName": "Slate",
+        "canonical": "#686864",
+        "tonalRamp": [
+          "oklch(15% 0.002 107)",
+          "oklch(26% 0.003 107)",
+          "oklch(38% 0.004 107)",
+          "oklch(49% 0.006 107)",
+          "oklch(61% 0.006 107)",
+          "oklch(72% 0.004 107)",
+          "oklch(84% 0.003 107)",
+          "oklch(95% 0.002 107)"
+        ]
+      },
+      "on-dropped": {
+        "role": "on-color",
+        "displayName": "On Dropped",
+        "canonical": "#FFFFFF",
+        "tonalRamp": [
+          "#1C1C1A",
+          "#3A3A37",
+          "#5E5E59",
+          "#8C8C86",
+          "#D9D9D4",
+          "#EFEFEB",
+          "#FBFBF9",
+          "#FFFFFF"
+        ]
+      },
+      "alert": {
+        "role": "secondary",
+        "displayName": "Alert Red",
+        "canonical": "#B3261E",
+        "tonalRamp": [
+          "oklch(15% 0.049 29)",
+          "oklch(26% 0.086 29)",
+          "oklch(38% 0.123 29)",
+          "oklch(49% 0.160 29)",
+          "oklch(61% 0.160 29)",
+          "oklch(72% 0.123 29)",
+          "oklch(84% 0.086 29)",
+          "oklch(95% 0.049 29)"
+        ]
+      },
+      "ground-dark": {
+        "role": "neutral",
+        "displayName": "Ground (dark)",
+        "canonical": "#141413",
+        "tonalRamp": [
+          "#141413",
+          "#1C1C1A",
+          "#1F1F1D",
+          "#33332F",
+          "#77776F",
+          "#A3A39D",
+          "#C8C8C2",
+          "#ECECE8"
+        ],
+        "scheme": "dark",
+        "lightCounterpart": "ground"
+      },
+      "paper-dark": {
+        "role": "neutral",
+        "displayName": "Paper (dark)",
+        "canonical": "#1C1C1A",
+        "tonalRamp": [
+          "#141413",
+          "#1C1C1A",
+          "#1F1F1D",
+          "#33332F",
+          "#77776F",
+          "#A3A39D",
+          "#C8C8C2",
+          "#ECECE8"
+        ],
+        "scheme": "dark",
+        "lightCounterpart": "paper"
+      },
+      "ink-dark": {
+        "role": "neutral",
+        "displayName": "Ink (dark)",
+        "canonical": "#ECECE8",
+        "tonalRamp": [
+          "#141413",
+          "#1C1C1A",
+          "#1F1F1D",
+          "#33332F",
+          "#77776F",
+          "#A3A39D",
+          "#C8C8C2",
+          "#ECECE8"
+        ],
+        "scheme": "dark",
+        "lightCounterpart": "ink"
+      },
+      "n1-dark": {
+        "role": "neutral",
+        "displayName": "Neutral 1 (dark)",
+        "canonical": "#C8C8C2",
+        "tonalRamp": [
+          "#141413",
+          "#1C1C1A",
+          "#1F1F1D",
+          "#33332F",
+          "#77776F",
+          "#A3A39D",
+          "#C8C8C2",
+          "#ECECE8"
+        ],
+        "scheme": "dark",
+        "lightCounterpart": "n1"
+      },
+      "n2-dark": {
+        "role": "neutral",
+        "displayName": "Neutral 2 (dark)",
+        "canonical": "#A3A39D",
+        "tonalRamp": [
+          "#141413",
+          "#1C1C1A",
+          "#1F1F1D",
+          "#33332F",
+          "#77776F",
+          "#A3A39D",
+          "#C8C8C2",
+          "#ECECE8"
+        ],
+        "scheme": "dark",
+        "lightCounterpart": "n2"
+      },
+      "n3-dark": {
+        "role": "neutral",
+        "displayName": "Neutral 3 (dark)",
+        "canonical": "#77776F",
+        "tonalRamp": [
+          "#141413",
+          "#1C1C1A",
+          "#1F1F1D",
+          "#33332F",
+          "#77776F",
+          "#A3A39D",
+          "#C8C8C2",
+          "#ECECE8"
+        ],
+        "scheme": "dark",
+        "lightCounterpart": "n3"
+      },
+      "n4-dark": {
+        "role": "neutral",
+        "displayName": "Hairline (dark)",
+        "canonical": "#33332F",
+        "tonalRamp": [
+          "#141413",
+          "#1C1C1A",
+          "#1F1F1D",
+          "#33332F",
+          "#77776F",
+          "#A3A39D",
+          "#C8C8C2",
+          "#ECECE8"
+        ],
+        "scheme": "dark",
+        "lightCounterpart": "n4"
+      },
+      "n5-dark": {
+        "role": "neutral",
+        "displayName": "Pressed Fill (dark)",
+        "canonical": "#1F1F1D",
+        "tonalRamp": [
+          "#141413",
+          "#1C1C1A",
+          "#1F1F1D",
+          "#33332F",
+          "#77776F",
+          "#A3A39D",
+          "#C8C8C2",
+          "#ECECE8"
+        ],
+        "scheme": "dark",
+        "lightCounterpart": "n5"
+      },
+      "band-wishlist-dark": {
+        "role": "primary",
+        "displayName": "Paperback Orange (dark)",
+        "canonical": "#E4743F",
+        "tonalRamp": [
+          "oklch(15% 0.042 44)",
+          "oklch(26% 0.074 44)",
+          "oklch(38% 0.106 44)",
+          "oklch(49% 0.138 44)",
+          "oklch(61% 0.138 44)",
+          "oklch(72% 0.106 44)",
+          "oklch(84% 0.074 44)",
+          "oklch(95% 0.042 44)"
+        ],
+        "scheme": "dark",
+        "lightCounterpart": "band-wishlist"
+      },
+      "band-owned-dark": {
+        "role": "primary",
+        "displayName": "Cerise (dark)",
+        "canonical": "#D6649A",
+        "tonalRamp": [
+          "oklch(15% 0.042 353)",
+          "oklch(26% 0.074 353)",
+          "oklch(38% 0.106 353)",
+          "oklch(49% 0.139 353)",
+          "oklch(61% 0.139 353)",
+          "oklch(72% 0.106 353)",
+          "oklch(84% 0.074 353)",
+          "oklch(95% 0.042 353)"
+        ],
+        "scheme": "dark",
+        "lightCounterpart": "band-owned"
+      },
+      "band-reading-dark": {
+        "role": "primary",
+        "displayName": "Reading Green (dark)",
+        "canonical": "#5BAE78",
+        "tonalRamp": [
+          "oklch(15% 0.031 154)",
+          "oklch(26% 0.055 154)",
+          "oklch(38% 0.079 154)",
+          "oklch(49% 0.103 154)",
+          "oklch(61% 0.103 154)",
+          "oklch(72% 0.079 154)",
+          "oklch(84% 0.055 154)",
+          "oklch(95% 0.031 154)"
+        ],
+        "scheme": "dark",
+        "lightCounterpart": "band-reading"
+      },
+      "band-paused-dark": {
+        "role": "primary",
+        "displayName": "Ochre (dark)",
+        "canonical": "#D9B341",
+        "tonalRamp": [
+          "oklch(15% 0.037 90)",
+          "oklch(26% 0.065 90)",
+          "oklch(38% 0.093 90)",
+          "oklch(49% 0.122 90)",
+          "oklch(61% 0.122 90)",
+          "oklch(72% 0.093 90)",
+          "oklch(84% 0.065 90)",
+          "oklch(95% 0.037 90)"
+        ],
+        "scheme": "dark",
+        "lightCounterpart": "band-paused"
+      },
+      "band-read-dark": {
+        "role": "primary",
+        "displayName": "Series Blue (dark)",
+        "canonical": "#7A9FE0",
+        "tonalRamp": [
+          "oklch(15% 0.028 261)",
+          "oklch(26% 0.050 261)",
+          "oklch(38% 0.072 261)",
+          "oklch(49% 0.094 261)",
+          "oklch(61% 0.094 261)",
+          "oklch(72% 0.072 261)",
+          "oklch(84% 0.050 261)",
+          "oklch(95% 0.028 261)"
+        ],
+        "scheme": "dark",
+        "lightCounterpart": "band-read"
+      },
+      "band-dropped-dark": {
+        "role": "primary",
+        "displayName": "Slate (dark)",
+        "canonical": "#A3A39D",
+        "tonalRamp": [
+          "oklch(15% 0.002 107)",
+          "oklch(26% 0.004 107)",
+          "oklch(38% 0.006 107)",
+          "oklch(49% 0.008 107)",
+          "oklch(61% 0.008 107)",
+          "oklch(72% 0.006 107)",
+          "oklch(84% 0.004 107)",
+          "oklch(95% 0.002 107)"
+        ],
+        "scheme": "dark",
+        "lightCounterpart": "band-dropped"
+      },
+      "on-band-dark": {
+        "role": "on-color",
+        "displayName": "On Band (dark)",
+        "canonical": "#141413",
+        "tonalRamp": [
+          "#141413",
+          "#1C1C1A",
+          "#1F1F1D",
+          "#33332F",
+          "#77776F",
+          "#A3A39D",
+          "#C8C8C2",
+          "#ECECE8"
+        ],
+        "scheme": "dark",
+        "purpose": "Text on every band in dark mode."
+      },
+      "alert-dark": {
+        "role": "secondary",
+        "displayName": "Alert Red (dark)",
+        "canonical": "#F28B82",
+        "tonalRamp": [
+          "oklch(15% 0.035 26)",
+          "oklch(26% 0.061 26)",
+          "oklch(38% 0.087 26)",
+          "oklch(49% 0.114 26)",
+          "oklch(61% 0.114 26)",
+          "oklch(72% 0.087 26)",
+          "oklch(84% 0.061 26)",
+          "oklch(95% 0.035 26)"
+        ],
+        "scheme": "dark",
+        "lightCounterpart": "alert"
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Book title on the cover only."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Shelf titles."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Sheet titles and History year headings."
+      },
+      "title-row": {
+        "displayName": "Title Row",
+        "purpose": "Book title in a row, two-line clamp."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Base text and inputs (17px prevents iOS focus zoom)."
+      },
+      "body-secondary": {
+        "displayName": "Body Secondary",
+        "purpose": "Authors, counts, meta, cover facts; tabular figures."
+      },
+      "label-band": {
+        "displayName": "Label Band",
+        "purpose": "Status name in the cover top band; wordmark at 600."
+      },
+      "label-section": {
+        "displayName": "Label Section",
+        "purpose": "Detail section heads over a hairline, n2."
+      },
+      "label-field": {
+        "displayName": "Label Field",
+        "purpose": "Form field labels, n2."
+      },
+      "label-tab": {
+        "displayName": "Label Tab",
+        "purpose": "Tab bar labels."
+      },
+      "label-tag": {
+        "displayName": "Label Tag",
+        "purpose": "Status tags in rows."
+      }
+    },
+    "shadows": [],
+    "overlays": [
+      {
+        "name": "drawer-scrim",
+        "value": "rgb(20 20 19 / .28)",
+        "purpose": "Behind the 480px drawer at 760px and wider; the only translucent layer."
+      }
+    ],
+    "strokes": [
+      {
+        "name": "hairline",
+        "value": "1px solid var(--n4)",
+        "purpose": "Between rows, sections, header, tab bar, cover sides."
+      },
+      {
+        "name": "ink-outline",
+        "value": "1.5px solid var(--ink)",
+        "purpose": "Inputs, search, outline buttons, segmented frame; on-band on a band."
+      },
+      {
+        "name": "row-edge",
+        "value": "5px var(--band)",
+        "purpose": "Status edge on every book row."
+      },
+      {
+        "name": "tab-band",
+        "value": "4px top border var(--band-*)",
+        "purpose": "Active tab."
+      },
+      {
+        "name": "cover-rule",
+        "value": "40px x 2px var(--band)",
+        "purpose": "Under the cover title."
+      }
+    ],
+    "iconGrammar": {
+      "grid": "24px",
+      "strokeWidth": 1.75,
+      "linecap": "square",
+      "linejoin": "miter",
+      "color": "currentColor",
+      "inButtons": "20px",
+      "exception": "Star: filled glyph, 1.5 stroke, miter join; off state n3 outline."
+    },
+    "motion": [
+      {
+        "name": "ease",
+        "value": "cubic-bezier(.16, 1, .3, 1)",
+        "purpose": "Expo ease-out for every transition and the sweep."
+      },
+      {
+        "name": "panel-slide",
+        "value": "transform 340ms var(--ease)",
+        "purpose": "Detail and sheets: up on phone, from right at 760px+."
+      },
+      {
+        "name": "status-sweep",
+        "value": "scaleX(1 to 0), origin right, 550ms var(--ease); bottom band delay 70ms",
+        "purpose": "Old status colour swept off the cover bands to reveal the new one. Re-render held 640ms."
+      },
+      {
+        "name": "band-rise",
+        "value": "opacity .6 to 1, translateY 3px to 0, 450ms var(--ease)",
+        "purpose": "Band contents during the sweep."
+      },
+      {
+        "name": "toast",
+        "value": "opacity 200ms, transform 300ms var(--ease), 12px rise",
+        "purpose": "Toast entrance."
+      },
+      {
+        "name": "sync-pulse",
+        "value": "opacity to .3, 1s ease-in-out infinite alternate",
+        "purpose": "Sync dot while syncing."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "none",
+        "purpose": "Panel, toast and sweep animations disabled under prefers-reduced-motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "content-max",
+        "value": "720px",
+        "purpose": "Header, main and tab bar cap."
+      },
+      {
+        "name": "drawer",
+        "value": "760px",
+        "purpose": "Panels become a 480px right drawer with scrim; back chevron becomes close."
+      }
+    ],
+    "layout": {
+      "gutter": "16px",
+      "tabbarHeight": "64px + safe-area",
+      "rowMinHeight": "62px",
+      "touchTargetMin": "44px",
+      "separator": {
+        "glyph": "·",
+        "margin": "0 .48em 0 .22em",
+        "purpose": "Optical correction: Gill Sans sets the dot right of centre."
+      }
+    }
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Solid ink action for the one main thing on a sheet (Find, Add, Save).",
+      "html": "<button class=\"ds-btn ds-btn-primary\">Find</button>",
+      "css": ".ds-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:0 16px;border:1.5px solid var(--ink, #1C1C1A);border-radius:0;background:transparent;color:var(--ink, #1C1C1A);font:700 16px/1.35 \"Gill Sans\",\"Gill Sans MT\",\"Gill Sans Nova\",Seravek,Cabin,system-ui,sans-serif;cursor:pointer} .ds-btn-primary{background:var(--ink, #1C1C1A);color:var(--ground, #FBFBF9)} .ds-btn-primary:active{background:var(--n1, #3A3A37)} .ds-btn:focus-visible{outline:2px solid var(--ink, #1C1C1A);outline-offset:2px} .ds-btn:disabled{opacity:.5}"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Default secondary action: transparent with a 1.5px ink outline.",
+      "html": "<button class=\"ds-btn-o\"><svg viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"square\" stroke-linejoin=\"miter\" aria-hidden=\"true\" style=\"width:20px;height:20px\"><path d=\"M4 20h4L19 9l-4-4L4 16zM13 7l4 4\"/></svg>Edit details</button>",
+      "css": ".ds-btn-o{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:0 16px;border:1.5px solid var(--ink, #1C1C1A);border-radius:0;background:transparent;color:var(--ink, #1C1C1A);font:700 16px/1.35 \"Gill Sans\",\"Gill Sans MT\",\"Gill Sans Nova\",Seravek,Cabin,system-ui,sans-serif;cursor:pointer} .ds-btn-o:active{background:var(--n5, #EFEFEB)} .ds-btn-o:focus-visible{outline:2px solid var(--ink, #1C1C1A);outline-offset:2px}"
+    },
+    {
+      "name": "Danger Button (armed)",
+      "kind": "button",
+      "refersTo": "button-danger-armed",
+      "description": "Two-tap delete: alert outline at rest, alert fill once armed.",
+      "html": "<button class=\"ds-btn-d\">Delete</button> <button class=\"ds-btn-d ds-armed\">Tap again to delete</button>",
+      "css": ".ds-btn-d{min-height:46px;padding:0 16px;border:1.5px solid var(--alert, #B3261E);border-radius:0;background:transparent;color:var(--alert, #B3261E);font:700 16px/1.35 \"Gill Sans\",\"Gill Sans MT\",\"Gill Sans Nova\",Seravek,Cabin,system-ui,sans-serif;cursor:pointer} .ds-btn-d.ds-armed{background:var(--alert, #B3261E);color:var(--ground, #FBFBF9)} .ds-btn-d:focus-visible{outline:2px solid var(--ink, #1C1C1A);outline-offset:2px}"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Square 1.5px ink-outlined field on paper with a tracked uppercase field label.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">Title</span><input class=\"ds-input\" value=\"Translation State\"></label>",
+      "css": ".ds-field{display:grid;gap:6px;font-family:\"Gill Sans\",\"Gill Sans MT\",\"Gill Sans Nova\",Seravek,Cabin,system-ui,sans-serif} .ds-field-label{font-size:13px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--n2, #5E5E59)} .ds-input{width:100%;min-height:48px;padding:10px 12px;border:1.5px solid var(--ink, #1C1C1A);border-radius:0;background:var(--paper, #FFFFFF);color:var(--ink, #1C1C1A);font:17px/1.35 \"Gill Sans\",\"Gill Sans MT\",\"Gill Sans Nova\",Seravek,Cabin,system-ui,sans-serif;appearance:none} .ds-input:focus-visible{outline:2px solid var(--ink, #1C1C1A);outline-offset:2px}"
+    },
+    {
+      "name": "Search Field",
+      "kind": "input",
+      "refersTo": "search-field",
+      "description": "The front door: full-width square ink box with magnifier.",
+      "html": "<form class=\"ds-search\"><svg viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"square\" stroke-linejoin=\"miter\" aria-hidden=\"true\"><circle cx=\"10.5\" cy=\"10.5\" r=\"6.5\"/><path d=\"M15.5 15.5 21 21\"/></svg><input placeholder=\"Search 2,132 books\"></form>",
+      "css": ".ds-search{display:flex;align-items:center;gap:8px;height:46px;padding:0 4px 0 12px;border:1.5px solid var(--ink, #1C1C1A);background:var(--paper, #FFFFFF)} .ds-search svg{color:var(--n2, #5E5E59);flex:none} .ds-search input{flex:1;min-width:0;height:100%;border:0;background:none;outline:none;font:17px \"Gill Sans\",\"Gill Sans MT\",\"Gill Sans Nova\",Seravek,Cabin,system-ui,sans-serif;color:var(--ink, #1C1C1A)} .ds-search input::placeholder{color:var(--n2, #5E5E59)} .ds-search:focus-within{outline:2px solid var(--ink, #1C1C1A);outline-offset:1px}"
+    },
+    {
+      "name": "Book Row",
+      "kind": "custom",
+      "refersTo": "book-row",
+      "description": "Hairline list row with a 5px status edge, bold title, author and right meta column.",
+      "html": "<button class=\"ds-row\" style=\"--band:#C4471B;--on-band:#fff\"><span class=\"ds-edge\"></span><span class=\"ds-row-body\"><span class=\"ds-row-title\">Lucky Jim</span><span class=\"ds-row-author\">Kingsley Amis</span></span><span class=\"ds-row-meta\"><span class=\"ds-tag\" style=\"--band:#A62B5C\">Owned</span><span>1954</span></span></button>",
+      "css": ".ds-row{display:flex;align-items:stretch;width:100%;min-height:62px;padding:0;background:none;border:0;border-bottom:1px solid var(--n4, #D9D9D4);text-align:left;color:var(--ink, #1C1C1A);font-family:\"Gill Sans\",\"Gill Sans MT\",\"Gill Sans Nova\",Seravek,Cabin,system-ui,sans-serif;cursor:pointer} .ds-row:hover,.ds-row:active{background:var(--n5, #EFEFEB)} .ds-row:focus-visible{outline:2px solid var(--ink, #1C1C1A);outline-offset:2px} .ds-edge{width:5px;flex:none;background:var(--band)} .ds-row-body{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:2px;padding:10px 10px 10px 12px} .ds-row-title{font-weight:700;font-size:17px;line-height:1.2} .ds-row-author{font-size:15px;color:var(--n1, #3A3A37)} .ds-row-meta{flex:none;display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:5px;padding:10px 16px 10px 0;font-size:14px;color:var(--n2, #5E5E59);font-variant-numeric:tabular-nums} .ds-tag{background:var(--band);color:var(--on-band);font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;padding:3px 6px 2px;line-height:1.2}"
+    },
+    {
+      "name": "Status Tag",
+      "kind": "chip",
+      "refersTo": "status-tag",
+      "description": "Solid band fill with on-band tracked uppercase label; one per status.",
+      "html": "<span class=\"ds-chip\" style=\"--band:#C4471B;--on-band:#fff\">Wishlist</span> <span class=\"ds-chip\" style=\"--band:#A62B5C;--on-band:#fff\">Owned</span> <span class=\"ds-chip\" style=\"--band:#2B6B43;--on-band:#fff\">Reading</span> <span class=\"ds-chip\" style=\"--band:#D4A82A;--on-band:#1C1C1A\">Paused</span> <span class=\"ds-chip\" style=\"--band:#24488A;--on-band:#fff\">Read</span> <span class=\"ds-chip\" style=\"--band:#686864;--on-band:#fff\">Dropped</span>",
+      "css": ".ds-chip{display:inline-block;background:var(--band);color:var(--on-band);font:700 11px/1.2 \"Gill Sans\",\"Gill Sans MT\",\"Gill Sans Nova\",Seravek,Cabin,system-ui,sans-serif;letter-spacing:.14em;text-transform:uppercase;padding:3px 6px 2px}"
+    },
+    {
+      "name": "Tab Bar",
+      "kind": "nav",
+      "refersTo": "tab",
+      "description": "Bottom shelves nav: active tab topped by a 4px band in its shelf colour; square ink add button.",
+      "html": "<nav class=\"ds-tabbar\"><button class=\"ds-tab ds-on\" style=\"--band:#C4471B\"><svg viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"square\" stroke-linejoin=\"miter\" aria-hidden=\"true\"><path d=\"M6 3h12v18l-6-4.5L6 21z\"/></svg>Wishlist</button><button class=\"ds-tab\"><svg viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"square\" stroke-linejoin=\"miter\" aria-hidden=\"true\"><path d=\"M3 5c3-1 6-1 9 1.5C15 4 18 4 21 5v14c-3-1-6-1-9 1.5C9 18 6 18 3 19zM12 6.5v14\"/></svg>Reading</button><button class=\"ds-tab\"><svg viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"square\" stroke-linejoin=\"miter\" aria-hidden=\"true\"><path d=\"M4 20h16M5 16h14M6 12h12M7 8h10\"/></svg>History</button><button class=\"ds-add\" aria-label=\"Add\"><svg viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"square\" stroke-linejoin=\"miter\" aria-hidden=\"true\"><path d=\"M12 4v16M4 12h16\"/></svg></button></nav>",
+      "css": ".ds-tabbar{display:flex;align-items:stretch;height:64px;padding:0 10px;background:var(--ground, #FBFBF9);border-top:1px solid var(--n4, #D9D9D4);font-family:\"Gill Sans\",\"Gill Sans MT\",\"Gill Sans Nova\",Seravek,Cabin,system-ui,sans-serif} .ds-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;background:none;border:0;border-top:4px solid transparent;font-size:13px;font-weight:600;letter-spacing:.04em;color:var(--n2, #5E5E59);cursor:pointer} .ds-tab:hover{color:var(--ink, #1C1C1A)} .ds-tab.ds-on{color:var(--ink, #1C1C1A);border-top-color:var(--band)} .ds-tab:focus-visible,.ds-add:focus-visible{outline:2px solid var(--ink, #1C1C1A);outline-offset:2px} .ds-add{flex:none;align-self:center;width:58px;height:48px;margin-left:6px;display:inline-flex;align-items:center;justify-content:center;background:var(--ink, #1C1C1A);color:var(--ground, #FBFBF9);border:0;cursor:pointer} .ds-add:active{background:var(--n1, #3A3A37)}"
+    },
+    {
+      "name": "Segmented Control",
+      "kind": "custom",
+      "refersTo": "segmented-pressed",
+      "description": "Ink-framed segments; the pressed one fills with its own status band.",
+      "html": "<div class=\"ds-seg\"><button class=\"ds-seg-btn\" aria-pressed=\"true\" style=\"--band:#C4471B;--on-band:#fff\">Wishlist</button><button class=\"ds-seg-btn\" style=\"--band:#A62B5C;--on-band:#fff\">Owned</button><button class=\"ds-seg-btn\" style=\"--band:#2B6B43;--on-band:#fff\">Reading</button><button class=\"ds-seg-btn\" style=\"--band:#24488A;--on-band:#fff\">Read</button></div>",
+      "css": ".ds-seg{display:flex;border:1.5px solid var(--ink, #1C1C1A)} .ds-seg-btn{flex:1;min-height:42px;padding:0 4px;background:transparent;border:0;border-right:1px solid var(--ink, #1C1C1A);font:600 15px \"Gill Sans\",\"Gill Sans MT\",\"Gill Sans Nova\",Seravek,Cabin,system-ui,sans-serif;color:var(--ink, #1C1C1A);cursor:pointer} .ds-seg-btn:last-child{border-right:0} .ds-seg-btn:hover{background:var(--n5, #EFEFEB)} .ds-seg-btn[aria-pressed=\"true\"]{background:var(--band);color:var(--on-band)} .ds-seg-btn:focus-visible{outline:2px solid var(--ink, #1C1C1A);outline-offset:-3px}"
+    },
+    {
+      "name": "The Cover",
+      "kind": "card",
+      "refersTo": "cover-mid",
+      "description": "Signature: the open book as a three-band paperback cover, primary action in the bottom band; status change sweeps the old colour off (550ms, bottom band +70ms).",
+      "html": "<div class=\"ds-cover\" style=\"--band:#24488A;--on-band:#fff;--from:#2B6B43\"><div class=\"ds-band ds-band-top\"><span class=\"ds-band-label\">Read</span><span class=\"ds-band-info\">1 read<span class=\"ds-sep\">·</span>last Oct 4, 2025</span></div><div class=\"ds-mid\"><h2 class=\"ds-title\">Translation State</h2><span class=\"ds-rule\"></span><p class=\"ds-author\">Ann Leckie</p></div><div class=\"ds-band ds-band-bottom\"><div class=\"ds-actions\"><button class=\"ds-band-btn ds-primary\">Read again</button></div></div></div>",
+      "css": ".ds-cover{font-family:\"Gill Sans\",\"Gill Sans MT\",\"Gill Sans Nova\",Seravek,Cabin,system-ui,sans-serif;color:var(--ink, #1C1C1A)} .ds-band{position:relative;overflow:hidden;background:var(--band);color:var(--on-band)} .ds-band>*{position:relative;z-index:1} .ds-band::after{content:\"\";position:absolute;inset:0;z-index:0;background:var(--from);transform-origin:right center;animation:ds-sweep .55s cubic-bezier(.16,1,.3,1) forwards} .ds-band-bottom::after{animation-delay:.07s} @keyframes ds-sweep{from{transform:scaleX(1)}to{transform:scaleX(0)}} @media (prefers-reduced-motion:reduce){.ds-band::after{display:none}} .ds-band-top{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:58px;padding:10px 16px} .ds-band-label{font-size:14px;font-weight:700;letter-spacing:.26em;text-transform:uppercase} .ds-band-info{font-size:15px;font-variant-numeric:tabular-nums} .ds-sep{display:inline-block;margin:0 .48em 0 .22em} .ds-mid{background:var(--paper, #FFFFFF);border-left:1px solid var(--n4, #D9D9D4);border-right:1px solid var(--n4, #D9D9D4);padding:30px 20px 20px;text-align:center} .ds-title{margin:0;font-size:31px;font-weight:700;line-height:1.1;letter-spacing:-.01em;text-wrap:balance} .ds-rule{display:block;width:40px;height:2px;margin:14px auto 12px;background:var(--band)} .ds-author{margin:0;font-size:19px;color:var(--n1, #3A3A37)} .ds-band-bottom{padding:14px 16px 16px} .ds-actions{display:flex;gap:10px} .ds-band-btn{flex:1;min-height:50px;padding:0 12px;border:1.5px solid var(--on-band);background:transparent;color:var(--on-band);font:700 17px \"Gill Sans\",\"Gill Sans MT\",\"Gill Sans Nova\",Seravek,Cabin,system-ui,sans-serif;letter-spacing:.01em;cursor:pointer} .ds-band-btn.ds-primary{background:var(--on-band);color:var(--band)} .ds-band-btn:focus-visible{outline:2px solid var(--on-band);outline-offset:2px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Paperback Series Shelf",
+    "overview": "**Creative North Star: \"The Paperback Series Shelf\"**\n\nForage looks like a run of mid-century paperbacks: one humanist sans, flat ink, and a coloured band that tells you what kind of book it is. Here the band tells you the book's status. Wishlist is orange, owned cerise, reading green, paused ochre, read blue, and dropped grey. Status is the only thing colour encodes. Everything else is ink on a near-white ground, with a single fixed neutral ramp.\n\nThe interface is dense and plain because the job is speed. Nine or ten hairline rows fit on a phone screen. The search field is a square ink-outlined box at the top of every shelf. Lists stay quiet: colour shows only as a 5px edge, a swatch or a small tag. Colour fills a large area only when a book is opened. The detail view is drawn as a cover with three bands: a status band, a white title band and a status band. A status change sweeps the old colour off the cover to reveal the new one. That sweep is the system's one bit of theatre.\n\nThe world rejects two defaults by name: the grey iOS list with one blue accent, and the cream-and-serif \"bookish\" app. There are no shadows, gradients, glass or rounded corners anywhere.",
+    "keyCharacteristics": [
+      "Status-coded flat band colours, each paired with a fixed on-band text colour.",
+      "One fixed neutral ramp (ground, paper, ink, n1 to n5) for light and dark.",
+      "One humanist sans (Gill Sans, then Seravek) at every size.",
+      "Zero radius. Hairlines (1px) separate. Ink outlines (1.5px) mark anything you can act on.",
+      "A three-band cover for the open book, with a status sweep on change.",
+      "A square icon grammar: 1.75 stroke, square caps, mitred joins."
+    ],
+    "rules": [
+      {
+        "name": "The Band Means Status Rule",
+        "body": "A band colour always names a status. Don't use one as a decorative accent. The only exceptions are the sync dot and text selection, which borrow existing inks as signals. Don't add a new hue to the palette.",
+        "section": "colors"
+      },
+      {
+        "name": "The Full Band Rule",
+        "body": "Colour fills a large area only on the open book's cover. In lists it shrinks to a 5px edge, a 24x8 swatch, a tag, or the 4px band over a tab.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Ramp Rule",
+        "body": "Every grey comes from ground, paper, ink and n1 to n5. Nothing else is grey.",
+        "section": "colors"
+      },
+      {
+        "name": "The On-Band Pairing Rule",
+        "body": "Anything drawn on a band, whether text, an outline, a star or a date field border, uses that band's on-band colour. Don't put ink on a band unless ink is its on-band.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Face Rule",
+        "body": "Gill Sans at every level. Build hierarchy from weight, size and tracking. Never add a second family.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tracked Label Rule",
+        "body": "Tracked capitals are only for short labels that name something: the wordmark, a status, a section, a field, a tag, an alphabet letter. Never set titles, sentences or buttons in tracked capitals.",
+        "section": "typography"
+      },
+      {
+        "name": "The Optical Dot Rule",
+        "body": "Inline facts are joined with a middle dot inside a span with margins of 0.48em left and 0.22em right. Gill Sans draws the dot right of centre, so a plain \" · \" looks lopsided. Never type a literal spaced dot.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Ink Rule",
+        "body": "No box-shadow, gradient, backdrop-filter or translucency anywhere, except the drawer scrim. If something needs separating, use a hairline or a change of fill.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Hairlines, Not Boxes Rule",
+        "body": "Rows, sections and headers are divided by 1px n4 rules. Don't wrap a list item in a card.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Square Rule",
+        "body": "Radius is zero everywhere, the dot included. Nothing in the UI is a circle or a pill. The only round shape is the magnifier's lens inside the search icon.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "Do set every surface from the token ramp: ground for pages, paper for anything you write in, ink for anything you press.",
+      "Do carry status as a 5px edge, a 24x8 swatch, a tag or a 4px tab band in lists, and save full-width colour for the cover.",
+      "Do pair every band with its on-band colour for text, outlines, stars and fields drawn on it.",
+      "Do separate rows and sections with 1px n4 hairlines, and outline interactive elements in 1.5px ink.",
+      "Do draw new icons on the 24px grid with a 1.75 stroke, square caps and mitred joins, coloured with currentColor.",
+      "Do join inline facts with the optically spaced middle-dot span (margins 0.48em / 0.22em).",
+      "Do use tabular figures for counts, dates, years and ISBNs.",
+      "Do keep touch targets at 44px or more and inputs at 17px."
+    ],
+    "donts": [
+      "Don't round any corner, including dots, tags and buttons (0px everywhere).",
+      "Don't add box-shadows, gradients, blur or glass. Only the drawer scrim is translucent.",
+      "Don't introduce a new hue, or use a band colour to decorate something that isn't a status.",
+      "Don't drift toward the grey iOS list with one blue accent, or the cream-and-serif \"bookish\" app.",
+      "Don't add a second typeface, or set titles and sentences in tracked capitals.",
+      "Don't wrap rows or sections in cards.",
+      "Don't use round line caps or joins in icons, or use emoji or Unicode symbols as icons.",
+      "Don't fill a large area with a status colour anywhere except the open book's cover."
+    ]
+  }
+}

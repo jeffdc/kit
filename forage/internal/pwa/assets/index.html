@@ -2,103 +2,48 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Forage Library</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Forage</title>
+  <meta name="description" content="Your book library: wishlist, reading, and everything you've read.">
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#f8f7f4">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <meta name="theme-color" content="#FBFBF9" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#141413" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Forage">
   <link rel="stylesheet" href="style.css">
+  <link rel="modulepreload" href="js/main.js">
 </head>
-<body>
-  <div id="app">
-    <h1>Forage Library</h1>
-    <div id="api-key-banner" class="api-key-banner hidden">
-      <span>Enter API key to enable sync:</span>
-      <input type="text" id="api-key-input" placeholder="API key">
-      <button id="api-key-save">Save</button>
+<body data-tab="wishlist">
+  <header class="top">
+    <div class="top-line">
+      <span class="wordmark">Forage</span>
+      <button id="sync-btn" class="sync" data-act="settings"><span class="dot" aria-hidden="true"></span><span class="sync-text">Loading…</span></button>
     </div>
-    <div class="controls">
-      <input type="text" id="search" placeholder="Search books..." autocomplete="off">
-      <select id="filter">
-        <option value="all">All</option>
-        <option value="wishlist" selected>Wishlist</option>
-        <option value="owned">Owned</option>
-        <option value="reading">Reading</option>
-        <option value="paused">Paused</option>
-        <option value="read">Read</option>
-      </select>
-      <select id="tag-filter">
-        <option value="all">All tags</option>
-      </select>
-    </div>
-    <div class="sort-controls">
-      Sort:
-      <button data-sort="title">Title</button>
-      <button data-sort="author">Author</button>
-      <button data-sort="rating">Rating</button>
-      <button data-sort="date_added" class="active">Date ▼</button>
-    </div>
-    <div class="sync-bar">
-      <button id="sync-status" class="sync-btn">Checking...</button>
-    </div>
-    <div class="count" id="count"></div>
-    <div id="books"></div>
-    <div id="modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">
-      <div class="modal">
-        <h2 id="modal-title">Add Book</h2>
-        <form id="book-form">
-          <label for="field-title">Title</label>
-          <input type="text" id="field-title" required>
-          <label for="field-author">Author</label>
-          <input type="text" id="field-author" required>
-          <div id="lookup-container"></div>
-          <label for="field-status">Status</label>
-          <select id="field-status">
-            <option value="wishlist">Wishlist</option>
-            <option value="owned">Owned</option>
-            <option value="reading">Reading</option>
-            <option value="paused">Paused</option>
-            <option value="read">Read</option>
-            <option value="dropped">Dropped</option>
-          </select>
-          <label for="field-rating">Rating</label>
-          <select id="field-rating">
-            <option value="0">No rating</option>
-            <option value="1">1 star</option>
-            <option value="2">2 stars</option>
-            <option value="3">3 stars</option>
-            <option value="4">4 stars</option>
-            <option value="5">5 stars</option>
-          </select>
-          <label for="field-tags">Tags (comma-separated)</label>
-          <input type="text" id="field-tags">
-          <div id="subject-chips"></div>
-          <label for="field-pages">Page count</label>
-          <input type="text" id="field-pages" inputmode="numeric" pattern="[0-9]*">
-          <label for="field-year">First published</label>
-          <input type="text" id="field-year" inputmode="numeric" pattern="[0-9]*">
-          <label for="field-isbn">ISBN</label>
-          <input type="text" id="field-isbn">
-          <label for="field-notes">Notes</label>
-          <textarea id="field-notes" rows="3"></textarea>
-          <div class="modal-actions">
-            <button type="submit" class="btn-save">Save</button>
-            <button type="button" class="btn-cancel">Cancel</button>
-            <button type="button" class="btn-delete hidden">Delete</button>
-          </div>
-        </form>
-      </div>
-    </div>
-    <button class="fab" id="fab-add" aria-label="Add book">+</button>
-  </div>
-  <script>
-    window.__FORAGE_DATA__ = { books: [], booksellers: [] };
-    window.__FORAGE_DATA_VERSION__ = "";
-  </script>
-  <script src="app.js"></script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js');
-    }
-  </script>
+    <form id="search" class="search" role="search">
+      <label class="sr" for="q">Search your library</label>
+      <svg class="ic" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="square"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>
+      <input id="q" type="search" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search your books">
+      <button id="q-clear" type="button" class="q-clear" aria-label="Clear search" hidden><svg class="ic" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="square" stroke-linejoin="miter"><path d="M5 5l14 14M19 5 5 19"/></svg></button>
+    </form>
+  </header>
+
+  <main id="main" tabindex="-1"><div class="empty"><p class="empty-title">Loading your library…</p></div></main>
+
+  <nav class="tabbar" aria-label="Shelves">
+    <button class="tab" data-tab="wishlist" aria-current="page"><svg class="ic" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="square" stroke-linejoin="miter"><path d="M6 3h12v18l-6-4.5L6 21z"/></svg>Wishlist</button>
+    <button class="tab" data-tab="reading" aria-current="false"><svg class="ic" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="square" stroke-linejoin="miter"><path d="M3 5c3-1 6-1 9 1.5C15 4 18 4 21 5v14c-3-1-6-1-9 1.5C9 18 6 18 3 19zM12 6.5v14"/></svg>Reading</button>
+    <button class="tab" data-tab="history" aria-current="false"><svg class="ic" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="square"><path d="M4 20h16M5 16h14M6 12h12M7 8h10"/></svg>History</button>
+    <button class="add-btn" data-act="add" aria-label="Add a book"><svg class="ic" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="square" stroke-linejoin="miter"><path d="M12 4v16M4 12h16"/></svg></button>
+  </nav>
+
+  <div id="detail" class="panel" role="dialog" aria-modal="true" aria-label="Book" hidden></div>
+  <div id="sheet" class="panel sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" hidden></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script type="module" src="js/main.js"></script>
 </body>
 </html>

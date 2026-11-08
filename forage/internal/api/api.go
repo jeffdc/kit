@@ -55,9 +55,12 @@ func NewHandler(store *storage.Store, apiKey, build string, static fs.FS) http.H
 
 	if static != nil {
 		files := http.FileServerFS(static)
+		mux.Handle("GET /sw.js", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			h.serveServiceWorker(w, static)
+		}))
 		mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Always revalidate: the service worker is network-first and
-			// relies on getting fresh files whenever the network is up.
+			// Always revalidate, so the service worker's install fetches
+			// (and any browser without one) get this build's files.
 			w.Header().Set("Cache-Control", "no-cache")
 			files.ServeHTTP(w, r)
 		}))
@@ -171,4 +174,19 @@ func logRequests(next http.Handler) http.Handler {
 			log.Printf("%s %s %d %s", r.Method, r.URL.Path, rec.status, time.Since(start).Round(time.Millisecond))
 		}
 	})
+}
+
+// serveServiceWorker serves sw.js with the build version stamped into its
+// cache name, so every deploy gives clients a new service worker (which
+// re-caches the app) without anyone bumping a version by hand.
+func (h *handler) serveServiceWorker(w http.ResponseWriter, static fs.FS) {
+	src, err := fs.ReadFile(static, "sw.js")
+	if err != nil {
+		writeError(w, http.StatusNotFound, "not found")
+		return
+	}
+	body := strings.ReplaceAll(string(src), "__FORAGE_BUILD__", h.build)
+	w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Write([]byte(body))
 }

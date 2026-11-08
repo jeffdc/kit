@@ -113,22 +113,26 @@ Notes for Phase 3:
 
 Plain JS as native ES modules, with no build step and no framework.
 
-- [ ] Data layer: IndexedDB plus an op queue with per-op acknowledgments and delta pulls. The sync state machine is written as pure functions, tested with `node:test` and no dependencies.
-- [ ] Upgrade path: on first load, the new PWA pushes any changes still queued by the old version through the old `/api/changes`, and only then switches to the new storage format. Nothing queued on the phone is lost.
-- [ ] Home: a search box that always searches the whole library, with results showing their status, read date and stars. Below it, tabs: **Wishlist · Reading · History**. Controls sit within thumb reach.
-- [ ] Wishlist: compact rows sorted by author's last name, which matches bookstore shelving. Optional grouping by letter. Owned books flagged.
-- [ ] Reading: reading and paused.
-- [ ] History: grouped by year with counts, showing date finished and stars. Re-reads appear under each year they were read.
-- [ ] Book detail sheet:
+- [x] Data layer: IndexedDB plus an op queue with per-op acknowledgments and delta pulls. The sync state machine is written as pure functions, tested with `node:test` and no dependencies.
+- [x] Upgrade path: on first load, the new PWA pushes any changes still queued by the old version through the old `/api/changes`, and only then switches to the new storage format. Nothing queued on the phone is lost.
+- [x] Home: a search box that always searches the whole library, with results showing their status, read date and stars. Below it, tabs: **Wishlist · Reading · History**. Controls sit within thumb reach.
+- [x] Wishlist: compact rows sorted by author's last name, which matches bookstore shelving. Optional grouping by letter. Owned books flagged.
+- [x] Reading: reading and paused.
+- [x] History: grouped by year with counts, showing date finished and stars. Re-reads appear under each year they were read.
+- [x] Book detail sheet:
   - actions: Start reading / Start re-read, Finished (date defaults to today and can be changed; stars inline), Got it, Pause, Drop/Undo
   - a list of reads, each editable
   - seller links
   - Edit as a secondary action
-- [ ] Add screen: one smart input (URL, ISBN, or title/author) → `/api/resolve` → pick a candidate → added to the wishlist, with a duplicate warning. Offline: manual entry, queued.
-- [ ] Settings: API key, sync status and a manual sync, build version, a dropped-books view.
-- [ ] Sync indicator: a small dot in the header.
-- [ ] Service worker: precache the app shell, with the cache name stamped from the build version.
-- [ ] Verify at phone size in the browser pane (speed on the full library, offline behavior). Then you check it on the real iPhone, including the update flow (tab close/reopen).
+- [x] Add screen: one smart input (URL, ISBN, or title/author) → `/api/resolve` → pick a candidate → added to the wishlist, with a duplicate warning. Offline: manual entry, queued.
+- [x] Settings: API key, sync status and a manual sync, build version, a dropped-books view.
+- [x] Sync indicator: a small dot in the header.
+- [x] Service worker: precache the app shell, with the cache name stamped from the build version.
+- [x] Verify at phone size in the browser pane (speed on the full library, offline behavior). Then you check it on the real iPhone, including the update flow (tab close/reopen).
+- [x] Visual direction "Paperback Bands" (colour-coded mid-century paperback): status band colours, a three-band detail cover, a band sweep on status change, Gill Sans. Recorded in PRODUCT.md, DESIGN.md and `.impeccable/surfaces/`. The finish review shipped after one fix round.
+- [x] Server stamps the build version into `sw.js` (no manual cache bumps). App files are cache-first in production and network-first in dev.
+- [x] Checked in a browser on a copy of production data: upgrade from the old app's database, full sync of 2,132 books and 1,891 reads, finish and re-read, add via the resolver, editing, offline queue and reload, a refused change (kept in Settings until dismissed), dark mode, the desktop drawer.
+- [ ] Deploy, then check on the iPhone: install/update, offline in a store, and opening a book from search.
 
 ## Phase 4: Quick add from the iOS share sheet
 

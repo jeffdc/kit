@@ -22,7 +22,7 @@ make deploy        # Test, back up, upload, swap, restart, verify
 
 Run a single test: `go test -v ./internal/storage -run TestName`
 
-For browser testing, `.claude/launch.json` defines `forage-local` (runs `make run`). In the browser, set `localStorage.forage_api_key = "dev"` once.
+For browser testing, `.claude/launch.json` defines `forage-local` (runs `make run`). The first time, enter `dev` as the API key in Settings.
 
 ## Package Structure
 
@@ -42,7 +42,13 @@ For browser testing, `.claude/launch.json` defines `forage-local` (runs `make ru
 
 **Auth**: every `/api` route except `/api/health` requires `Authorization: Bearer <FORAGE_API_KEY>`.
 
-**PWA**: plain JS, no build step, no framework. IndexedDB holds books and a queue of pending changes. The service worker is network-first and bypasses the HTTP cache so deploys show up. Bump `CACHE_NAME` in `sw.js` when changing app files.
+**PWA** (`internal/pwa/assets/`): plain JS ES modules, no build step, no framework.
+- `js/core.js`: pure logic (the pending-change overlay, sync planning, search, sorting, grouping). Tested with `node --test internal/pwa/test/*.test.mjs`, which `make test` runs.
+- `js/store.js`: state. IndexedDB holds the server's books and reads plus a queue of ops. The UI renders server data with the queued ops applied on top.
+- `js/sync.js`: pushes ops (`/api/ops`), then pulls changes (`/api/sync`). It also flushes anything the original app left in its old `changes` queue.
+- `js/views.js`: HTML for each screen. `js/main.js`: events, panels, boot.
+- `sw.js`: the server stamps `__FORAGE_BUILD__` with the build version, so each deploy installs a fresh cache, and the app reloads into it when idle. App files are served cache-first in production and network-first in dev (a `dev-` build).
+- Design: see PRODUCT.md and DESIGN.md. Statuses have band colours (`--band-*` in style.css). Gill Sans/Seravek are system faces on Apple devices.
 
 **Book IDs**: new IDs are 12 hex characters (`storage.NewID`, `genId` in the PWA). Older books keep 4-character IDs. Reads use the same ID format.
 
