@@ -137,7 +137,7 @@ func TestUpdateBook(t *testing.T) {
 	s := testStore(t)
 	b, _ := s.CreateBook("Old Title", "Author", nil)
 
-	updated, err := s.UpdateBook(b.ID, "status", "reading")
+	updated, err := s.UpdateBook(b.ID, map[string]string{"status": "reading"})
 	if err != nil {
 		t.Fatalf("UpdateBook() error: %v", err)
 	}
@@ -145,7 +145,7 @@ func TestUpdateBook(t *testing.T) {
 		t.Errorf("Status = %q, want reading", updated.Status)
 	}
 
-	updated, err = s.UpdateBook(b.ID, "title", "New Title")
+	updated, err = s.UpdateBook(b.ID, map[string]string{"title": "New Title"})
 	if err != nil {
 		t.Fatalf("UpdateBook() error: %v", err)
 	}
@@ -164,7 +164,7 @@ func TestUpdateBookInvalidKey(t *testing.T) {
 	s := testStore(t)
 	b, _ := s.CreateBook("Book", "Author", nil)
 
-	_, err := s.UpdateBook(b.ID, "nonexistent", "value")
+	_, err := s.UpdateBook(b.ID, map[string]string{"nonexistent": "value"})
 	if err == nil {
 		t.Fatal("expected error for invalid key")
 	}
@@ -354,7 +354,7 @@ func TestSortAuthorManualOverride(t *testing.T) {
 	s := testStore(t)
 
 	b, _ := s.CreateBook("The Left Hand of Darkness", "Ursula K. Le Guin", nil)
-	updated, err := s.UpdateBook(b.ID, "sort_author", "Le Guin, Ursula K.")
+	updated, err := s.UpdateBook(b.ID, map[string]string{"sort_author": "Le Guin, Ursula K."})
 	if err != nil {
 		t.Fatalf("UpdateBook() error: %v", err)
 	}
@@ -410,7 +410,7 @@ func TestUpdateBookEnrichedFields(t *testing.T) {
 	s := testStore(t)
 	b, _ := s.CreateBook("Dune", "Frank Herbert", nil)
 
-	updated, err := s.UpdateBook(b.ID, "page_count", "412")
+	updated, err := s.UpdateBook(b.ID, map[string]string{"page_count": "412"})
 	if err != nil {
 		t.Fatalf("UpdateBook page_count error: %v", err)
 	}
@@ -418,7 +418,7 @@ func TestUpdateBookEnrichedFields(t *testing.T) {
 		t.Errorf("PageCount = %d, want 412", updated.PageCount)
 	}
 
-	updated, err = s.UpdateBook(b.ID, "first_published", "1965")
+	updated, err = s.UpdateBook(b.ID, map[string]string{"first_published": "1965"})
 	if err != nil {
 		t.Fatalf("UpdateBook first_published error: %v", err)
 	}
@@ -426,7 +426,7 @@ func TestUpdateBookEnrichedFields(t *testing.T) {
 		t.Errorf("FirstPublished = %d, want 1965", updated.FirstPublished)
 	}
 
-	updated, err = s.UpdateBook(b.ID, "isbn", "9780441172719")
+	updated, err = s.UpdateBook(b.ID, map[string]string{"isbn": "9780441172719"})
 	if err != nil {
 		t.Fatalf("UpdateBook isbn error: %v", err)
 	}

@@ -42,6 +42,9 @@ func NewHandler(store *storage.Store, apiKey, build string, static fs.FS) http.H
 	mux.Handle("GET /api/version", h.auth(h.handleVersion))
 	mux.Handle("POST /api/changes", h.auth(h.handleChanges))
 	mux.Handle("GET /api/booksellers", h.auth(h.handleBooksellers))
+	mux.Handle("GET /api/sync", h.auth(h.handleSync))
+	mux.Handle("POST /api/ops", h.auth(h.handleOps))
+	mux.Handle("POST /api/books", h.auth(h.handleCreateBook))
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not found")
 	})

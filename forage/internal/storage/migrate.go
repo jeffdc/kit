@@ -11,6 +11,7 @@ import (
 // how many have run. Append new migrations — never edit or reorder old ones.
 var migrations = []func(*sql.Tx) error{
 	migrateBaseline,
+	migrateReadsAndRevisions,
 }
 
 func migrate(db *sql.DB) error {
@@ -110,6 +111,90 @@ func migrateBaseline(tx *sql.Tx) error {
 	}
 	for _, e := range entries {
 		if _, err := tx.Exec("UPDATE books SET sort_author = ? WHERE id = ?", model.AuthorSortKey(e.author), e.id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// migrateReadsAndRevisions adds:
+//   - a reads table, seeded from books.date_read (books marked read without a
+//     date get one undated read). books.date_read is unused afterwards.
+//   - rev / updated_at / deleted on books and reads, for incremental sync
+//   - meta (the global rev counter and the sync epoch)
+//   - applied_ops, which makes client ops idempotent
+func migrateReadsAndRevisions(tx *sql.Tx) error {
+	now := nowStamp()
+	stmts := []string{
+		`ALTER TABLE books ADD COLUMN rev INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE books ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE books ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0`,
+		`CREATE TABLE reads (
+			id            TEXT PRIMARY KEY,
+			book_id       TEXT NOT NULL REFERENCES books(id),
+			date_finished TEXT NOT NULL DEFAULT '',
+			date_started  TEXT NOT NULL DEFAULT '',
+			rev           INTEGER NOT NULL DEFAULT 0,
+			updated_at    TEXT NOT NULL DEFAULT '',
+			deleted       INTEGER NOT NULL DEFAULT 0
+		)`,
+		`CREATE INDEX reads_book_id ON reads(book_id)`,
+		`CREATE INDEX reads_rev ON reads(rev)`,
+		`CREATE INDEX books_rev ON books(rev)`,
+		`CREATE TABLE meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL)`,
+		`CREATE TABLE applied_ops (
+			op_id      TEXT PRIMARY KEY,
+			result     TEXT NOT NULL,
+			applied_at TEXT NOT NULL
+		)`,
+	}
+	for _, s := range stmts {
+		if _, err := tx.Exec(s); err != nil {
+			return err
+		}
+	}
+
+	rows, err := tx.Query(`SELECT id, date_read FROM books WHERE status = 'read' OR date_read != ''`)
+	if err != nil {
+		return err
+	}
+	type seed struct{ bookID, date string }
+	var seeds []seed
+	for rows.Next() {
+		var s seed
+		if err := rows.Scan(&s.bookID, &s.date); err != nil {
+			rows.Close()
+			return err
+		}
+		seeds = append(seeds, s)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, s := range seeds {
+		id, err := NewID()
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(
+			`INSERT INTO reads (id, book_id, date_finished, rev, updated_at) VALUES (?, ?, ?, 1, ?)`,
+			id, s.bookID, s.date, now,
+		); err != nil {
+			return err
+		}
+	}
+
+	epoch, err := randomEpoch()
+	if err != nil {
+		return err
+	}
+	for _, s := range []string{
+		`UPDATE books SET rev = 1, updated_at = '` + now + `'`,
+		`INSERT INTO meta (key, value) VALUES ('rev', 1)`,
+		`INSERT INTO meta (key, value) VALUES ('epoch', ` + fmt.Sprint(epoch) + `)`,
+	} {
+		if _, err := tx.Exec(s); err != nil {
 			return err
 		}
 	}

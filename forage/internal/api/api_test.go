@@ -35,7 +35,7 @@ func TestGetBooks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("creating book: %v", err)
 	}
-	_, err = s.UpdateBook(b2.ID, "status", "dropped")
+	_, err = s.UpdateBook(b2.ID, map[string]string{"status": "dropped"})
 	if err != nil {
 		t.Fatalf("updating book status: %v", err)
 	}

@@ -309,3 +309,74 @@ func TestApply_JSONRoundtrip(t *testing.T) {
 		t.Errorf("change[2].Op = %q", parsed.Changes[2].Op)
 	}
 }
+
+func dates(t *testing.T, s *storage.Store, id string) []string {
+	t.Helper()
+	reads, err := s.ReadsForBook(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := []string{}
+	for _, r := range reads {
+		out = append(out, r.DateFinished)
+	}
+	return out
+}
+
+func TestApply_ReadHistory(t *testing.T) {
+	s := testStore(t)
+	update := func(id string, fields map[string]any) Summary {
+		return Apply(s, Changelog{Changes: []Entry{{Op: "update", ID: id, Fields: fields}}})
+	}
+
+	// Created as read: one undated read.
+	Apply(s, Changelog{Changes: []Entry{{Op: "create", Book: &model.Book{ID: "a1a1a1a1a1a1", Title: "Dune", Author: "Frank Herbert", Status: "read"}}}})
+	if got := dates(t, s, "a1a1a1a1a1a1"); len(got) != 1 || got[0] != "" {
+		t.Errorf("created as read: reads %v, want one undated", got)
+	}
+
+	// Wishlist -> read records a read finished today.
+	Apply(s, Changelog{Changes: []Entry{{Op: "create", Book: &model.Book{ID: "b2b2b2b2b2b2", Title: "Emma", Author: "Jane Austen"}}}})
+	if got := dates(t, s, "b2b2b2b2b2b2"); len(got) != 0 {
+		t.Fatalf("wishlist book has reads %v", got)
+	}
+	update("b2b2b2b2b2b2", map[string]any{"title": "Emma", "status": "read", "rating": 4.0})
+	if got := dates(t, s, "b2b2b2b2b2b2"); len(got) != 1 || got[0] != storage.Today() {
+		t.Errorf("after marking read: %v, want [today]", got)
+	}
+
+	// Saving again with status still read adds nothing (the PWA resends all fields).
+	update("b2b2b2b2b2b2", map[string]any{"title": "Emma", "status": "read", "rating": 5.0})
+	if got := dates(t, s, "b2b2b2b2b2b2"); len(got) != 1 {
+		t.Errorf("resave added a read: %v", got)
+	}
+
+	// A re-read: reading again, then read again, records a second read.
+	update("b2b2b2b2b2b2", map[string]any{"status": "reading"})
+	update("b2b2b2b2b2b2", map[string]any{"status": "read"})
+	if got := dates(t, s, "b2b2b2b2b2b2"); len(got) != 2 {
+		t.Errorf("re-read: %v, want 2 reads", got)
+	}
+
+	// An explicit date_read sets the latest read's date.
+	update("a1a1a1a1a1a1", map[string]any{"date_read": "2019-05-01"})
+	if got := dates(t, s, "a1a1a1a1a1a1"); len(got) != 1 || got[0] != "2019-05-01" {
+		t.Errorf("date_read: %v", got)
+	}
+	b, _ := s.GetBook("a1a1a1a1a1a1")
+	if b.DateRead != "2019-05-01" {
+		t.Errorf("derived DateRead = %q", b.DateRead)
+	}
+}
+
+func TestApply_UpdateIsAllOrNothing(t *testing.T) {
+	s := testStore(t)
+	s.CreateBookWithID("c3c3c3c3c3c3", "Dune", "Frank Herbert", nil)
+	sum := Apply(s, Changelog{Changes: []Entry{{Op: "update", ID: "c3c3c3c3c3c3", Fields: map[string]any{"title": "Changed", "status": "bogus"}}}})
+	if sum.Skipped != 1 {
+		t.Errorf("summary = %+v, want 1 skipped", sum)
+	}
+	if b, _ := s.GetBook("c3c3c3c3c3c3"); b.Title != "Dune" {
+		t.Errorf("partial update applied: title %q", b.Title)
+	}
+}

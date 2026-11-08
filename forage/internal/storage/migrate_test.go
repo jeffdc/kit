@@ -62,7 +62,7 @@ func TestMigrateLegacyDatabase(t *testing.T) {
 	}
 
 	// The legacy row and the new columns are all writable.
-	if _, err := s.UpdateBook("a1b2", "isbn", "9780441172719"); err != nil {
+	if _, err := s.UpdateBook("a1b2", map[string]string{"isbn": "9780441172719"}); err != nil {
 		t.Fatalf("UpdateBook after migration: %v", err)
 	}
 }
@@ -104,7 +104,7 @@ func TestUpdateAuthorRefreshesSortKey(t *testing.T) {
 	s := testStore(t)
 	b, _ := s.CreateBook("Babel", "R.F. Kuang", nil)
 
-	got, err := s.UpdateBook(b.ID, "author", "Rebecca F. Kuang")
+	got, err := s.UpdateBook(b.ID, map[string]string{"author": "Rebecca F. Kuang"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,10 +120,10 @@ func TestUpdateAuthorRefreshesSortKey(t *testing.T) {
 func TestUnchangedAuthorKeepsManualSortKey(t *testing.T) {
 	s := testStore(t)
 	b, _ := s.CreateBook("Babel", "R. F. Kuang", nil)
-	s.UpdateBook(b.ID, "sort_author", "Kuang, R.F.")
+	s.UpdateBook(b.ID, map[string]string{"sort_author": "Kuang, R.F."})
 
 	// The PWA resends the author on every save.
-	got, err := s.UpdateBook(b.ID, "author", "R. F. Kuang")
+	got, err := s.UpdateBook(b.ID, map[string]string{"author": "R. F. Kuang"})
 	if err != nil {
 		t.Fatal(err)
 	}
