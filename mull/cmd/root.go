@@ -89,7 +89,7 @@ func newRoot(a *app) *cobra.Command {
 	}
 	root.AddCommand(
 		initCmd(a), syncCmd(a), viewCmd(a), configCmd(a),
-		checkCmd(a), doneCmd(a), reportCmd(a),
+		checkCmd(a), doneCmd(a), reportCmd(a), contextCmd(a), guideCmd(a),
 		planCmd(a), epicCmd(a),
 		addCmd(a), showCmd(a), listCmd(a), setCmd(a), dropCmd(a),
 		needCmd(a, true), needCmd(a, false), readyCmd(a),

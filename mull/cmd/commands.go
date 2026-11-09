@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"mull/internal/guide"
 	"mull/internal/model"
 	"mull/internal/mull"
 )
@@ -31,6 +32,45 @@ func initCmd(a *app) *cobra.Command {
 	c.Flags().StringVar(&integration, "integration", "main", "branch where work lands")
 	c.Flags().StringVar(&release, "release", "main", "branch where work ships")
 	return c
+}
+
+func contextCmd(a *app) *cobra.Command {
+	var item string
+	c := &cobra.Command{
+		Use:   "context",
+		Short: "Session-start briefing for an agent: protocol, plans, ready work, claims, decisions",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			m, err := a.open()
+			if err != nil {
+				return err
+			}
+			ctx, err := m.Context(item)
+			if err != nil {
+				return err
+			}
+			return a.json(ctx)
+		},
+	}
+	c.Flags().StringVar(&item, "item", "", "the item this session works on")
+	return c
+}
+
+func guideCmd(a *app) *cobra.Command {
+	return &cobra.Command{
+		Use:       "guide <" + strings.Join(guide.Names(), "|") + ">",
+		Short:     "Print a procedure: agents (for AGENTS.md), supervisor, intake",
+		Args:      cobra.ExactArgs(1),
+		ValidArgs: guide.Names(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			g, err := guide.Get(args[0])
+			if err != nil {
+				return err
+			}
+			_, err = fmt.Fprint(a.stdout, g)
+			return err
+		},
+	}
 }
 
 func configCmd(a *app) *cobra.Command {

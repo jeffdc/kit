@@ -44,6 +44,9 @@ make build
 
 An agent then runs `./mull done <id> --summary "..." --tour -`. mull runs the checks against the clean HEAD, reusing a passing result for the same tree. On a pass it writes a done report (summary, UI tour, check results, files changed by layer), marks the item done, and files a review for the human. On a failure the item stays active. `./mull report <id>` prints the report.
 
-Still to come (see the design's build order):
-- the agent, supervisor and intake guides;
-- `context`.
+**Agents learn the protocol from mull itself:**
+- `./mull guide agents` prints the block to paste into a project's AGENTS.md;
+- `./mull guide supervisor` covers coordinating several agents;
+- `./mull guide intake` is the procedure for bringing a project, and its old `.mull/` matters, into mull, with the human.
+
+`./mull context --item <id>` is the compact briefing an agent reads at the start of a session.

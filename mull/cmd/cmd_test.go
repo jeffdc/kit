@@ -131,6 +131,19 @@ func TestCLIEndToEnd(t *testing.T) {
 		t.Fatalf("view --json = %v", v)
 	}
 
+	if ctx := r.ok("context", "--item", id); ctx["item"].(map[string]any)["id"] != id {
+		t.Fatalf("context = %v", ctx)
+	}
+	for _, g := range []string{"agents", "supervisor", "intake"} {
+		text, _, code := r.mull("", "guide", g)
+		if code != 0 || !strings.Contains(text, "mull") {
+			t.Fatalf("guide %s: %d", g, code)
+		}
+	}
+	if _, errOut, code := r.mull("", "guide", "nope"); code != 1 || !strings.Contains(errOut, "no guide") {
+		t.Fatalf("unknown guide: %d %s", code, errOut)
+	}
+
 	// Sync to a bare remote: only the mull branch arrives there.
 	remote := t.TempDir() + "/remote.git"
 	gittest.Git(t, r.dir, "init", "-q", "--bare", remote)
