@@ -93,11 +93,13 @@ Most items are reviewed in the session that finished them, by you or by a superv
 
 | Action | Applies to | Effect |
 |---|---|---|
-| **Accept** | decisions, reviews | Ratified as recorded. For a review, the item becomes `accepted` |
-| **Decide** `"text"` | any | You write the decision, and it joins the decision log |
-| **Do** `[--plan] [--epic]` | questions, loose ends, reviews | Becomes a new item. For a review, that's the follow-up work |
-| **Drop** | any | Gone for good, with the drop recorded so it doesn't resurface |
-| **Park** `"reason"` | any | Out of the queue, still listed as parked |
+| **Accept** | decisions, reviews | Decision: ratified as recorded. Review: the item becomes `accepted`, optionally with `--follow-up "text"` creating a new item in the same plan and epic |
+| **Decide** `"text"` | decisions, questions, loose ends | You write the decision (overruling an agent's decision if need be), and it joins the decision log |
+| **Do** | questions, loose ends, reviews | Question or loose end: becomes a new item. Review: **sends the work back**: the item reopens for another session, with `--reason` added to its notes |
+| **Drop** | decisions, questions, loose ends | Gone for good, with the drop recorded so it doesn't resurface |
+| **Park** `"reason"` | any | Out of the queue, still listed with `--parked`, and can be settled later |
+
+A review can't be decided or dropped, because both would leave unreviewed work looking finished. To abandon the work, drop the item itself.
 
 - Accepted and decided entries make up the **decision log**. Agents read it before starting work, so a settled question stays settled.
 - An agent may settle entries **on your explicit instruction in conversation**. The record notes `by: agent, on request`.

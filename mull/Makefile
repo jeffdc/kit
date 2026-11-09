@@ -1,35 +1,18 @@
-.PHONY: all build build-tui install test fmt lint vet clean help
+.PHONY: all build test race fmt fmt-check vet install clean
 
-BINARY_NAME := mull
-TUI_BINARY := mull-tui
-GOBIN := $(shell go env GOBIN)
-ifeq ($(GOBIN),)
-	GOBIN := $(shell go env GOPATH)/bin
-endif
+VERSION := $(shell git describe --always --dirty 2>/dev/null || echo dev)
+LDFLAGS := -X mull/cmd.Version=$(VERSION)
 
 all: fmt vet test build
 
-build: generate
-	go build -o $(BINARY_NAME) .
-
-build-tui: generate
-	go build -o $(TUI_BINARY) ./cmd/mull-tui
-
-install: generate
-	go install .
-	go install ./cmd/mull-tui
-	@echo "Installed $(BINARY_NAME) and $(TUI_BINARY) to $(GOBIN)"
-	@echo "Make sure $(GOBIN) is in your PATH"
-
-generate:
-	go generate ./internal/version/...
+build:
+	go build -ldflags "$(LDFLAGS)" -o mull .
 
 test:
-	go test -v ./...
+	go test ./...
 
-test-coverage:
-	go test -coverprofile=coverage.out ./...
-	go tool cover -html=coverage.out -o coverage.html
+race:
+	go test -race ./...
 
 fmt:
 	gofmt -s -w .
@@ -37,32 +20,15 @@ fmt:
 fmt-check:
 	@test -z "$$(gofmt -l .)" || (echo "Files need formatting:"; gofmt -l .; exit 1)
 
-lint:
-	@if command -v golangci-lint >/dev/null 2>&1; then \
-		golangci-lint run; \
-	else \
-		echo "golangci-lint not installed, running go vet only"; \
-		go vet ./...; \
-	fi
-
 vet:
 	go vet ./...
 
-clean:
-	rm -f $(BINARY_NAME) $(TUI_BINARY)
-	rm -f coverage.out coverage.html
+# The new mull is not installed until cutover: the installed mull is the old
+# one, still in daily use. See "Transition" in docs/design.md.
+install:
+	@echo "Not installing: this is mull-next, which replaces the installed mull only at cutover." >&2
+	@echo "Use ./mull from 'make build' while developing." >&2
+	@exit 1
 
-help:
-	@echo "Available targets:"
-	@echo "  all           - fmt, vet, test, build (default)"
-	@echo "  build         - Build the binary"
-	@echo "  build-tui     - Build the TUI binary"
-	@echo "  install       - Install to $(GOBIN)"
-	@echo "  test          - Run tests"
-	@echo "  test-coverage - Run tests with coverage report"
-	@echo "  fmt           - Format code"
-	@echo "  fmt-check     - Check if code is formatted"
-	@echo "  lint          - Run golangci-lint (or vet if not installed)"
-	@echo "  vet           - Run go vet"
-	@echo "  clean         - Remove build artifacts"
-	@echo "  help          - Show this help"
+clean:
+	rm -f mull
