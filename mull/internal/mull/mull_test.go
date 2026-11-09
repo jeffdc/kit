@@ -34,6 +34,16 @@ func must[T any](t *testing.T) func(T, error) T {
 	}
 }
 
+func wantCode(t *testing.T, err error, code string) {
+	t.Helper()
+	if err == nil {
+		t.Fatalf("got no error, want code %s", code)
+	}
+	if got := AsError(err).Code; got != code {
+		t.Fatalf("got code %s (%v), want %s", got, err, code)
+	}
+}
+
 func wantErr(t *testing.T, err error, contains string) {
 	t.Helper()
 	if err == nil || !strings.Contains(err.Error(), contains) {
@@ -67,12 +77,15 @@ func item(t *testing.T, m *Mull, id string) ItemView {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return v.(ItemView)
+	if v.Item == nil {
+		t.Fatalf("%s is a %s, not an item", id, v.Type)
+	}
+	return *v.Item
 }
 
 func TestInitCreatesGeneralPlan(t *testing.T) {
 	m, _ := setup(t)
-	plans := must[[]PlanView](t)(m.PlanList())
+	plans := must[[]PlanSummary](t)(m.PlanList())
 	if len(plans) != 1 || plans[0].Slug != model.GeneralPlan {
 		t.Fatalf("plans = %+v", plans)
 	}
@@ -119,8 +132,8 @@ func TestPlansEpicsItems(t *testing.T) {
 		t.Fatalf("plan view = %+v", pv)
 	}
 
-	set := must[any](t)(m.Set(it.ID, "notes", "Read 8567 first."))
-	if set.(ItemView).Notes != "Read 8567 first." {
+	set := must[SetResult](t)(m.Set(it.ID, "notes", "Read 8567 first."))
+	if set.Item.Notes != "Read 8567 first." {
 		t.Errorf("notes not set")
 	}
 	_, err = m.Set(it.ID, "state", "done")
@@ -192,7 +205,7 @@ func TestCyclesRefused(t *testing.T) {
 	if len(item(t, m, a.ID).Needs) != 0 {
 		t.Fatal("refused need was saved")
 	}
-	must[any](t)(m.Unneed(b.ID, []string{a.ID}))
+	must[NeedResult](t)(m.Unneed(b.ID, []string{a.ID}))
 	if !item(t, m, b.ID).Ready {
 		t.Fatal("unneed did not unblock")
 	}
@@ -272,16 +285,19 @@ func TestCaptureAndSettle(t *testing.T) {
 	must[*model.Plan](t)(m.PlanNew("taxogall", "Taxogall", ""))
 	it := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "taxogall", Title: "Phase 2"}))
 
-	dec := must[*model.Entry](t)(m.Capture(model.KindDecision, "Any admin can undo anyone's decision", it.ID, "", "", "Simplest rule."))
+	dec := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindDecision, Text: "Any admin can undo anyone's decision", Item: it.ID, Detail: "Simplest rule."}))
 	if dec.Plan != "taxogall" || dec.Item != it.ID {
 		t.Fatalf("entry plan/item not derived from item: %+v", dec)
 	}
-	q := must[*model.Entry](t)(m.Capture(model.KindQuestion, "Do split undos run on preview?", it.ID, "", "", ""))
-	loose := must[*model.Entry](t)(m.Capture(model.KindLoose, "Canonical URL emitted as meta", "", "", "2c8c", ""))
+	q := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindQuestion, Text: "Do split undos run on preview?", Item: it.ID}))
+	// With two plans, an entry must say which plan or item it is about.
+	_, err := m.Capture(CaptureInput{Kind: model.KindLoose, Text: "Canonical URL emitted as meta"})
+	wantCode(t, err, CodeScope)
+	loose := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindLoose, Text: "Canonical URL emitted as meta", Plan: "general", Source: "2c8c"}))
 	if loose.Plan != model.GeneralPlan {
 		t.Fatalf("loose end without item or plan should land in general: %+v", loose)
 	}
-	_, err := m.Capture(model.KindReview, "x", "", "", "", "")
+	_, err = m.Capture(CaptureInput{Kind: model.KindReview, Text: "x"})
 	wantErr(t, err, "cannot capture")
 
 	inbox := must[[]*model.Entry](t)(m.Inbox(InboxFilter{}))
@@ -292,7 +308,7 @@ func TestCaptureAndSettle(t *testing.T) {
 	// Kind rules.
 	_, err = m.Accept([]string{q.ID}, "", SettleOpts{})
 	wantErr(t, err, "cannot be settled")
-	_, err = m.Do(dec.ID, "", "", "", SettleOpts{})
+	_, err = m.Do(DoInput{ID: dec.ID})
 	wantErr(t, err, "cannot be settled")
 
 	must[AcceptResult](t)(m.Accept([]string{dec.ID}, "", SettleOpts{}))
@@ -300,7 +316,7 @@ func TestCaptureAndSettle(t *testing.T) {
 	wantErr(t, err, "already settled")
 
 	must[*model.Entry](t)(m.Decide(q.ID, "No; no compatibility path needed.", SettleOpts{OnRequest: true}))
-	do := must[DoResult](t)(m.Do(loose.ID, "", "", "", SettleOpts{}))
+	do := must[DoResult](t)(m.Do(DoInput{ID: loose.ID}))
 	if do.Item.Title != "Canonical URL emitted as meta" || do.Item.Plan != model.GeneralPlan || do.Entry.Settled.Item != do.Item.ID {
 		t.Fatalf("do = %+v", do)
 	}
@@ -330,7 +346,7 @@ func TestCaptureAndSettle(t *testing.T) {
 
 func TestParkKeepsEntryListedAndSettleable(t *testing.T) {
 	m, _ := setup(t)
-	e := must[*model.Entry](t)(m.Capture(model.KindLoose, "Stale branch quercus-leafminer-key", "", "", "", ""))
+	e := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindLoose, Text: "Stale branch quercus-leafminer-key"}))
 	_, err := m.Park(e.ID, "", SettleOpts{})
 	wantErr(t, err, "needs a reason")
 	must[*model.Entry](t)(m.Park(e.ID, "after release", SettleOpts{}))
@@ -389,9 +405,9 @@ func TestReviewSendBack(t *testing.T) {
 	must[StartResult](t)(m.Start(a.ID))
 	markDone(t, m, a.ID)
 	review := must[[]*model.Entry](t)(m.Inbox(InboxFilter{Kind: model.KindReview}))[0]
-	_, err := m.Do(review.ID, "", "", "", SettleOpts{})
+	_, err := m.Do(DoInput{ID: review.ID})
 	wantErr(t, err, "say why")
-	res := must[DoResult](t)(m.Do(review.ID, "", "", "The tour's step 2 shows the old page", SettleOpts{}))
+	res := must[DoResult](t)(m.Do(DoInput{ID: review.ID, Reason: "The tour's step 2 shows the old page"}))
 	if res.Item.State != model.StateOpen || res.Item.Claim != nil || !strings.Contains(res.Item.Notes, "step 2") {
 		t.Fatalf("sent-back item = %+v", res.Item)
 	}

@@ -213,7 +213,7 @@ func (s *state) newID() (string, error) {
 func (s *state) plan(slug string) (*model.Plan, error) {
 	p := s.plans[slug]
 	if p == nil {
-		return nil, fmt.Errorf("no plan %q", slug)
+		return nil, errf(CodeNotFound, "no plan %q", slug)
 	}
 	return p, nil
 }
@@ -224,7 +224,7 @@ func (s *state) activePlan(slug string) (*model.Plan, error) {
 		return nil, err
 	}
 	if p.State != model.PlanActive {
-		return nil, fmt.Errorf("plan %q is closed", slug)
+		return nil, errf(CodeState, "plan %q is closed", slug)
 	}
 	return p, nil
 }
@@ -232,7 +232,7 @@ func (s *state) activePlan(slug string) (*model.Plan, error) {
 func (s *state) epic(id string) (*model.Epic, error) {
 	e := s.epics[id]
 	if e == nil {
-		return nil, fmt.Errorf("no epic %q", id)
+		return nil, errf(CodeNotFound, "no epic %q", id)
 	}
 	return e, nil
 }
@@ -240,7 +240,7 @@ func (s *state) epic(id string) (*model.Epic, error) {
 func (s *state) item(id string) (*model.Item, error) {
 	i := s.items[id]
 	if i == nil {
-		return nil, fmt.Errorf("no item %q", id)
+		return nil, errf(CodeNotFound, "no item %q", id)
 	}
 	return i, nil
 }
@@ -248,7 +248,7 @@ func (s *state) item(id string) (*model.Item, error) {
 func (s *state) entry(id string) (*model.Entry, error) {
 	e := s.entries[id]
 	if e == nil {
-		return nil, fmt.Errorf("no inbox entry %q", id)
+		return nil, errf(CodeNotFound, "no inbox entry %q", id)
 	}
 	return e, nil
 }

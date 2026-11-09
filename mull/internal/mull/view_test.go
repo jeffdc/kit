@@ -135,7 +135,7 @@ func TestBoardSkipsEmptyGeneralAndHandlesMissingIntegration(t *testing.T) {
 	if !strings.Contains(v.Text(time.Now()), "branch not found") {
 		t.Error("missing integration branch not reported")
 	}
-	must[*model.Entry](t)(m.Capture(model.KindLoose, "x", "", "", "", ""))
+	must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindLoose, Text: "x"}))
 	v = must[View](t)(m.Board(""))
 	if len(v.Plans) != 1 || v.Plans[0].NeedsYou.Loose != 1 {
 		t.Fatalf("general with an entry should show: %+v", v.Plans)

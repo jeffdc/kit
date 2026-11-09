@@ -2,13 +2,16 @@
 
 This project's plans, work items and open questions live in **mull**: a CLI whose data sits on the `mull` git branch. Use only the CLI. Never read or edit mull's data or the `mull` branch directly.
 
+- **Output.** Every command prints JSON, and errors are `{"code", "error"}` on stderr. `mull guide json` documents the shapes and error codes.
+- **Batch.** To write more than a couple of records, use `mull batch` (JSON Lines on stdin, all or nothing) instead of a shell loop.
+
 1. **Start of session:** run `mull context --item <id>`, or `mull context` if you have no item yet. Read the decisions it lists, and don't re-decide anything the log already settles.
 2. **One item per session.**
    - Claim it with `mull start <id>`.
    - Work on a branch named `<id>-<short-name>`.
    - End every commit message with the trailer line `Mull: <id>`.
 3. **Capture as you go,** one line each, without waiting for the end:
-   - `mull decided "<what you chose>" --item <id> --why "<one line>"`: any choice the human didn't make for you.
+   - `mull decided "<what you chose>" --item <id> --detail "<why, one line>"`: any choice the human didn't make for you.
    - `mull ask "<question>" --item <id>`: anything you need from the human. Keep working on whatever isn't blocked.
    - `mull loose "<what>" --item <id>`: anything out of scope you noticed (a bug, an inconsistency, half-finished work, an assumption you made).
 4. **Don't change plans or epics, and don't add items,** unless the human asks. Propose changes with `mull ask`.

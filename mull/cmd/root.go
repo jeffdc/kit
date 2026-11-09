@@ -1,9 +1,12 @@
-// Package cmd is mull's command line. Data commands print JSON to stdout;
-// errors go to stderr as {"error": "..."} with exit status 1.
+// Package cmd is mull's command line. Every command prints JSON to stdout
+// (a few render for humans behind --text). Errors go to stderr as
+// {"code": "...", "error": "..."} with exit status 1. The shapes are
+// documented in mull guide json.
 package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -43,15 +46,20 @@ func (a *app) text(s string) (string, error) {
 	return strings.TrimRight(string(b), "\n"), nil
 }
 
-// splitIDs accepts "a,b c" style lists.
-func splitIDs(vals []string) []string {
-	var out []string
-	for _, v := range vals {
-		for _, f := range strings.FieldsFunc(v, func(r rune) bool { return r == ',' || r == ' ' }) {
-			out = append(out, f)
+// classify turns any error into a coded mull error, recognising cobra's own
+// command-line errors as usage errors.
+func classify(err error) *mull.Error {
+	var me *mull.Error
+	if errors.As(err, &me) {
+		return me
+	}
+	msg := err.Error()
+	for _, p := range []string{"unknown command", "unknown flag", "unknown shorthand", "flag needs an argument", "invalid argument", "required flag"} {
+		if strings.HasPrefix(msg, p) {
+			return &mull.Error{Code: mull.CodeUsage, Msg: msg}
 		}
 	}
-	return out
+	return mull.AsError(err)
 }
 
 // Execute runs mull with args in dir and returns the process exit code.
@@ -62,7 +70,7 @@ func Execute(args []string, dir string, stdin io.Reader, stdout, stderr io.Write
 	root.SetOut(stdout)
 	root.SetErr(stderr)
 	if err := root.Execute(); err != nil {
-		b, _ := json.Marshal(map[string]string{"error": err.Error()})
+		b, _ := json.Marshal(classify(err))
 		fmt.Fprintln(stderr, string(b))
 		return 1
 	}
@@ -73,7 +81,8 @@ func Execute(args []string, dir string, stdin io.Reader, stdout, stderr io.Write
 func Main() {
 	dir, err := os.Getwd()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, `{"error": %q}`+"\n", err.Error())
+		b, _ := json.Marshal(&mull.Error{Code: mull.CodeInternal, Msg: err.Error()})
+		fmt.Fprintln(os.Stderr, string(b))
 		os.Exit(1)
 	}
 	os.Exit(Execute(os.Args[1:], dir, os.Stdin, os.Stdout, os.Stderr))
@@ -81,14 +90,19 @@ func Main() {
 
 func newRoot(a *app) *cobra.Command {
 	root := &cobra.Command{
-		Use:           "mull",
-		Short:         "The record of a program: plans, epics, items, and the inbox of what needs you",
+		Use:   "mull",
+		Short: "The record of a program: plans, epics, items, and the inbox of what needs you",
+		Long: `The record of a program: plans, epics, items, and the inbox of what needs you.
+
+Every command prints JSON; errors are {"code","error"} on stderr with exit 1.
+Shapes and error codes: mull guide json. Many writes at once: mull batch.`,
 		Version:       Version,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
+	root.SetFlagErrorFunc(func(c *cobra.Command, err error) error { return usage(err) })
 	root.AddCommand(
-		initCmd(a), syncCmd(a), viewCmd(a), configCmd(a),
+		initCmd(a), versionCmd(a), syncCmd(a), viewCmd(a), configCmd(a), batchCmd(a),
 		checkCmd(a), doneCmd(a), reportCmd(a), contextCmd(a), guideCmd(a),
 		planCmd(a), epicCmd(a),
 		addCmd(a), showCmd(a), listCmd(a), setCmd(a), dropCmd(a),

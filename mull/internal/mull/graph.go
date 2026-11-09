@@ -1,7 +1,6 @@
 package mull
 
 import (
-	"fmt"
 	"strings"
 
 	"mull/internal/model"
@@ -138,10 +137,10 @@ func (s *state) epicView(e *model.Epic) EpicView {
 func (s *state) checkNeedTargets(self string, targets []string) error {
 	for _, t := range targets {
 		if t == self {
-			return fmt.Errorf("%s cannot need itself", self)
+			return errf(CodeInvalid, "%s cannot need itself", self)
 		}
 		if s.items[t] == nil && s.epics[t] == nil {
-			return fmt.Errorf("no item or epic %q", t)
+			return errf(CodeNotFound, "no item or epic %q", t)
 		}
 	}
 	return nil
@@ -180,7 +179,7 @@ func (s *state) checkCycles() error {
 				}
 			}
 			cycle := append(append([]string{}, path[start:]...), id)
-			return fmt.Errorf("dependency cycle: %s", strings.Join(cycle, " → "))
+			return errf(CodeCycle, "dependency cycle: %s", strings.Join(cycle, " → "))
 		case finishedVisit:
 			return nil
 		}

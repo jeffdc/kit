@@ -12,6 +12,12 @@ The record of a program run by you and your agents: its plans, where they stand,
 - **Stored in git, out of the way.** Everything lives on a `mull` branch that is never checked out. Writes never touch your working tree, and every worktree sees the same data.
 - **Any LLM, any harness.** Agents use the CLI. Nothing depends on a particular tool.
 
+## Output
+
+Every command prints JSON; errors are `{"code", "error"}` on stderr with exit status 1. `mull guide json` documents every shape and error code. `view`, `inbox`, `report` and `guide` take `--text` for a human rendering.
+
+To write many records at once, use `mull batch`. It reads JSON Lines, is all or nothing, and lands as one commit; `"@ref"` refers to a record an earlier line created. See `mull guide json`.
+
 ## Quick start
 
 ```bash
@@ -19,18 +25,18 @@ make build
 ./mull init --integration main
 ./mull plan new launch "Public launch"
 ./mull epic add "Billing" --plan launch
-./mull add "Stripe webhook handler" --plan launch --epic <epic-id>
+./mull add "Stripe webhook handler" --epic <epic-id>
 ./mull ready
 ./mull start <item-id>
 ./mull ask "Monthly or annual plans first?" --item <item-id>
-./mull inbox
+./mull inbox --text
 ./mull decide <entry-id> "Monthly first"
 ./mull decisions
 ```
 
 `./mull sync` exchanges the `mull` branch with your remote. It pushes only that branch, never forces, and refuses to push anything that isn't a mull record. `--dry-run` shows the exact git commands first.
 
-`./mull view` is the board: each plan's epics and progress, problems first, work in flight, and what needs you. It reads git as well as mull's records:
+`./mull view --text` is the board: each plan's epics and progress, problems first, work in flight, and what needs you. It reads git as well as mull's records:
 - a branch named `<id>-…` marks its item's work as in flight;
 - a `Mull: <id>` commit trailer, or a merge of an `<id>-…` branch, on the integration branch marks the work as landed;
 - direct commits with neither are counted as unlinked.

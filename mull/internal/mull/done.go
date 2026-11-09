@@ -20,7 +20,31 @@ import (
 
 // ConfigSet changes one scalar config key: integration, release or remote.
 func (m *Mull) ConfigSet(key, value string) (model.Config, error) {
-	return m.changeConfig("config set "+key, func(c *model.Config) error {
+	return m.configTx("config set "+key, func(s *state) (model.Config, error) { return m.configSet(s, key, value) })
+}
+
+// ConfigChecks replaces the list of hard-check commands done runs.
+func (m *Mull) ConfigChecks(commands []string) (model.Config, error) {
+	return m.configTx("config checks", func(s *state) (model.Config, error) { return m.configChecks(s, commands) })
+}
+
+// ConfigLayer sets a layer's path globs; no globs removes the layer.
+func (m *Mull) ConfigLayer(name string, globs []string) (model.Config, error) {
+	return m.configTx("config layer "+name, func(s *state) (model.Config, error) { return m.configLayer(s, name, globs) })
+}
+
+func (m *Mull) configTx(msg string, fn func(s *state) (model.Config, error)) (model.Config, error) {
+	var out model.Config
+	err := m.update(msg, func(s *state) error {
+		var err error
+		out, err = fn(s)
+		return err
+	})
+	return out, err
+}
+
+func (m *Mull) configSet(s *state, key, value string) (model.Config, error) {
+	return s.changeConfig(func(c *model.Config) error {
 		switch key {
 		case "integration":
 			c.Integration = value
@@ -29,18 +53,17 @@ func (m *Mull) ConfigSet(key, value string) (model.Config, error) {
 		case "remote":
 			c.Remote = value
 		default:
-			return fmt.Errorf("settable keys are integration, release and remote (use 'config checks' and 'config layer' for the rest)")
+			return errf(CodeInvalid, "settable keys are integration, release and remote (use 'config checks' and 'config layer' for the rest)")
 		}
 		if value == "" {
-			return fmt.Errorf("%s cannot be empty", key)
+			return errf(CodeInvalid, "%s cannot be empty", key)
 		}
 		return nil
 	})
 }
 
-// ConfigChecks replaces the list of hard-check commands done runs.
-func (m *Mull) ConfigChecks(commands []string) (model.Config, error) {
-	return m.changeConfig("config checks", func(c *model.Config) error {
+func (m *Mull) configChecks(s *state, commands []string) (model.Config, error) {
+	return s.changeConfig(func(c *model.Config) error {
 		c.DoneChecks = []string{}
 		for _, cmd := range commands {
 			if cmd = strings.TrimSpace(cmd); cmd != "" {
@@ -51,9 +74,11 @@ func (m *Mull) ConfigChecks(commands []string) (model.Config, error) {
 	})
 }
 
-// ConfigLayer sets a layer's path globs; no globs removes the layer.
-func (m *Mull) ConfigLayer(name string, globs []string) (model.Config, error) {
-	return m.changeConfig("config layer "+name, func(c *model.Config) error {
+func (m *Mull) configLayer(s *state, name string, globs []string) (model.Config, error) {
+	return s.changeConfig(func(c *model.Config) error {
+		if name == "" {
+			return errf(CodeInvalid, "a layer needs a name")
+		}
 		if c.Layers == nil {
 			c.Layers = map[string][]string{}
 		}
@@ -63,7 +88,7 @@ func (m *Mull) ConfigLayer(name string, globs []string) (model.Config, error) {
 		}
 		for _, g := range globs {
 			if _, err := globRegexp(g); err != nil {
-				return err
+				return errf(CodeInvalid, "bad glob %q: %v", g, err)
 			}
 		}
 		c.Layers[name] = globs
@@ -71,22 +96,25 @@ func (m *Mull) ConfigLayer(name string, globs []string) (model.Config, error) {
 	})
 }
 
-func (m *Mull) changeConfig(msg string, fn func(c *model.Config) error) (model.Config, error) {
-	var out model.Config
-	err := m.update(msg, func(s *state) error {
-		c := s.config
-		if err := fn(&c); err != nil {
-			return err
-		}
-		b, err := yaml.Marshal(c)
-		if err != nil {
-			return err
-		}
-		s.tx.Put(model.ConfigPath, b)
-		out = c
-		return nil
-	})
-	return out, err
+func (s *state) changeConfig(fn func(c *model.Config) error) (model.Config, error) {
+	c := s.config
+	c.Layers = map[string][]string{}
+	for k, v := range s.config.Layers {
+		c.Layers[k] = v
+	}
+	if c.DoneChecks == nil {
+		c.DoneChecks = []string{}
+	}
+	if err := fn(&c); err != nil {
+		return model.Config{}, err
+	}
+	b, err := yaml.Marshal(c)
+	if err != nil {
+		return model.Config{}, err
+	}
+	s.tx.Put(model.ConfigPath, b)
+	s.config = c
+	return c, nil
 }
 
 // globRegexp turns a path glob into a regexp: ** matches across directories,
@@ -142,7 +170,7 @@ func (m *Mull) cleanTree() (commit, tree string, err error) {
 		return "", "", err
 	}
 	if st != "" {
-		return "", "", fmt.Errorf("the working tree has uncommitted or untracked changes; commit them first so the checks belong to a commit:\n%s", st)
+		return "", "", errf(CodeDirty, "the working tree has uncommitted or untracked changes; commit them first so the checks belong to a commit:\n%s", st)
 	}
 	commit, err = m.repo.Output(nil, nil, "rev-parse", "HEAD")
 	if err != nil {
@@ -166,7 +194,7 @@ func (m *Mull) Check() (CheckOutcome, error) {
 		return CheckOutcome{}, err
 	}
 	if len(cfg.DoneChecks) == 0 {
-		return CheckOutcome{}, fmt.Errorf("no hard checks configured; the human sets them with: mull config checks \"<command>\" ...")
+		return CheckOutcome{}, errf(CodeNoChecks, "no hard checks configured; the human sets them with: mull config checks \"<command>\" ...")
 	}
 	commit, tree, err := m.cleanTree()
 	if err != nil {
@@ -272,7 +300,7 @@ func (e *ErrChecksFailed) Error() string {
 func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 	var out DoneResult
 	if strings.TrimSpace(in.Summary) == "" {
-		return out, fmt.Errorf("done needs a summary: a few sentences on what changed and how it fits")
+		return out, errf(CodeInvalid, "done needs a summary: a few sentences on what changed and how it fits")
 	}
 	wt := m.Worktree()
 	var cfg model.Config
@@ -296,7 +324,7 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 	var checks model.CheckRun
 	if len(cfg.DoneChecks) == 0 {
 		if in.Override == "" {
-			return out, fmt.Errorf("no hard checks configured, so nothing can prove this item done; the human sets them with: mull config checks \"<command>\" ...")
+			return out, errf(CodeNoChecks, "no hard checks configured, so nothing can prove this item done; the human sets them with: mull config checks \"<command>\" ...")
 		}
 		commit, tree, err := m.cleanTree()
 		if err != nil {
@@ -318,7 +346,7 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 	if len(in.Tour) == 0 {
 		for _, lc := range changes {
 			if lc.Layer == "ui" {
-				return out, fmt.Errorf("UI files changed (%d); give a short UI tour with --tour: what to click and what to see", len(lc.Files))
+				return out, errf(CodeTourRequired, "UI files changed (%d); give a short UI tour with --tour: what to click and what to see", len(lc.Files))
 			}
 		}
 	}
@@ -378,15 +406,15 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 func ownActive(i *model.Item, wt string) error {
 	switch {
 	case i.State == model.StateOpen:
-		return fmt.Errorf("item %s is not started; claim it with: mull start %s", i.ID, i.ID)
+		return errf(CodeState, "item %s is not started; claim it with: mull start %s", i.ID, i.ID)
 	case i.State != model.StateActive:
-		return fmt.Errorf("item %s is %s", i.ID, i.State)
+		return errf(CodeState, "item %s is %s", i.ID, i.State)
 	case i.Claim == nil || i.Claim.Worktree != wt:
 		owner := "nobody"
 		if i.Claim != nil {
 			owner = i.Claim.Worktree
 		}
-		return fmt.Errorf("item %s is claimed by %s, not this worktree", i.ID, owner)
+		return errf(CodeClaimed, "item %s is claimed by %s, not this worktree", i.ID, owner)
 	}
 	return nil
 }
@@ -518,7 +546,7 @@ func (m *Mull) ReportText(id string, n int) (string, model.Report, error) {
 		}
 		paths := s.tx.List(fmt.Sprintf("reports/%s-", id))
 		if len(paths) == 0 {
-			return fmt.Errorf("item %s has no done report", id)
+			return errf(CodeNotFound, "item %s has no done report", id)
 		}
 		path := ""
 		if n > 0 {
@@ -535,7 +563,7 @@ func (m *Mull) ReportText(id string, n int) (string, model.Report, error) {
 		}
 		b, ok := s.tx.Get(path)
 		if !ok {
-			return fmt.Errorf("no report %s", path)
+			return errf(CodeNotFound, "no report %s", path)
 		}
 		body, err := model.Decode(b, &rep)
 		text = body

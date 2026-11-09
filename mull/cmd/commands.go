@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -11,22 +13,72 @@ import (
 	"mull/internal/mull"
 )
 
+// ---- Argument validators that report usage errors with a code ----
+
+func usage(err error) error { return &mull.Error{Code: mull.CodeUsage, Msg: err.Error()} }
+
+func wrapArgs(v cobra.PositionalArgs) cobra.PositionalArgs {
+	return func(c *cobra.Command, args []string) error {
+		if err := v(c, args); err != nil {
+			return usage(err)
+		}
+		return nil
+	}
+}
+
+var (
+	noArgs  = wrapArgs(cobra.NoArgs)
+	exact   = func(n int) cobra.PositionalArgs { return wrapArgs(cobra.ExactArgs(n)) }
+	atLeast = func(n int) cobra.PositionalArgs { return wrapArgs(cobra.MinimumNArgs(n)) }
+	upTo    = func(n int) cobra.PositionalArgs { return wrapArgs(cobra.MaximumNArgs(n)) }
+)
+
+// write runs one op and prints its result.
+func (a *app) write(op string, in mull.Input) error {
+	m, err := a.open()
+	if err != nil {
+		return err
+	}
+	res, err := m.Exec(op, in)
+	if err != nil {
+		return err
+	}
+	return a.json(res)
+}
+
+// read opens mull, runs fn and prints its result.
+func (a *app) read(fn func(m *mull.Mull) (any, error)) error {
+	m, err := a.open()
+	if err != nil {
+		return err
+	}
+	v, err := fn(m)
+	if err != nil {
+		return err
+	}
+	return a.json(v)
+}
+
+func onRequestFlag(c *cobra.Command, p *bool) {
+	c.Flags().BoolVar(p, "on-request", false, "an agent settling this on the human's explicit instruction")
+}
+
+// ---- Setup ----
+
 func initCmd(a *app) *cobra.Command {
 	var integration, release string
 	c := &cobra.Command{
 		Use:   "init",
 		Short: "Create the mull branch in this repository",
-		Args:  cobra.NoArgs,
+		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			m, err := a.open()
-			if err != nil {
-				return err
-			}
-			cfg, err := m.Init(integration, release)
-			if err != nil {
-				return err
-			}
-			return a.json(map[string]any{"initialized": true, "branch": "mull", "config": cfg})
+			return a.read(func(m *mull.Mull) (any, error) {
+				cfg, err := m.Init(integration, release)
+				if err != nil {
+					return nil, err
+				}
+				return map[string]any{"initialized": true, "branch": "mull", "config": cfg}, nil
+			})
 		},
 	}
 	c.Flags().StringVar(&integration, "integration", "main", "branch where work lands")
@@ -34,223 +86,13 @@ func initCmd(a *app) *cobra.Command {
 	return c
 }
 
-func contextCmd(a *app) *cobra.Command {
-	var item string
-	c := &cobra.Command{
-		Use:   "context",
-		Short: "Session-start briefing for an agent: protocol, plans, ready work, claims, decisions",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			m, err := a.open()
-			if err != nil {
-				return err
-			}
-			ctx, err := m.Context(item)
-			if err != nil {
-				return err
-			}
-			return a.json(ctx)
-		},
-	}
-	c.Flags().StringVar(&item, "item", "", "the item this session works on")
-	return c
-}
-
-func guideCmd(a *app) *cobra.Command {
+func versionCmd(a *app) *cobra.Command {
 	return &cobra.Command{
-		Use:       "guide <" + strings.Join(guide.Names(), "|") + ">",
-		Short:     "Print a procedure: agents (for AGENTS.md), supervisor, intake",
-		Args:      cobra.ExactArgs(1),
-		ValidArgs: guide.Names(),
+		Use: "version", Short: "Print mull's version", Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			g, err := guide.Get(args[0])
-			if err != nil {
-				return err
-			}
-			_, err = fmt.Fprint(a.stdout, g)
-			return err
+			return a.json(map[string]string{"version": Version})
 		},
 	}
-}
-
-func configCmd(a *app) *cobra.Command {
-	c := &cobra.Command{
-		Use: "config", Short: "Show or change this repository's mull configuration (human-owned)", Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			m, err := a.open()
-			if err != nil {
-				return err
-			}
-			cfg, err := m.Config()
-			if err != nil {
-				return err
-			}
-			return a.json(cfg)
-		},
-	}
-	set := &cobra.Command{
-		Use: "set <integration|release|remote> <value>", Short: "Set a branch or the remote", Args: cobra.ExactArgs(2),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			m, err := a.open()
-			if err != nil {
-				return err
-			}
-			cfg, err := m.ConfigSet(args[0], args[1])
-			if err != nil {
-				return err
-			}
-			return a.json(cfg)
-		},
-	}
-	checks := &cobra.Command{
-		Use: "checks <command...>", Short: "Replace the hard checks done runs (each argument is one shell command; none clears)",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			m, err := a.open()
-			if err != nil {
-				return err
-			}
-			cfg, err := m.ConfigChecks(args)
-			if err != nil {
-				return err
-			}
-			return a.json(cfg)
-		},
-	}
-	layer := &cobra.Command{
-		Use: "layer <name> [glob...]", Short: "Set a layer's path globs for done reports (no globs removes it; name a layer ui to require UI tours)",
-		Args: cobra.MinimumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			m, err := a.open()
-			if err != nil {
-				return err
-			}
-			cfg, err := m.ConfigLayer(args[0], args[1:])
-			if err != nil {
-				return err
-			}
-			return a.json(cfg)
-		},
-	}
-	c.AddCommand(set, checks, layer)
-	return c
-}
-
-func checkCmd(a *app) *cobra.Command {
-	return &cobra.Command{
-		Use: "check", Short: "Run the hard checks against the clean HEAD and record the result", Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			m, err := a.open()
-			if err != nil {
-				return err
-			}
-			out, err := m.Check()
-			if err != nil {
-				return err
-			}
-			if err := a.json(out); err != nil {
-				return err
-			}
-			if !out.Passed {
-				return fmt.Errorf("hard checks failed")
-			}
-			return nil
-		},
-	}
-}
-
-func doneCmd(a *app) *cobra.Command {
-	var in mull.DoneInput
-	var summary, tour string
-	c := &cobra.Command{
-		Use:   "done <id>",
-		Short: "Finish an item: run the hard checks, write the done report, and file it for review",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			m, err := a.open()
-			if err != nil {
-				return err
-			}
-			if summary == "-" && tour == "-" {
-				return fmt.Errorf("only one of --summary and --tour can read stdin")
-			}
-			if in.Summary, err = a.text(summary); err != nil {
-				return err
-			}
-			t, err := a.text(tour)
-			if err != nil {
-				return err
-			}
-			for _, line := range strings.Split(t, "\n") {
-				line = strings.TrimSpace(strings.TrimLeft(strings.TrimSpace(line), "-*0123456789.)"))
-				if line != "" && !strings.EqualFold(line, "none") {
-					in.Tour = append(in.Tour, line)
-				}
-			}
-			res, err := m.Done(args[0], in)
-			if err != nil {
-				return err
-			}
-			return a.json(res)
-		},
-	}
-	c.Flags().StringVar(&summary, "summary", "", "what changed and how it fits (- reads stdin)")
-	c.Flags().StringVar(&tour, "tour", "", "UI tour, one step per line: what to click and what to see (- reads stdin)")
-	c.Flags().StringVar(&in.Override, "override", "", "HUMAN ONLY: finish despite failing or missing checks, with the reason")
-	return c
-}
-
-func reportCmd(a *app) *cobra.Command {
-	var n int
-	var asJSON bool
-	c := &cobra.Command{
-		Use: "report <item-id>", Short: "Print an item's done report (the latest by default)", Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			m, err := a.open()
-			if err != nil {
-				return err
-			}
-			text, rep, err := m.ReportText(args[0], n)
-			if err != nil {
-				return err
-			}
-			if asJSON {
-				return a.json(rep)
-			}
-			_, err = fmt.Fprintln(a.stdout, text)
-			return err
-		},
-	}
-	c.Flags().IntVar(&n, "n", 0, "which attempt (default: latest)")
-	c.Flags().BoolVar(&asJSON, "json", false, "print JSON")
-	return c
-}
-
-func viewCmd(a *app) *cobra.Command {
-	var plan string
-	var asJSON bool
-	c := &cobra.Command{
-		Use:   "view",
-		Short: "The board: each plan's epics, problems, work in flight, and what needs you",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			m, err := a.open()
-			if err != nil {
-				return err
-			}
-			v, err := m.Board(plan)
-			if err != nil {
-				return err
-			}
-			if asJSON {
-				return a.json(v)
-			}
-			_, err = fmt.Fprint(a.stdout, v.Text(m.Now()))
-			return err
-		},
-	}
-	c.Flags().StringVar(&plan, "plan", "", "only this plan (closed plans too)")
-	c.Flags().BoolVar(&asJSON, "json", false, "print JSON")
-	return c
 }
 
 func syncCmd(a *app) *cobra.Command {
@@ -258,87 +100,115 @@ func syncCmd(a *app) *cobra.Command {
 	c := &cobra.Command{
 		Use:   "sync",
 		Short: "Exchange the mull branch with the remote (pushes only the mull branch, never forced)",
-		Args:  cobra.NoArgs,
+		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			m, err := a.open()
-			if err != nil {
-				return err
-			}
-			r, err := m.Sync(dryRun)
-			if err != nil {
-				return err
-			}
-			return a.json(r)
+			return a.read(func(m *mull.Mull) (any, error) { return m.Sync(dryRun) })
 		},
 	}
 	c.Flags().BoolVar(&dryRun, "dry-run", false, "show what would happen, change nothing")
 	return c
 }
 
+func configCmd(a *app) *cobra.Command {
+	c := &cobra.Command{
+		Use: "config", Short: "Show or change this repository's mull configuration (human-owned)", Args: noArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.read(func(m *mull.Mull) (any, error) { return m.Config() })
+		},
+	}
+	set := &cobra.Command{
+		Use: "set <integration|release|remote> <value>", Short: "Set a branch or the remote", Args: exact(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.write("config set", &mull.ConfigSetIn{Key: args[0], Value: args[1]})
+		},
+	}
+	checks := &cobra.Command{
+		Use: "checks [command...]", Short: "Replace the hard checks done runs (each argument is one shell command; none clears)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.write("config checks", &mull.ConfigChecksIn{Commands: args})
+		},
+	}
+	layer := &cobra.Command{
+		Use:   "layer <name> [glob...]",
+		Short: "Set a layer's path globs for done reports (no globs removes it; a layer named ui makes tours required)",
+		Args:  atLeast(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.write("config layer", &mull.ConfigLayerIn{Name: args[0], Globs: args[1:]})
+		},
+	}
+	c.AddCommand(set, checks, layer)
+	return c
+}
+
+// ---- Batch ----
+
+func batchCmd(a *app) *cobra.Command {
+	var dryRun bool
+	c := &cobra.Command{
+		Use:   "batch [file|-]",
+		Short: "Run many writes from JSON Lines in one commit: all or nothing (see mull guide json)",
+		Long: `Reads JSON Lines from stdin (or a file). Each line is
+  {"op": "<op>", "ref": "<optional name>", ...fields}
+with field names exactly the command's flag names. A later line may use
+"@<ref>" in any ID field to mean the record an earlier line created.
+Every line is validated and run in one transaction: if any line fails,
+nothing is written and every failed line is reported. Ops: ` + strings.Join(mull.OpNames(), ", ") + `.`,
+		Args: upTo(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			var r io.Reader = a.stdin
+			if len(args) == 1 && args[0] != "-" {
+				f, err := os.Open(args[0])
+				if err != nil {
+					return &mull.Error{Code: mull.CodeInvalid, Msg: err.Error()}
+				}
+				defer f.Close()
+				r = f
+			}
+			return a.read(func(m *mull.Mull) (any, error) { return m.Batch(r, dryRun) })
+		},
+	}
+	c.Flags().BoolVar(&dryRun, "dry-run", false, "validate and run without writing (IDs in the results are throwaway)")
+	return c
+}
+
+// ---- Plans and epics ----
+
 func planCmd(a *app) *cobra.Command {
 	c := &cobra.Command{Use: "plan", Short: "Plans: the top level of the work"}
-	var summary string
+	var in mull.PlanNewIn
 	newC := &cobra.Command{
 		Use:   "new <slug> <title>",
 		Short: "Create a plan (slug: lowercase words joined by hyphens)",
-		Args:  cobra.ExactArgs(2),
+		Args:  exact(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			m, err := a.open()
-			if err != nil {
+			in.Slug, in.Title = args[0], args[1]
+			var err error
+			if in.Summary, err = a.text(in.Summary); err != nil {
 				return err
 			}
-			s, err := a.text(summary)
-			if err != nil {
-				return err
-			}
-			p, err := m.PlanNew(args[0], args[1], s)
-			if err != nil {
-				return err
-			}
-			return a.json(p)
+			return a.write("plan new", &in)
 		},
 	}
-	newC.Flags().StringVar(&summary, "summary", "", "high-level summary (- reads stdin)")
+	newC.Flags().StringVar(&in.Summary, "summary", "", "high-level summary (- reads stdin)")
 	list := &cobra.Command{
-		Use: "list", Short: "List plans with progress", Args: cobra.NoArgs,
+		Use: "list", Short: "List plans with progress", Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			m, err := a.open()
-			if err != nil {
-				return err
-			}
-			ps, err := m.PlanList()
-			if err != nil {
-				return err
-			}
-			return a.json(map[string]any{"plans": ps})
+			return a.read(func(m *mull.Mull) (any, error) {
+				ps, err := m.PlanList()
+				return map[string]any{"plans": ps}, err
+			})
 		},
 	}
 	show := &cobra.Command{
-		Use: "show <slug>", Short: "Show a plan with its epics and items", Args: cobra.ExactArgs(1),
+		Use: "show <slug>", Short: "Show a plan with its epics and items", Args: exact(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			m, err := a.open()
-			if err != nil {
-				return err
-			}
-			p, err := m.PlanShow(args[0])
-			if err != nil {
-				return err
-			}
-			return a.json(p)
+			return a.read(func(m *mull.Mull) (any, error) { return m.PlanShow(args[0]) })
 		},
 	}
 	closeC := &cobra.Command{
-		Use: "close <slug>", Short: "Close a plan", Args: cobra.ExactArgs(1),
+		Use: "close <slug>", Short: "Close a plan", Args: exact(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			m, err := a.open()
-			if err != nil {
-				return err
-			}
-			p, err := m.PlanClose(args[0])
-			if err != nil {
-				return err
-			}
-			return a.json(p)
+			return a.write("plan close", &mull.PlanCloseIn{Slug: args[0]})
 		},
 	}
 	c.AddCommand(newC, list, show, closeC)
@@ -347,44 +217,31 @@ func planCmd(a *app) *cobra.Command {
 
 func epicCmd(a *app) *cobra.Command {
 	c := &cobra.Command{Use: "epic", Short: "Epics: big pieces of a plan"}
-	var plan, summary string
+	var in mull.EpicAddIn
 	var needs []string
 	add := &cobra.Command{
-		Use: "add <title>", Short: "Add an epic to a plan", Args: cobra.ExactArgs(1),
+		Use: "add <title>", Short: "Add an epic to a plan", Args: exact(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			m, err := a.open()
-			if err != nil {
+			in.Title, in.Needs = args[0], mull.SplitIDs(needs)
+			var err error
+			if in.Summary, err = a.text(in.Summary); err != nil {
 				return err
 			}
-			s, err := a.text(summary)
-			if err != nil {
-				return err
-			}
-			e, err := m.EpicAdd(plan, args[0], s, splitIDs(needs))
-			if err != nil {
-				return err
-			}
-			return a.json(e)
+			return a.write("epic add", &in)
 		},
 	}
-	add.Flags().StringVar(&plan, "plan", "", "plan slug (required)")
-	add.Flags().StringVar(&summary, "summary", "", "summary (- reads stdin)")
+	add.Flags().StringVar(&in.Plan, "plan", "", "plan slug")
+	add.Flags().StringVar(&in.Summary, "summary", "", "summary (- reads stdin)")
 	add.Flags().StringSliceVar(&needs, "needs", nil, "items or epics this epic needs")
-	_ = add.MarkFlagRequired("plan")
 
 	var listPlan string
 	list := &cobra.Command{
-		Use: "list", Short: "List epics with progress", Args: cobra.NoArgs,
+		Use: "list", Short: "List epics with progress", Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			m, err := a.open()
-			if err != nil {
-				return err
-			}
-			es, err := m.EpicList(listPlan)
-			if err != nil {
-				return err
-			}
-			return a.json(map[string]any{"epics": es})
+			return a.read(func(m *mull.Mull) (any, error) {
+				es, err := m.EpicList(listPlan)
+				return map[string]any{"epics": es}, err
+			})
 		},
 	}
 	list.Flags().StringVar(&listPlan, "plan", "", "only this plan")
@@ -392,52 +249,37 @@ func epicCmd(a *app) *cobra.Command {
 	return c
 }
 
+// ---- Items ----
+
 func addCmd(a *app) *cobra.Command {
-	var in mull.NewItem
-	var needs []string
+	var in mull.AddIn
+	var needs, docs []string
 	c := &cobra.Command{
 		Use:   "add <title>",
-		Short: "Add an item: a unit of work one agent completes in one session",
-		Args:  cobra.ExactArgs(1),
+		Short: "Add an item: a unit of work one agent completes in one session (--epic implies its plan)",
+		Args:  exact(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			m, err := a.open()
-			if err != nil {
-				return err
-			}
-			in.Title = args[0]
-			in.Needs = splitIDs(needs)
+			in.Title, in.Needs, in.Doc = args[0], mull.SplitIDs(needs), docs
+			var err error
 			if in.Notes, err = a.text(in.Notes); err != nil {
 				return err
 			}
-			v, err := m.ItemAdd(in)
-			if err != nil {
-				return err
-			}
-			return a.json(v)
+			return a.write("add", &in)
 		},
 	}
-	c.Flags().StringVar(&in.Plan, "plan", "", "plan slug (required)")
+	c.Flags().StringVar(&in.Plan, "plan", "", "plan slug (not needed with --epic)")
 	c.Flags().StringVar(&in.Epic, "epic", "", "epic ID")
 	c.Flags().StringSliceVar(&needs, "needs", nil, "items or epics this item needs")
 	c.Flags().StringVar(&in.Notes, "notes", "", "short notes (- reads stdin)")
-	c.Flags().StringSliceVar(&in.Docs, "doc", nil, "path of a related document (repeatable)")
-	_ = c.MarkFlagRequired("plan")
+	c.Flags().StringArrayVar(&docs, "doc", nil, "path of a related document (repeatable)")
 	return c
 }
 
 func showCmd(a *app) *cobra.Command {
 	return &cobra.Command{
-		Use: "show <slug|id>", Short: "Show a plan, epic, item or inbox entry", Args: cobra.ExactArgs(1),
+		Use: "show <slug|id>", Short: "Show a plan, epic, item or inbox entry", Args: exact(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			m, err := a.open()
-			if err != nil {
-				return err
-			}
-			v, err := m.Show(args[0])
-			if err != nil {
-				return err
-			}
-			return a.json(v)
+			return a.read(func(m *mull.Mull) (any, error) { return m.Show(args[0]) })
 		},
 	}
 }
@@ -445,17 +287,12 @@ func showCmd(a *app) *cobra.Command {
 func listCmd(a *app) *cobra.Command {
 	var f mull.ItemFilter
 	c := &cobra.Command{
-		Use: "list", Short: "List items", Args: cobra.NoArgs,
+		Use: "list", Short: "List items", Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			m, err := a.open()
-			if err != nil {
-				return err
-			}
-			items, err := m.ItemList(f)
-			if err != nil {
-				return err
-			}
-			return a.json(map[string]any{"items": items})
+			return a.read(func(m *mull.Mull) (any, error) {
+				items, err := m.ItemList(f)
+				return map[string]any{"items": items}, err
+			})
 		},
 	}
 	c.Flags().StringVar(&f.Plan, "plan", "", "only this plan")
@@ -467,18 +304,13 @@ func listCmd(a *app) *cobra.Command {
 func readyCmd(a *app) *cobra.Command {
 	var f mull.ItemFilter
 	c := &cobra.Command{
-		Use: "ready", Short: "List items ready to start (open, with every need finished)", Args: cobra.NoArgs,
+		Use: "ready", Short: "List items ready to start (open, with every need finished)", Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			m, err := a.open()
-			if err != nil {
-				return err
-			}
 			f.ReadyOnly = true
-			items, err := m.ItemList(f)
-			if err != nil {
-				return err
-			}
-			return a.json(map[string]any{"items": items})
+			return a.read(func(m *mull.Mull) (any, error) {
+				items, err := m.ItemList(f)
+				return map[string]any{"items": items}, err
+			})
 		},
 	}
 	c.Flags().StringVar(&f.Plan, "plan", "", "only this plan")
@@ -489,127 +321,87 @@ func setCmd(a *app) *cobra.Command {
 	return &cobra.Command{
 		Use:   "set <slug|id> <field> <value>",
 		Short: "Change a field (plan/epic: title, summary; item: title, notes, epic, doc). Value - reads stdin",
-		Args:  cobra.ExactArgs(3),
+		Args:  exact(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			m, err := a.open()
-			if err != nil {
-				return err
-			}
 			val, err := a.text(args[2])
 			if err != nil {
 				return err
 			}
-			v, err := m.Set(args[0], args[1], val)
-			if err != nil {
-				return err
-			}
-			return a.json(v)
+			return a.write("set", &mull.SetIn{ID: args[0], Field: args[1], Value: val})
 		},
 	}
 }
 
 func needCmd(a *app, add bool) *cobra.Command {
-	use, short := "need <id> <target...>", "Record that an item or epic needs other items or epics"
+	use, short, op := "need <id> <needs...>", "Record that an item or epic needs other items or epics", "need"
 	if !add {
-		use, short = "unneed <id> <target...>", "Remove needs"
+		use, short, op = "unneed <id> <needs...>", "Remove needs", "unneed"
 	}
 	return &cobra.Command{
-		Use: use, Short: short, Args: cobra.MinimumNArgs(2),
+		Use: use, Short: short, Args: atLeast(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			m, err := a.open()
-			if err != nil {
-				return err
-			}
-			targets := splitIDs(args[1:])
-			var v any
-			if add {
-				v, err = m.Need(args[0], targets)
-			} else {
-				v, err = m.Unneed(args[0], targets)
-			}
-			if err != nil {
-				return err
-			}
-			return a.json(v)
+			in, _ := mull.NewInput(op)
+			n := in.(*mull.NeedIn)
+			n.ID, n.Needs = args[0], mull.SplitIDs(args[1:])
+			return a.write(op, n)
 		},
 	}
 }
 
 func startCmd(a *app) *cobra.Command {
 	return &cobra.Command{
-		Use: "start <id>", Short: "Claim an item for this worktree and mark it active", Args: cobra.ExactArgs(1),
+		Use: "start <id>", Short: "Claim an item for this worktree and mark it active", Args: exact(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			m, err := a.open()
-			if err != nil {
-				return err
-			}
-			r, err := m.Start(args[0])
-			if err != nil {
-				return err
-			}
-			return a.json(r)
+			return a.write("start", &mull.StartIn{ID: args[0]})
 		},
 	}
 }
 
 func releaseCmd(a *app) *cobra.Command {
 	return &cobra.Command{
-		Use: "release <id>", Short: "Give back a claim; the item returns to open", Args: cobra.ExactArgs(1),
+		Use: "release <id>", Short: "Give back a claim; the item returns to open", Args: exact(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			m, err := a.open()
-			if err != nil {
-				return err
-			}
-			v, err := m.Release(args[0])
-			if err != nil {
-				return err
-			}
-			return a.json(v)
+			return a.write("release", &mull.ReleaseIn{ID: args[0]})
 		},
 	}
 }
 
-func captureCmd(a *app, verb string) *cobra.Command {
-	kind, short, detailName := "", "", ""
-	switch verb {
-	case "decided":
-		kind, short, detailName = model.KindDecision, "Record a decision you made that the human didn't", "why"
-	case "ask":
-		kind, short, detailName = model.KindQuestion, "Ask the human something", "detail"
-	case "loose":
-		kind, short, detailName = model.KindLoose, "Capture a loose end: a bug, inconsistency, half-finished work or assumption", "detail"
-	}
+// ---- Capture ----
+
+func captureCmd(a *app, op string) *cobra.Command {
+	short := map[string]string{
+		"decided": "Record a decision you made that the human didn't (--detail: why)",
+		"ask":     "Ask the human something",
+		"loose":   "Capture a loose end: a bug, inconsistency, half-finished work or assumption",
+	}[op]
 	var item, plan, source, detail string
 	c := &cobra.Command{
-		Use: verb + " <text>", Short: short, Args: cobra.ExactArgs(1),
+		Use: op + " <text>", Short: short, Args: exact(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			m, err := a.open()
-			if err != nil {
+			in, _ := mull.NewInput(op)
+			ci := in.(*mull.CaptureIn)
+			var err error
+			if ci.Detail, err = a.text(detail); err != nil {
 				return err
 			}
-			d, err := a.text(detail)
-			if err != nil {
-				return err
-			}
-			e, err := m.Capture(kind, args[0], item, plan, source, d)
-			if err != nil {
-				return err
-			}
-			return a.json(e)
+			ci.Text, ci.Item, ci.Plan, ci.Source = args[0], item, plan, source
+			return a.write(op, ci)
 		},
 	}
-	c.Flags().StringVar(&item, "item", "", "the item this concerns")
-	c.Flags().StringVar(&plan, "plan", "", "the plan, when there is no item (default general)")
+	c.Flags().StringVar(&item, "item", "", "the item this concerns (implies the plan)")
+	c.Flags().StringVar(&plan, "plan", "", "the plan, when there is no item (required when the repo has more than one plan)")
 	c.Flags().StringVar(&source, "source", "", "where this came from (file, matter, commit)")
-	c.Flags().StringVar(&detail, detailName, "", "more detail (- reads stdin)")
+	c.Flags().StringVar(&detail, "detail", "", "more detail; for a decision, why (- reads stdin)")
 	return c
 }
 
+// ---- Inbox ----
+
 func inboxCmd(a *app) *cobra.Command {
 	var f mull.InboxFilter
-	var asJSON bool
+	var asText bool
 	c := &cobra.Command{
-		Use: "inbox", Short: "What needs the human, oldest first", Args: cobra.NoArgs,
+		Use: "inbox", Short: "What needs the human, oldest first", Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			m, err := a.open()
 			if err != nil {
@@ -619,17 +411,17 @@ func inboxCmd(a *app) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if asJSON {
-				return a.json(map[string]any{"entries": es})
+			if asText {
+				return printInbox(a, es)
 			}
-			return printInbox(a, es)
+			return a.json(map[string]any{"entries": es})
 		},
 	}
 	c.Flags().StringVar(&f.Plan, "plan", "", "only this plan")
 	c.Flags().StringVar(&f.Kind, "kind", "", "only this kind (decision, question, loose-end, review)")
 	c.Flags().BoolVar(&f.Parked, "parked", false, "include parked entries")
 	c.Flags().BoolVar(&f.All, "all", false, "include settled entries")
-	c.Flags().BoolVar(&asJSON, "json", false, "print JSON")
+	c.Flags().BoolVar(&asText, "text", false, "render for a human instead of JSON")
 	return c
 }
 
@@ -659,11 +451,10 @@ func printInbox(a *app, es []*model.Entry) error {
 			if e.Item != "" {
 				where += "/" + e.Item
 			}
-			status := ""
+			status, src := "", ""
 			if e.Settled != nil {
 				status = "  [" + e.Settled.Action + "]"
 			}
-			src := ""
 			if e.Source != "" {
 				src = "  (from " + e.Source + ")"
 			}
@@ -675,140 +466,250 @@ func printInbox(a *app, es []*model.Entry) error {
 	return err
 }
 
-func onRequestFlag(c *cobra.Command, o *mull.SettleOpts) {
-	c.Flags().BoolVar(&o.OnRequest, "on-request", false, "an agent settling this on the human's explicit instruction")
-}
-
 func acceptCmd(a *app) *cobra.Command {
-	var o mull.SettleOpts
-	var followUp string
+	var in mull.AcceptIn
 	c := &cobra.Command{
-		Use: "accept <id...>", Short: "Ratify decisions, or accept reviewed work (entry or item IDs)", Args: cobra.MinimumNArgs(1),
+		Use: "accept <id...>", Short: "Ratify decisions, or accept reviewed work (entry or item IDs)", Args: atLeast(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			m, err := a.open()
-			if err != nil {
-				return err
-			}
-			r, err := m.Accept(splitIDs(args), followUp, o)
-			if err != nil {
-				return err
-			}
-			return a.json(r)
+			in.IDs = mull.SplitIDs(args)
+			return a.write("accept", &in)
 		},
 	}
-	c.Flags().StringVar(&followUp, "follow-up", "", "also create a follow-up item (one reviewed item only)")
-	onRequestFlag(c, &o)
+	c.Flags().StringVar(&in.FollowUp, "follow-up", "", "also create a follow-up item (one reviewed item only)")
+	onRequestFlag(c, &in.OnRequest)
 	return c
 }
 
 func decideCmd(a *app) *cobra.Command {
-	var o mull.SettleOpts
+	var in mull.DecideIn
 	c := &cobra.Command{
-		Use: "decide <id> <decision>", Short: "Settle an entry with your decision; it joins the decision log", Args: cobra.ExactArgs(2),
+		Use: "decide <id> <decision>", Short: "Settle an entry with your decision; it joins the decision log", Args: exact(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			m, err := a.open()
-			if err != nil {
-				return err
-			}
 			text, err := a.text(args[1])
 			if err != nil {
 				return err
 			}
-			e, err := m.Decide(args[0], text, o)
-			if err != nil {
-				return err
-			}
-			return a.json(e)
+			in.ID, in.Decision = args[0], text
+			return a.write("decide", &in)
 		},
 	}
-	onRequestFlag(c, &o)
+	onRequestFlag(c, &in.OnRequest)
 	return c
 }
 
 func doCmd(a *app) *cobra.Command {
-	var o mull.SettleOpts
-	var plan, epic, reason string
+	var in mull.DoIn
 	c := &cobra.Command{
 		Use:   "do <id>",
 		Short: "Turn a question or loose end into an item, or send reviewed work back (--reason)",
-		Args:  cobra.ExactArgs(1),
+		Args:  exact(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			m, err := a.open()
-			if err != nil {
-				return err
-			}
-			r, err := m.Do(args[0], plan, epic, reason, o)
-			if err != nil {
-				return err
-			}
-			return a.json(r)
+			in.ID = args[0]
+			return a.write("do", &in)
 		},
 	}
-	c.Flags().StringVar(&plan, "plan", "", "plan for the new item (default: the entry's plan)")
-	c.Flags().StringVar(&epic, "epic", "", "epic for the new item")
-	c.Flags().StringVar(&reason, "reason", "", "why reviewed work is sent back")
-	onRequestFlag(c, &o)
+	c.Flags().StringVar(&in.Plan, "plan", "", "plan for the new item (default: the epic's plan, else the entry's)")
+	c.Flags().StringVar(&in.Epic, "epic", "", "epic for the new item (implies its plan)")
+	c.Flags().StringVar(&in.Reason, "reason", "", "why reviewed work is sent back")
+	onRequestFlag(c, &in.OnRequest)
 	return c
 }
 
 func parkCmd(a *app) *cobra.Command {
-	var o mull.SettleOpts
+	var in mull.ParkIn
 	c := &cobra.Command{
-		Use: "park <id> <reason>", Short: "Set an entry aside; it stays listed as parked", Args: cobra.ExactArgs(2),
+		Use: "park <id> <reason>", Short: "Set an entry aside; it stays listed as parked", Args: exact(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			m, err := a.open()
-			if err != nil {
-				return err
-			}
-			e, err := m.Park(args[0], args[1], o)
-			if err != nil {
-				return err
-			}
-			return a.json(e)
+			in.ID, in.Reason = args[0], args[1]
+			return a.write("park", &in)
 		},
 	}
-	onRequestFlag(c, &o)
+	onRequestFlag(c, &in.OnRequest)
 	return c
 }
 
 func dropCmd(a *app) *cobra.Command {
-	var o mull.SettleOpts
-	var reason string
+	var in mull.DropIn
 	c := &cobra.Command{
-		Use: "drop <id...>", Short: "Drop inbox entries (gone for good, recorded) or items", Args: cobra.MinimumNArgs(1),
+		Use: "drop <id...>", Short: "Drop inbox entries (gone for good, recorded) or items", Args: atLeast(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			m, err := a.open()
-			if err != nil {
-				return err
-			}
-			r, err := m.Drop(splitIDs(args), reason, o)
-			if err != nil {
-				return err
-			}
-			return a.json(r)
+			in.IDs = mull.SplitIDs(args)
+			return a.write("drop", &in)
 		},
 	}
-	c.Flags().StringVar(&reason, "reason", "", "why (recorded)")
-	onRequestFlag(c, &o)
+	c.Flags().StringVar(&in.Reason, "reason", "", "why (recorded)")
+	onRequestFlag(c, &in.OnRequest)
 	return c
 }
 
 func decisionsCmd(a *app) *cobra.Command {
 	var plan string
 	c := &cobra.Command{
-		Use: "decisions", Short: "The decision log, newest first: read it before deciding anything", Args: cobra.NoArgs,
+		Use: "decisions", Short: "The decision log, newest first: read it before deciding anything", Args: noArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.read(func(m *mull.Mull) (any, error) {
+				ds, err := m.Decisions(plan)
+				return map[string]any{"decisions": ds}, err
+			})
+		},
+	}
+	c.Flags().StringVar(&plan, "plan", "", "only this plan")
+	return c
+}
+
+// ---- Board, context, guides ----
+
+func viewCmd(a *app) *cobra.Command {
+	var plan string
+	var asText bool
+	c := &cobra.Command{
+		Use:   "view",
+		Short: "The board: each plan's epics, problems, work in flight, and what needs you",
+		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			m, err := a.open()
 			if err != nil {
 				return err
 			}
-			ds, err := m.Decisions(plan)
+			v, err := m.Board(plan)
 			if err != nil {
 				return err
 			}
-			return a.json(map[string]any{"decisions": ds})
+			if asText {
+				_, err = fmt.Fprint(a.stdout, v.Text(m.Now()))
+				return err
+			}
+			return a.json(v)
 		},
 	}
-	c.Flags().StringVar(&plan, "plan", "", "only this plan")
+	c.Flags().StringVar(&plan, "plan", "", "only this plan (closed plans too)")
+	c.Flags().BoolVar(&asText, "text", false, "render for a human instead of JSON")
+	return c
+}
+
+func contextCmd(a *app) *cobra.Command {
+	var item string
+	c := &cobra.Command{
+		Use:   "context",
+		Short: "Session-start briefing for an agent: protocol, plans, ready work, claims, decisions",
+		Args:  noArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.read(func(m *mull.Mull) (any, error) { return m.Context(item) })
+		},
+	}
+	c.Flags().StringVar(&item, "item", "", "the item this session works on")
+	return c
+}
+
+func guideCmd(a *app) *cobra.Command {
+	var asText bool
+	c := &cobra.Command{
+		Use:   "guide <" + strings.Join(guide.Names(), "|") + ">",
+		Short: "A procedure or reference: agents (for AGENTS.md), supervisor, intake, json (output shapes)",
+		Args:  exact(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			g, err := guide.Get(args[0])
+			if err != nil {
+				return &mull.Error{Code: mull.CodeNotFound, Msg: err.Error()}
+			}
+			if asText {
+				_, err = fmt.Fprint(a.stdout, g)
+				return err
+			}
+			return a.json(map[string]string{"guide": args[0], "text": g})
+		},
+	}
+	c.Flags().BoolVar(&asText, "text", false, "print the guide as plain text instead of JSON")
+	return c
+}
+
+// ---- Finishing work ----
+
+func checkCmd(a *app) *cobra.Command {
+	return &cobra.Command{
+		Use: "check", Short: "Run the hard checks against the clean HEAD and record the result", Args: noArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			m, err := a.open()
+			if err != nil {
+				return err
+			}
+			out, err := m.Check()
+			if err != nil {
+				return err
+			}
+			if !out.Passed {
+				return &mull.Error{Code: mull.CodeChecksFailed, Msg: "hard checks failed: " + failedCommand(out.Results)}
+			}
+			return a.json(out)
+		},
+	}
+}
+
+func failedCommand(rs []model.CheckResult) string {
+	for _, r := range rs {
+		if r.Exit != 0 {
+			return fmt.Sprintf("%s exited %d; last output:\n%s", r.Command, r.Exit, r.Tail)
+		}
+	}
+	return "unknown"
+}
+
+func doneCmd(a *app) *cobra.Command {
+	var in mull.DoneInput
+	var summary, tour string
+	c := &cobra.Command{
+		Use:   "done <id>",
+		Short: "Finish an item: run the hard checks, write the done report, and file it for review",
+		Args:  exact(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if summary == "-" && tour == "-" {
+				return &mull.Error{Code: mull.CodeUsage, Msg: "only one of --summary and --tour can read stdin"}
+			}
+			var err error
+			if in.Summary, err = a.text(summary); err != nil {
+				return err
+			}
+			t, err := a.text(tour)
+			if err != nil {
+				return err
+			}
+			for _, line := range strings.Split(t, "\n") {
+				line = strings.TrimSpace(strings.TrimLeft(strings.TrimSpace(line), "-*0123456789.)"))
+				if line != "" && !strings.EqualFold(line, "none") {
+					in.Tour = append(in.Tour, line)
+				}
+			}
+			return a.read(func(m *mull.Mull) (any, error) { return m.Done(args[0], in) })
+		},
+	}
+	c.Flags().StringVar(&summary, "summary", "", "what changed and how it fits (- reads stdin)")
+	c.Flags().StringVar(&tour, "tour", "", "UI tour, one step per line: what to click and what to see (- reads stdin)")
+	c.Flags().StringVar(&in.Override, "override", "", "HUMAN ONLY: finish despite failing or missing checks, with the reason")
+	return c
+}
+
+func reportCmd(a *app) *cobra.Command {
+	var n int
+	var asText bool
+	c := &cobra.Command{
+		Use: "report <item-id>", Short: "An item's done report (the latest by default)", Args: exact(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			m, err := a.open()
+			if err != nil {
+				return err
+			}
+			text, rep, err := m.ReportText(args[0], n)
+			if err != nil {
+				return err
+			}
+			if asText {
+				_, err = fmt.Fprintln(a.stdout, text)
+				return err
+			}
+			return a.json(map[string]any{"report": rep, "text": text})
+		},
+	}
+	c.Flags().IntVar(&n, "n", 0, "which attempt (default: latest)")
+	c.Flags().BoolVar(&asText, "text", false, "print the report as markdown instead of JSON")
 	return c
 }

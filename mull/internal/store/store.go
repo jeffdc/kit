@@ -29,6 +29,9 @@ const maxAttempts = 20
 // ErrNotInitialized means the mull branch does not exist yet.
 var ErrNotInitialized = errors.New("mull is not initialized in this repository (run: mull init)")
 
+// ErrBusy means writers kept racing and the update gave up.
+var ErrBusy = errors.New("could not write to the mull branch: too many concurrent writers; try again")
+
 // ErrExists means init was run where the mull branch already exists.
 var ErrExists = errors.New("mull is already initialized in this repository")
 
@@ -269,7 +272,7 @@ func (s *Store) Update(msg string, fn func(tx *Tx) error) error {
 			return err // failed for a reason other than a race
 		}
 	}
-	return fmt.Errorf("could not write to %s: too many concurrent writers", Ref)
+	return ErrBusy
 }
 
 // writeCommit builds a tree from parent plus tx's changes in a private index

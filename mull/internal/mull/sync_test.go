@@ -78,7 +78,7 @@ func TestSyncCloneAndMerge(t *testing.T) {
 
 	// Both write; B pushes first, A merges.
 	must[ItemView](t)(a.ItemAdd(NewItem{Plan: "general", Title: "A again"}))
-	must[*model.Entry](t)(b.Capture(model.KindLoose, "from B", "", "", "", ""))
+	must[*model.Entry](t)(b.Capture(CaptureInput{Kind: model.KindLoose, Text: "from B"}))
 	if res := must[SyncResult](t)(b.Sync(false)); res.Action != "pushed" {
 		t.Fatalf("B sync = %+v", res)
 	}
@@ -106,8 +106,8 @@ func TestSyncConflictChangesNothing(t *testing.T) {
 	b := openAt(t, dirB)
 	must[SyncResult](t)(b.Sync(false))
 
-	must[any](t)(a.Set(it.ID, "title", "A's title"))
-	must[any](t)(b.Set(it.ID, "title", "B's title"))
+	must[SetResult](t)(a.Set(it.ID, "title", "A's title"))
+	must[SetResult](t)(b.Set(it.ID, "title", "B's title"))
 	must[SyncResult](t)(b.Sync(false))
 
 	before := gittest.Git(t, dirA, "rev-parse", store.Ref)

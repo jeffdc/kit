@@ -51,7 +51,7 @@ func (m *Mull) Sync(dryRun bool) (SyncResult, error) {
 			return res, err
 		}
 	}
-	return res, fmt.Errorf("sync: the mull branch kept moving; try again")
+	return res, errf(CodeBusy, "sync: the mull branch kept moving; try again")
 }
 
 var errRetry = errors.New("retry")
@@ -142,7 +142,7 @@ func (m *Mull) syncOnce(remote string, dryRun bool) (SyncResult, error) {
 		if errors.As(err, &gerr) && rejectedAsStale(gerr.Stderr) {
 			return res, errRetry
 		}
-		return res, err
+		return res, &Error{Code: CodeRemote, Msg: err.Error()}
 	}
 	return res, nil
 }
@@ -180,7 +180,7 @@ func (m *Mull) remoteHead(remote string) (string, error) {
 	case 2: // the remote has no such ref
 		return "", nil
 	default:
-		return "", fmt.Errorf("cannot reach remote %q (git ls-remote exited %d)", remote, code)
+		return "", errf(CodeRemote, "cannot reach remote %q (git ls-remote exited %d)", remote, code)
 	}
 }
 
@@ -243,7 +243,7 @@ func (m *Mull) checkOutgoing(target, remoteSha string) (int, error) {
 		}
 	}
 	if len(bad) > 0 {
-		return 0, fmt.Errorf("refusing to push: the mull branch has commits touching paths that are not mull records: %s", strings.Join(dedupe(bad), ", "))
+		return 0, errf(CodePushRefused, "refusing to push: the mull branch has commits touching paths that are not mull records: %s", strings.Join(dedupe(bad), ", "))
 	}
 	return count, nil
 }

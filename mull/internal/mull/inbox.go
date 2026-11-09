@@ -29,24 +29,50 @@ func allows(kind, action string) bool {
 	return false
 }
 
-// Capture files an inbox entry. The entry's plan comes from its item, then
-// from plan, then defaults to the general plan.
-func (m *Mull) Capture(kind, text, item, plan, source, detail string) (*model.Entry, error) {
-	switch kind {
-	case model.KindDecision, model.KindQuestion, model.KindLoose:
-	default:
-		return nil, fmt.Errorf("cannot capture an entry of kind %q", kind)
-	}
-	if text == "" {
-		return nil, fmt.Errorf("an inbox entry needs text")
-	}
+// CaptureInput is an inbox entry an agent files.
+type CaptureInput struct {
+	Kind   string // decision, question or loose-end
+	Text   string
+	Item   string // the item it concerns; implies the plan
+	Plan   string // the plan, when there is no item
+	Source string // where it came from
+	Detail string // more detail: for a decision, why
+}
+
+// Capture files an inbox entry.
+func (m *Mull) Capture(in CaptureInput) (*model.Entry, error) {
 	var out *model.Entry
-	err := m.update(fmt.Sprintf("%s: %s", kind, text), func(s *state) error {
-		e, err := m.newEntry(s, kind, text, item, plan, source, detail)
-		out = e
+	err := m.update(fmt.Sprintf("%s: %s", in.Kind, in.Text), func(s *state) error {
+		var err error
+		out, err = m.capture(s, in)
 		return err
 	})
 	return out, err
+}
+
+func (m *Mull) capture(s *state, in CaptureInput) (*model.Entry, error) {
+	switch in.Kind {
+	case model.KindDecision, model.KindQuestion, model.KindLoose:
+	default:
+		return nil, errf(CodeInvalid, "cannot capture an entry of kind %q", in.Kind)
+	}
+	if in.Text == "" {
+		return nil, errf(CodeInvalid, "an inbox entry needs text")
+	}
+	if in.Item == "" && in.Plan == "" && s.activePlans() > 1 {
+		return nil, errf(CodeScope, "this repository has more than one plan: say what the entry is about with --item or --plan")
+	}
+	return m.newEntry(s, in.Kind, in.Text, in.Item, in.Plan, in.Source, in.Detail)
+}
+
+func (s *state) activePlans() int {
+	n := 0
+	for _, p := range s.plans {
+		if p.State == model.PlanActive {
+			n++
+		}
+	}
+	return n
 }
 
 func (m *Mull) newEntry(s *state, kind, text, item, plan, source, detail string) (*model.Entry, error) {
@@ -56,7 +82,7 @@ func (m *Mull) newEntry(s *state, kind, text, item, plan, source, detail string)
 			return nil, err
 		}
 		if plan != "" && plan != i.Plan {
-			return nil, fmt.Errorf("item %s belongs to plan %q, not %q", item, i.Plan, plan)
+			return nil, errf(CodeInvalid, "item %s belongs to plan %q, not %q", item, i.Plan, plan)
 		}
 		plan = i.Plan
 	}
@@ -88,6 +114,11 @@ type InboxFilter struct {
 func (m *Mull) Inbox(f InboxFilter) ([]*model.Entry, error) {
 	out := []*model.Entry{}
 	err := m.view(func(s *state) error {
+		if f.Plan != "" {
+			if _, err := s.plan(f.Plan); err != nil {
+				return err
+			}
+		}
 		for _, id := range sortedKeys(s.entries) {
 			e := s.entries[id]
 			if (f.Plan != "" && e.Plan != f.Plan) || (f.Kind != "" && e.Kind != f.Kind) {
@@ -113,10 +144,10 @@ type SettleOpts struct {
 
 func (m *Mull) settle(s *state, e *model.Entry, action, note, item string, o SettleOpts) error {
 	if e.Settled != nil && e.Settled.Action != model.ActPark {
-		return fmt.Errorf("inbox entry %s is already settled (%s)", e.ID, e.Settled.Action)
+		return errf(CodeSettled, "inbox entry %s is already settled (%s)", e.ID, e.Settled.Action)
 	}
 	if !allows(e.Kind, action) {
-		return fmt.Errorf("a %s cannot be settled with %q (allowed: %v)", e.Kind, action, allowed[e.Kind])
+		return errf(CodeNotAllowed, "a %s cannot be settled with %q (allowed: %v)", e.Kind, action, allowed[e.Kind])
 	}
 	e.Settled = &model.Settlement{
 		Action: action, Note: note, Item: item, By: m.Worktree(), OnRequest: o.OnRequest, At: m.now(),
@@ -139,8 +170,8 @@ func (s *state) openReview(itemID string) *model.Entry {
 // AcceptResult reports what accept did.
 type AcceptResult struct {
 	Entries  []*model.Entry `json:"entries"`
-	Items    []ItemView     `json:"items,omitempty"`
-	FollowUp *ItemView      `json:"follow_up,omitempty"`
+	Items    []ItemView     `json:"items"`
+	FollowUp *ItemView      `json:"follow_up"`
 }
 
 // Accept ratifies decisions and accepts reviewed work. refs may be decision
@@ -150,66 +181,74 @@ type AcceptResult struct {
 func (m *Mull) Accept(refs []string, followUp string, o SettleOpts) (AcceptResult, error) {
 	var out AcceptResult
 	err := m.update(fmt.Sprintf("accept %v", refs), func(s *state) error {
-		out = AcceptResult{}
-		reviews := 0
-		for _, ref := range dedupe(refs) {
-			var entry *model.Entry
-			var item *model.Item
-			switch {
-			case s.entries[ref] != nil:
-				entry = s.entries[ref]
-				if entry.Kind == model.KindReview {
-					var err error
-					if item, err = s.item(entry.Item); err != nil {
-						return err
-					}
-				}
-			case s.items[ref] != nil:
-				item = s.items[ref]
-				entry = s.openReview(ref)
-			default:
-				return fmt.Errorf("no inbox entry or item %q", ref)
-			}
-			if item != nil {
-				reviews++
-				if err := m.acceptItem(s, item, o); err != nil {
-					return err
-				}
-				out.Items = append(out.Items, s.itemView(item))
-			}
-			if entry != nil {
-				if err := m.settle(s, entry, model.ActAccept, "", "", o); err != nil {
-					return err
-				}
-				out.Entries = append(out.Entries, entry)
-			}
-		}
-		if followUp != "" {
-			if reviews != 1 || len(out.Items) != 1 {
-				return fmt.Errorf("--follow-up applies when accepting exactly one reviewed item")
-			}
-			src := s.items[out.Items[0].ID]
-			i, err := m.addItem(s, NewItem{Plan: src.Plan, Epic: src.Epic, Title: followUp,
-				Notes: fmt.Sprintf("Follow-up from the review of %s.", src.ID)})
-			if err != nil {
-				return err
-			}
-			v := s.itemView(i)
-			out.FollowUp = &v
-		}
-		return nil
+		var err error
+		out, err = m.accept(s, refs, followUp, o)
+		return err
 	})
 	return out, err
+}
+
+func (m *Mull) accept(s *state, refs []string, followUp string, o SettleOpts) (AcceptResult, error) {
+	out := AcceptResult{Entries: []*model.Entry{}, Items: []ItemView{}}
+	refs = dedupe(refs)
+	if len(refs) == 0 {
+		return out, errf(CodeInvalid, "give the entries or items to accept")
+	}
+	for _, ref := range refs {
+		var entry *model.Entry
+		var item *model.Item
+		switch {
+		case s.entries[ref] != nil:
+			entry = s.entries[ref]
+			if entry.Kind == model.KindReview {
+				var err error
+				if item, err = s.item(entry.Item); err != nil {
+					return out, err
+				}
+			}
+		case s.items[ref] != nil:
+			item = s.items[ref]
+			entry = s.openReview(ref)
+		default:
+			return out, errf(CodeNotFound, "no inbox entry or item %q", ref)
+		}
+		if item != nil {
+			if err := m.acceptItem(s, item, o); err != nil {
+				return out, err
+			}
+			out.Items = append(out.Items, s.itemView(item))
+		}
+		if entry != nil {
+			if err := m.settle(s, entry, model.ActAccept, "", "", o); err != nil {
+				return out, err
+			}
+			out.Entries = append(out.Entries, entry)
+		}
+	}
+	if followUp != "" {
+		if len(out.Items) != 1 {
+			return out, errf(CodeInvalid, "follow-up applies when accepting exactly one reviewed item")
+		}
+		src := s.items[out.Items[0].ID]
+		i, err := m.addItem(s, NewItem{Plan: src.Plan, Epic: src.Epic, Title: followUp,
+			Notes: fmt.Sprintf("Follow-up from the review of %s.", src.ID)})
+		if err != nil {
+			return out, err
+		}
+		v := s.itemView(i)
+		out.FollowUp = &v
+	}
+	return out, nil
 }
 
 // acceptItem marks done work accepted. The worker that claimed the item may
 // not accept it from its own worktree unless the human asked it to.
 func (m *Mull) acceptItem(s *state, i *model.Item, o SettleOpts) error {
 	if i.State != model.StateDone {
-		return fmt.Errorf("item %s is %s; only done items can be accepted", i.ID, i.State)
+		return errf(CodeState, "item %s is %s; only done items can be accepted", i.ID, i.State)
 	}
 	if i.Claim != nil && i.Claim.Worktree == m.Worktree() && !o.OnRequest {
-		return fmt.Errorf("item %s was done from this worktree; a worker cannot accept its own work unless the human asks (use --on-request)", i.ID)
+		return errf(CodeNotAllowed, "item %s was done from this worktree; a worker cannot accept its own work unless the human asks (use --on-request)", i.ID)
 	}
 	i.State, i.Updated = model.StateAccepted, m.now()
 	return s.putItem(i)
@@ -217,19 +256,24 @@ func (m *Mull) acceptItem(s *state, i *model.Item, o SettleOpts) error {
 
 // Decide settles an entry with the human's decision, which joins the decision log.
 func (m *Mull) Decide(id, decision string, o SettleOpts) (*model.Entry, error) {
-	if decision == "" {
-		return nil, fmt.Errorf("decide needs the decision text")
-	}
 	var out *model.Entry
 	err := m.update("decide "+id, func(s *state) error {
-		e, err := s.entry(id)
-		if err != nil {
-			return err
-		}
-		out = e
-		return m.settle(s, e, model.ActDecide, decision, "", o)
+		var err error
+		out, err = m.decide(s, id, decision, o)
+		return err
 	})
 	return out, err
+}
+
+func (m *Mull) decide(s *state, id, decision string, o SettleOpts) (*model.Entry, error) {
+	if decision == "" {
+		return nil, errf(CodeInvalid, "decide needs the decision text")
+	}
+	e, err := s.entry(id)
+	if err != nil {
+		return nil, err
+	}
+	return e, m.settle(s, e, model.ActDecide, decision, "", o)
 }
 
 // DoResult reports what do did.
@@ -238,49 +282,69 @@ type DoResult struct {
 	Item  ItemView     `json:"item"`
 }
 
+// DoInput says what to do with a question, loose end or review.
+type DoInput struct {
+	ID, Plan, Epic, Reason string
+	SettleOpts
+}
+
 // Do turns a question or loose end into an item, or sends reviewed work back
 // (the item reopens for another session, with the reason added to its notes).
-func (m *Mull) Do(id, plan, epic, reason string, o SettleOpts) (DoResult, error) {
+func (m *Mull) Do(in DoInput) (DoResult, error) {
 	var out DoResult
-	err := m.update("do "+id, func(s *state) error {
-		e, err := s.entry(id)
-		if err != nil {
-			return err
-		}
-		if e.Kind == model.KindReview {
-			i, err := s.item(e.Item)
-			if err != nil {
-				return err
-			}
-			if i.State != model.StateDone {
-				return fmt.Errorf("item %s is %s; only done items can be sent back", i.ID, i.State)
-			}
-			if reason == "" {
-				return fmt.Errorf("say why the work is sent back (--reason)")
-			}
-			i.State, i.Claim, i.Updated = model.StateOpen, nil, m.now()
-			i.Notes = joinNotes(i.Notes, fmt.Sprintf("Sent back on review (%s): %s", m.now(), reason))
-			if err := s.putItem(i); err != nil {
-				return err
-			}
-			out = DoResult{Entry: e, Item: s.itemView(i)}
-			return m.settle(s, e, model.ActDo, reason, i.ID, o)
-		}
-		if plan == "" {
-			plan = e.Plan
-		}
-		notes := fmt.Sprintf("From inbox %s (%s).", e.ID, e.Kind)
-		if e.Detail != "" {
-			notes = joinNotes(notes, e.Detail)
-		}
-		i, err := m.addItem(s, NewItem{Plan: plan, Epic: epic, Title: e.Text, Notes: notes})
-		if err != nil {
-			return err
-		}
-		out = DoResult{Entry: e, Item: s.itemView(i)}
-		return m.settle(s, e, model.ActDo, reason, i.ID, o)
+	err := m.update("do "+in.ID, func(s *state) error {
+		var err error
+		out, err = m.do(s, in)
+		return err
 	})
 	return out, err
+}
+
+func (m *Mull) do(s *state, in DoInput) (DoResult, error) {
+	e, err := s.entry(in.ID)
+	if err != nil {
+		return DoResult{}, err
+	}
+	if e.Kind == model.KindReview {
+		i, err := s.item(e.Item)
+		if err != nil {
+			return DoResult{}, err
+		}
+		if i.State != model.StateDone {
+			return DoResult{}, errf(CodeState, "item %s is %s; only done items can be sent back", i.ID, i.State)
+		}
+		if in.Reason == "" {
+			return DoResult{}, errf(CodeInvalid, "say why the work is sent back (--reason)")
+		}
+		if err := m.settle(s, e, model.ActDo, in.Reason, i.ID, in.SettleOpts); err != nil {
+			return DoResult{}, err
+		}
+		i.State, i.Claim, i.Updated = model.StateOpen, nil, m.now()
+		i.Notes = joinNotes(i.Notes, fmt.Sprintf("Sent back on review (%s): %s", m.now(), in.Reason))
+		if err := s.putItem(i); err != nil {
+			return DoResult{}, err
+		}
+		return DoResult{Entry: e, Item: s.itemView(i)}, nil
+	}
+	if !allows(e.Kind, model.ActDo) {
+		return DoResult{}, errf(CodeNotAllowed, "a %s cannot be settled with %q (allowed: %v)", e.Kind, model.ActDo, allowed[e.Kind])
+	}
+	plan := in.Plan
+	if plan == "" && in.Epic == "" {
+		plan = e.Plan
+	}
+	notes := fmt.Sprintf("From inbox %s (%s).", e.ID, e.Kind)
+	if e.Detail != "" {
+		notes = joinNotes(notes, e.Detail)
+	}
+	i, err := m.addItem(s, NewItem{Plan: plan, Epic: in.Epic, Title: e.Text, Notes: notes})
+	if err != nil {
+		return DoResult{}, err
+	}
+	if err := m.settle(s, e, model.ActDo, in.Reason, i.ID, in.SettleOpts); err != nil {
+		return DoResult{}, err
+	}
+	return DoResult{Entry: e, Item: s.itemView(i)}, nil
 }
 
 func joinNotes(a, b string) string {
@@ -292,60 +356,75 @@ func joinNotes(a, b string) string {
 
 // Park sets an entry aside with a reason. It stays listed as parked.
 func (m *Mull) Park(id, reason string, o SettleOpts) (*model.Entry, error) {
-	if reason == "" {
-		return nil, fmt.Errorf("park needs a reason")
-	}
 	var out *model.Entry
 	err := m.update("park "+id, func(s *state) error {
-		e, err := s.entry(id)
-		if err != nil {
-			return err
-		}
-		out = e
-		return m.settle(s, e, model.ActPark, reason, "", o)
+		var err error
+		out, err = m.park(s, id, reason, o)
+		return err
 	})
 	return out, err
 }
 
+func (m *Mull) park(s *state, id, reason string, o SettleOpts) (*model.Entry, error) {
+	if reason == "" {
+		return nil, errf(CodeInvalid, "park needs a reason")
+	}
+	e, err := s.entry(id)
+	if err != nil {
+		return nil, err
+	}
+	return e, m.settle(s, e, model.ActPark, reason, "", o)
+}
+
 // DropResult reports what drop did.
 type DropResult struct {
-	Entries []*model.Entry `json:"entries,omitempty"`
-	Items   []ItemView     `json:"items,omitempty"`
+	Entries []*model.Entry `json:"entries"`
+	Items   []ItemView     `json:"items"`
 }
 
 // Drop drops inbox entries (gone for good, recorded) and items (state dropped).
 func (m *Mull) Drop(refs []string, reason string, o SettleOpts) (DropResult, error) {
 	var out DropResult
 	err := m.update(fmt.Sprintf("drop %v", refs), func(s *state) error {
-		out = DropResult{}
-		for _, ref := range dedupe(refs) {
-			switch {
-			case s.entries[ref] != nil:
-				e := s.entries[ref]
-				if err := m.settle(s, e, model.ActDrop, reason, "", o); err != nil {
-					return err
-				}
-				out.Entries = append(out.Entries, e)
-			case s.items[ref] != nil:
-				i := s.items[ref]
-				if i.State == model.StateAccepted {
-					return fmt.Errorf("item %s is accepted and cannot be dropped", i.ID)
-				}
-				i.State, i.Updated = model.StateDropped, m.now()
-				if reason != "" {
-					i.Notes = joinNotes(i.Notes, "Dropped: "+reason)
-				}
-				if err := s.putItem(i); err != nil {
-					return err
-				}
-				out.Items = append(out.Items, s.itemView(i))
-			default:
-				return fmt.Errorf("no inbox entry or item %q", ref)
-			}
-		}
-		return nil
+		var err error
+		out, err = m.drop(s, refs, reason, o)
+		return err
 	})
 	return out, err
+}
+
+func (m *Mull) drop(s *state, refs []string, reason string, o SettleOpts) (DropResult, error) {
+	out := DropResult{Entries: []*model.Entry{}, Items: []ItemView{}}
+	refs = dedupe(refs)
+	if len(refs) == 0 {
+		return out, errf(CodeInvalid, "give the entries or items to drop")
+	}
+	for _, ref := range refs {
+		switch {
+		case s.entries[ref] != nil:
+			e := s.entries[ref]
+			if err := m.settle(s, e, model.ActDrop, reason, "", o); err != nil {
+				return out, err
+			}
+			out.Entries = append(out.Entries, e)
+		case s.items[ref] != nil:
+			i := s.items[ref]
+			if i.State == model.StateAccepted {
+				return out, errf(CodeState, "item %s is accepted and cannot be dropped", i.ID)
+			}
+			i.State, i.Updated = model.StateDropped, m.now()
+			if reason != "" {
+				i.Notes = joinNotes(i.Notes, "Dropped: "+reason)
+			}
+			if err := s.putItem(i); err != nil {
+				return out, err
+			}
+			out.Items = append(out.Items, s.itemView(i))
+		default:
+			return out, errf(CodeNotFound, "no inbox entry or item %q", ref)
+		}
+	}
+	return out, nil
 }
 
 // Decision is one entry in the decision log.
@@ -366,6 +445,11 @@ type Decision struct {
 func (m *Mull) Decisions(plan string) ([]Decision, error) {
 	out := []Decision{}
 	err := m.view(func(s *state) error {
+		if plan != "" {
+			if _, err := s.plan(plan); err != nil {
+				return err
+			}
+		}
 		for _, id := range sortedKeys(s.entries) {
 			e := s.entries[id]
 			if e.Settled == nil || (plan != "" && e.Plan != plan) {

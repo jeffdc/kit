@@ -224,17 +224,33 @@ NEEDS YOU  3 reviews · 21 decisions · 8 questions · 22 loose ends (4 older th
 
 ## The CLI
 
-Data commands print JSON. `view`, `inbox` and `guide` print text, with `--json` where it makes sense. Long text is read from stdin with `-`.
+mull is used only by agents; humans see its data through an agent.
+- **Output.** Every command prints JSON to stdout. `view`, `inbox`, `report` and `guide` also have `--text`, so an agent can show its human a rendering.
+- **Errors.** An error prints `{"code", "error"}` to stderr and exits 1. The codes are stable.
+- **The contract.** The shapes and codes are in `mull guide json`, and tests check every command's output against it.
+- **Long text** is read from stdin with `-`.
+
+**Every write is one op,** with one implementation used both by its command and by `mull batch`. Batch reads JSON Lines (`{"op": "...", "ref": "...", ...fields}`, with field names exactly the flag names) and runs every line in one transaction:
+- **All or nothing.** If any line fails, nothing is written and every failed line is reported with its code. A batch that passes is a single commit.
+- **References.** `"@ref"` refers to a record an earlier line created.
+- **`--dry-run`** runs every line and writes nothing.
+
+The ops are every write except `init`, `sync`, `check` and `done`.
+
+**Scope is never silent:**
+- `add` takes its plan from `--epic`, and refuses a `--plan` that disagrees.
+- `decided`, `ask` and `loose` require `--item` or `--plan` once the repo has more than one active plan.
 
 | Group | Commands |
 |---|---|
 | Setup | `mull init` · `mull sync [--dry-run]` |
 | Plans (you) | `mull plan new <slug> "title" [--summary -]` · `plan list` · `plan show <slug>` · `plan close <slug>` |
 | Epics | `mull epic add "title" --plan <slug> [--needs …]` · `epic show <id>` · `epic list [--plan]` |
-| Items | `mull add "title" --plan <slug> [--epic <id>] [--needs …] [--notes -] [--doc path]` · `show` · `list` · `set` · `drop` |
+| Items | `mull add "title" (--plan <slug> \| --epic <id>) [--needs …] [--notes -] [--doc path]` · `show` · `list` · `set` · `drop` |
 | Dependencies | `mull need <id> <id…>` · `mull unneed <id> <id…>` · `mull ready [--plan]` |
 | Work (agents) | `mull start <id>` · `release <id>` · `check` (run the hard checks, cache the result) · `done <id> --tour - --summary "…"` |
-| Capture (agents) | `mull decided "text" --item <id> [--why -]` · `ask "question" --item <id>` · `loose "text" [--item <id>]` |
+| Capture (agents) | `mull decided "text"`, `ask "question"`, `loose "text"`, each with `--item <id>` or `--plan <slug>`, plus `[--detail -] [--source …]` |
+| Batch | `mull batch [--dry-run] < ops.jsonl` |
 | Settle (you, or an agent on your request) | `mull inbox` · `accept <id…>` · `decide <id> "text"` · `do <id> [--plan] [--epic]` · `drop <id…>` · `park <id> "reason"` |
 | Read (agents) | `mull context [--item <id>]` (compact JSON for the start of a session: the plan, its epics, ready items, the item's needs, recent decisions, open questions on the item, the protocol reminder) · `decisions [--plan]` |
 | Guides | `mull guide agents` · `mull guide intake` · `mull guide supervisor` |

@@ -15,9 +15,9 @@ func TestContextBriefing(t *testing.T) {
 	c := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "launch", Title: "Pricing copy"}))
 	must[StartResult](t)(m.Start(a.ID))
 
-	q := must[*model.Entry](t)(m.Capture(model.KindQuestion, "Retry failed webhooks?", a.ID, "", "", ""))
-	d1 := must[*model.Entry](t)(m.Capture(model.KindDecision, "Store raw payloads", a.ID, "", "", ""))
-	d2 := must[*model.Entry](t)(m.Capture(model.KindQuestion, "Annual plans?", "", "launch", "", ""))
+	q := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindQuestion, Text: "Retry failed webhooks?", Item: a.ID}))
+	d1 := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindDecision, Text: "Store raw payloads", Item: a.ID}))
+	d2 := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindQuestion, Text: "Annual plans?", Plan: "launch"}))
 	must[AcceptResult](t)(m.Accept([]string{d1.ID}, "", SettleOpts{}))
 	must[*model.Entry](t)(m.Decide(d2.ID, "Monthly only for launch", SettleOpts{}))
 
