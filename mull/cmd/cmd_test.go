@@ -101,8 +101,30 @@ func TestCLIEndToEnd(t *testing.T) {
 		t.Fatalf("plan progress = %v", plan["progress"])
 	}
 
+	// Finish the item through the CLI: config, checks, done, report, review.
+	r.ok("config", "checks", "true")
+	r.ok("config", "layer", "ui", "web/**")
+	gittest.Commit(t, r.dir, "web/tree.html", "x\n", "Tree edits", "Mull: "+id)
+	_, errOut, code = r.mull("", "done", id, "--summary", "Tree edits become Facts.")
+	if code != 1 || !strings.Contains(errOut, "UI tour") {
+		t.Fatalf("done without a tour: %d %s", code, errOut)
+	}
+	out, errOut, code = r.mull("1. Open the tree\n2. Rename a genus\n", "done", id, "--summary", "Tree edits become Facts.", "--tour", "-")
+	if code != 0 {
+		t.Fatal(errOut)
+	}
+	var done map[string]any
+	_ = json.Unmarshal([]byte(out), &done)
+	if tour := done["report"].(map[string]any)["tour"].([]any); len(tour) != 2 || tour[0] != "Open the tree" {
+		t.Fatalf("tour = %v", tour)
+	}
+	report, _, code := r.mull("", "report", id)
+	if code != 0 || !strings.Contains(report, "Status:** PASSED") || !strings.Contains(report, "2. Rename a genus") {
+		t.Fatalf("report:\n%s", report)
+	}
+
 	board, _, code := r.mull("", "view")
-	if code != 0 || !strings.Contains(board, "TAXOGALL") || !strings.Contains(board, "NEEDS YOU  1 decision") {
+	if code != 0 || !strings.Contains(board, "TAXOGALL") || !strings.Contains(board, "NEEDS YOU  1 review · 1 decision") {
 		t.Fatalf("view:\n%s", board)
 	}
 	if v := r.ok("view", "--json"); len(v["plans"].([]any)) != 1 {

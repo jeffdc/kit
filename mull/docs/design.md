@@ -184,6 +184,14 @@ There's no override for agents. For you, `mull done --override "reason"` exists,
 
 Your instinct was right, and not naive. The project owns *what* the hard checks are (a make target), and mull owns *running them and recording the result*. The agent can't skip the checks or misreport them, because the only way to `done` is through mull. What checks can't prove (that it works and that you understand it) is covered by your review.
 
+**As built:**
+- **Setting config.** Config is set with `mull config set integration|release|remote <v>`, `mull config checks "<cmd>" ...` and `mull config layer <name> <glob...>`. A layer named `ui` is what triggers the tour requirement.
+- **Where changes are measured from.** Changes are measured from the commit that was checked out when the item was claimed (`claim.base`, recorded by `mull start`). That captures exactly the session's work. If there's no recorded base, they're measured from the merge base with the integration branch.
+- **How checks run.** Checks run with `sh -c` in the worktree, one after another, and stop at the first failure. Only the last 40 lines of a failing command's output are kept. Results are cached on the `mull` branch at `checks/<tree>.json`, keyed by tree and command list.
+- **No checks configured.** `done` refuses unless the human gives `--override`.
+- **Reading a report.** `mull report <id>` prints the report as markdown.
+- **Trust.** Check commands come from mull's config, which travels with `sync`, and `done` runs them. Treat them like a Makefile in the repo: as trusted as whoever can push to the remote.
+
 Config example:
 
 ```yaml

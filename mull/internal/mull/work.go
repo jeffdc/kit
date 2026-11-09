@@ -403,6 +403,7 @@ type StartResult struct {
 func (m *Mull) Start(id string) (StartResult, error) {
 	var out StartResult
 	wt, branch := m.Worktree(), m.repo.Branch()
+	base, _ := m.repo.RefCommit("HEAD")
 	err := m.update("start "+id, func(s *state) error {
 		out = StartResult{}
 		i, err := s.item(id)
@@ -429,7 +430,7 @@ func (m *Mull) Start(id string) (StartResult, error) {
 		}
 		now := m.now()
 		i.State, i.Updated = model.StateActive, now
-		i.Claim = &model.Claim{Worktree: wt, Branch: branch, At: now}
+		i.Claim = &model.Claim{Worktree: wt, Branch: branch, At: now, Base: base}
 		if err := s.putItem(i); err != nil {
 			return err
 		}

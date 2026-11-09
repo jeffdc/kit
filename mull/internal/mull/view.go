@@ -192,6 +192,10 @@ func (s *state) board(p *model.Plan, g *gitState, now time.Time) PlanBoard {
 						Text: fmt.Sprintf("claimed %s ago by %s, no linked commits for a day", ago(now, at), f.Worktree)})
 				}
 			}
+			if rep := s.latestReport(i.ID); rep != nil && !rep.Passed && rep.Override == "" {
+				b.Problems = append(b.Problems, Problem{Kind: "failed-done", Item: i.ID,
+					Text: fmt.Sprintf("done attempt %d failed its checks (%s)", rep.N, model.ReportPath(i.ID, rep.N))})
+			}
 			b.InFlight = append(b.InFlight, f)
 		case model.StateOpen:
 			if ig.Unmerged > 0 && recent {
@@ -236,6 +240,23 @@ func (s *state) board(p *model.Plan, g *gitState, now time.Time) PlanBoard {
 		}
 	}
 	return b
+}
+
+// latestReport returns the item's highest-numbered done report, if any.
+func (s *state) latestReport(id string) *model.Report {
+	var best *model.Report
+	for _, p := range s.tx.List("reports/" + id + "-") {
+		var r model.Report
+		b, _ := s.tx.Get(p)
+		if _, err := model.Decode(b, &r); err != nil {
+			continue
+		}
+		if best == nil || r.N > best.N {
+			rr := r
+			best = &rr
+		}
+	}
+	return best
 }
 
 // ago renders a duration compactly: 5m, 3h, 2d, 3w.

@@ -33,6 +33,158 @@ func initCmd(a *app) *cobra.Command {
 	return c
 }
 
+func configCmd(a *app) *cobra.Command {
+	c := &cobra.Command{
+		Use: "config", Short: "Show or change this repository's mull configuration (human-owned)", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			m, err := a.open()
+			if err != nil {
+				return err
+			}
+			cfg, err := m.Config()
+			if err != nil {
+				return err
+			}
+			return a.json(cfg)
+		},
+	}
+	set := &cobra.Command{
+		Use: "set <integration|release|remote> <value>", Short: "Set a branch or the remote", Args: cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			m, err := a.open()
+			if err != nil {
+				return err
+			}
+			cfg, err := m.ConfigSet(args[0], args[1])
+			if err != nil {
+				return err
+			}
+			return a.json(cfg)
+		},
+	}
+	checks := &cobra.Command{
+		Use: "checks <command...>", Short: "Replace the hard checks done runs (each argument is one shell command; none clears)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			m, err := a.open()
+			if err != nil {
+				return err
+			}
+			cfg, err := m.ConfigChecks(args)
+			if err != nil {
+				return err
+			}
+			return a.json(cfg)
+		},
+	}
+	layer := &cobra.Command{
+		Use: "layer <name> [glob...]", Short: "Set a layer's path globs for done reports (no globs removes it; name a layer ui to require UI tours)",
+		Args: cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			m, err := a.open()
+			if err != nil {
+				return err
+			}
+			cfg, err := m.ConfigLayer(args[0], args[1:])
+			if err != nil {
+				return err
+			}
+			return a.json(cfg)
+		},
+	}
+	c.AddCommand(set, checks, layer)
+	return c
+}
+
+func checkCmd(a *app) *cobra.Command {
+	return &cobra.Command{
+		Use: "check", Short: "Run the hard checks against the clean HEAD and record the result", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			m, err := a.open()
+			if err != nil {
+				return err
+			}
+			out, err := m.Check()
+			if err != nil {
+				return err
+			}
+			if err := a.json(out); err != nil {
+				return err
+			}
+			if !out.Passed {
+				return fmt.Errorf("hard checks failed")
+			}
+			return nil
+		},
+	}
+}
+
+func doneCmd(a *app) *cobra.Command {
+	var in mull.DoneInput
+	var summary, tour string
+	c := &cobra.Command{
+		Use:   "done <id>",
+		Short: "Finish an item: run the hard checks, write the done report, and file it for review",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			m, err := a.open()
+			if err != nil {
+				return err
+			}
+			if summary == "-" && tour == "-" {
+				return fmt.Errorf("only one of --summary and --tour can read stdin")
+			}
+			if in.Summary, err = a.text(summary); err != nil {
+				return err
+			}
+			t, err := a.text(tour)
+			if err != nil {
+				return err
+			}
+			for _, line := range strings.Split(t, "\n") {
+				line = strings.TrimSpace(strings.TrimLeft(strings.TrimSpace(line), "-*0123456789.)"))
+				if line != "" && !strings.EqualFold(line, "none") {
+					in.Tour = append(in.Tour, line)
+				}
+			}
+			res, err := m.Done(args[0], in)
+			if err != nil {
+				return err
+			}
+			return a.json(res)
+		},
+	}
+	c.Flags().StringVar(&summary, "summary", "", "what changed and how it fits (- reads stdin)")
+	c.Flags().StringVar(&tour, "tour", "", "UI tour, one step per line: what to click and what to see (- reads stdin)")
+	c.Flags().StringVar(&in.Override, "override", "", "HUMAN ONLY: finish despite failing or missing checks, with the reason")
+	return c
+}
+
+func reportCmd(a *app) *cobra.Command {
+	var n int
+	var asJSON bool
+	c := &cobra.Command{
+		Use: "report <item-id>", Short: "Print an item's done report (the latest by default)", Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			m, err := a.open()
+			if err != nil {
+				return err
+			}
+			text, rep, err := m.ReportText(args[0], n)
+			if err != nil {
+				return err
+			}
+			if asJSON {
+				return a.json(rep)
+			}
+			_, err = fmt.Fprintln(a.stdout, text)
+			return err
+		},
+	}
+	c.Flags().IntVar(&n, "n", 0, "which attempt (default: latest)")
+	c.Flags().BoolVar(&asJSON, "json", false, "print JSON")
+	return c
+}
+
 func viewCmd(a *app) *cobra.Command {
 	var plan string
 	var asJSON bool

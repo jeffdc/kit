@@ -35,7 +35,15 @@ make build
 - a `Mull: <id>` commit trailer, or a merge of an `<id>-…` branch, on the integration branch marks the work as landed;
 - direct commits with neither are counted as unlinked.
 
+**Finishing work is deterministic.** The human configures the hard checks once:
+
+```bash
+./mull config checks "make done-checks"
+./mull config layer ui "lib/web/**" "assets/**"
+```
+
+An agent then runs `./mull done <id> --summary "..." --tour -`. mull runs the checks against the clean HEAD, reusing a passing result for the same tree. On a pass it writes a done report (summary, UI tour, check results, files changed by layer), marks the item done, and files a review for the human. On a failure the item stays active. `./mull report <id>` prints the report.
+
 Still to come (see the design's build order):
-- `check` and `done` with done reports;
 - the agent, supervisor and intake guides;
 - `context`.

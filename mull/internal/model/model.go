@@ -83,6 +83,9 @@ type Claim struct {
 	Worktree string `yaml:"worktree" json:"worktree"`
 	Branch   string `yaml:"branch" json:"branch"`
 	At       string `yaml:"at" json:"at"`
+	// Base is the commit checked out when the item was claimed; a done
+	// report's changes are measured from it.
+	Base string `yaml:"base,omitempty" json:"base,omitempty"`
 }
 
 // Item is a unit of work one agent completes in one session.
@@ -133,11 +136,63 @@ type Config struct {
 	Layers      map[string][]string `yaml:"layers" json:"layers"`
 }
 
+// CheckResult is one hard-check command's outcome.
+type CheckResult struct {
+	Command    string `yaml:"command" json:"command"`
+	Exit       int    `yaml:"exit" json:"exit"`
+	DurationMS int64  `yaml:"duration_ms" json:"duration_ms"`
+	Tail       string `yaml:"tail,omitempty" json:"tail,omitempty"` // last lines of output, kept for failures
+}
+
+// CheckRun is a run of every hard check against one tree.
+type CheckRun struct {
+	Tree    string        `yaml:"tree" json:"tree"`
+	Commit  string        `yaml:"commit" json:"commit"`
+	At      string        `yaml:"at" json:"at"`
+	By      string        `yaml:"by" json:"by"`
+	Passed  bool          `yaml:"passed" json:"passed"`
+	Results []CheckResult `yaml:"results" json:"results"`
+}
+
+// FileChange is one changed file in a done report.
+type FileChange struct {
+	Status  string `yaml:"status" json:"status"` // A, M, D, R
+	Path    string `yaml:"path" json:"path"`
+	Added   int    `yaml:"added" json:"added"`
+	Removed int    `yaml:"removed" json:"removed"`
+}
+
+// LayerChanges groups changed files under one configured layer.
+type LayerChanges struct {
+	Layer string       `yaml:"layer" json:"layer"`
+	Files []FileChange `yaml:"files" json:"files"`
+}
+
+// Report is a done report: the record of finishing (or failing to finish) an item.
+type Report struct {
+	Item     string         `yaml:"item" json:"item"`
+	N        int            `yaml:"n" json:"n"`
+	Passed   bool           `yaml:"passed" json:"passed"`
+	Override string         `yaml:"override,omitempty" json:"override,omitempty"`
+	Commit   string         `yaml:"commit" json:"commit"`
+	Base     string         `yaml:"base,omitempty" json:"base,omitempty"`
+	At       string         `yaml:"at" json:"at"`
+	By       string         `yaml:"by" json:"by"`
+	Summary  string         `yaml:"summary" json:"summary"`
+	Tour     []string       `yaml:"tour,omitempty" json:"tour,omitempty"`
+	Checks   CheckRun       `yaml:"checks" json:"checks"`
+	Changes  []LayerChanges `yaml:"changes,omitempty" json:"changes,omitempty"`
+}
+
 // Paths of records on the mull branch.
 func PlanPath(slug string) string { return "plans/" + slug + ".md" }
 func EpicPath(id string) string   { return "epics/" + id + ".md" }
 func ItemPath(id string) string   { return "items/" + id + ".md" }
 func EntryPath(id string) string  { return "inbox/" + id + ".md" }
+func ReportPath(item string, n int) string {
+	return fmt.Sprintf("reports/%s-%d.md", item, n)
+}
+func CheckPath(tree string) string { return "checks/" + tree + ".json" }
 
 const ConfigPath = "config.yml"
 
