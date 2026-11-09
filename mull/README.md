@@ -2,7 +2,7 @@
 
 The record of a program run by you and your agents: its plans, where they stand, and everything that needs you.
 
-> **This branch is a from-scratch rewrite (`mull-next`).** It replaces the old matter tracker at cutover. The design is in [docs/design.md](docs/design.md), and the research behind it is in [docs/research/](docs/research/).
+> **This branch is a from-scratch rewrite (`mull-next`).** It replaces the old matter tracker; `make install` installs it as `mull`, and the old binary is kept as `mull1`. The design is in [docs/design.md](docs/design.md), and the research behind it is in [docs/research/](docs/research/).
 
 ## What it does
 
@@ -12,7 +12,7 @@ The record of a program run by you and your agents: its plans, where they stand,
 - **Stored in git, out of the way.** Everything lives on a `mull` branch that is never checked out. Writes never touch your working tree, and every worktree sees the same data.
 - **Any LLM, any harness.** Agents use the CLI. Nothing depends on a particular tool.
 
-## Quick start (development build)
+## Quick start
 
 ```bash
 make build

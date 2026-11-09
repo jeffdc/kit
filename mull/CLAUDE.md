@@ -17,7 +17,7 @@ Agents and humans use it only through the CLI. Data commands print JSON; errors 
 - **Any LLM, any harness.** No feature may depend on Claude Code, Codex or any other harness. The only interfaces are the CLI and git.
 - **Never touch the working tree or the real index** when writing mull data. All writes go through `internal/store` (git plumbing plus a compare-and-swap on `refs/heads/mull`).
 - **The only ref mull may write or push is `refs/heads/mull`.** It's a constant (`store.Ref`), and must stay one.
-- **Not installed until cutover.** `make install` refuses on purpose. Build with `make build` and run `./mull`.
+- **Installed as `mull`** with `make install` (cutover done 2026-11-09). The old binary is kept as `mull1` for reading old `.mull/` data.
 
 ## Layout
 

@@ -23,12 +23,9 @@ fmt-check:
 vet:
 	go vet ./...
 
-# The new mull is not installed until cutover: the installed mull is the old
-# one, still in daily use. See "Transition" in docs/design.md.
 install:
-	@echo "Not installing: this is mull-next, which replaces the installed mull only at cutover." >&2
-	@echo "Use ./mull from 'make build' while developing." >&2
-	@exit 1
+	go install -ldflags "$(LDFLAGS)" .
+	@echo "Installed mull to $$(go env GOBIN || true)$$(test -n "$$(go env GOBIN)" || go env GOPATH)/bin"
 
 clean:
 	rm -f mull
