@@ -157,6 +157,11 @@ func TestCLIEndToEnd(t *testing.T) {
 		}
 	}
 	r.fails("not_found", "guide", "nope")
+	// The human-feedback rule: feedback handed over for later has its own instruction.
+	if g := r.ok("guide", "agents")["text"].(string); !strings.Contains(g, "Feedback the human hands over for later") ||
+		!strings.Contains(g, `--source "human,`) {
+		t.Fatal("guide agents lacks the human-feedback rule")
+	}
 
 	// Sync to a bare remote: only the mull branch arrives there.
 	remote := t.TempDir() + "/remote.git"
