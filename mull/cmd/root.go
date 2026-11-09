@@ -1,43 +1,116 @@
+// Package cmd is mull's command line. Every command prints JSON to stdout
+// (a few render for humans behind --text). Errors go to stderr as
+// {"code": "...", "error": "..."} with exit status 1. The shapes are
+// documented in mull guide json.
 package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
-	"mull/internal/storage"
+
+	"mull/internal/mull"
 )
 
-var store *storage.Store
+// Version is set at build time.
+var Version = "dev"
 
-var rootCmd = &cobra.Command{
-	Use:   "mull",
-	Short: "Track ideas and features for solo projects",
-	Long:  `A CLI tool for tracking ideas and features ("matters") for solo projects. All output is JSON.`,
-	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		// Skip auto-init for commands that don't need a store
-		if cmd.Name() == "onboard" || cmd.Parent() != nil && cmd.Parent().Name() == "onboard" {
-			return nil
-		}
-		// Skip auto-init when prime --context is probing for .mull/
-		if cmd.Name() == "prime" && primeContext {
-			if _, err := os.Stat(".mull"); os.IsNotExist(err) {
-				return nil // let RunE handle the silent exit
-			}
-		}
-		var err error
-		store, err = storage.New(".")
-		return err
-	},
-	SilenceUsage:  true,
-	SilenceErrors: true,
+type app struct {
+	stdin  io.Reader
+	stdout io.Writer
+	dir    string
 }
 
-func Execute() {
-	if err := rootCmd.Execute(); err != nil {
-		b, _ := json.Marshal(map[string]string{"error": err.Error()})
+func (a *app) open() (*mull.Mull, error) { return mull.Open(a.dir) }
+
+func (a *app) json(v any) error {
+	enc := json.NewEncoder(a.stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(v)
+}
+
+// text returns s, or stdin's content when s is "-".
+func (a *app) text(s string) (string, error) {
+	if s != "-" {
+		return s, nil
+	}
+	b, err := io.ReadAll(a.stdin)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimRight(string(b), "\n"), nil
+}
+
+// classify turns any error into a coded mull error, recognising cobra's own
+// command-line errors as usage errors.
+func classify(err error) *mull.Error {
+	var me *mull.Error
+	if errors.As(err, &me) {
+		return me
+	}
+	msg := err.Error()
+	for _, p := range []string{"unknown command", "unknown flag", "unknown shorthand", "flag needs an argument", "invalid argument", "required flag"} {
+		if strings.HasPrefix(msg, p) {
+			return &mull.Error{Code: mull.CodeUsage, Msg: msg}
+		}
+	}
+	return mull.AsError(err)
+}
+
+// Execute runs mull with args in dir and returns the process exit code.
+func Execute(args []string, dir string, stdin io.Reader, stdout, stderr io.Writer) int {
+	a := &app{stdin: stdin, stdout: stdout, dir: dir}
+	root := newRoot(a)
+	root.SetArgs(args)
+	root.SetOut(stdout)
+	root.SetErr(stderr)
+	if err := root.Execute(); err != nil {
+		b, _ := json.Marshal(classify(err))
+		fmt.Fprintln(stderr, string(b))
+		return 1
+	}
+	return 0
+}
+
+// Main is the binary's entry point.
+func Main() {
+	dir, err := os.Getwd()
+	if err != nil {
+		b, _ := json.Marshal(&mull.Error{Code: mull.CodeInternal, Msg: err.Error()})
 		fmt.Fprintln(os.Stderr, string(b))
 		os.Exit(1)
 	}
+	os.Exit(Execute(os.Args[1:], dir, os.Stdin, os.Stdout, os.Stderr))
+}
+
+func newRoot(a *app) *cobra.Command {
+	root := &cobra.Command{
+		Use:   "mull",
+		Short: "The record of a program: plans, epics, items, and the inbox of what needs you",
+		Long: `The record of a program: plans, epics, items, and the inbox of what needs you.
+
+Every command prints JSON; errors are {"code","error"} on stderr with exit 1.
+Shapes and error codes: mull guide json. Many writes at once: mull batch.`,
+		Version:       Version,
+		SilenceUsage:  true,
+		SilenceErrors: true,
+	}
+	root.SetFlagErrorFunc(func(c *cobra.Command, err error) error { return usage(err) })
+	root.AddCommand(
+		initCmd(a), versionCmd(a), syncCmd(a), viewCmd(a), configCmd(a), batchCmd(a),
+		checkCmd(a), doneCmd(a), reportCmd(a), contextCmd(a), guideCmd(a),
+		planCmd(a), epicCmd(a),
+		addCmd(a), showCmd(a), listCmd(a), setCmd(a), dropCmd(a),
+		needCmd(a, true), needCmd(a, false), readyCmd(a),
+		startCmd(a), releaseCmd(a),
+		captureCmd(a, "decided"), captureCmd(a, "ask"), captureCmd(a, "loose"), captureCmd(a, "idea"), ideasCmd(a),
+		inboxCmd(a), acceptCmd(a), decideCmd(a), doCmd(a), parkCmd(a),
+		decisionsCmd(a),
+	)
+	return root
 }

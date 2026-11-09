@@ -1,66 +1,40 @@
-# CLAUDE.md
+# mull (next)
 
-This file provides guidance to Claude Code when working with code in this repository.
+Guidance for any agent working on mull's code. This branch (`mull-next`) is a from-scratch rewrite; the design is `docs/design.md`. Read it before changing behaviour.
 
-## Build Commands
+## What mull is
+
+The record of a program, kept on a dedicated git branch (`mull`) in the project's repo:
+- **plans** (top level, plain-English slugs);
+- **epics** (big pieces of a plan);
+- **items** (one agent, one session);
+- **an inbox** of decisions, questions, loose ends and reviews that need the human.
+
+Agents and humans use it only through the CLI. Data commands print JSON; errors go to stderr as `{"error": "..."}`.
+
+## Rules
+
+- **Any LLM, any harness.** No feature may depend on Claude Code, Codex or any other harness. The only interfaces are the CLI and git.
+- **Never touch the working tree or the real index** when writing mull data. All writes go through `internal/store` (git plumbing plus a compare-and-swap on `refs/heads/mull`).
+- **The only ref mull may write or push is `refs/heads/mull`.** It's a constant (`store.Ref`), and must stay one.
+- **Installed as `mull`** with `make install` (cutover done 2026-11-09). The old binary is kept as `mull1` for reading old `.mull/` data.
+
+## Layout
+
+- `cmd/`: the Cobra CLI. Thin: it parses flags and prints, and the logic lives in `internal/mull`.
+- `internal/git`: runs the `git` CLI. Every git call goes through here.
+- `internal/store`: the `mull` branch. Load a snapshot, and update with compare-and-swap and retry.
+- `internal/model`: records and their file format (YAML frontmatter plus a markdown body).
+- `internal/mull`: operations: plans, epics, items, needs and readiness, claims, the inbox, the decision log.
+- `internal/gittest`: throwaway repos and worktrees for tests, isolated from global git config.
+
+## Build and test
 
 ```bash
-make all           # fmt, vet, test, build (default)
-make build         # Build binary (outputs ./mull)
-make build-tui     # Build TUI binary (outputs ./mull-tui)
-make install       # Install to GOBIN
-make test          # Run all tests (go test -v ./...)
-make fmt           # Format code (gofmt -s -w)
-make vet           # Run go vet
+make build      # ./mull
+make test       # go test ./...
+make race       # with the race detector
+make fmt vet
 ```
 
-Run a single test: `go test -v ./internal/storage -run TestName`
-
-## Architecture
-
-Mull is a CLI tool for tracking ideas and features ("matters") for solo projects. LLMs are the primary consumer via Claude Code skills. All output is JSON to stdout, errors as JSON to stderr.
-
-Data is stored in `.mull/` at the repo root, version controlled alongside the project.
-
-### Package Structure
-
-- `cmd/` - CLI commands using Cobra framework
-- `cmd/mull-tui/` - Bubble Tea TUI entry point
-- `internal/model/` - Data structures (Matter, Docket)
-- `internal/storage/` - File-based persistence layer (.mull/ directory)
-- `internal/tui/` - Bubble Tea TUI (matters list, docket, detail, file watcher)
-
-### Key Patterns
-
-**Global Store**: Root command initializes a global `store *storage.Store` in `PersistentPreRunE`. All subcommands access this.
-
-**Matter Files**: Each matter is a markdown file with YAML frontmatter stored at `.mull/matters/<4-char-hash>-<slug>.md`.
-
-**JSON Output**: All commands output JSON to stdout. Errors go to stderr as `{"error": "message"}`.
-
-**Auto-Init**: Running any command in a repo without `.mull/` creates the directory structure automatically.
-
-**Bidirectional Links**: Relationship mutations update both sides atomically with rollback on failure.
-
-### Data Layout
-
-```
-.mull/
-  matters/
-    ab3f-add-an-rss-feed.md
-    c7d1-dark-mode.md
-  docket.yml
-  config.yml    # optional
-```
-
-## Testing
-
-Always use `t.TempDir()` for test isolation. Never operate on real `.mull/` directories in tests.
-
-## Wrap
-
-When wrapping up:
-1. `git status` to check changes
-2. Commit with appropriate message
-3. Push to remote
-4. `make install` to update local binary
+Tests always use temporary repositories (`gittest.NewRepo`). Never run tests against a real repository's `mull` branch.

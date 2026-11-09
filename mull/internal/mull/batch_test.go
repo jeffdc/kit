@@ -1,0 +1,269 @@
+package mull
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+	"testing"
+
+	"mull/internal/gittest"
+	"mull/internal/model"
+	"mull/internal/store"
+)
+
+func jsonl(t *testing.T, lines ...map[string]any) string {
+	t.Helper()
+	var b strings.Builder
+	for _, l := range lines {
+		data, err := json.Marshal(l)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b.Write(data)
+		b.WriteByte('\n')
+	}
+	return b.String()
+}
+
+func mullHead(t *testing.T, dir string) string {
+	t.Helper()
+	return gittest.Git(t, dir, "rev-parse", store.Ref)
+}
+
+func batchErr(t *testing.T, err error) *Error {
+	t.Helper()
+	var e *Error
+	if !errors.As(err, &e) || e.Code != CodeBatchInvalid {
+		t.Fatalf("got %v, want a batch_invalid error", err)
+	}
+	return e
+}
+
+// TestBatchIntakeSized is the worked example: a plan, 3 epics with needs, 10
+// items with needs (some on items made earlier in the batch) and 20 inbox
+// entries of mixed kinds, as one batch, one commit, every ID returned.
+func TestBatchIntakeSized(t *testing.T) {
+	m, dir := setup(t)
+	var lines []map[string]any
+	lines = append(lines,
+		map[string]any{"op": "plan new", "ref": "p", "slug": "taxogall", "title": "Taxogall", "summary": "Galls as catalog entries."},
+		map[string]any{"op": "config checks", "commands": []string{"make done-checks"}},
+		map[string]any{"op": "epic add", "ref": "e1", "plan": "@p", "title": "How the admin works"},
+		map[string]any{"op": "epic add", "ref": "e2", "plan": "@p", "title": "Phase 2 and gaps", "needs": []string{"@e1"}},
+		map[string]any{"op": "epic add", "ref": "e3", "plan": "@p", "title": "Gallformers notes", "needs": "@e2"},
+	)
+	for k := 1; k <= 10; k++ {
+		epic := 1 // items 1-4 in epic 1, 5-7 in epic 2, 8-10 in epic 3
+		if k > 7 {
+			epic = 3
+		} else if k > 4 {
+			epic = 2
+		}
+		l := map[string]any{"op": "add", "ref": fmt.Sprintf("i%d", k), "epic": fmt.Sprintf("@e%d", epic),
+			"title": fmt.Sprintf("Item %d", k), "notes": fmt.Sprintf("From matter 50ff, step %d.", k)}
+		if k > 1 && k%2 == 0 {
+			l["needs"] = []string{fmt.Sprintf("@i%d", k-1)} // needs an item made earlier in this batch
+		}
+		lines = append(lines, l)
+	}
+	kinds := []string{"decided", "ask", "loose"}
+	for k := 1; k <= 20; k++ {
+		l := map[string]any{"op": kinds[k%3], "text": fmt.Sprintf("Entry %d", k), "source": "matter 50ff"}
+		if k%2 == 0 {
+			l["item"] = fmt.Sprintf("@i%d", (k%10)+1)
+		} else {
+			l["plan"] = "@p"
+		}
+		if kinds[k%3] == "decided" {
+			l["detail"] = "why: simplest"
+		}
+		lines = append(lines, l)
+	}
+
+	before := mullHead(t, dir)
+	results, err := m.Batch(strings.NewReader(jsonl(t, lines...)), false)
+	if err != nil {
+		var e *Error
+		if errors.As(err, &e) {
+			t.Fatalf("%v: %+v", err, e.Lines)
+		}
+		t.Fatal(err)
+	}
+	if len(results) != len(lines) {
+		t.Fatalf("%d results for %d lines", len(results), len(lines))
+	}
+	// One commit, on top of the previous one.
+	if n := gittest.Git(t, dir, "rev-list", "--count", before+".."+store.Ref); n != "1" {
+		t.Fatalf("batch made %s commits, want 1", n)
+	}
+	created := map[string]string{}
+	for k, r := range results {
+		if r.Line != k+1 || r.Op != lines[k]["op"] {
+			t.Errorf("result %d = line %d op %s", k, r.Line, r.Op)
+		}
+		if ref, _ := lines[k]["ref"].(string); ref != "" {
+			if r.Ref != ref || r.ID == "" {
+				t.Errorf("line %d: ref %q id %q", r.Line, r.Ref, r.ID)
+			}
+			created[ref] = r.ID
+		} else if r.Op != "config checks" && r.ID == "" {
+			t.Errorf("line %d (%s) returned no id", r.Line, r.Op)
+		}
+	}
+	if created["p"] != "taxogall" || len(created) != 14 {
+		t.Fatalf("created = %v", created)
+	}
+
+	// Refs resolved to the real records.
+	e2 := must[Shown](t)(m.Show(created["e2"])).Epic
+	if len(e2.Needs) != 1 || e2.Needs[0] != created["e1"] || e2.Plan != "taxogall" {
+		t.Errorf("epic 2 = %+v", e2.Epic)
+	}
+	i4 := item(t, m, created["i4"])
+	if i4.Plan != "taxogall" || len(i4.Needs) != 1 || i4.Needs[0] != created["i3"] || i4.Epic != created["e1"] {
+		t.Errorf("item 4 = %+v", i4.Item)
+	}
+	// An item in epic 3 needing one in epic 2, both made in this batch.
+	if i8 := item(t, m, created["i8"]); i8.Epic != created["e3"] || i8.Needs[0] != created["i7"] {
+		t.Errorf("item 8 = %+v", i8.Item)
+	}
+	if n := len(must[[]*model.Entry](t)(m.Inbox(InboxFilter{Plan: "taxogall"}))); n != 20 {
+		t.Errorf("inbox has %d entries for the plan, want 20", n)
+	}
+	cfg := must[model.Config](t)(m.Config())
+	if len(cfg.DoneChecks) != 1 || cfg.DoneChecks[0] != "make done-checks" {
+		t.Errorf("config = %+v", cfg)
+	}
+}
+
+func TestBatchAllOrNothing(t *testing.T) {
+	m, dir := setup(t)
+	input := strings.Join([]string{
+		`{"op": "plan new", "ref": "p", "slug": "launch", "title": "Launch"}`,
+		`{"op": "add", "ref": "a", "epic": "ffff", "title": "bad epic"}`,
+		``,
+		`{"op": "add", "ref": "b", "plan": "@p", "title": "fine"}`,
+		`{"op": "add", "plan": "@p", "title": "needs a failed line", "needs": ["@a"]}`,
+		`{"op": "ask", "plan": "@p", "text": "unknown ref", "item": "@nope"}`,
+		`not json`,
+		`{"title": "no op"}`,
+		`{"op": "frobnicate"}`,
+		`{"op": "add", "plan": "@p", "title": "x", "colour": "red"}`,
+		`{"op": "add", "ref": "b", "plan": "@p", "title": "duplicate ref"}`,
+		`{"op": "drop", "ref": "d", "ids": ["@b"]}`,
+	}, "\n")
+	before := mullHead(t, dir)
+	_, err := m.Batch(strings.NewReader(input), false)
+	e := batchErr(t, err)
+	got := map[int]string{}
+	for _, l := range e.Lines {
+		got[l.Line] = l.Code
+	}
+	want := map[int]string{
+		2:  CodeNotFound,    // no epic ffff
+		5:  CodeInvalid,     // @a refers to a failed line
+		6:  CodeNotFound,    // unknown ref
+		7:  CodeInvalidJSON, // not json
+		8:  CodeInvalid,     // no op
+		9:  CodeUsage,       // unknown op
+		10: CodeInvalid,     // unknown field
+		11: CodeExists,      // duplicate ref
+		12: CodeInvalid,     // drop creates nothing a ref could name
+	}
+	for line, code := range want {
+		if got[line] != code {
+			t.Errorf("line %d: code %q, want %q (all: %+v)", line, got[line], code, e.Lines)
+		}
+	}
+	if len(got) != len(want) {
+		t.Errorf("failed lines = %v, want exactly %v", got, want)
+	}
+	if !strings.Contains(e.Lines[1].Error, "line 2") {
+		t.Errorf("ref-to-failed-line error should name the line: %q", e.Lines[1].Error)
+	}
+	if after := mullHead(t, dir); after != before {
+		t.Fatal("a failed batch wrote to the mull branch")
+	}
+	if _, err := m.PlanShow("launch"); err == nil {
+		t.Fatal("plan from a failed batch exists")
+	}
+}
+
+func TestBatchDryRun(t *testing.T) {
+	m, dir := setup(t)
+	before := mullHead(t, dir)
+	input := `{"op": "plan new", "ref": "p", "slug": "launch", "title": "Launch"}
+{"op": "add", "ref": "a", "plan": "@p", "title": "A"}
+{"op": "add", "plan": "@p", "title": "B", "needs": "@a"}`
+	results, err := m.Batch(strings.NewReader(input), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 3 || results[2].Result.(ItemView).Needs[0] != results[1].ID {
+		t.Fatalf("dry-run results = %+v", results)
+	}
+	if mullHead(t, dir) != before {
+		t.Fatal("dry run wrote")
+	}
+	// A dry run reports failures exactly like a real run.
+	_, err = m.Batch(strings.NewReader(`{"op": "add", "plan": "nope", "title": "x"}`), true)
+	if e := batchErr(t, err); e.Lines[0].Code != CodeNotFound {
+		t.Fatalf("lines = %+v", e.Lines)
+	}
+}
+
+func TestBatchSettleInbox(t *testing.T) {
+	m, _ := setup(t)
+	d := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindDecision, Text: "d"}))
+	q := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindQuestion, Text: "q"}))
+	l1 := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindLoose, Text: "l1"}))
+	l2 := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindLoose, Text: "l2"}))
+	l3 := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindLoose, Text: "l3"}))
+	input := jsonl(t,
+		map[string]any{"op": "accept", "ids": []string{d.ID}, "on-request": true},
+		map[string]any{"op": "decide", "id": q.ID, "decision": "yes", "on-request": true},
+		map[string]any{"op": "drop", "ids": l1.ID + "," + l2.ID, "reason": "noise", "on-request": true},
+		map[string]any{"op": "do", "ref": "new", "id": l3.ID, "on-request": true},
+		map[string]any{"op": "start", "id": "@new"},
+	)
+	results, err := m.Batch(strings.NewReader(input), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := len(must[[]*model.Entry](t)(m.Inbox(InboxFilter{}))); n != 0 {
+		t.Fatalf("inbox not cleared: %d", n)
+	}
+	if st := results[4].Result.(StartResult); st.Item.State != model.StateActive {
+		t.Fatalf("start via @ref = %+v", st)
+	}
+	if !results[1].Result.(*model.Entry).Settled.OnRequest {
+		t.Fatal("on-request not recorded")
+	}
+}
+
+func TestBatchEmpty(t *testing.T) {
+	m, _ := setup(t)
+	_, err := m.Batch(strings.NewReader("\n\n"), false)
+	wantCode(t, err, CodeInvalid)
+}
+
+func TestScopeForItemsAndDo(t *testing.T) {
+	m, _ := setup(t)
+	must[*model.Plan](t)(m.PlanNew("alpha", "Alpha", ""))
+	e := must[*model.Epic](t)(m.EpicAdd("alpha", "E", "", nil))
+	// The epic implies the plan.
+	if it := must[ItemView](t)(m.ItemAdd(NewItem{Epic: e.ID, Title: "x"})); it.Plan != "alpha" {
+		t.Fatalf("plan = %s", it.Plan)
+	}
+	_, err := m.ItemAdd(NewItem{Epic: e.ID, Plan: "general", Title: "y"})
+	wantCode(t, err, CodeInvalid)
+	_, err = m.ItemAdd(NewItem{Title: "z"})
+	wantCode(t, err, CodeScope)
+	// do --epic files into the epic's plan, even though the entry is in general.
+	l := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindLoose, Text: "fix the footer", Plan: "general"}))
+	res := must[DoResult](t)(m.Do(DoInput{ID: l.ID, Epic: e.ID}))
+	if res.Item.Plan != "alpha" || res.Item.Epic != e.ID {
+		t.Fatalf("do item = %+v", res.Item)
+	}
+}

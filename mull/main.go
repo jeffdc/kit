@@ -2,6 +2,4 @@ package main
 
 import "mull/cmd"
 
-func main() {
-	cmd.Execute()
-}
+func main() { cmd.Main() }

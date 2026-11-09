@@ -1,194 +1,59 @@
 # mull
 
-Track ideas and features for solo projects. Mull is a CLI tool that stores matters (ideas, features, tasks) as markdown files alongside your code, designed to work naturally with AI coding assistants.
+The record of a program run by you and your agents: its plans, where they stand, and everything that needs you.
 
-## Why
+> **This branch is a from-scratch rewrite (`mull-next`).** It replaces the old matter tracker; `make install` installs it as `mull`, and the old binary is kept as `mull1`. The design is in [docs/design.md](docs/design.md), and the research behind it is in [docs/research/](docs/research/).
 
-Solo projects accumulate ideas faster than you can act on them. You need somewhere to put "dark mode would be nice" that isn't a sticky note, a GitHub issue (too heavy), or a comment in code (lost forever).
+## What it does
 
-Mull gives you:
+- **Plans → epics → items.** An item is a unit of work one agent completes in one session. Items and epics can *need* each other, and mull works out what's ready and what's blocked.
+- **Claims.** `mull start <id>` claims an item for the current worktree. It's atomic, so two agents can't take the same item.
+- **Ideas** (`mull idea`, `mull ideas`) are kept apart from work and only counted on the board. Only the human promotes one, into an item or an epic that links back to it.
+- **One inbox for what needs you:** decisions agents made, questions, loose ends and reviews. You settle each with one action: accept, decide, do, drop or park. Settled decisions form a log agents read before deciding anything.
+- **Stored in git, out of the way.** Everything lives on a `mull` branch that is never checked out. Writes never touch your working tree, and every worktree sees the same data.
+- **Any LLM, any harness.** Agents use the CLI. Nothing depends on a particular tool.
 
-- **Markdown files with YAML frontmatter** in a `.mull/` directory, version controlled with your project
-- **A prioritized docket** so you know what to work on next
-- **Dependency tracking** so you know what's blocked
-- **JSON output everywhere** so AI assistants can read and write matters fluently
+## Output
 
-The primary interface is conversational -- you talk about ideas with your AI assistant and it captures them as you go. But every command works fine from the terminal too.
+Every command prints JSON; errors are `{"code", "error"}` on stderr with exit status 1. `mull guide json` documents every shape and error code. `view`, `inbox`, `report` and `guide` take `--text` for a human rendering.
 
-## Install
-
-Requires Go 1.21+.
-
-```bash
-git clone <repo-url>
-cd mull
-make install
-```
-
-This puts the `mull` binary in your `$GOBIN` (usually `~/go/bin`).
+To write many records at once, use `mull batch`. It reads JSON Lines, is all or nothing, and lands as one commit; `"@ref"` refers to a record an earlier line created. See `mull guide json`.
 
 ## Quick start
 
 ```bash
-# Capture an idea with body, links, and docket in one shot
-mull add "Add RSS feed" --tag content --effort small --epic v2-launch \
-  --body "Should support Atom format. Auto-generate from post metadata." \
-  --needs c7d1 --docket
-
-# See what you've got
-mull list
-
-# Or build up incrementally
-mull add "Dark mode" --status raw
-mull append c7d1 "Support both system preference and manual toggle."
-mull set c7d1 status refined
-
-# Link multiple targets at once
-mull link ab3f relates c7d1 e2f9
-
-# Prioritize
-mull docket add c7d1 --after ab3f
-
-# What should I work on?
-mull docket
-mull graph
-
-# Close it when done
-mull done ab3f
+make build
+./mull init --integration main
+./mull plan new launch "Public launch"
+./mull epic add "Billing" --plan launch
+./mull add "Stripe webhook handler" --epic <epic-id>
+./mull ready
+./mull start <item-id>
+./mull ask "Monthly or annual plans first?" --item <item-id>
+./mull inbox --text
+./mull decide <entry-id> "Monthly first"
+./mull decisions
 ```
 
-## Claude Code integration
+`./mull sync` exchanges the `mull` branch with your remote. It pushes only that branch, never forces, and refuses to push anything that isn't a mull record. `--dry-run` shows the exact git commands first.
 
-Mull integrates with Claude Code two ways. Pick one.
+`./mull view --text` is the board: each plan's epics and progress, problems first, work in flight, and what needs you. It reads git as well as mull's records:
+- a branch named `<id>-…` marks its item's work as in flight;
+- a `Mull: <id>` commit trailer, or a merge of an `<id>-…` branch, on the integration branch marks the work as landed;
+- direct commits with neither are counted as unlinked.
 
-### Option 1: Hooks (recommended)
-
-Mull's workflow context is injected automatically at session start. No manual invocation needed.
+**Finishing work is deterministic.** The human configures the hard checks once:
 
 ```bash
-mull onboard hooks --install
+./mull config checks "make done-checks"
+./mull config layer ui "lib/web/**" "assets/**"
 ```
 
-This adds hooks to `~/.claude/settings.json` that run `mull prime --context` on `SessionStart` and `PreCompact`. The hooks exit silently in projects without a `.mull/` directory, so they're safe to install globally.
+An agent then runs `./mull done <id> --summary "..." --tour -`. mull runs the checks against the clean HEAD, reusing a passing result for the same tree. On a pass it writes a done report (summary, UI tour, check results, files changed by layer), marks the item done, and files a review for the human. On a failure the item stays active. `./mull report <id>` prints the report.
 
-To remove:
+**Agents learn the protocol from mull itself:**
+- `./mull guide agents` prints the block to paste into a project's AGENTS.md;
+- `./mull guide supervisor` covers coordinating several agents;
+- `./mull guide intake` is the procedure for bringing a project, and its old `.mull/` matters, into mull, with the human.
 
-```bash
-mull onboard hooks --uninstall
-```
-
-### Option 2: Skill
-
-A Claude Code skill you invoke on demand with `/mull`.
-
-```bash
-# From the mull source directory
-ln -s "$(pwd)/skills/SKILL.md" ~/.claude/skills/mull.md
-```
-
-Run `mull onboard` to see both options with details.
-
-## Commands
-
-| Command | What it does |
-|---------|-------------|
-| `mull add "<title>"` | Create a matter (`--tag`, `--status`, `--effort`, `--epic`, `--body`, `--relates`, `--blocks`, `--needs`, `--parent`, `--docket`) |
-| `mull show <id>` | View a matter with full body |
-| `mull list` | List active matters (`--status`, `--tag`, `--effort`, `--epic`, `--all`) |
-| `mull search <query>` | Full-text search across titles and bodies |
-| `mull set <id> <key> <value>` | Update metadata |
-| `mull append <id> "<text>"` | Add to the body |
-| `mull link <id> <type> <id> [id...]` | Add relationship (relates, blocks, needs, parent; multiple targets) |
-| `mull unlink <id> <type> <id>` | Remove relationship |
-| `mull done <id>` | Mark as done (removes from docket) |
-| `mull drop <id>` | Mark as dropped (removes from docket) |
-| `mull archive` | Move done/dropped matters into `.mull/archive/` |
-| `mull rm <id>` | Permanently delete (use sparingly) |
-| `mull docket` | View the prioritized work queue |
-| `mull docket --invert` | View matters NOT on the docket |
-| `mull docket add <id>` | Add to docket (`--after <id>` to position) |
-| `mull docket rm <id>` | Remove from docket |
-| `mull docket move <id>` | Reorder (`--after <id>`) |
-| `mull epics` | List all epics with matter counts |
-| `mull graph [id]` | Dependency graph (all or centered on one matter) |
-| `mull doctor` | Check data integrity (`--fix` to repair) |
-| `mull prime` | Token-efficient JSON snapshot for LLM context |
-| `mull prime --context` | Snapshot wrapped with workflow instructions (for hooks) |
-| `mull onboard` | Setup instructions for Claude Code integration |
-
-All commands output JSON to stdout. Errors go to stderr as `{"error": "message"}`.
-
-`list`, `docket --invert`, and `epics` exclude done/dropped matters by default. Use `--all` to include them.
-
-## Data layout
-
-```
-your-project/
-  .mull/
-    matters/
-      ab3f-add-rss-feed.md
-      c7d1-dark-mode.md
-    docket.yml
-```
-
-Each matter is a markdown file:
-
-```markdown
----
-status: refined
-tags: [content, low-effort]
-effort: small
-epic: v2-launch
-created: 2026-02-13
-updated: 2026-02-14
-needs: [c7d1]
----
-
-# Add RSS feed
-
-Let people subscribe to new posts. Should support Atom format.
-Auto-generate from post metadata.
-```
-
-## Matter lifecycle
-
-```
-raw --> refined --> planned --> done
-                       \
-                        --> dropped
-```
-
-- **raw** -- just captured
-- **refined** -- fleshed out, clear enough to act on
-- **planned** -- has a plan, ready for implementation
-- **done** -- shipped
-- **dropped** -- decided against
-
-## Relationships
-
-Four types, all managed with `mull link` / `mull unlink`:
-
-- **relates** -- loose association (bidirectional)
-- **blocks / needs** -- dependency (bidirectional inverse: A blocks B means B needs A)
-- **parent** -- grouping (one-way)
-
-Bidirectional links are kept in sync atomically. If writing one side fails, the other is rolled back.
-
-## Epics
-
-Epics are lightweight labels for grouping related matters by theme. Set with `--epic` on create or `mull set <id> epic <name>` later. No extra files or lifecycle -- an epic is just a string.
-
-```bash
-mull add "Dark mode" --epic ui-overhaul
-mull epics                    # list all epics with counts
-mull list --epic ui-overhaul  # filter by epic
-```
-
-## Closing vs deleting
-
-- `mull done <id>` -- marks as done, keeps the file for reference. This is almost always what you want.
-- `mull drop <id>` -- decided against, keeps the file for reference.
-- `mull archive` -- moves done/dropped matter files out of `.mull/matters/` into `.mull/archive/`.
-- `mull rm <id>` -- permanent delete. Only for junk or mistakes.
-
-Both `done` and `drop` automatically remove the matter from the docket. Done/dropped matters are hidden from `list`, `docket --invert`, `epics`, and `prime` by default.
+`./mull context --item <id>` is the compact briefing an agent reads at the start of a session.
