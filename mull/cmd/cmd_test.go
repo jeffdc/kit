@@ -101,6 +101,14 @@ func TestCLIEndToEnd(t *testing.T) {
 		t.Fatalf("plan progress = %v", plan["progress"])
 	}
 
+	board, _, code := r.mull("", "view")
+	if code != 0 || !strings.Contains(board, "TAXOGALL") || !strings.Contains(board, "NEEDS YOU  1 decision") {
+		t.Fatalf("view:\n%s", board)
+	}
+	if v := r.ok("view", "--json"); len(v["plans"].([]any)) != 1 {
+		t.Fatalf("view --json = %v", v)
+	}
+
 	// Sync to a bare remote: only the mull branch arrives there.
 	remote := t.TempDir() + "/remote.git"
 	gittest.Git(t, r.dir, "init", "-q", "--bare", remote)

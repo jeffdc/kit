@@ -51,6 +51,25 @@ func AddWorktree(t *testing.T, repo, branch string) string {
 	return dir
 }
 
+// Commit writes file with content in dir, stages it and commits with the
+// given message paragraphs (later paragraphs can carry trailers).
+func Commit(t *testing.T, dir, file, content string, message ...string) {
+	t.Helper()
+	path := filepath.Join(dir, file)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	Git(t, dir, "add", file)
+	args := []string{"commit", "-q"}
+	for _, m := range message {
+		args = append(args, "-m", m)
+	}
+	Git(t, dir, args...)
+}
+
 // Git runs git in dir and returns trimmed stdout, failing the test on error.
 func Git(t *testing.T, dir string, args ...string) string {
 	t.Helper()

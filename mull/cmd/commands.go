@@ -33,6 +33,34 @@ func initCmd(a *app) *cobra.Command {
 	return c
 }
 
+func viewCmd(a *app) *cobra.Command {
+	var plan string
+	var asJSON bool
+	c := &cobra.Command{
+		Use:   "view",
+		Short: "The board: each plan's epics, problems, work in flight, and what needs you",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			m, err := a.open()
+			if err != nil {
+				return err
+			}
+			v, err := m.Board(plan)
+			if err != nil {
+				return err
+			}
+			if asJSON {
+				return a.json(v)
+			}
+			_, err = fmt.Fprint(a.stdout, v.Text(m.Now()))
+			return err
+		},
+	}
+	c.Flags().StringVar(&plan, "plan", "", "only this plan (closed plans too)")
+	c.Flags().BoolVar(&asJSON, "json", false, "print JSON")
+	return c
+}
+
 func syncCmd(a *app) *cobra.Command {
 	var dryRun bool
 	c := &cobra.Command{
@@ -443,7 +471,11 @@ func printInbox(a *app, es []*model.Entry) error {
 			if e.Settled != nil {
 				status = "  [" + e.Settled.Action + "]"
 			}
-			fmt.Fprintf(&b, "  %s  %-14s %s  %s%s\n", e.ID, where, e.Created[:10], e.Text, status)
+			src := ""
+			if e.Source != "" {
+				src = "  (from " + e.Source + ")"
+			}
+			fmt.Fprintf(&b, "  %s  %-14s %s  %s%s%s\n", e.ID, where, e.Created[:10], e.Text, src, status)
 		}
 		b.WriteString("\n")
 	}

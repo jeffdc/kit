@@ -30,8 +30,12 @@ make build
 
 `./mull sync` exchanges the `mull` branch with your remote. It pushes only that branch, never forces, and refuses to push anything that isn't a mull record. `--dry-run` shows the exact git commands first.
 
+`./mull view` is the board: each plan's epics and progress, problems first, work in flight, and what needs you. It reads git as well as mull's records:
+- a branch named `<id>-…` marks its item's work as in flight;
+- a `Mull: <id>` commit trailer, or a merge of an `<id>-…` branch, on the integration branch marks the work as landed;
+- direct commits with neither are counted as unlinked.
+
 Still to come (see the design's build order):
-- `view`;
 - `check` and `done` with done reports;
 - the agent, supervisor and intake guides;
 - `context`.
