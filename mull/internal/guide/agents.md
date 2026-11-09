@@ -14,7 +14,9 @@ This project's plans, work items and open questions live in **mull**: a CLI whos
    - `mull decided "<what you chose>" --item <id> --detail "<why, one line>"`: any choice the human didn't make for you.
    - `mull ask "<question>" --item <id>`: anything you need from the human. Keep working on whatever isn't blocked.
    - `mull loose "<what>" --item <id>`: anything out of scope you noticed (a bug, an inconsistency, half-finished work, an assumption you made).
+   - `mull idea "<title>" --detail "<short note>" --source "<where>"` (add `--plan` if it belongs to one): only for an idea **the human raises**. An idea isn't work. File your own findings as loose ends, not ideas.
 4. **Don't change plans or epics, and don't add items,** unless the human asks. Propose changes with `mull ask`.
+   - Never promote an idea (`mull do <idea-id>`) on your own. When the human tells you to, add `--on-request`; use `--as epic` if they want an epic.
 5. **Finish only with `mull done`:**
    ```
    mull done <id> --summary "<what changed and how it fits>" --tour -

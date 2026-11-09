@@ -61,6 +61,7 @@ Plan, epics, items and inbox entries in one go. `@` refs point at records create
 {"op": "decided", "item": "@hook", "text": "Store raw webhook payloads", "detail": "Replay after outages", "source": "matter 50ff, For review"}
 {"op": "ask", "plan": "@p", "text": "Monthly or annual plans first?", "source": "matter 50ff, Open"}
 {"op": "loose", "plan": "@p", "text": "Branch quercus-leafminer-key: 2 commits ahead, last touched 2026-09-08", "source": "git"}
+{"op": "idea", "text": "Mobile-first ID tool", "detail": "Field use on phones.", "source": "matter 32a5"}
 ```
 - An item's plan comes from its epic, so `add` needs only `epic`.
 - An inbox entry needs `item` or `plan` when the repo has more than one plan.
@@ -68,6 +69,7 @@ Plan, epics, items and inbox entries in one go. `@` refs point at records create
 
 ## 6. The old backlog
 Matters with no place in any plan are **not migrated automatically**. List them for the human, grouped by theme, with a one-line summary each. The human decides, usually in batches:
+- **ideas:** things worth keeping that aren't work yet. File them as `idea` lines with the matter as `source` and a short note in `detail`. Most old backlog belongs here;
 - items in `general`;
 - loose ends;
 - or left behind.

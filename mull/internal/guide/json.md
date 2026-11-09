@@ -26,7 +26,7 @@ On failure, mull prints nothing to stdout, prints this to stderr, and exits 1:
 | `invalid_state` | the record is in the wrong state (e.g. accepting an item that isn't done) |
 | `claimed` | the item is claimed by another worktree |
 | `already_settled` | the inbox entry is already settled |
-| `not_allowed` | not allowed (kind rules; a worker accepting its own work) |
+| `not_allowed` | not allowed (kind rules; a worker accepting its own work; promoting an idea without `--on-request`) |
 | `dependency_cycle` | the needs would form a cycle |
 | `scope_required` | say which plan or item: `--plan` or `--item` (or `--epic` for `add`) |
 | `tour_required` | UI files changed and no `--tour` was given |
@@ -52,14 +52,15 @@ A `batch_invalid` error also lists every failed line:
 ## Records
 
 - **Plan:** `{slug, title, state ("active"|"closed"), created, updated, summary?}`
-- **Epic:** `{id, plan, title, needs?, created, updated, summary?}`
-- **Item:** `{id, plan, epic?, title, state ("open"|"active"|"done"|"accepted"|"dropped"), needs?, docs?, claim?, created, updated, notes?}`
+- **Epic:** `{id, plan, title, needs?, from?, created, updated, summary?}`. `from` is the inbox entry (e.g. an idea) it was promoted from.
+- **Item:** `{id, plan, epic?, title, state ("open"|"active"|"done"|"accepted"|"dropped"), needs?, docs?, claim?, from?, created, updated, notes?}`. `from` is the inbox entry (idea, question or loose end) it was made from.
   - **claim:** `{worktree, branch, at, base?}`
 - **ItemView:** Item plus `{ready, blocked_by?}`.
 - **EpicView:** Epic plus `{progress, complete, blocked_by?}`.
 - **Progress:** `{total, open, active, done_unreviewed, accepted, dropped, ready}`
-- **Entry** (inbox): `{id, kind ("decision"|"question"|"loose-end"|"review"), text, plan, item?, source?, by, created, settled?, detail?}`
-  - **settled:** `{action ("accept"|"decide"|"do"|"drop"|"park"), note?, item?, by, on_request?, at}`
+- **Entry** (inbox): `{id, kind ("decision"|"question"|"loose-end"|"review"|"idea"), text, plan, item?, source?, by, created, settled?, detail?}`
+  - **settled:** `{action ("accept"|"decide"|"do"|"drop"|"park"), note?, item?, epic?, by, on_request?, at}`. `item` or `epic` is what `do` made.
+  - **An idea** is an Entry with `kind: "idea"`. `text` is its title and `detail` its note. `plan` may be `""` (no plan). Ideas aren't work: they're never ready, never in `inbox` (unless `--kind idea`) and never in `needs_you`.
 - **Config:** `{integration, release, remote, done_checks: [], layers: {name: [globs]}}`
 
 Times are RFC 3339 in UTC. IDs are 4 hex characters; plans use their slug.
@@ -81,15 +82,16 @@ Times are RFC 3339 in UTC. IDs are 4 hex characters; plans use their slug.
 | `set` | `{type: "plan"\|"epic"\|"item", plan?: Plan, epic?: EpicView, item?: ItemView}` |
 | `need`, `unneed` | `{type: "item"\|"epic", item?: ItemView, epic?: EpicView}` |
 | `start` | `{item: ItemView, warnings: []}` |
-| `decided`, `ask`, `loose` | Entry |
-| `inbox` | `{entries: [Entry]}`, oldest first |
+| `decided`, `ask`, `loose`, `idea` | Entry |
+| `ideas` | `{ideas: [Entry]}`, oldest first. Open ideas by default; `--plan none` for those with no plan |
+| `inbox` | `{entries: [Entry]}`, oldest first. Ideas are left out unless `--kind idea` |
 | `accept` | `{entries: [Entry], items: [ItemView], follow_up: ItemView\|null}` |
 | `decide`, `park` | Entry |
-| `do` | `{entry: Entry, item: ItemView}` (the new item, or the reopened one for a review) |
+| `do` | `{entry: Entry, item?: ItemView, epic?: EpicView}`: the new item (or epic, with `--as epic`), or the reopened item for a review |
 | `drop` | `{entries: [Entry], items: [ItemView]}` |
 | `decisions` | `{decisions: [{id, plan, item?, kind, context, decision, by, on_request?, at}]}`, newest first |
 | `config`, `config set\|checks\|layer` | Config |
-| `view` | `{generated, integration, integration_found, release, ahead_of_release, plans: [Board], unlinked_commits_this_week, unlinked_recent?}`. Board: `{slug, title, progress, epics: [{id, title, progress, complete, blocked_by?}], unfiled: Progress, problems: [{kind, item, text}], in_flight: [{id, title, state, worktree?, branches?, commits, last_activity?}], needs_you: {reviews, decisions, questions, loose_ends, older_than_a_week, parked}}`. Problem kinds: `idle-claim`, `unclaimed-work`, `done-not-in-git`, `failed-done` |
+| `view` | `{generated, integration, integration_found, release, ahead_of_release, plans: [Board], unlinked_commits_this_week, unlinked_recent?, ideas_without_plan}`. Board: `{slug, title, progress, epics: [{id, title, progress, complete, blocked_by?}], unfiled: Progress, problems: [{kind, item, text}], in_flight: [{id, title, state, worktree?, branches?, commits, last_activity?}], needs_you: {reviews, decisions, questions, loose_ends, older_than_a_week, parked}, ideas}`. `ideas` is a count; `mull ideas` lists them. Problem kinds: `idle-claim`, `unclaimed-work`, `done-not-in-git`, `failed-done` |
 | `context` | `{worktree, branch, protocol: [], item?: …, my_claims: [], plans: [], ready: [], active: [], decisions: []}` |
 | `check` | `{tree, commit, at, by, passed, results: [{command, exit, duration_ms, tail?}], cached}` |
 | `done` | `{report, report_path, item: ItemView, review_entry?, loose_ends_filed, reminder?}` |
@@ -120,10 +122,11 @@ Times are RFC 3339 in UTC. IDs are 4 hex characters; plans use their slug.
 | `set` | `id`, `field`, `value` |
 | `need`, `unneed` | `id`, `needs` |
 | `decided`, `ask`, `loose` | `text`, `item`, `plan`, `source`, `detail` |
+| `idea` | `text` (the title), `plan` (optional), `source`, `detail` (the note) |
 | `start`, `release` | `id` |
 | `accept` | `ids`, `follow-up`, `on-request` |
 | `decide` | `id`, `decision`, `on-request` |
-| `do` | `id`, `plan`, `epic`, `reason`, `on-request` |
+| `do` | `id`, `plan`, `epic`, `as` (`item` or `epic`), `reason`, `on-request`. Promoting an idea needs `on-request: true` |
 | `drop` | `ids`, `reason`, `on-request` |
 | `park` | `id`, `reason`, `on-request` |
 | `config set` | `key`, `value` |

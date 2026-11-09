@@ -28,6 +28,7 @@ type View struct {
 	AheadOfRelease   int         `json:"ahead_of_release"`
 	Plans            []PlanBoard `json:"plans"`
 	UnlinkedCount    int         `json:"unlinked_commits_this_week"`
+	IdeasUnplanned   int         `json:"ideas_without_plan"` // open ideas with no plan (mull ideas --plan none)
 	UnlinkedRecent   []string    `json:"unlinked_recent,omitempty"`
 }
 
@@ -41,6 +42,7 @@ type PlanBoard struct {
 	Problems []Problem    `json:"problems"`
 	InFlight []FlightLine `json:"in_flight"`
 	NeedsYou NeedsYou     `json:"needs_you"`
+	Ideas    int          `json:"ideas"` // open ideas in this plan; not work, not in needs_you (mull ideas)
 }
 
 // EpicLine is an epic's progress line.
@@ -104,6 +106,11 @@ func (m *Mull) Board(plan string) (View, error) {
 		if n := len(g.Unlinked); n > 0 {
 			v.UnlinkedRecent = g.Unlinked[:min(n, unlinkedListSize)]
 		}
+		for _, e := range s.entries {
+			if e.Kind == model.KindIdea && e.Plan == "" && e.Settled == nil {
+				v.IdeasUnplanned++
+			}
+		}
 		slugs := sortedKeys(s.plans)
 		sort.SliceStable(slugs, func(a, c int) bool {
 			return slugs[a] != model.GeneralPlan && slugs[c] == model.GeneralPlan
@@ -117,7 +124,7 @@ func (m *Mull) Board(plan string) (View, error) {
 				continue
 			}
 			b := s.board(p, g, now)
-			if plan == "" && slug == model.GeneralPlan && b.Progress.Total == 0 && b.NeedsYou.total() == 0 {
+			if plan == "" && slug == model.GeneralPlan && b.Progress.Total == 0 && b.NeedsYou.total() == 0 && b.Ideas == 0 {
 				continue // an empty general plan is noise
 			}
 			v.Plans = append(v.Plans, b)
@@ -217,6 +224,12 @@ func (s *state) board(p *model.Plan, g *gitState, now time.Time) PlanBoard {
 	for _, id := range sortedKeys(s.entries) {
 		e := s.entries[id]
 		if e.Plan != p.Slug {
+			continue
+		}
+		if e.Kind == model.KindIdea {
+			if e.Settled == nil {
+				b.Ideas++
+			}
 			continue
 		}
 		if e.Settled != nil {
@@ -369,6 +382,9 @@ func (v View) Text(now time.Time) string {
 				fmt.Fprintf(&b, "    %s  %-36s %s\n", f.ID, truncate(f.Title, 36), strings.Join(bits, " · "))
 			}
 		}
+		if p.Ideas > 0 {
+			fmt.Fprintf(&b, "  IDEAS  %s (mull ideas --plan %s)\n", plural(p.Ideas, "idea"), p.Slug)
+		}
 		n := p.NeedsYou
 		if n.total() > 0 {
 			var parts []string
@@ -389,8 +405,15 @@ func (v View) Text(now time.Time) string {
 			b.WriteString("  NEEDS YOU  nothing\n")
 		}
 	}
+	if v.IdeasUnplanned > 0 {
+		fmt.Fprintf(&b, "\nIDEAS  %s with no plan (mull ideas --plan none)\n", plural(v.IdeasUnplanned, "idea"))
+	}
 	if v.UnlinkedCount > 0 {
-		fmt.Fprintf(&b, "\nUNLINKED  %s on %s this week carry no item link", plural(v.UnlinkedCount, "commit"), v.Integration)
+		verb := "carry"
+		if v.UnlinkedCount == 1 {
+			verb = "carries"
+		}
+		fmt.Fprintf(&b, "\nUNLINKED  %s on %s this week %s no item link", plural(v.UnlinkedCount, "commit"), v.Integration, verb)
 		if len(v.UnlinkedRecent) > 0 {
 			b.WriteString(", latest: " + strings.Join(v.UnlinkedRecent, "; "))
 		}

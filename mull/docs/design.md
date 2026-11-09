@@ -37,6 +37,7 @@ New mull is the record of a program: its plans, where they stand, and everything
 | **Epic** | A big piece of a plan; a set of items. | id (4-hex), plan (required), title, summary, needs | You, or agents on your instruction |
 | **Item** | A unit of work **one agent completes in one session.** | id (4-hex), plan (required), epic (optional), title, notes, docs (paths), needs, state, claim | Agents and you |
 | **Inbox entry** | Something that needs you | id, kind (`decision`, `question`, `loose-end` or `review`), one-line text, detail, item/epic/plan, source, created; when settled: action, note, by, time | Agents capture; you settle |
+| **Idea** | Not work: something to keep until its time comes | an inbox entry of kind `idea`: title, short note (`detail`), source, optional plan | Agents file only ideas the human raises; only the human promotes |
 | **Done report** | The record of a finished item | item, commit SHA, tree hash, UI tour, summary, check results, system context | Agent plus mull |
 | **Config** | Per repo | integration branch, release branch, hard checks, layers, remote | You |
 
@@ -88,6 +89,20 @@ Most items are reviewed in the session that finished them, by you or by a superv
 
   An accept run from the item's own claim worktree without `--on-request` is refused. That's a cheap, deterministic guard against an agent approving its own work.
 - **Anything not reviewed stays in NEEDS YOU** as a review entry until someone settles it.
+
+### Ideas
+
+An idea is a title, a short note, a source and an optional plan. It isn't work, so it:
+- needs no sizing and is never ready;
+- stays out of `inbox` and NEEDS YOU;
+- shows on the board only as a count (per plan, plus ideas with no plan), with `mull ideas` listing them all.
+
+**Settling an idea:**
+- **promote** with `mull do <idea> --plan <p>` (`--as epic` for an epic; the default is an item). The new record's `from` links back to the idea, and the idea's note and source go into its notes;
+- **drop**;
+- **park.**
+
+Only the human promotes ideas. An agent must pass `--on-request`, meaning the human asked, and mull refuses otherwise. Agents file ideas only when the human raises them; their own findings are loose ends. In intake, most of the old backlog fits here.
 
 ### The inbox
 

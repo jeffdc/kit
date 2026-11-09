@@ -13,7 +13,9 @@ import (
 //	question:  decide, do, drop, park
 //	loose-end: decide, do, drop, park
 //	review:    accept (optionally with a follow-up item), do (send back: reopen the item), park
+//	idea:      do (promote to an item or epic; only on the human's say-so), drop, park
 var allowed = map[string][]string{
+	model.KindIdea:     {model.ActDo, model.ActDrop, model.ActPark},
 	model.KindDecision: {model.ActAccept, model.ActDecide, model.ActDrop, model.ActPark},
 	model.KindQuestion: {model.ActDecide, model.ActDo, model.ActDrop, model.ActPark},
 	model.KindLoose:    {model.ActDecide, model.ActDo, model.ActDrop, model.ActPark},
@@ -31,10 +33,10 @@ func allows(kind, action string) bool {
 
 // CaptureInput is an inbox entry an agent files.
 type CaptureInput struct {
-	Kind   string // decision, question or loose-end
-	Text   string
-	Item   string // the item it concerns; implies the plan
-	Plan   string // the plan, when there is no item
+	Kind   string // decision, question, loose-end or idea
+	Text   string // for an idea, its title
+	Item   string // the item it concerns; implies the plan (not for ideas)
+	Plan   string // the plan, when there is no item (optional for ideas)
 	Source string // where it came from
 	Detail string // more detail: for a decision, why
 }
@@ -52,12 +54,19 @@ func (m *Mull) Capture(in CaptureInput) (*model.Entry, error) {
 
 func (m *Mull) capture(s *state, in CaptureInput) (*model.Entry, error) {
 	switch in.Kind {
-	case model.KindDecision, model.KindQuestion, model.KindLoose:
+	case model.KindDecision, model.KindQuestion, model.KindLoose, model.KindIdea:
 	default:
 		return nil, errf(CodeInvalid, "cannot capture an entry of kind %q", in.Kind)
 	}
 	if in.Text == "" {
 		return nil, errf(CodeInvalid, "an inbox entry needs text")
+	}
+	if in.Kind == model.KindIdea {
+		// An idea isn't about an item, and its plan is optional.
+		if in.Item != "" {
+			return nil, errf(CodeInvalid, "an idea isn't about an item; give a --plan, or none")
+		}
+		return m.newEntry(s, in.Kind, in.Text, "", in.Plan, in.Source, in.Detail)
 	}
 	if in.Item == "" && in.Plan == "" && s.activePlans() > 1 {
 		return nil, errf(CodeScope, "this repository has more than one plan: say what the entry is about with --item or --plan")
@@ -86,11 +95,13 @@ func (m *Mull) newEntry(s *state, kind, text, item, plan, source, detail string)
 		}
 		plan = i.Plan
 	}
-	if plan == "" {
+	if plan == "" && kind != model.KindIdea {
 		plan = model.GeneralPlan
 	}
-	if _, err := s.plan(plan); err != nil {
-		return nil, err
+	if plan != "" {
+		if _, err := s.plan(plan); err != nil {
+			return nil, err
+		}
 	}
 	id, err := s.newID()
 	if err != nil {
@@ -103,7 +114,8 @@ func (m *Mull) newEntry(s *state, kind, text, item, plan, source, detail string)
 	return e, s.putEntry(e)
 }
 
-// InboxFilter selects inbox entries. By default only unsettled entries.
+// InboxFilter selects inbox entries. By default only unsettled entries,
+// and never ideas unless Kind is "idea": ideas aren't waiting on anyone.
 type InboxFilter struct {
 	Plan, Kind string
 	Parked     bool // include parked entries
@@ -124,6 +136,9 @@ func (m *Mull) Inbox(f InboxFilter) ([]*model.Entry, error) {
 			if (f.Plan != "" && e.Plan != f.Plan) || (f.Kind != "" && e.Kind != f.Kind) {
 				continue
 			}
+			if e.Kind == model.KindIdea && f.Kind != model.KindIdea {
+				continue
+			}
 			parked := e.Settled != nil && e.Settled.Action == model.ActPark
 			if e.Settled != nil && !f.All && !(f.Parked && parked) {
 				continue
@@ -134,6 +149,31 @@ func (m *Mull) Inbox(f InboxFilter) ([]*model.Entry, error) {
 	})
 	sort.SliceStable(out, func(a, b int) bool { return out[a].Created < out[b].Created })
 	return out, err
+}
+
+// IdeaFilter selects ideas. By default only open ones, from every plan
+// (and none); Plan "none" selects ideas with no plan.
+type IdeaFilter struct {
+	Plan        string
+	Parked, All bool
+}
+
+// Ideas lists ideas, oldest first.
+func (m *Mull) Ideas(f IdeaFilter) ([]*model.Entry, error) {
+	if f.Plan == "none" {
+		out, err := m.Inbox(InboxFilter{Kind: model.KindIdea, Parked: f.Parked, All: f.All})
+		if err != nil {
+			return nil, err
+		}
+		kept := []*model.Entry{}
+		for _, e := range out {
+			if e.Plan == "" {
+				kept = append(kept, e)
+			}
+		}
+		return kept, nil
+	}
+	return m.Inbox(InboxFilter{Kind: model.KindIdea, Plan: f.Plan, Parked: f.Parked, All: f.All})
 }
 
 // SettleOpts are the common options for settling.
@@ -276,20 +316,26 @@ func (m *Mull) decide(s *state, id, decision string, o SettleOpts) (*model.Entry
 	return e, m.settle(s, e, model.ActDecide, decision, "", o)
 }
 
-// DoResult reports what do did.
+// DoResult reports what do did: the settled entry and the item or epic it
+// became (or, for a review, the reopened item).
 type DoResult struct {
 	Entry *model.Entry `json:"entry"`
-	Item  ItemView     `json:"item"`
+	Item  *ItemView    `json:"item,omitempty"`
+	Epic  *EpicView    `json:"epic,omitempty"`
 }
 
-// DoInput says what to do with a question, loose end or review.
+// DoInput says what to do with a question, loose end, idea or review.
 type DoInput struct {
 	ID, Plan, Epic, Reason string
+	// As is "item" (the default) or "epic": what the entry becomes.
+	As string
 	SettleOpts
 }
 
-// Do turns a question or loose end into an item, or sends reviewed work back
-// (the item reopens for another session, with the reason added to its notes).
+// Do turns a question, loose end or idea into an item (or an epic, with As
+// "epic"), linked back to it; or sends reviewed work back (the item reopens
+// for another session, with the reason added to its notes). Only the human
+// promotes ideas: an agent must have been asked, and say so with OnRequest.
 func (m *Mull) Do(in DoInput) (DoResult, error) {
 	var out DoResult
 	err := m.update("do "+in.ID, func(s *state) error {
@@ -305,7 +351,17 @@ func (m *Mull) do(s *state, in DoInput) (DoResult, error) {
 	if err != nil {
 		return DoResult{}, err
 	}
+	as := in.As
+	if as == "" {
+		as = "item"
+	}
+	if as != "item" && as != "epic" {
+		return DoResult{}, errf(CodeInvalid, "--as must be item or epic, not %q", as)
+	}
 	if e.Kind == model.KindReview {
+		if as != "item" {
+			return DoResult{}, errf(CodeInvalid, "a review sends its item back; it can't become an epic")
+		}
 		i, err := s.item(e.Item)
 		if err != nil {
 			return DoResult{}, err
@@ -324,27 +380,63 @@ func (m *Mull) do(s *state, in DoInput) (DoResult, error) {
 		if err := s.putItem(i); err != nil {
 			return DoResult{}, err
 		}
-		return DoResult{Entry: e, Item: s.itemView(i)}, nil
+		v := s.itemView(i)
+		return DoResult{Entry: e, Item: &v}, nil
 	}
 	if !allows(e.Kind, model.ActDo) {
 		return DoResult{}, errf(CodeNotAllowed, "a %s cannot be settled with %q (allowed: %v)", e.Kind, model.ActDo, allowed[e.Kind])
+	}
+	if e.Kind == model.KindIdea && !in.OnRequest {
+		return DoResult{}, errf(CodeNotAllowed, "only the human promotes ideas: pass --on-request when the human has asked for idea %s to become work", e.ID)
+	}
+	if e.Settled != nil && e.Settled.Action != model.ActPark {
+		return DoResult{}, errf(CodeSettled, "inbox entry %s is already settled (%s)", e.ID, e.Settled.Action)
 	}
 	plan := in.Plan
 	if plan == "" && in.Epic == "" {
 		plan = e.Plan
 	}
+	if plan == "" && in.Epic == "" {
+		return DoResult{}, errf(CodeScope, "%s %s has no plan: give --plan (or --epic)", e.Kind, e.ID)
+	}
 	notes := fmt.Sprintf("From inbox %s (%s).", e.ID, e.Kind)
 	if e.Detail != "" {
 		notes = joinNotes(notes, e.Detail)
 	}
-	i, err := m.addItem(s, NewItem{Plan: plan, Epic: in.Epic, Title: e.Text, Notes: notes})
+	if e.Source != "" {
+		notes = joinNotes(notes, "Source: "+e.Source)
+	}
+	if as == "epic" {
+		if in.Epic != "" {
+			return DoResult{}, errf(CodeInvalid, "an epic can't go inside an epic: drop --epic")
+		}
+		ep, err := m.epicAdd(s, plan, e.Text, notes, nil, e.ID)
+		if err != nil {
+			return DoResult{}, err
+		}
+		if err := m.settleDo(s, e, in, "", ep.ID); err != nil {
+			return DoResult{}, err
+		}
+		v := s.epicView(ep)
+		return DoResult{Entry: e, Epic: &v}, nil
+	}
+	i, err := m.addItem(s, NewItem{Plan: plan, Epic: in.Epic, Title: e.Text, Notes: notes, From: e.ID})
 	if err != nil {
 		return DoResult{}, err
 	}
-	if err := m.settle(s, e, model.ActDo, in.Reason, i.ID, in.SettleOpts); err != nil {
+	if err := m.settleDo(s, e, in, i.ID, ""); err != nil {
 		return DoResult{}, err
 	}
-	return DoResult{Entry: e, Item: s.itemView(i)}, nil
+	v := s.itemView(i)
+	return DoResult{Entry: e, Item: &v}, nil
+}
+
+func (m *Mull) settleDo(s *state, e *model.Entry, in DoInput, item, epic string) error {
+	if err := m.settle(s, e, model.ActDo, in.Reason, item, in.SettleOpts); err != nil {
+		return err
+	}
+	e.Settled.Epic = epic
+	return s.putEntry(e)
 }
 
 func joinNotes(a, b string) string {

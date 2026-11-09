@@ -373,6 +373,7 @@ func captureCmd(a *app, op string) *cobra.Command {
 		"decided": "Record a decision you made that the human didn't (--detail: why)",
 		"ask":     "Ask the human something",
 		"loose":   "Capture a loose end: a bug, inconsistency, half-finished work or assumption",
+		"idea":    "File an idea the human raised: not work, never ready; only the human promotes it (mull do --on-request)",
 	}[op]
 	var item, plan, source, detail string
 	c := &cobra.Command{
@@ -387,6 +388,13 @@ func captureCmd(a *app, op string) *cobra.Command {
 			ci.Text, ci.Item, ci.Plan, ci.Source = args[0], item, plan, source
 			return a.write(op, ci)
 		},
+	}
+	if op == "idea" {
+		c.Use = "idea <title>"
+		c.Flags().StringVar(&plan, "plan", "", "the plan it belongs to (optional)")
+		c.Flags().StringVar(&source, "source", "", "where it came from (a conversation, a matter, a doc)")
+		c.Flags().StringVar(&detail, "detail", "", "a short note (- reads stdin)")
+		return c
 	}
 	c.Flags().StringVar(&item, "item", "", "the item this concerns (implies the plan)")
 	c.Flags().StringVar(&plan, "plan", "", "the plan, when there is no item (required when the repo has more than one plan)")
@@ -423,6 +431,65 @@ func inboxCmd(a *app) *cobra.Command {
 	c.Flags().BoolVar(&f.All, "all", false, "include settled entries")
 	c.Flags().BoolVar(&asText, "text", false, "render for a human instead of JSON")
 	return c
+}
+
+func ideasCmd(a *app) *cobra.Command {
+	var f mull.IdeaFilter
+	var asText bool
+	c := &cobra.Command{
+		Use: "ideas", Short: "List ideas (not work; the board shows only their count), oldest first", Args: noArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			m, err := a.open()
+			if err != nil {
+				return err
+			}
+			es, err := m.Ideas(f)
+			if err != nil {
+				return err
+			}
+			if asText {
+				return printIdeas(a, es)
+			}
+			return a.json(map[string]any{"ideas": es})
+		},
+	}
+	c.Flags().StringVar(&f.Plan, "plan", "", "only this plan; \"none\" for ideas with no plan")
+	c.Flags().BoolVar(&f.Parked, "parked", false, "include parked ideas")
+	c.Flags().BoolVar(&f.All, "all", false, "include promoted and dropped ideas")
+	c.Flags().BoolVar(&asText, "text", false, "render for a human instead of JSON")
+	return c
+}
+
+func printIdeas(a *app, es []*model.Entry) error {
+	if len(es) == 0 {
+		_, err := fmt.Fprintln(a.stdout, "No ideas.")
+		return err
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "IDEAS (%d)\n", len(es))
+	for _, e := range es {
+		plan := e.Plan
+		if plan == "" {
+			plan = "(no plan)"
+		}
+		status := ""
+		if e.Settled != nil {
+			status = "  [" + e.Settled.Action
+			if e.Settled.Item != "" {
+				status += " → item " + e.Settled.Item
+			}
+			if e.Settled.Epic != "" {
+				status += " → epic " + e.Settled.Epic
+			}
+			status += "]"
+		}
+		fmt.Fprintf(&b, "  %s  %-14s %s  %s%s\n", e.ID, plan, e.Created[:10], e.Text, status)
+		if e.Detail != "" {
+			fmt.Fprintf(&b, "        %s\n", strings.ReplaceAll(e.Detail, "\n", "\n        "))
+		}
+	}
+	_, err := fmt.Fprint(a.stdout, b.String())
+	return err
 }
 
 func printInbox(a *app, es []*model.Entry) error {
@@ -501,7 +568,7 @@ func doCmd(a *app) *cobra.Command {
 	var in mull.DoIn
 	c := &cobra.Command{
 		Use:   "do <id>",
-		Short: "Turn a question or loose end into an item, or send reviewed work back (--reason)",
+		Short: "Turn a question, loose end or idea into an item (or --as epic), or send reviewed work back (--reason)",
 		Args:  exact(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			in.ID = args[0]
@@ -510,6 +577,7 @@ func doCmd(a *app) *cobra.Command {
 	}
 	c.Flags().StringVar(&in.Plan, "plan", "", "plan for the new item (default: the epic's plan, else the entry's)")
 	c.Flags().StringVar(&in.Epic, "epic", "", "epic for the new item (implies its plan)")
+	c.Flags().StringVar(&in.As, "as", "item", "what it becomes: item or epic")
 	c.Flags().StringVar(&in.Reason, "reason", "", "why reviewed work is sent back")
 	onRequestFlag(c, &in.OnRequest)
 	return c

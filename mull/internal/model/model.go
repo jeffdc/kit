@@ -31,6 +31,9 @@ const (
 	KindQuestion = "question"
 	KindLoose    = "loose-end"
 	KindReview   = "review"
+	// KindIdea is not work: it needs no sizing, is never ready, and stays
+	// out of the inbox until the human promotes it.
+	KindIdea = "idea"
 )
 
 // Inbox settle actions.
@@ -73,6 +76,7 @@ type Epic struct {
 	Plan    string   `yaml:"plan" json:"plan"`
 	Title   string   `yaml:"title" json:"title"`
 	Needs   []string `yaml:"needs,omitempty" json:"needs,omitempty"`
+	From    string   `yaml:"from,omitempty" json:"from,omitempty"` // the inbox entry (e.g. an idea) it was promoted from
 	Created string   `yaml:"created" json:"created"`
 	Updated string   `yaml:"updated" json:"updated"`
 	Summary string   `yaml:"-" json:"summary,omitempty"`
@@ -98,6 +102,7 @@ type Item struct {
 	Needs   []string `yaml:"needs,omitempty" json:"needs,omitempty"`
 	Docs    []string `yaml:"docs,omitempty" json:"docs,omitempty"`
 	Claim   *Claim   `yaml:"claim,omitempty" json:"claim,omitempty"`
+	From    string   `yaml:"from,omitempty" json:"from,omitempty"` // the inbox entry it was made from
 	Created string   `yaml:"created" json:"created"`
 	Updated string   `yaml:"updated" json:"updated"`
 	Notes   string   `yaml:"-" json:"notes,omitempty"`
@@ -108,6 +113,7 @@ type Settlement struct {
 	Action    string `yaml:"action" json:"action"`
 	Note      string `yaml:"note,omitempty" json:"note,omitempty"`
 	Item      string `yaml:"item,omitempty" json:"item,omitempty"` // the item created by "do"
+	Epic      string `yaml:"epic,omitempty" json:"epic,omitempty"` // the epic created by "do --as epic"
 	By        string `yaml:"by" json:"by"`
 	OnRequest bool   `yaml:"on_request,omitempty" json:"on_request,omitempty"`
 	At        string `yaml:"at" json:"at"`

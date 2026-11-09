@@ -19,8 +19,8 @@ func (k keys) plus(o keys) keys {
 
 var (
 	planKeys     = keys{[]string{"slug", "title", "state", "created", "updated"}, []string{"summary"}}
-	epicKeys     = keys{[]string{"id", "plan", "title", "created", "updated"}, []string{"needs", "summary"}}
-	itemKeys     = keys{[]string{"id", "plan", "title", "state", "created", "updated"}, []string{"epic", "needs", "docs", "claim", "notes"}}
+	epicKeys     = keys{[]string{"id", "plan", "title", "created", "updated"}, []string{"needs", "from", "summary"}}
+	itemKeys     = keys{[]string{"id", "plan", "title", "state", "created", "updated"}, []string{"epic", "needs", "docs", "claim", "from", "notes"}}
 	itemViewKeys = itemKeys.plus(keys{[]string{"ready"}, []string{"blocked_by"}})
 	epicViewKeys = epicKeys.plus(keys{[]string{"progress", "complete"}, []string{"blocked_by"}})
 	entryKeys    = keys{[]string{"id", "kind", "text", "plan", "by", "created"}, []string{"item", "source", "settled", "detail"}}
@@ -148,9 +148,17 @@ func TestOutputShapes(t *testing.T) {
 	acc := shape(keys{[]string{"entries", "items", "follow_up"}, nil}, "accept", id(dec))
 	checkKeys(t, "accept.entries[0]", first(t, "entries", acc["entries"]), entryKeys)
 	shape(entryKeys, "decide", id(q), "Monthly first")
-	do := shape(keys{[]string{"entry", "item"}, nil}, "do", id(lo))
+	do := shape(keys{[]string{"entry"}, []string{"item", "epic"}}, "do", id(lo))
 	checkKeys(t, "do.entry", do["entry"], entryKeys)
 	checkKeys(t, "do.item", do["item"], itemViewKeys)
+
+	// Ideas: filed, listed apart from the inbox, promoted to an epic on request.
+	idea := shape(entryKeys, "idea", "Mobile ID tool", "--plan", "launch", "--detail", "Phones in the field.", "--source", "conversation")
+	shape(entryKeys, "idea", "Phenology explorer")
+	ideas := shape(keys{[]string{"ideas"}, nil}, "ideas")
+	checkKeys(t, "ideas[0]", first(t, "ideas", ideas["ideas"]), entryKeys)
+	promo := shape(keys{[]string{"entry"}, []string{"item", "epic"}}, "do", id(idea), "--as", "epic", "--on-request")
+	checkKeys(t, "do --as epic .epic", promo["epic"], epicViewKeys)
 	shape(entryKeys, "park", id(lo2), "after launch")
 	drop := shape(keys{[]string{"entries", "items"}, nil}, "drop", id(c))
 	checkKeys(t, "drop.items[0]", first(t, "items", drop["items"]), itemViewKeys)
@@ -168,9 +176,12 @@ func TestOutputShapes(t *testing.T) {
 	shape(keys{[]string{"report", "text"}, nil}, "report", id(a))
 
 	v := shape(keys{[]string{"generated", "integration", "integration_found", "release", "ahead_of_release", "plans", "unlinked_commits_this_week"},
-		[]string{"unlinked_recent"}}, "view")
+		[]string{"unlinked_recent", "ideas_without_plan"}}, "view")
+	if _, ok := v["ideas_without_plan"]; !ok {
+		t.Error("view: missing ideas_without_plan")
+	}
 	board := first(t, "view.plans", v["plans"])
-	checkKeys(t, "view.plans[0]", board, keys{[]string{"slug", "title", "progress", "epics", "unfiled", "problems", "in_flight", "needs_you"}, nil})
+	checkKeys(t, "view.plans[0]", board, keys{[]string{"slug", "title", "progress", "epics", "unfiled", "problems", "in_flight", "needs_you", "ideas"}, nil})
 	checkKeys(t, "view.needs_you", board.(map[string]any)["needs_you"],
 		keys{[]string{"reviews", "decisions", "questions", "loose_ends", "older_than_a_week", "parked"}, nil})
 	shape(keys{[]string{"worktree", "branch", "protocol", "my_claims", "plans", "ready", "active", "decisions"}, []string{"item"}}, "context")

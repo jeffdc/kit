@@ -86,11 +86,12 @@ var ops = map[string]opDef{
 	"decided":       {func() Input { return &CaptureIn{kind: model.KindDecision} }, "text, item, plan, source, detail"},
 	"ask":           {func() Input { return &CaptureIn{kind: model.KindQuestion} }, "text, item, plan, source, detail"},
 	"loose":         {func() Input { return &CaptureIn{kind: model.KindLoose} }, "text, item, plan, source, detail"},
+	"idea":          {func() Input { return &CaptureIn{kind: model.KindIdea} }, "text, plan, source, detail"},
 	"start":         {func() Input { return &StartIn{} }, "id"},
 	"release":       {func() Input { return &ReleaseIn{} }, "id"},
 	"accept":        {func() Input { return &AcceptIn{} }, "ids, follow-up, on-request"},
 	"decide":        {func() Input { return &DecideIn{} }, "id, decision, on-request"},
-	"do":            {func() Input { return &DoIn{} }, "id, plan, epic, reason, on-request"},
+	"do":            {func() Input { return &DoIn{} }, "id, plan, epic, as, reason, on-request"},
 	"drop":          {func() Input { return &DropIn{} }, "ids, reason, on-request"},
 	"park":          {func() Input { return &ParkIn{} }, "id, reason, on-request"},
 	"config set":    {func() Input { return &ConfigSetIn{} }, "key, value"},
@@ -169,7 +170,7 @@ func (in *EpicAddIn) refFields() ([]*string, []*IDList) {
 	return []*string{&in.Plan}, []*IDList{&in.Needs}
 }
 func (in *EpicAddIn) run(m *Mull, s *state) (any, string, error) {
-	e, err := m.epicAdd(s, in.Plan, in.Title, in.Summary, in.Needs)
+	e, err := m.epicAdd(s, in.Plan, in.Title, in.Summary, in.Needs, "")
 	if err != nil {
 		return nil, "", err
 	}
@@ -292,6 +293,7 @@ type DoIn struct {
 	ID        string `json:"id"`
 	Plan      string `json:"plan"`
 	Epic      string `json:"epic"`
+	As        string `json:"as"`
 	Reason    string `json:"reason"`
 	OnRequest bool   `json:"on-request"`
 }
@@ -300,8 +302,15 @@ func (in *DoIn) refFields() ([]*string, []*IDList) {
 	return []*string{&in.ID, &in.Plan, &in.Epic}, nil
 }
 func (in *DoIn) run(m *Mull, s *state) (any, string, error) {
-	r, err := m.do(s, DoInput{ID: in.ID, Plan: in.Plan, Epic: in.Epic, Reason: in.Reason, SettleOpts: SettleOpts{OnRequest: in.OnRequest}})
-	return r, r.Item.ID, err
+	r, err := m.do(s, DoInput{ID: in.ID, Plan: in.Plan, Epic: in.Epic, As: in.As, Reason: in.Reason, SettleOpts: SettleOpts{OnRequest: in.OnRequest}})
+	id := ""
+	switch {
+	case r.Epic != nil:
+		id = r.Epic.ID
+	case r.Item != nil:
+		id = r.Item.ID
+	}
+	return r, id, err
 }
 
 type DropIn struct {

@@ -108,7 +108,7 @@ Shapes and error codes: mull guide json. Many writes at once: mull batch.`,
 		addCmd(a), showCmd(a), listCmd(a), setCmd(a), dropCmd(a),
 		needCmd(a, true), needCmd(a, false), readyCmd(a),
 		startCmd(a), releaseCmd(a),
-		captureCmd(a, "decided"), captureCmd(a, "ask"), captureCmd(a, "loose"),
+		captureCmd(a, "decided"), captureCmd(a, "ask"), captureCmd(a, "loose"), captureCmd(a, "idea"), ideasCmd(a),
 		inboxCmd(a), acceptCmd(a), decideCmd(a), doCmd(a), parkCmd(a),
 		decisionsCmd(a),
 	)

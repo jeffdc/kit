@@ -22,6 +22,7 @@ When you settle or file more than a couple of records at once, use `mull batch`.
   - **idle-claim:** the worker has stalled. Find out why, or `mull release` the item.
   - **unclaimed-work:** someone is committing to an item's branch without having claimed it.
 - Route questions and decisions to the human. Don't answer them yourself. `mull inbox` shows what's waiting.
+- Ideas (`mull ideas`) aren't work and never go to workers. Only the human promotes one. When they do, run `mull do <idea-id> --plan <p> [--as epic] --on-request`.
 
 ## Reviewing finished work
 When a worker runs `mull done`, you review before the human sees it:

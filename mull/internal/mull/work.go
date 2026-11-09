@@ -128,13 +128,13 @@ func (m *Mull) EpicAdd(plan, title, summary string, needs []string) (*model.Epic
 	var out *model.Epic
 	err := m.update("epic add: "+title, func(s *state) error {
 		var err error
-		out, err = m.epicAdd(s, plan, title, summary, needs)
+		out, err = m.epicAdd(s, plan, title, summary, needs, "")
 		return err
 	})
 	return out, err
 }
 
-func (m *Mull) epicAdd(s *state, plan, title, summary string, needs []string) (*model.Epic, error) {
+func (m *Mull) epicAdd(s *state, plan, title, summary string, needs []string, from string) (*model.Epic, error) {
 	if title == "" {
 		return nil, errf(CodeInvalid, "an epic needs a title")
 	}
@@ -153,7 +153,7 @@ func (m *Mull) epicAdd(s *state, plan, title, summary string, needs []string) (*
 		return nil, err
 	}
 	now := m.now()
-	e := &model.Epic{ID: id, Plan: plan, Title: title, Needs: needs, Created: now, Updated: now, Summary: summary}
+	e := &model.Epic{ID: id, Plan: plan, Title: title, Needs: needs, From: from, Created: now, Updated: now, Summary: summary}
 	if err := s.putEpic(e); err != nil {
 		return nil, err
 	}
@@ -192,6 +192,7 @@ func (m *Mull) EpicList(plan string) ([]EpicView, error) {
 type NewItem struct {
 	Plan, Epic, Title, Notes string
 	Needs, Docs              []string
+	From                     string // the inbox entry it was made from
 }
 
 // ItemAdd creates an item.
@@ -249,7 +250,7 @@ func (m *Mull) addItem(s *state, in NewItem) (*model.Item, error) {
 	now := m.now()
 	i := &model.Item{
 		ID: id, Plan: plan, Epic: in.Epic, Title: in.Title, State: model.StateOpen,
-		Needs: needs, Docs: dedupe(in.Docs), Created: now, Updated: now, Notes: in.Notes,
+		Needs: needs, Docs: dedupe(in.Docs), From: in.From, Created: now, Updated: now, Notes: in.Notes,
 	}
 	if err := s.putItem(i); err != nil {
 		return nil, err
