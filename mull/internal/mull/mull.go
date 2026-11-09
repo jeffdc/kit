@@ -24,6 +24,8 @@ type Mull struct {
 	store *store.Store
 	// Now returns the current time; tests may replace it.
 	Now func() time.Time
+	// pushHook, when set, sees the exact git push arguments (tests only).
+	pushHook func(args []string)
 }
 
 // Open opens mull for the git working tree containing dir.

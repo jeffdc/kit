@@ -28,8 +28,9 @@ make build
 ./mull decisions
 ```
 
+`./mull sync` exchanges the `mull` branch with your remote. It pushes only that branch, never forces, and refuses to push anything that isn't a mull record. `--dry-run` shows the exact git commands first.
+
 Still to come (see the design's build order):
-- `sync`;
 - `view`;
 - `check` and `done` with done reports;
 - the agent, supervisor and intake guides;

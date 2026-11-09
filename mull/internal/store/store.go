@@ -219,6 +219,23 @@ func (s *Store) Init(msg string, files map[string][]byte) error {
 	return nil
 }
 
+// ErrMoved means the mull branch moved during a compare-and-swap.
+var ErrMoved = errors.New("the mull branch moved during the update")
+
+// SetRef moves the mull branch from old to newCommit with a compare-and-swap.
+// old "" means the branch must not exist yet. Used by sync to fast-forward
+// or to adopt a merge.
+func (s *Store) SetRef(newCommit, old string) error {
+	if _, err := s.git.Run(nil, nil, "update-ref", Ref, newCommit, old); err != nil {
+		current, rerr := s.git.RefCommit(Ref)
+		if rerr == nil && current != old {
+			return ErrMoved
+		}
+		return err
+	}
+	return nil
+}
+
 // Update applies fn to the latest snapshot and commits the result to the
 // mull branch with a compare-and-swap. If another writer moved the branch
 // first, fn runs again on the new snapshot, so fn must decide only from what

@@ -65,6 +65,27 @@ func (r *Repo) Run(env []string, stdin io.Reader, args ...string) ([]byte, error
 	return stdout.Bytes(), nil
 }
 
+// RunStatus runs git and returns stdout and the exit code. Only failures to
+// run git at all are returned as errors; a non-zero exit is not.
+func (r *Repo) RunStatus(env []string, stdin io.Reader, args ...string) ([]byte, int, error) {
+	cmd := exec.Command("git", args...)
+	cmd.Dir = r.Dir
+	cmd.Env = append(os.Environ(), env...)
+	cmd.Stdin = stdin
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	var exit *exec.ExitError
+	if errors.As(err, &exit) {
+		return stdout.Bytes(), exit.ExitCode(), nil
+	}
+	if err != nil {
+		return nil, -1, &Error{Args: args, Stderr: stderr.String(), Err: err}
+	}
+	return stdout.Bytes(), 0, nil
+}
+
 // Output runs git and returns stdout with surrounding whitespace trimmed.
 func (r *Repo) Output(env []string, stdin io.Reader, args ...string) (string, error) {
 	out, err := r.Run(env, stdin, args...)

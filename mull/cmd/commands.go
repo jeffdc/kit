@@ -33,6 +33,28 @@ func initCmd(a *app) *cobra.Command {
 	return c
 }
 
+func syncCmd(a *app) *cobra.Command {
+	var dryRun bool
+	c := &cobra.Command{
+		Use:   "sync",
+		Short: "Exchange the mull branch with the remote (pushes only the mull branch, never forced)",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			m, err := a.open()
+			if err != nil {
+				return err
+			}
+			r, err := m.Sync(dryRun)
+			if err != nil {
+				return err
+			}
+			return a.json(r)
+		},
+	}
+	c.Flags().BoolVar(&dryRun, "dry-run", false, "show what would happen, change nothing")
+	return c
+}
+
 func planCmd(a *app) *cobra.Command {
 	c := &cobra.Command{Use: "plan", Short: "Plans: the top level of the work"}
 	var summary string

@@ -140,6 +140,13 @@ There's one file per record, so concurrent writes and merges rarely conflict.
 
 The remote defaults to `origin` and can be changed in config. Pushed commits carry your git identity, as any commit does.
 
+**As built:**
+- Each push is `git push --quiet <remote> <sha>:refs/heads/mull`, where `<sha>` is the commit just verified, so a branch moving mid-sync can't slip unchecked commits in.
+- The path check is a single `git log --name-only` over every outgoing commit, matched against an explicit list of record paths.
+- Fetching also updates the local remote-tracking ref `refs/remotes/<remote>/mull`, as any `git fetch` does. That ref is local and never pushed.
+
+**A second machine** needs no `init`: `mull sync` adopts the remote's branch.
+
 ## Linking work to git
 
 An item ID appears in **both** places:

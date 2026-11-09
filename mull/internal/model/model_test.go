@@ -2,6 +2,7 @@ package model
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -40,6 +41,25 @@ func TestAllDigitIDsStayStrings(t *testing.T) {
 	}
 	if out.Epic != "0123" || out.Needs[0] != "7877" {
 		t.Errorf("digit IDs not preserved: %+v", out)
+	}
+}
+
+func TestValidDataPath(t *testing.T) {
+	for _, p := range []string{
+		"config.yml", "plans/general.md", "plans/phase-two.md", "epics/1a2b.md", "items/7877.md",
+		"inbox/beef.md", "reports/1a2b-3.md", "checks/" + strings.Repeat("a", 40) + ".json",
+	} {
+		if !ValidDataPath(p) {
+			t.Errorf("%q should be a valid data path", p)
+		}
+	}
+	for _, p := range []string{
+		"", "README", "src/secret.go", "items/1a2b.md.bak", "items/12345.md", "plans/Bad.md",
+		"plans/../x.md", "items/sub/1a2b.md", ".gitignore", "checks/abc.json", "config.yaml",
+	} {
+		if ValidDataPath(p) {
+			t.Errorf("%q should not be a valid data path", p)
+		}
 	}
 }
 

@@ -101,6 +101,20 @@ func TestCLIEndToEnd(t *testing.T) {
 		t.Fatalf("plan progress = %v", plan["progress"])
 	}
 
+	// Sync to a bare remote: only the mull branch arrives there.
+	remote := t.TempDir() + "/remote.git"
+	gittest.Git(t, r.dir, "init", "-q", "--bare", remote)
+	gittest.Git(t, r.dir, "remote", "add", "origin", remote)
+	if dry := r.ok("sync", "--dry-run"); dry["dry_run"] != true || dry["action"] != "pushed" {
+		t.Fatalf("dry run = %v", dry)
+	}
+	if res := r.ok("sync"); res["action"] != "pushed" {
+		t.Fatalf("sync = %v", res)
+	}
+	if refs := gittest.Git(t, remote, "for-each-ref", "--format=%(refname)"); refs != "refs/heads/mull" {
+		t.Fatalf("remote refs = %q", refs)
+	}
+
 	// The working tree is untouched by all of this.
 	if st := gittest.Git(t, r.dir, "status", "--porcelain"); st != "" {
 		t.Fatalf("working tree changed: %q", st)

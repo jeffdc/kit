@@ -141,6 +141,25 @@ func EntryPath(id string) string  { return "inbox/" + id + ".md" }
 
 const ConfigPath = "config.yml"
 
+var dataPaths = []*regexp.Regexp{
+	regexp.MustCompile(`^config\.yml$`),
+	regexp.MustCompile(`^plans/[a-z][a-z0-9]*(-[a-z0-9]+)*\.md$`),
+	regexp.MustCompile(`^(epics|items|inbox)/[0-9a-f]{4}\.md$`),
+	regexp.MustCompile(`^reports/[0-9a-f]{4}-[0-9]+\.md$`),
+	regexp.MustCompile(`^checks/[0-9a-f]{40}([0-9a-f]{24})?\.json$`),
+}
+
+// ValidDataPath reports whether path is one mull's records may occupy on the
+// mull branch. Sync refuses to push a commit touching any other path.
+func ValidDataPath(path string) bool {
+	for _, re := range dataPaths {
+		if re.MatchString(path) {
+			return true
+		}
+	}
+	return false
+}
+
 // Encode writes frontmatter v followed by body.
 func Encode(v any, body string) ([]byte, error) {
 	var buf bytes.Buffer
