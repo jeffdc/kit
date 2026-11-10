@@ -5,6 +5,12 @@ plan: mull-serve
 item: 3deb
 by: /Users/jeff/dev/kit/.claude/worktrees/agent-aaa30f2ae60d58a47
 created: "2026-11-10T23:01:05Z"
+settled:
+  action: accept
+  note: with review e6e3
+  by: /Users/jeff/dev/kit
+  on_request: true
+  at: "2026-11-10T23:59:20Z"
 ---
 
 Enough for the revision schedule's what-changed column (committed to in-review, a question settled decide) without shipping text the UI reads from the view endpoints anyway

@@ -5,6 +5,12 @@ plan: mull-serve
 item: 9cb0
 by: /Users/jeff/dev/kit
 created: "2026-11-10T22:38:26Z"
+settled:
+  action: accept
+  note: with review 4f4b
+  by: /Users/jeff/dev/kit
+  on_request: true
+  at: "2026-11-10T23:59:20Z"
 ---
 
 No build step, a new binary's files are picked up at once, and repos registered while serve runs appear without a restart
