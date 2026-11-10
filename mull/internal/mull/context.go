@@ -76,7 +76,7 @@ var protocol = []string{
 	"Read the decisions below before deciding anything they settle.",
 	"Capture as you go: mull decided / mull ask with --item <id>; anything out of scope with mull bug / mull idea --source \"item <id>\".",
 	"Don't change plans or phases or add items unless the human asks; propose with mull ask.",
-	"Finish only with mull done <id> --summary ... --tour -; it runs the hard checks. Never claim done in prose.",
+	"Finish only with mull done <id> --summary ... --tour ... --design - (design notes on stdin: how and why); it runs the hard checks. Never claim done in prose.",
 	"Settle inbox entries only on the human's explicit instruction, with --on-request. mull sync after done.",
 }
 

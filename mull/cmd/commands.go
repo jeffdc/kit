@@ -513,6 +513,9 @@ func printInbox(a *app, es []*model.Entry) error {
 			if e.Source != "" {
 				src = "  (from " + e.Source + ")"
 			}
+			if len(e.Decisions) > 0 {
+				src += fmt.Sprintf("  [carries decisions %s]", strings.Join(e.Decisions, " "))
+			}
 			fmt.Fprintf(&b, "  %s  %-14s %s  %s%s%s\n", e.ID, where, e.Created[:10], e.Text, src, status)
 		}
 		b.WriteString("\n")
@@ -712,17 +715,26 @@ func failedCommand(rs []model.CheckResult) string {
 
 func doneCmd(a *app) *cobra.Command {
 	var in mull.DoneInput
-	var summary, tour string
+	var summary, tour, design string
 	c := &cobra.Command{
 		Use:   "done <id>",
 		Short: "Finish an item: run the hard checks, write the done report, and file it for review",
 		Args:  exact(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if summary == "-" && tour == "-" {
-				return &mull.Error{Code: mull.CodeUsage, Msg: "only one of --summary and --tour can read stdin"}
+			stdin := 0
+			for _, s := range []string{summary, tour, design} {
+				if s == "-" {
+					stdin++
+				}
+			}
+			if stdin > 1 {
+				return &mull.Error{Code: mull.CodeUsage, Msg: "only one of --summary, --tour and --design can read stdin; give the others inline"}
 			}
 			var err error
 			if in.Summary, err = a.text(summary); err != nil {
+				return err
+			}
+			if in.Design, err = a.text(design); err != nil {
 				return err
 			}
 			t, err := a.text(tour)
@@ -740,6 +752,7 @@ func doneCmd(a *app) *cobra.Command {
 	}
 	c.Flags().StringVar(&summary, "summary", "", "what changed and how it fits (- reads stdin)")
 	c.Flags().StringVar(&tour, "tour", "", "UI tour, one step per line: what to click and what to see (- reads stdin)")
+	c.Flags().StringVar(&design, "design", "", "required: design notes, how it was built and why (- reads stdin)")
 	c.Flags().StringVar(&in.Override, "override", "", "HUMAN ONLY: finish despite failing or missing checks, with the reason")
 	return c
 }

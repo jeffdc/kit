@@ -49,7 +49,7 @@ make build
 ./mull config layer ui "lib/web/**" "assets/**"
 ```
 
-An agent then runs `./mull done <id> --summary "..." --tour -`. mull runs the checks against the clean HEAD, reusing a passing result for the same tree. On a pass it writes a done report (summary, UI tour, check results, files changed by layer), marks the item done, and files a review for the human. On a failure the item stays active. `./mull report <id>` prints the report.
+An agent then runs `./mull done <id> --summary "..." --tour "..." --design -` (design notes on stdin: how it was built and why). mull runs the checks against the clean HEAD, reusing a passing result for the same tree. On a pass it writes a done report (what: summary, UI tour, check results; how: design notes, the decisions made in the session, files changed by layer), puts the item in review, and files a review for the human. The review carries the item's open decisions, and accepting it ratifies them. On a failure the item stays active. `./mull report <id>` prints the report.
 
 **Agents learn the protocol from mull itself:**
 - `./mull guide agents` prints the block to paste into a project's AGENTS.md;

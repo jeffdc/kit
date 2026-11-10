@@ -27,10 +27,10 @@ When you settle or file more than a couple of records at once, use `mull batch`.
 
 ## Reviewing finished work
 When a worker runs `mull done`, you review before the human sees it:
-1. Read `mull report <id>`: the summary, the check results, and the changes by layer.
+1. Read `mull report <id>`: what was built (the summary, the tour, the check results) and how (the design notes, the decisions made in the session, the changes by layer).
 2. Look at the diff yourself (`git diff <base>..<commit>` from the report). Don't rely on the worker's summary. Check it against the project's rules: design system, duplication, real tests, deletions done.
-3. If it holds up, run `mull accept <id>`. Add `--follow-up "<text>"` for small leftovers.
-4. If it doesn't, find its review entry with `mull inbox --kind review` and send it back with `mull do <entry-id> --reason "<what's wrong>"`. The item reopens for another session.
+3. If it holds up, run `mull accept <id>`. Add `--follow-up "<text>"` for small leftovers. Accepting also ratifies the decisions the review carries, and those are the human's call: if there are any, show them to the human first and accept with `--on-request` once they agree. If they decide one differently, run `mull decide <decision-id> "<their decision>" --on-request` before accepting.
+4. If it doesn't, find its review entry with `mull inbox --kind review` and send it back with `mull do <entry-id> --reason "<what's wrong>"`. The item reopens for another session, and its decisions stay open for the next review.
 5. Tell the human what you accepted and what you sent back, with the UI tour for anything they should click through themselves.
 
 Unreviewed work is incomplete work. An item is in review after `mull done`, and done only once its review is accepted.

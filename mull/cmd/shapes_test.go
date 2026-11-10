@@ -23,9 +23,10 @@ var (
 	itemKeys      = keys{[]string{"id", "title", "state", "created", "updated"}, []string{"plan", "phase", "kind", "category", "source", "needs", "docs", "claim", "from", "notes"}}
 	itemViewKeys  = itemKeys.plus(keys{[]string{"ready"}, []string{"blocked_by"}})
 	phaseViewKeys = phaseKeys.plus(keys{[]string{"progress", "complete"}, []string{"blocked_by"}})
-	entryKeys     = keys{[]string{"id", "kind", "text", "plan", "by", "created"}, []string{"item", "source", "settled", "detail"}}
+	entryKeys     = keys{[]string{"id", "kind", "text", "plan", "by", "created"}, []string{"item", "source", "settled", "decisions", "detail"}}
 	configKeys    = keys{[]string{"integration", "release", "remote", "done_checks", "layers"}, nil}
 	progressKeys  = keys{[]string{"total", "captured", "committed", "active", "in_review", "done", "dropped", "ready"}, nil}
+	reportKeys    = keys{[]string{"item", "n", "passed", "commit", "at", "by", "summary", "checks"}, []string{"override", "base", "tour", "changes", "design", "decisions"}}
 )
 
 func checkKeys(t *testing.T, what string, v any, k keys) {
@@ -171,10 +172,19 @@ func TestOutputShapes(t *testing.T) {
 	r.ok("start", id(a))
 	ck := shape(keys{[]string{"tree", "commit", "at", "by", "passed", "results", "cached"}, nil}, "check")
 	checkKeys(t, "check.results[0]", first(t, "results", ck["results"]), keys{[]string{"command", "exit", "duration_ms"}, []string{"tail"}})
-	dn := shapeIn("none\n", keys{[]string{"report", "report_path", "item"}, []string{"review_entry", "reminder"}},
-		"done", id(a), "--summary", "Webhook handler.", "--tour", "-")
+	r.ok("decided", "Retry three times", "--item", id(a), "--detail", "Stripe's advice")
+	dn := shapeIn("One handler.\n", keys{[]string{"report", "report_path", "item"}, []string{"review_entry", "reminder"}},
+		"done", id(a), "--summary", "Webhook handler.", "--tour", "none", "--design", "-")
 	checkKeys(t, "done.item", dn["item"], itemViewKeys)
-	shape(keys{[]string{"report", "text"}, nil}, "report", id(a))
+	rp := shape(keys{[]string{"report", "text"}, nil}, "report", id(a))
+	checkKeys(t, "report.report", rp["report"], reportKeys)
+	checkKeys(t, "report.decisions[0]", first(t, "decisions", rp["report"].(map[string]any)["decisions"]),
+		keys{[]string{"id", "text"}, []string{"detail"}})
+	rv := shape(keys{[]string{"type"}, []string{"entry"}}, "show", dn["review_entry"].(string))
+	checkKeys(t, "show review", rv["entry"], entryKeys)
+	if ds, _ := rv["entry"].(map[string]any)["decisions"].([]any); len(ds) != 1 {
+		t.Errorf("review entry decisions = %v", ds)
+	}
 
 	v := shape(keys{[]string{"generated", "integration", "integration_found", "release", "ahead_of_release", "plans", "unlinked_commits_this_week"},
 		[]string{"unlinked_recent", "unplanned", "legacy"}}, "view")

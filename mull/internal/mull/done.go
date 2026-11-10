@@ -274,6 +274,7 @@ func (m *Mull) runCheck(command string) model.CheckResult {
 type DoneInput struct {
 	Summary  string
 	Tour     []string // what to click and what to see; required when UI files changed
+	Design   string   // how it was built and why; always required
 	Override string   // human only: finish despite failing or missing checks, with a reason
 }
 
@@ -300,6 +301,10 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 	var out DoneResult
 	if strings.TrimSpace(in.Summary) == "" {
 		return out, errf(CodeInvalid, "done needs a summary: a few sentences on what changed and how it fits")
+	}
+	design := strings.TrimSpace(in.Design)
+	if design == "" || strings.EqualFold(strings.TrimRight(design, "."), "none") {
+		return out, errf(CodeDesignRequired, "done needs design notes with --design: how it was built and why (the approach, the shape of the code, what was rejected)")
 	}
 	wt := m.Worktree()
 	var cfg model.Config
@@ -360,9 +365,14 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 			return err
 		}
 		n := len(s.tx.List(fmt.Sprintf("reports/%s-", id))) + 1
+		decisions := s.openDecisions(id)
 		rep := model.Report{
 			Item: id, N: n, Passed: checks.Passed, Override: in.Override, Commit: checks.Commit, Base: base,
-			At: m.now(), By: wt, Summary: strings.TrimSpace(in.Summary), Tour: in.Tour, Checks: checks, Changes: changes,
+			At: m.now(), By: wt, Summary: strings.TrimSpace(in.Summary), Tour: in.Tour, Checks: checks,
+			Design: design, Changes: changes,
+		}
+		for _, d := range decisions {
+			rep.Decisions = append(rep.Decisions, model.ReportDecision{ID: d.ID, Text: d.Text, Detail: d.Detail})
 		}
 		data, err := model.Encode(rep, renderReport(rep, i.Title))
 		if err != nil {
@@ -383,6 +393,14 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 		if err != nil {
 			return err
 		}
+		if len(decisions) > 0 {
+			for _, d := range decisions {
+				e.Decisions = append(e.Decisions, d.ID)
+			}
+			if err := s.putEntry(e); err != nil {
+				return err
+			}
+		}
 		out.Review = e.ID
 		out.Item = s.itemView(i)
 		return nil
@@ -393,7 +411,8 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 	if !finished {
 		return out, &ErrChecksFailed{Report: out.ReportPath}
 	}
-	out.Reminder = "Show the human (or the supervisor) the report and the UI tour; they accept or send it back. Capture anything out of scope you noticed with mull bug \"...\" or mull idea \"...\" --source \"item " + id + "\""
+	out.Reminder = "Show the human (or the supervisor) the report and the UI tour; they accept or send it back. " +
+		"Accepting the review also ratifies the decisions it carries. Capture anything out of scope you noticed with mull bug \"...\" or mull idea \"...\" --source \"item " + id + "\""
 	return out, nil
 }
 
@@ -479,8 +498,9 @@ func renderReport(r model.Report, title string) string {
 	}
 	fmt.Fprintf(&b, "# Done report %d: %s (%s)\n\n", r.N, title, r.Item)
 	fmt.Fprintf(&b, "**Status:** %s  \n**Commit:** %s  \n**By:** %s at %s\n\n", status, short(r.Commit), r.By, r.At)
-	fmt.Fprintf(&b, "## Summary\n\n%s\n\n", r.Summary)
-	b.WriteString("## UI tour\n\n")
+	b.WriteString("## What was built\n\n")
+	fmt.Fprintf(&b, "### Summary\n\n%s\n\n", r.Summary)
+	b.WriteString("### UI tour\n\n")
 	if len(r.Tour) == 0 {
 		b.WriteString("None given.\n\n")
 	} else {
@@ -489,7 +509,7 @@ func renderReport(r model.Report, title string) string {
 		}
 		b.WriteString("\n")
 	}
-	b.WriteString("## Checks (run by mull)\n\n")
+	b.WriteString("### Checks (run by mull)\n\n")
 	if len(r.Checks.Results) == 0 {
 		b.WriteString("None configured.\n\n")
 	}
@@ -503,7 +523,26 @@ func renderReport(r model.Report, title string) string {
 			fmt.Fprintf(&b, "\n```\n%s\n```\n", c.Tail)
 		}
 	}
-	b.WriteString("\n## Changes by layer\n\n")
+	b.WriteString("\n## How it was built\n\n### Design notes\n\n")
+	if r.Design == "" {
+		b.WriteString("None given.\n\n")
+	} else {
+		b.WriteString(r.Design + "\n\n")
+	}
+	b.WriteString("### Decisions made in the session\n\n")
+	if len(r.Decisions) == 0 {
+		b.WriteString("None recorded.\n\n")
+	} else {
+		b.WriteString("Accepting the review ratifies these. To decide one differently, before accepting: `mull decide <id> \"...\"`\n\n")
+		for _, d := range r.Decisions {
+			fmt.Fprintf(&b, "- **%s** %s\n", d.ID, d.Text)
+			if d.Detail != "" {
+				fmt.Fprintf(&b, "  Why: %s\n", d.Detail)
+			}
+		}
+		b.WriteString("\n")
+	}
+	b.WriteString("### Changes by layer\n\n")
 	if len(r.Changes) == 0 {
 		b.WriteString("No file changes since the claim.\n")
 	}

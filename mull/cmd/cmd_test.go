@@ -129,10 +129,23 @@ func TestCLIEndToEnd(t *testing.T) {
 	r.ok("config", "checks", "true")
 	r.ok("config", "layer", "ui", "web/**")
 	gittest.Commit(t, r.dir, "web/tree.html", "x\n", "Tree edits", "Mull: "+item)
-	r.fails("tour_required", "done", item, "--summary", "Tree edits become Facts.")
-	done := r.okIn("1. Open the tree\n2. Rename a genus\n", "done", item, "--summary", "Tree edits become Facts.", "--tour", "-")
+	r.fails("design_required", "done", item, "--summary", "Tree edits become Facts.", "--tour", "Open the tree")
+	r.fails("usage", "done", item, "--summary", "Tree edits become Facts.", "--tour", "-", "--design", "-")
+	r.fails("tour_required", "done", item, "--summary", "Tree edits become Facts.", "--design", "Edits are Facts.")
+	done := r.okIn("Every edit is written as a Fact.\n\nThe tree reads Facts back.\n", "done", item,
+		"--summary", "Tree edits become Facts.", "--tour", "1. Open the tree\n2. Rename a genus", "--design", "-")
 	if tour := done["report"].(map[string]any)["tour"].([]any); len(tour) != 2 || tour[0] != "Open the tree" {
 		t.Fatalf("tour = %v", tour)
+	}
+	if design := done["report"].(map[string]any)["design"]; design != "Every edit is written as a Fact.\n\nThe tree reads Facts back." {
+		t.Fatalf("design = %q", design)
+	}
+	// The decision recorded on the item rides with its review.
+	if ds := done["report"].(map[string]any)["decisions"].([]any); len(ds) != 1 {
+		t.Fatalf("report decisions = %v", ds)
+	}
+	if text, _, _ := r.mull("", "inbox", "--text"); !strings.Contains(text, "carries decisions") {
+		t.Fatalf("inbox --text:\n%s", text)
 	}
 	rep := r.ok("report", item)
 	if !strings.Contains(rep["text"].(string), "Status:** PASSED") || rep["report"].(map[string]any)["passed"] != true {
