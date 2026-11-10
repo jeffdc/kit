@@ -1,5 +1,12 @@
 integration: main
 release: main
 remote: origin
-done_checks: []
-layers: {}
+done_checks:
+    - make done-checks
+layers:
+    tests:
+        - '**/*_test.go'
+        - '**/test/**'
+        - '**/*.test.mjs'
+    ui:
+        - forage/internal/pwa/**
