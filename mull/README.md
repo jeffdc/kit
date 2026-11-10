@@ -8,7 +8,7 @@ The record of a program run by you and your agents: its plans, where they stand,
 
 - **Plans → phases → items.** An item is a unit of work one agent completes in one session. A phase can *need* other phases (the only ordering; items inside a phase are unordered), and mull works out what's ready and what's blocked.
 - **Claims.** `mull start <id>` claims an item for the current worktree. It's atomic, so two agents can't take the same item.
-- **A backlog of captured items.** `mull bug` and `mull idea` capture an item that isn't committed work: never ready, kept out of a phase's progress. Only the human commits one (`mull commit`), optionally into a plan or phase; work with no plan is unplanned. Older loose ends and inbox ideas stay listed by kind (`mull inbox --kind loose-end|idea`) until `mull migrate` converts them.
+- **A backlog of captured items.** `mull bug` and `mull idea` capture an item that isn't committed work: never ready, kept out of a phase's progress. Only the human commits one (`mull commit`), optionally into a plan or phase; work with no plan is unplanned. Triage runs with an agent: `mull triage` stamps the items you went through, and the view counts what's untriaged. Older loose ends and inbox ideas stay listed by kind (`mull inbox --kind loose-end|idea`) until `mull migrate` converts them.
 - **One inbox for what needs you:** decisions agents made, questions and reviews. You settle each with one action: accept, decide, do, drop or park. Settled decisions form a log agents read before deciding anything.
 - **Stored in git, out of the way.** Everything lives on a `mull` branch that is never checked out. Writes never touch your working tree, and every worktree sees the same data.
 - **Any LLM, any harness.** Agents use the CLI. Nothing depends on a particular tool.
@@ -55,6 +55,7 @@ An agent then runs `./mull done <id> --summary "..." --tour "..." --design -` (d
 **Agents learn the protocol from mull itself:**
 - `./mull guide agents` prints the block to paste into a project's AGENTS.md;
 - `./mull guide supervisor` covers coordinating several agents;
-- `./mull guide intake` is the procedure for bringing a project, and its old `.mull/` matters, into mull, with the human.
+- `./mull guide intake` is the procedure for bringing a project, and its old `.mull/` matters, into mull, with the human;
+- `./mull guide triage` is the procedure for going through the backlog with the human: commit, tag to a plan or phase, start or drop.
 
 `./mull context --item <id>` is the compact briefing an agent reads at the start of a session.

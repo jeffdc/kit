@@ -164,7 +164,9 @@ type Claim struct {
 // Item is a unit of work one agent completes in one session. An item with
 // no plan is unplanned work (or, captured, untagged backlog). Captured items
 // carry a kind (bug or idea), and may carry a free-text category and a
-// source; they keep them once committed.
+// source; they keep them once committed. Triaged is when the item was last
+// triaged with the human (mull triage); a captured item without it is
+// untriaged.
 type Item struct {
 	ID       string   `yaml:"-" json:"id"`
 	Plan     string   `yaml:"plan,omitempty" json:"plan,omitempty"`
@@ -178,6 +180,7 @@ type Item struct {
 	Docs     []string `yaml:"docs,omitempty" json:"docs,omitempty"`
 	Claim    *Claim   `yaml:"claim,omitempty" json:"claim,omitempty"`
 	From     string   `yaml:"from,omitempty" json:"from,omitempty"` // the inbox entry it was made from
+	Triaged  string   `yaml:"triaged,omitempty" json:"triaged,omitempty"`
 	Created  string   `yaml:"created" json:"created"`
 	Updated  string   `yaml:"updated" json:"updated"`
 	Notes    string   `yaml:"-" json:"notes,omitempty"`

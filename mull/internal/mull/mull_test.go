@@ -339,11 +339,11 @@ func TestCapturedItemsAreBacklog(t *testing.T) {
 
 	err := m.view(func(s *state) error {
 		ev := s.phaseView(s.phases[p1.ID])
-		want := Progress{Total: 1, Captured: 1, Done: 1}
+		want := Progress{Total: 1, Captured: 1, Untriaged: 1, Done: 1}
 		if ev.Progress != want || !ev.Complete {
 			t.Errorf("phase 1 = %+v complete=%v, want %+v complete", ev.Progress, ev.Complete, want)
 		}
-		if got := progressText(ev.Progress); got != "1/1 done · 1 captured" {
+		if got := progressText(ev.Progress); got != "1/1 done · 1 captured (1 untriaged)" {
 			t.Errorf("progress text = %q", got)
 		}
 		return nil

@@ -96,11 +96,19 @@ func (s *state) inShapingPlan(i *model.Item) bool {
 	return p != nil && p.State == model.PlanShaping
 }
 
+// untriaged reports whether a captured item hasn't been triaged with the
+// human since it was captured.
+func untriaged(i *model.Item) bool {
+	return i.State == model.StateCaptured && i.Triaged == ""
+}
+
 // Progress counts a phase's or plan's items by stage. Total counts committed
-// work only; captured items are counted on their own.
+// work only; captured items are counted on their own, and untriaged counts
+// those of them not triaged yet.
 type Progress struct {
 	Total     int `json:"total"`
 	Captured  int `json:"captured"`
+	Untriaged int `json:"untriaged"`
 	Committed int `json:"committed"`
 	Active    int `json:"active"`
 	InReview  int `json:"in_review"`
@@ -114,6 +122,9 @@ func (s *state) progress(items []*model.Item) Progress {
 	for _, i := range items {
 		if i.State == model.StateCaptured {
 			p.Captured++
+			if untriaged(i) {
+				p.Untriaged++
+			}
 			continue
 		}
 		p.Total++

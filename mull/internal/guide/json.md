@@ -26,7 +26,7 @@ On failure, mull prints nothing to stdout, prints this to stderr, and exits 1:
 | `invalid_state` | the record is in the wrong state (e.g. accepting an item that isn't done) |
 | `claimed` | the item is claimed by another worktree |
 | `already_settled` | the inbox entry is already settled |
-| `not_allowed` | not allowed (kind rules; a worker accepting its own work; promoting an idea, committing a captured item or agreeing a plan without `--on-request`; needs on an item, or a phase needing an item) |
+| `not_allowed` | not allowed (kind rules; a worker accepting its own work; promoting an idea, committing a captured item, triaging or agreeing a plan without `--on-request`; needs on an item, or a phase needing an item) |
 | `dependency_cycle` | the needs would form a cycle |
 | `scope_required` | say which plan or item: `--plan` or `--item` (or `--phase`, or `--plan none` for unplanned work, for `add`) |
 | `tour_required` | UI files changed and no `--tour` was given |
@@ -56,14 +56,15 @@ A `batch_invalid` error also lists every failed line:
 - **Plan:** `{slug, title, state ("shaping"|"active"|"done"), created, updated, summary?, doc?}`. A new plan is `shaping`; `plan agree` (the human) makes it `active`, and `plan close` makes it `done`. A shaping plan takes captures and inbox entries but refuses phases and committed items (`invalid_state`) until it is agreed.
 - **Phase:** `{id, plan, title, needs?, from?, created, updated, summary?, doc?}`. `from` is the inbox entry (e.g. an idea) it was promoted from. `needs` are the phases it waits for: needs exist between phases only. (A need on an item, from before Model v2, still counts until `mull migrate` converts it.)
 - **Docs:** `doc` is a plan's or phase's doc, in markdown: a plan's picture, done-when and why the order; a phase's design and done-when. Docs hold intent only, never status: status comes from the records. A doc is kept apart from its record, so changing the record (`summary` included) never makes a new version of the doc. `plan doc` and `phase doc` print it, replace it (`-`) and list its versions (`--log`).
-- **Item:** `{id, plan?, phase?, title, state ("captured"|"committed"|"active"|"in-review"|"done"|"dropped"), kind?, category?, source?, needs?, docs?, claim?, from?, created, updated, notes?}`. `from` is the inbox entry (idea, question or loose end) it was made from.
+- **Item:** `{id, plan?, phase?, title, state ("captured"|"committed"|"active"|"in-review"|"done"|"dropped"), kind?, category?, source?, needs?, docs?, claim?, from?, triaged?, created, updated, notes?}`. `from` is the inbox entry (idea, question or loose end) it was made from.
   - **No `plan`** means unplanned work, or (captured) backlog not tagged to a plan.
   - **Captured items** (`mull bug`, `mull idea`) carry `kind` (`"bug"`|`"idea"`), and `category` and `source` when given; `notes` holds the `--detail`. They keep them once committed.
+  - **triaged** is when the item was last triaged with the human (`mull triage`). A captured item with no `triaged` is untriaged.
   - **claim:** `{worktree, branch, at, base?}`
   - **Items have no needs;** items inside a phase are unordered. An item's `needs`, from before Model v2, is kept and shown until `mull migrate` converts it, but no longer affects readiness.
 - **ItemView:** Item plus `{ready, blocked_by?}`. Ready means committed, in a phase whose needs are done (or in no phase), in a plan that isn't shaping; `blocked_by` lists the phase's needs that aren't done.
 - **PhaseView:** Phase plus `{progress, complete, blocked_by?}`.
-- **Progress:** `{total, captured, committed, active, in_review, done, dropped, ready}`. `total` counts committed work (every stage but captured); captured items tagged to the phase or plan are counted only in `captured`.
+- **Progress:** `{total, captured, untriaged, committed, active, in_review, done, dropped, ready}`. `total` counts committed work (every stage but captured); captured items tagged to the phase or plan are counted only in `captured`, and `untriaged` counts those of them not triaged yet.
 - **Entry** (inbox): `{id, kind ("decision"|"question"|"review"|"loose-end"|"idea"), text, plan, item?, source?, by, created, settled?, decisions?, detail?}`. `plan` is `""` for an entry about the whole project or an unplanned item.
   - **settled:** `{action ("accept"|"decide"|"do"|"drop"|"park"), note?, item?, phase?, by, on_request?, at}`. `item` or `phase` is what `do` made.
   - **decisions** (reviews only): the IDs of the decision entries the review carries: every unsettled, unparked decision on its item when `mull done` filed it. Accepting the review ratifies those still unsettled (settled note `with review <id>`). Decide one differently first with `decide <id>`; sending the review back leaves them open, and the next `done` carries them again.
@@ -86,9 +87,10 @@ Times are RFC 3339 in UTC. IDs are 4 hex characters; plans use their slug.
 | `phase list` | `{phases: [PhaseView]}` |
 | `plan doc`, `phase doc` | `{type: "plan"\|"phase", id, doc}`: `id` is the plan's slug or the phase's ID, and `doc` is `""` when there is none. `<slug\|id> -` replaces the doc from stdin, and empty stdin removes it. `--text` prints the doc as markdown. `--log` prints `{type, id, versions: [{commit, at, doc}]}`, newest first: one version per commit that changed the doc, `doc` `""` where it was removed |
 | `add`, `release`, `bug`, `idea`, `commit` | ItemView |
+| `triage` | `{items: [ItemView]}`: the captured items stamped `triaged`. Needs `--on-request`; given IDs must be captured items |
 | `show` | `{type: "plan"\|"phase"\|"item"\|"entry", <type>: …}`. A plan is shown as in `plan show`, a phase as PhaseView + `{items}`, an item as ItemView, an entry as Entry |
-| `list`, `ready` | `{items: [ItemView]}`. `list --plan none` selects items with no plan; `--kind bug\|idea` selects captured kinds |
-| `set` | `{type: "plan"\|"phase"\|"item", plan?: Plan, phase?: PhaseView, item?: ItemView}` |
+| `list`, `ready` | `{items: [ItemView]}`. `list --plan none` selects items with no plan; `--kind bug\|idea` selects captured kinds; `--untriaged` selects captured items not triaged yet |
+| `set` | `{type: "plan"\|"phase"\|"item", plan?: Plan, phase?: PhaseView, item?: ItemView}`. Item fields: `title`, `notes`, `category`, `phase`, `doc`, and for a captured item `plan` (`none` untags it; a new plan leaves the old phase behind). A captured item set to a phase in another plan moves to that plan; `plan` on any other item fails with `invalid_state` |
 | `need`, `unneed` | `{type: "phase", phase: PhaseView}`. Only a phase has needs, and only on phases; on an item they fail with `not_allowed` |
 | `start` | `{item: ItemView, warnings: []}`. Starting a blocked item is allowed with a warning. A captured item tagged to a shaping plan can't be started (`invalid_state`), since starting commits it |
 | `decided`, `ask` | Entry |
@@ -100,7 +102,7 @@ Times are RFC 3339 in UTC. IDs are 4 hex characters; plans use their slug.
 | `drop` | `{entries: [Entry], items: [ItemView]}` |
 | `decisions` | `{decisions: [{id, plan, item?, kind, context, decision, by, on_request?, at}]}`, newest first |
 | `config`, `config set\|checks\|layer` | Config |
-| `view` | `{generated, integration, integration_found, release, ahead_of_release, plans: [Board], unlinked_commits_this_week, unlinked_recent?, unplanned?: Board, legacy?: {loose_ends, ideas}}`. `unplanned` is a Board (slug `""`, title `"Unplanned"`, no `state`) for items with no plan and entries with no plan, present when there are any. `legacy` counts open loose ends and inbox ideas until `mull migrate`. `plans` holds the active plans, then the shaping ones; a done plan only with `--plan`. Board: `{slug, title, state?, progress, phases: [{id, title, progress, complete, blocked_by?}], unfiled: Progress, problems: [{kind, item, text}], in_flight: [{id, title, state, worktree?, branches?, commits, last_activity?}], needs_you: {reviews, decisions, questions, older_than_a_week, parked}}`. Problem kinds: `idle-claim`, `unclaimed-work`, `done-not-in-git`, `failed-done` |
+| `view` | `{generated, integration, integration_found, release, ahead_of_release, plans: [Board], untriaged, last_triage?, unlinked_commits_this_week, unlinked_recent?, unplanned?: Board, legacy?: {loose_ends, ideas}}`. `unplanned` is a Board (slug `""`, title `"Unplanned"`, no `state`) for items with no plan and entries with no plan, present when there are any. `untriaged` counts the whole project's untriaged captured items (with `--plan` too), and `last_triage` is the latest `triaged` stamp on any item; each Board's `progress` counts its own. `legacy` counts open loose ends and inbox ideas until `mull migrate`. `plans` holds the active plans, then the shaping ones; a done plan only with `--plan`. Board: `{slug, title, state?, progress, phases: [{id, title, progress, complete, blocked_by?}], unfiled: Progress, problems: [{kind, item, text}], in_flight: [{id, title, state, worktree?, branches?, commits, last_activity?}], needs_you: {reviews, decisions, questions, older_than_a_week, parked}}`. Problem kinds: `idle-claim`, `unclaimed-work`, `done-not-in-git`, `failed-done` |
 | `context` | `{worktree, branch, protocol: [], item?: …, my_claims: [], plans: [], ready: [], active: [], decisions: []}`. `plans` are the shaping and active plans: `{slug, title, state, phases?}`. `item` is the ItemView plus `phase_title?`, `phase_summary?`, `phase_doc?` (its phase's doc), `open_questions?`, `item_decisions?`, `last_report?`, `last_report_passed?` |
 | `check` | `{tree, commit, at, by, passed, results: [{command, exit, duration_ms, tail?}], cached}` |
 | `done` | `{report: Report, report_path, item: ItemView, review_entry?, reminder?}`. `--design` is required; only one of `--summary`, `--tour` and `--design` can be `-` (stdin) |
@@ -136,6 +138,7 @@ Times are RFC 3339 in UTC. IDs are 4 hex characters; plans use their slug.
 | `decided`, `ask` | `text`, `item`, `plan`, `source`, `detail` |
 | `bug`, `idea` | `text` (the title), `plan`, `phase` (both optional), `category`, `source`, `detail` (kept as notes) |
 | `commit` | `id`, `plan` (`none` for unplanned), `phase`, `on-request` (required: only the human commits) |
+| `triage` | `ids`, or `all` (`true`) with an optional `plan` (`none` for untagged captures), `on-request` (required: triage is run with the human) |
 | `start`, `release` | `id` |
 | `accept` | `ids`, `follow-up`, `on-request` |
 | `decide` | `id`, `decision`, `on-request` |

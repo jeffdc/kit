@@ -20,12 +20,12 @@ func (k keys) plus(o keys) keys {
 var (
 	planKeys      = keys{[]string{"slug", "title", "state", "created", "updated"}, []string{"summary", "doc"}}
 	phaseKeys     = keys{[]string{"id", "plan", "title", "created", "updated"}, []string{"needs", "from", "summary", "doc"}}
-	itemKeys      = keys{[]string{"id", "title", "state", "created", "updated"}, []string{"plan", "phase", "kind", "category", "source", "needs", "docs", "claim", "from", "notes"}}
+	itemKeys      = keys{[]string{"id", "title", "state", "created", "updated"}, []string{"plan", "phase", "kind", "category", "source", "needs", "docs", "claim", "from", "triaged", "notes"}}
 	itemViewKeys  = itemKeys.plus(keys{[]string{"ready"}, []string{"blocked_by"}})
 	phaseViewKeys = phaseKeys.plus(keys{[]string{"progress", "complete"}, []string{"blocked_by"}})
 	entryKeys     = keys{[]string{"id", "kind", "text", "plan", "by", "created"}, []string{"item", "source", "settled", "decisions", "detail"}}
 	configKeys    = keys{[]string{"integration", "release", "remote", "done_checks", "layers"}, nil}
-	progressKeys  = keys{[]string{"total", "captured", "committed", "active", "in_review", "done", "dropped", "ready"}, nil}
+	progressKeys  = keys{[]string{"total", "captured", "untriaged", "committed", "active", "in_review", "done", "dropped", "ready"}, nil}
 	reportKeys    = keys{[]string{"item", "n", "passed", "commit", "at", "by", "summary", "checks"}, []string{"override", "base", "tour", "changes", "design", "decisions"}}
 )
 
@@ -167,8 +167,11 @@ func TestOutputShapes(t *testing.T) {
 	// Captures: bugs and ideas are captured items; only the human commits them.
 	shape(itemViewKeys, "idea", "Mobile ID tool", "--plan", "launch", "--detail", "Phones in the field.", "--source", "conversation")
 	bug := shape(itemViewKeys, "bug", "Flaky login test", "--category", "tests")
-	shape(itemViewKeys, "bug", "Two h1s on home", "--phase", id(phase))
+	h1s := shape(itemViewKeys, "bug", "Two h1s on home", "--phase", id(phase))
 	shape(itemViewKeys, "commit", id(bug), "--on-request")
+	tr := shape(keys{[]string{"items"}, nil}, "triage", id(h1s), "--on-request")
+	checkKeys(t, "triage.items[0]", first(t, "items", tr["items"]), itemViewKeys)
+	shape(itemViewKeys, "bug", "Untriaged for the view", "--plan", "launch")
 	lo3 := shape(entryKeys, "ask", "A pricing page?", "--plan", "launch")
 	promo := shape(keys{[]string{"entry"}, []string{"item", "phase"}}, "do", id(lo3), "--as", "phase")
 	checkKeys(t, "do --as phase .phase", promo["phase"], phaseViewKeys)
@@ -197,8 +200,8 @@ func TestOutputShapes(t *testing.T) {
 		t.Errorf("review entry decisions = %v", ds)
 	}
 
-	v := shape(keys{[]string{"generated", "integration", "integration_found", "release", "ahead_of_release", "plans", "unlinked_commits_this_week"},
-		[]string{"unlinked_recent", "unplanned", "legacy"}}, "view")
+	v := shape(keys{[]string{"generated", "integration", "integration_found", "release", "ahead_of_release", "plans", "unlinked_commits_this_week", "untriaged"},
+		[]string{"unlinked_recent", "unplanned", "legacy", "last_triage"}}, "view")
 	board := first(t, "view.plans", v["plans"])
 	boardKeys := keys{[]string{"slug", "title", "progress", "phases", "unfiled", "problems", "in_flight", "needs_you"}, []string{"state"}}
 	checkKeys(t, "view.plans[0]", board, boardKeys)

@@ -184,7 +184,7 @@ func TestCLIEndToEnd(t *testing.T) {
 	if ctx := r.ok("context", "--item", item); ctx["item"].(map[string]any)["id"] != item {
 		t.Fatalf("context = %v", ctx)
 	}
-	for _, g := range []string{"agents", "supervisor", "intake", "json"} {
+	for _, g := range []string{"agents", "supervisor", "intake", "triage", "json"} {
 		if gv := r.ok("guide", g); gv["guide"] != g || !strings.Contains(gv["text"].(string), "mull") {
 			t.Fatalf("guide %s = %v", g, gv)
 		}
@@ -285,4 +285,33 @@ func TestScopeRules(t *testing.T) {
 	}
 	// Captures need no scope.
 	r.ok("bug", "untagged")
+}
+
+func TestTriageCommand(t *testing.T) {
+	r := run{t: t, dir: gittest.NewRepo(t)}
+	r.ok("init")
+	r.ok("plan", "new", "alpha", "Alpha")
+	a := id(r.ok("bug", "Crash on empty list"))
+	b := id(r.ok("idea", "Dark mode"))
+	// Tag a capture to a plan without committing it.
+	if s := r.ok("set", b, "plan", "alpha"); s["item"].(map[string]any)["plan"] != "alpha" {
+		t.Fatalf("set plan = %v", s)
+	}
+	r.fails("not_allowed", "triage", a)
+	r.fails("invalid_argument", "triage", "--on-request")
+	if tr := r.ok("triage", a, "--on-request"); len(tr["items"].([]any)) != 1 {
+		t.Fatalf("triage = %v", tr)
+	}
+	if l := r.ok("list", "--untriaged")["items"].([]any); len(l) != 1 || id(l[0].(map[string]any)) != b {
+		t.Fatalf("list --untriaged = %v", l)
+	}
+	if v := r.ok("view"); v["untriaged"] != float64(1) || v["last_triage"] == nil {
+		t.Fatalf("view = %v", v)
+	}
+	if tr := r.ok("triage", "--all", "--plan", "alpha", "--on-request"); len(tr["items"].([]any)) != 1 {
+		t.Fatalf("triage --all = %v", tr)
+	}
+	if v := r.ok("view"); v["untriaged"] != float64(0) {
+		t.Fatalf("view = %v", v)
+	}
 }
