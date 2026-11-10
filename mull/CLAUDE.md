@@ -6,7 +6,7 @@ Guidance for any agent working on mull's code. This branch (`mull-next`) is a fr
 
 The record of a program, kept on a dedicated git branch (`mull`) in the project's repo:
 - **plans** (top level, plain-English slugs);
-- **epics** (big pieces of a plan);
+- **phases** (big pieces of a plan; called epics before Model v2);
 - **items** (one agent, one session);
 - **an inbox** of decisions, questions, loose ends and reviews that need the human.
 
@@ -25,7 +25,7 @@ Agents and humans use it only through the CLI. Data commands print JSON; errors 
 - `internal/git`: runs the `git` CLI. Every git call goes through here.
 - `internal/store`: the `mull` branch. Load a snapshot, and update with compare-and-swap and retry.
 - `internal/model`: records and their file format (YAML frontmatter plus a markdown body).
-- `internal/mull`: operations: plans, epics, items, needs and readiness, claims, the inbox, the decision log.
+- `internal/mull`: operations: plans, phases, items, needs and readiness, claims, the inbox, the decision log.
 - `internal/gittest`: throwaway repos and worktrees for tests, isolated from global git config.
 
 ## Build and test

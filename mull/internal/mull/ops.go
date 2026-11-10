@@ -78,8 +78,8 @@ type opDef struct {
 var ops = map[string]opDef{
 	"plan new":      {func() Input { return &PlanNewIn{} }, "slug, title, summary"},
 	"plan close":    {func() Input { return &PlanCloseIn{} }, "slug"},
-	"epic add":      {func() Input { return &EpicAddIn{} }, "title, plan, summary, needs"},
-	"add":           {func() Input { return &AddIn{} }, "title, plan, epic, needs, notes, doc"},
+	"phase add":     {func() Input { return &PhaseAddIn{} }, "title, plan, summary, needs"},
+	"add":           {func() Input { return &AddIn{} }, "title, plan, phase, needs, notes, doc"},
 	"set":           {func() Input { return &SetIn{} }, "id, field, value"},
 	"need":          {func() Input { return &NeedIn{add: true} }, "id, needs"},
 	"unneed":        {func() Input { return &NeedIn{} }, "id, needs"},
@@ -91,7 +91,7 @@ var ops = map[string]opDef{
 	"release":       {func() Input { return &ReleaseIn{} }, "id"},
 	"accept":        {func() Input { return &AcceptIn{} }, "ids, follow-up, on-request"},
 	"decide":        {func() Input { return &DecideIn{} }, "id, decision, on-request"},
-	"do":            {func() Input { return &DoIn{} }, "id, plan, epic, as, reason, on-request"},
+	"do":            {func() Input { return &DoIn{} }, "id, plan, phase, as, reason, on-request"},
 	"drop":          {func() Input { return &DropIn{} }, "ids, reason, on-request"},
 	"park":          {func() Input { return &ParkIn{} }, "id, reason, on-request"},
 	"config set":    {func() Input { return &ConfigSetIn{} }, "key, value"},
@@ -159,18 +159,18 @@ func (in *PlanCloseIn) run(m *Mull, s *state) (any, string, error) {
 	return p, p.Slug, nil
 }
 
-type EpicAddIn struct {
+type PhaseAddIn struct {
 	Title   string `json:"title"`
 	Plan    string `json:"plan"`
 	Summary string `json:"summary"`
 	Needs   IDList `json:"needs"`
 }
 
-func (in *EpicAddIn) refFields() ([]*string, []*IDList) {
+func (in *PhaseAddIn) refFields() ([]*string, []*IDList) {
 	return []*string{&in.Plan}, []*IDList{&in.Needs}
 }
-func (in *EpicAddIn) run(m *Mull, s *state) (any, string, error) {
-	e, err := m.epicAdd(s, in.Plan, in.Title, in.Summary, in.Needs, "")
+func (in *PhaseAddIn) run(m *Mull, s *state) (any, string, error) {
+	e, err := m.phaseAdd(s, in.Plan, in.Title, in.Summary, in.Needs, "")
 	if err != nil {
 		return nil, "", err
 	}
@@ -180,17 +180,17 @@ func (in *EpicAddIn) run(m *Mull, s *state) (any, string, error) {
 type AddIn struct {
 	Title string  `json:"title"`
 	Plan  string  `json:"plan"`
-	Epic  string  `json:"epic"`
+	Phase string  `json:"phase"`
 	Needs IDList  `json:"needs"`
 	Notes string  `json:"notes"`
 	Doc   StrList `json:"doc"`
 }
 
 func (in *AddIn) refFields() ([]*string, []*IDList) {
-	return []*string{&in.Plan, &in.Epic}, []*IDList{&in.Needs}
+	return []*string{&in.Plan, &in.Phase}, []*IDList{&in.Needs}
 }
 func (in *AddIn) run(m *Mull, s *state) (any, string, error) {
-	i, err := m.addItem(s, NewItem{Plan: in.Plan, Epic: in.Epic, Title: in.Title, Notes: in.Notes, Needs: in.Needs, Docs: in.Doc})
+	i, err := m.addItem(s, NewItem{Plan: in.Plan, Phase: in.Phase, Title: in.Title, Notes: in.Notes, Needs: in.Needs, Docs: in.Doc})
 	if err != nil {
 		return nil, "", err
 	}
@@ -292,21 +292,21 @@ func (in *DecideIn) run(m *Mull, s *state) (any, string, error) {
 type DoIn struct {
 	ID        string `json:"id"`
 	Plan      string `json:"plan"`
-	Epic      string `json:"epic"`
+	Phase     string `json:"phase"`
 	As        string `json:"as"`
 	Reason    string `json:"reason"`
 	OnRequest bool   `json:"on-request"`
 }
 
 func (in *DoIn) refFields() ([]*string, []*IDList) {
-	return []*string{&in.ID, &in.Plan, &in.Epic}, nil
+	return []*string{&in.ID, &in.Plan, &in.Phase}, nil
 }
 func (in *DoIn) run(m *Mull, s *state) (any, string, error) {
-	r, err := m.do(s, DoInput{ID: in.ID, Plan: in.Plan, Epic: in.Epic, As: in.As, Reason: in.Reason, SettleOpts: SettleOpts{OnRequest: in.OnRequest}})
+	r, err := m.do(s, DoInput{ID: in.ID, Plan: in.Plan, Phase: in.Phase, As: in.As, Reason: in.Reason, SettleOpts: SettleOpts{OnRequest: in.OnRequest}})
 	id := ""
 	switch {
-	case r.Epic != nil:
-		id = r.Epic.ID
+	case r.Phase != nil:
+		id = r.Phase.ID
 	case r.Item != nil:
 		id = r.Item.ID
 	}
@@ -394,7 +394,7 @@ const maxBatchLine = 16 << 20
 
 // Batch runs JSON Lines of ops in one transaction: all of them, as a single
 // commit, or none. Each line is {"op": "<name>", "ref": "<optional>", ...fields}.
-// A later line may use "@ref" in an ID field (plan, epic, needs, item, id,
+// A later line may use "@ref" in an ID field (plan, phase, needs, item, id,
 // ids) to mean the record an earlier line created. With dryRun everything is
 // validated and run but nothing is written; IDs in a dry run's results are
 // throwaway.

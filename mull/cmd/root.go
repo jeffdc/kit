@@ -91,8 +91,8 @@ func Main() {
 func newRoot(a *app) *cobra.Command {
 	root := &cobra.Command{
 		Use:   "mull",
-		Short: "The record of a program: plans, epics, items, and the inbox of what needs you",
-		Long: `The record of a program: plans, epics, items, and the inbox of what needs you.
+		Short: "The record of a program: plans, phases, items, and the inbox of what needs you",
+		Long: `The record of a program: plans, phases, items, and the inbox of what needs you.
 
 Every command prints JSON; errors are {"code","error"} on stderr with exit 1.
 Shapes and error codes: mull guide json. Many writes at once: mull batch.`,
@@ -104,7 +104,7 @@ Shapes and error codes: mull guide json. Many writes at once: mull batch.`,
 	root.AddCommand(
 		initCmd(a), versionCmd(a), syncCmd(a), viewCmd(a), configCmd(a), batchCmd(a),
 		checkCmd(a), doneCmd(a), reportCmd(a), contextCmd(a), guideCmd(a),
-		planCmd(a), epicCmd(a),
+		planCmd(a), phaseCmd(a),
 		addCmd(a), showCmd(a), listCmd(a), setCmd(a), dropCmd(a),
 		needCmd(a, true), needCmd(a, false), readyCmd(a),
 		startCmd(a), releaseCmd(a),

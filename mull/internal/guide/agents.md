@@ -23,8 +23,8 @@ This project's plans, work items and open questions live in **mull**: a CLI whos
      - File it when it's given. Don't hold it for the end of the session.
      - Don't act on it in your current work unless the human says to, and never drop it.
      - It's feedback if it judges or asks to change existing work. It's an idea if it's a possibility that isn't work yet. If you can't tell which, ask the human.
-4. **Don't change plans or epics, and don't add items,** unless the human asks. Propose changes with `mull ask`.
-   - Never promote an idea (`mull do <idea-id>`) on your own. When the human tells you to, add `--on-request`; use `--as epic` if they want an epic.
+4. **Don't change plans or phases, and don't add items,** unless the human asks. Propose changes with `mull ask`.
+   - Never promote an idea (`mull do <idea-id>`) on your own. When the human tells you to, add `--on-request`; use `--as phase` if they want a phase.
 5. **Finish only with `mull done`:**
    ```
    mull done <id> --summary "<what changed and how it fits>" --tour -

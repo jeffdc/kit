@@ -40,7 +40,7 @@ func batchErr(t *testing.T, err error) *Error {
 	return e
 }
 
-// TestBatchIntakeSized is the worked example: a plan, 3 epics with needs, 10
+// TestBatchIntakeSized is the worked example: a plan, 3 phases with needs, 10
 // items with needs (some on items made earlier in the batch) and 20 inbox
 // entries of mixed kinds, as one batch, one commit, every ID returned.
 func TestBatchIntakeSized(t *testing.T) {
@@ -49,18 +49,18 @@ func TestBatchIntakeSized(t *testing.T) {
 	lines = append(lines,
 		map[string]any{"op": "plan new", "ref": "p", "slug": "taxogall", "title": "Taxogall", "summary": "Galls as catalog entries."},
 		map[string]any{"op": "config checks", "commands": []string{"make done-checks"}},
-		map[string]any{"op": "epic add", "ref": "e1", "plan": "@p", "title": "How the admin works"},
-		map[string]any{"op": "epic add", "ref": "e2", "plan": "@p", "title": "Phase 2 and gaps", "needs": []string{"@e1"}},
-		map[string]any{"op": "epic add", "ref": "e3", "plan": "@p", "title": "Gallformers notes", "needs": "@e2"},
+		map[string]any{"op": "phase add", "ref": "e1", "plan": "@p", "title": "How the admin works"},
+		map[string]any{"op": "phase add", "ref": "e2", "plan": "@p", "title": "Phase 2 and gaps", "needs": []string{"@e1"}},
+		map[string]any{"op": "phase add", "ref": "e3", "plan": "@p", "title": "Gallformers notes", "needs": "@e2"},
 	)
 	for k := 1; k <= 10; k++ {
-		epic := 1 // items 1-4 in epic 1, 5-7 in epic 2, 8-10 in epic 3
+		phase := 1 // items 1-4 in phase 1, 5-7 in phase 2, 8-10 in phase 3
 		if k > 7 {
-			epic = 3
+			phase = 3
 		} else if k > 4 {
-			epic = 2
+			phase = 2
 		}
-		l := map[string]any{"op": "add", "ref": fmt.Sprintf("i%d", k), "epic": fmt.Sprintf("@e%d", epic),
+		l := map[string]any{"op": "add", "ref": fmt.Sprintf("i%d", k), "phase": fmt.Sprintf("@e%d", phase),
 			"title": fmt.Sprintf("Item %d", k), "notes": fmt.Sprintf("From matter 50ff, step %d.", k)}
 		if k > 1 && k%2 == 0 {
 			l["needs"] = []string{fmt.Sprintf("@i%d", k-1)} // needs an item made earlier in this batch
@@ -116,16 +116,16 @@ func TestBatchIntakeSized(t *testing.T) {
 	}
 
 	// Refs resolved to the real records.
-	e2 := must[Shown](t)(m.Show(created["e2"])).Epic
+	e2 := must[Shown](t)(m.Show(created["e2"])).Phase
 	if len(e2.Needs) != 1 || e2.Needs[0] != created["e1"] || e2.Plan != "taxogall" {
-		t.Errorf("epic 2 = %+v", e2.Epic)
+		t.Errorf("phase 2 = %+v", e2.Phase)
 	}
 	i4 := item(t, m, created["i4"])
-	if i4.Plan != "taxogall" || len(i4.Needs) != 1 || i4.Needs[0] != created["i3"] || i4.Epic != created["e1"] {
+	if i4.Plan != "taxogall" || len(i4.Needs) != 1 || i4.Needs[0] != created["i3"] || i4.Phase != created["e1"] {
 		t.Errorf("item 4 = %+v", i4.Item)
 	}
-	// An item in epic 3 needing one in epic 2, both made in this batch.
-	if i8 := item(t, m, created["i8"]); i8.Epic != created["e3"] || i8.Needs[0] != created["i7"] {
+	// An item in phase 3 needing one in phase 2, both made in this batch.
+	if i8 := item(t, m, created["i8"]); i8.Phase != created["e3"] || i8.Needs[0] != created["i7"] {
 		t.Errorf("item 8 = %+v", i8.Item)
 	}
 	if n := len(must[[]*model.Entry](t)(m.Inbox(InboxFilter{Plan: "taxogall"}))); n != 20 {
@@ -141,7 +141,7 @@ func TestBatchAllOrNothing(t *testing.T) {
 	m, dir := setup(t)
 	input := strings.Join([]string{
 		`{"op": "plan new", "ref": "p", "slug": "launch", "title": "Launch"}`,
-		`{"op": "add", "ref": "a", "epic": "ffff", "title": "bad epic"}`,
+		`{"op": "add", "ref": "a", "phase": "ffff", "title": "bad phase"}`,
 		``,
 		`{"op": "add", "ref": "b", "plan": "@p", "title": "fine"}`,
 		`{"op": "add", "plan": "@p", "title": "needs a failed line", "needs": ["@a"]}`,
@@ -161,7 +161,7 @@ func TestBatchAllOrNothing(t *testing.T) {
 		got[l.Line] = l.Code
 	}
 	want := map[int]string{
-		2:  CodeNotFound,    // no epic ffff
+		2:  CodeNotFound,    // no phase ffff
 		5:  CodeInvalid,     // @a refers to a failed line
 		6:  CodeNotFound,    // unknown ref
 		7:  CodeInvalidJSON, // not json
@@ -251,19 +251,19 @@ func TestBatchEmpty(t *testing.T) {
 func TestScopeForItemsAndDo(t *testing.T) {
 	m, _ := setup(t)
 	must[*model.Plan](t)(m.PlanNew("alpha", "Alpha", ""))
-	e := must[*model.Epic](t)(m.EpicAdd("alpha", "E", "", nil))
-	// The epic implies the plan.
-	if it := must[ItemView](t)(m.ItemAdd(NewItem{Epic: e.ID, Title: "x"})); it.Plan != "alpha" {
+	e := must[*model.Phase](t)(m.PhaseAdd("alpha", "E", "", nil))
+	// The phase implies the plan.
+	if it := must[ItemView](t)(m.ItemAdd(NewItem{Phase: e.ID, Title: "x"})); it.Plan != "alpha" {
 		t.Fatalf("plan = %s", it.Plan)
 	}
-	_, err := m.ItemAdd(NewItem{Epic: e.ID, Plan: "general", Title: "y"})
+	_, err := m.ItemAdd(NewItem{Phase: e.ID, Plan: "general", Title: "y"})
 	wantCode(t, err, CodeInvalid)
 	_, err = m.ItemAdd(NewItem{Title: "z"})
 	wantCode(t, err, CodeScope)
-	// do --epic files into the epic's plan, even though the entry is in general.
+	// do --phase files into the phase's plan, even though the entry is in general.
 	l := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindLoose, Text: "fix the footer", Plan: "general"}))
-	res := must[DoResult](t)(m.Do(DoInput{ID: l.ID, Epic: e.ID}))
-	if res.Item.Plan != "alpha" || res.Item.Epic != e.ID {
+	res := must[DoResult](t)(m.Do(DoInput{ID: l.ID, Phase: e.ID}))
+	if res.Item.Plan != "alpha" || res.Item.Phase != e.ID {
 		t.Fatalf("do item = %+v", res.Item)
 	}
 }

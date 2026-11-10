@@ -13,7 +13,7 @@ import (
 //	question:  decide, do, drop, park
 //	loose-end: decide, do, drop, park
 //	review:    accept (optionally with a follow-up item), do (send back: reopen the item), park
-//	idea:      do (promote to an item or epic; only on the human's say-so), drop, park
+//	idea:      do (promote to an item or phase; only on the human's say-so), drop, park
 var allowed = map[string][]string{
 	model.KindIdea:     {model.ActDo, model.ActDrop, model.ActPark},
 	model.KindDecision: {model.ActAccept, model.ActDecide, model.ActDrop, model.ActPark},
@@ -270,7 +270,7 @@ func (m *Mull) accept(s *state, refs []string, followUp string, o SettleOpts) (A
 			return out, errf(CodeInvalid, "follow-up applies when accepting exactly one reviewed item")
 		}
 		src := s.items[out.Items[0].ID]
-		i, err := m.addItem(s, NewItem{Plan: src.Plan, Epic: src.Epic, Title: followUp,
+		i, err := m.addItem(s, NewItem{Plan: src.Plan, Phase: src.Phase, Title: followUp,
 			Notes: fmt.Sprintf("Follow-up from the review of %s.", src.ID)})
 		if err != nil {
 			return out, err
@@ -316,24 +316,24 @@ func (m *Mull) decide(s *state, id, decision string, o SettleOpts) (*model.Entry
 	return e, m.settle(s, e, model.ActDecide, decision, "", o)
 }
 
-// DoResult reports what do did: the settled entry and the item or epic it
+// DoResult reports what do did: the settled entry and the item or phase it
 // became (or, for a review, the reopened item).
 type DoResult struct {
 	Entry *model.Entry `json:"entry"`
 	Item  *ItemView    `json:"item,omitempty"`
-	Epic  *EpicView    `json:"epic,omitempty"`
+	Phase *PhaseView   `json:"phase,omitempty"`
 }
 
 // DoInput says what to do with a question, loose end, idea or review.
 type DoInput struct {
-	ID, Plan, Epic, Reason string
-	// As is "item" (the default) or "epic": what the entry becomes.
+	ID, Plan, Phase, Reason string
+	// As is "item" (the default) or "phase": what the entry becomes.
 	As string
 	SettleOpts
 }
 
-// Do turns a question, loose end or idea into an item (or an epic, with As
-// "epic"), linked back to it; or sends reviewed work back (the item reopens
+// Do turns a question, loose end or idea into an item (or a phase, with As
+// "phase"), linked back to it; or sends reviewed work back (the item reopens
 // for another session, with the reason added to its notes). Only the human
 // promotes ideas: an agent must have been asked, and say so with OnRequest.
 func (m *Mull) Do(in DoInput) (DoResult, error) {
@@ -355,12 +355,12 @@ func (m *Mull) do(s *state, in DoInput) (DoResult, error) {
 	if as == "" {
 		as = "item"
 	}
-	if as != "item" && as != "epic" {
-		return DoResult{}, errf(CodeInvalid, "--as must be item or epic, not %q", as)
+	if as != "item" && as != "phase" {
+		return DoResult{}, errf(CodeInvalid, "--as must be item or phase, not %q", as)
 	}
 	if e.Kind == model.KindReview {
 		if as != "item" {
-			return DoResult{}, errf(CodeInvalid, "a review sends its item back; it can't become an epic")
+			return DoResult{}, errf(CodeInvalid, "a review sends its item back; it can't become a phase")
 		}
 		i, err := s.item(e.Item)
 		if err != nil {
@@ -393,11 +393,11 @@ func (m *Mull) do(s *state, in DoInput) (DoResult, error) {
 		return DoResult{}, errf(CodeSettled, "inbox entry %s is already settled (%s)", e.ID, e.Settled.Action)
 	}
 	plan := in.Plan
-	if plan == "" && in.Epic == "" {
+	if plan == "" && in.Phase == "" {
 		plan = e.Plan
 	}
-	if plan == "" && in.Epic == "" {
-		return DoResult{}, errf(CodeScope, "%s %s has no plan: give --plan (or --epic)", e.Kind, e.ID)
+	if plan == "" && in.Phase == "" {
+		return DoResult{}, errf(CodeScope, "%s %s has no plan: give --plan (or --phase)", e.Kind, e.ID)
 	}
 	notes := fmt.Sprintf("From inbox %s (%s).", e.ID, e.Kind)
 	if e.Detail != "" {
@@ -406,21 +406,21 @@ func (m *Mull) do(s *state, in DoInput) (DoResult, error) {
 	if e.Source != "" {
 		notes = joinNotes(notes, "Source: "+e.Source)
 	}
-	if as == "epic" {
-		if in.Epic != "" {
-			return DoResult{}, errf(CodeInvalid, "an epic can't go inside an epic: drop --epic")
+	if as == "phase" {
+		if in.Phase != "" {
+			return DoResult{}, errf(CodeInvalid, "a phase can't go inside a phase: drop --phase")
 		}
-		ep, err := m.epicAdd(s, plan, e.Text, notes, nil, e.ID)
+		ep, err := m.phaseAdd(s, plan, e.Text, notes, nil, e.ID)
 		if err != nil {
 			return DoResult{}, err
 		}
 		if err := m.settleDo(s, e, in, "", ep.ID); err != nil {
 			return DoResult{}, err
 		}
-		v := s.epicView(ep)
-		return DoResult{Entry: e, Epic: &v}, nil
+		v := s.phaseView(ep)
+		return DoResult{Entry: e, Phase: &v}, nil
 	}
-	i, err := m.addItem(s, NewItem{Plan: plan, Epic: in.Epic, Title: e.Text, Notes: notes, From: e.ID})
+	i, err := m.addItem(s, NewItem{Plan: plan, Phase: in.Phase, Title: e.Text, Notes: notes, From: e.ID})
 	if err != nil {
 		return DoResult{}, err
 	}
@@ -431,11 +431,11 @@ func (m *Mull) do(s *state, in DoInput) (DoResult, error) {
 	return DoResult{Entry: e, Item: &v}, nil
 }
 
-func (m *Mull) settleDo(s *state, e *model.Entry, in DoInput, item, epic string) error {
+func (m *Mull) settleDo(s *state, e *model.Entry, in DoInput, item, phase string) error {
 	if err := m.settle(s, e, model.ActDo, in.Reason, item, in.SettleOpts); err != nil {
 		return err
 	}
-	e.Settled.Epic = epic
+	e.Settled.Phase = phase
 	return s.putEntry(e)
 }
 

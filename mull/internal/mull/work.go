@@ -39,12 +39,12 @@ func (m *Mull) planNew(s *state, slug, title, summary string) (*model.Plan, erro
 	return p, s.putPlan(p)
 }
 
-// PlanView is a plan with its epics, items and progress.
+// PlanView is a plan with its phases, items and progress.
 type PlanView struct {
 	model.Plan
-	Progress Progress   `json:"progress"`
-	Epics    []EpicView `json:"epics"`
-	Items    []ItemView `json:"items"`
+	Progress Progress    `json:"progress"`
+	Phases   []PhaseView `json:"phases"`
+	Items    []ItemView  `json:"items"`
 }
 
 // PlanSummary is a plan with its progress, as listed by plan list.
@@ -54,7 +54,7 @@ type PlanSummary struct {
 }
 
 func (s *state) planView(p *model.Plan) PlanView {
-	v := PlanView{Plan: *p, Epics: []EpicView{}, Items: []ItemView{}}
+	v := PlanView{Plan: *p, Phases: []PhaseView{}, Items: []ItemView{}}
 	var items []*model.Item
 	for _, id := range sortedKeys(s.items) {
 		if i := s.items[id]; i.Plan == p.Slug {
@@ -63,9 +63,9 @@ func (s *state) planView(p *model.Plan) PlanView {
 		}
 	}
 	v.Progress = s.progress(items)
-	for _, id := range sortedKeys(s.epics) {
-		if e := s.epics[id]; e.Plan == p.Slug {
-			v.Epics = append(v.Epics, s.epicView(e))
+	for _, id := range sortedKeys(s.phases) {
+		if e := s.phases[id]; e.Plan == p.Slug {
+			v.Phases = append(v.Phases, s.phaseView(e))
 		}
 	}
 	return v
@@ -121,25 +121,25 @@ func (m *Mull) planClose(s *state, slug string) (*model.Plan, error) {
 	return p, s.putPlan(p)
 }
 
-// ---- Epics ----
+// ---- Phases ----
 
-// EpicAdd creates an epic in a plan.
-func (m *Mull) EpicAdd(plan, title, summary string, needs []string) (*model.Epic, error) {
-	var out *model.Epic
-	err := m.update("epic add: "+title, func(s *state) error {
+// PhaseAdd creates a phase in a plan.
+func (m *Mull) PhaseAdd(plan, title, summary string, needs []string) (*model.Phase, error) {
+	var out *model.Phase
+	err := m.update("phase add: "+title, func(s *state) error {
 		var err error
-		out, err = m.epicAdd(s, plan, title, summary, needs, "")
+		out, err = m.phaseAdd(s, plan, title, summary, needs, "")
 		return err
 	})
 	return out, err
 }
 
-func (m *Mull) epicAdd(s *state, plan, title, summary string, needs []string, from string) (*model.Epic, error) {
+func (m *Mull) phaseAdd(s *state, plan, title, summary string, needs []string, from string) (*model.Phase, error) {
 	if title == "" {
-		return nil, errf(CodeInvalid, "an epic needs a title")
+		return nil, errf(CodeInvalid, "a phase needs a title")
 	}
 	if plan == "" {
-		return nil, errf(CodeInvalid, "an epic needs a plan")
+		return nil, errf(CodeInvalid, "a phase needs a plan")
 	}
 	if _, err := s.activePlan(plan); err != nil {
 		return nil, err
@@ -153,31 +153,31 @@ func (m *Mull) epicAdd(s *state, plan, title, summary string, needs []string, fr
 		return nil, err
 	}
 	now := m.now()
-	e := &model.Epic{ID: id, Plan: plan, Title: title, Needs: needs, From: from, Created: now, Updated: now, Summary: summary}
-	if err := s.putEpic(e); err != nil {
+	e := &model.Phase{ID: id, Plan: plan, Title: title, Needs: needs, From: from, Created: now, Updated: now, Summary: summary}
+	if err := s.putPhase(e); err != nil {
 		return nil, err
 	}
 	return e, s.checkCycles()
 }
 
-// EpicDetail is an epic with its items.
-type EpicDetail struct {
-	EpicView
+// PhaseDetail is a phase with its items.
+type PhaseDetail struct {
+	PhaseView
 	Items []ItemView `json:"items"`
 }
 
-// EpicList returns the epics of a plan, or of every plan when plan is "".
-func (m *Mull) EpicList(plan string) ([]EpicView, error) {
-	out := []EpicView{}
+// PhaseList returns the phases of a plan, or of every plan when plan is "".
+func (m *Mull) PhaseList(plan string) ([]PhaseView, error) {
+	out := []PhaseView{}
 	err := m.view(func(s *state) error {
 		if plan != "" {
 			if _, err := s.plan(plan); err != nil {
 				return err
 			}
 		}
-		for _, id := range sortedKeys(s.epics) {
-			if e := s.epics[id]; plan == "" || e.Plan == plan {
-				out = append(out, s.epicView(e))
+		for _, id := range sortedKeys(s.phases) {
+			if e := s.phases[id]; plan == "" || e.Plan == plan {
+				out = append(out, s.phaseView(e))
 			}
 		}
 		return nil
@@ -188,11 +188,11 @@ func (m *Mull) EpicList(plan string) ([]EpicView, error) {
 // ---- Items ----
 
 // NewItem holds the fields for creating an item. Plan may be left empty
-// when Epic is given: the epic's plan is used.
+// when Phase is given: the phase's plan is used.
 type NewItem struct {
-	Plan, Epic, Title, Notes string
-	Needs, Docs              []string
-	From                     string // the inbox entry it was made from
+	Plan, Phase, Title, Notes string
+	Needs, Docs               []string
+	From                      string // the inbox entry it was made from
 }
 
 // ItemAdd creates an item.
@@ -209,21 +209,21 @@ func (m *Mull) ItemAdd(in NewItem) (ItemView, error) {
 	return out, err
 }
 
-// resolvePlan works out an item's plan from plan and epic: the epic implies
+// resolvePlan works out an item's plan from plan and phase: the phase implies
 // its plan, and the two must agree when both are given.
-func (s *state) resolvePlan(plan, epic string) (string, error) {
-	if epic != "" {
-		e, err := s.epic(epic)
+func (s *state) resolvePlan(plan, phase string) (string, error) {
+	if phase != "" {
+		e, err := s.phase(phase)
 		if err != nil {
 			return "", err
 		}
 		if plan != "" && plan != e.Plan {
-			return "", errf(CodeInvalid, "epic %s belongs to plan %q, not %q", e.ID, e.Plan, plan)
+			return "", errf(CodeInvalid, "phase %s belongs to plan %q, not %q", e.ID, e.Plan, plan)
 		}
 		return e.Plan, nil
 	}
 	if plan == "" {
-		return "", errf(CodeScope, "say which plan the item belongs to: give --plan or --epic")
+		return "", errf(CodeScope, "say which plan the item belongs to: give --plan or --phase")
 	}
 	return plan, nil
 }
@@ -232,7 +232,7 @@ func (m *Mull) addItem(s *state, in NewItem) (*model.Item, error) {
 	if in.Title == "" {
 		return nil, errf(CodeInvalid, "an item needs a title")
 	}
-	plan, err := s.resolvePlan(in.Plan, in.Epic)
+	plan, err := s.resolvePlan(in.Plan, in.Phase)
 	if err != nil {
 		return nil, err
 	}
@@ -249,7 +249,7 @@ func (m *Mull) addItem(s *state, in NewItem) (*model.Item, error) {
 	}
 	now := m.now()
 	i := &model.Item{
-		ID: id, Plan: plan, Epic: in.Epic, Title: in.Title, State: model.StateOpen,
+		ID: id, Plan: plan, Phase: in.Phase, Title: in.Title, State: model.StateOpen,
 		Needs: needs, Docs: dedupe(in.Docs), From: in.From, Created: now, Updated: now, Notes: in.Notes,
 	}
 	if err := s.putItem(i); err != nil {
@@ -260,8 +260,8 @@ func (m *Mull) addItem(s *state, in NewItem) (*model.Item, error) {
 
 // ItemFilter selects items; empty fields match everything.
 type ItemFilter struct {
-	Plan, Epic, State string
-	ReadyOnly         bool
+	Plan, Phase, State string
+	ReadyOnly          bool
 }
 
 // ItemList returns items matching f.
@@ -275,7 +275,7 @@ func (m *Mull) ItemList(f ItemFilter) ([]ItemView, error) {
 		}
 		for _, id := range sortedKeys(s.items) {
 			i := s.items[id]
-			if (f.Plan != "" && i.Plan != f.Plan) || (f.Epic != "" && i.Epic != f.Epic) || (f.State != "" && i.State != f.State) {
+			if (f.Plan != "" && i.Plan != f.Plan) || (f.Phase != "" && i.Phase != f.Phase) || (f.State != "" && i.State != f.State) {
 				continue
 			}
 			v := s.itemView(i)
@@ -291,14 +291,14 @@ func (m *Mull) ItemList(f ItemFilter) ([]ItemView, error) {
 
 // Shown is any record returned by show, tagged with its type.
 type Shown struct {
-	Type  string       `json:"type"` // plan, epic, item, entry
+	Type  string       `json:"type"` // plan, phase, item, entry
 	Plan  *PlanView    `json:"plan,omitempty"`
-	Epic  *EpicDetail  `json:"epic,omitempty"`
+	Phase *PhaseDetail `json:"phase,omitempty"`
 	Item  *ItemView    `json:"item,omitempty"`
 	Entry *model.Entry `json:"entry,omitempty"`
 }
 
-// Show returns the plan, epic, item or inbox entry named by ref.
+// Show returns the plan, phase, item or inbox entry named by ref.
 func (m *Mull) Show(ref string) (Shown, error) {
 	var out Shown
 	err := m.view(func(s *state) error {
@@ -306,13 +306,13 @@ func (m *Mull) Show(ref string) (Shown, error) {
 		case s.plans[ref] != nil:
 			v := s.planView(s.plans[ref])
 			out = Shown{Type: "plan", Plan: &v}
-		case s.epics[ref] != nil:
-			e := s.epics[ref]
-			d := EpicDetail{EpicView: s.epicView(e), Items: []ItemView{}}
-			for _, i := range s.epicItems(e.ID) {
+		case s.phases[ref] != nil:
+			e := s.phases[ref]
+			d := PhaseDetail{PhaseView: s.phaseView(e), Items: []ItemView{}}
+			for _, i := range s.phaseItems(e.ID) {
 				d.Items = append(d.Items, s.itemView(i))
 			}
-			out = Shown{Type: "epic", Epic: &d}
+			out = Shown{Type: "phase", Phase: &d}
 		case s.items[ref] != nil:
 			v := s.itemView(s.items[ref])
 			out = Shown{Type: "item", Item: &v}
@@ -328,17 +328,17 @@ func (m *Mull) Show(ref string) (Shown, error) {
 
 // SetResult is the record set changed, tagged with its type.
 type SetResult struct {
-	Type string      `json:"type"` // plan, epic, item
-	Plan *model.Plan `json:"plan,omitempty"`
-	Epic *EpicView   `json:"epic,omitempty"`
-	Item *ItemView   `json:"item,omitempty"`
+	Type  string      `json:"type"` // plan, phase, item
+	Plan  *model.Plan `json:"plan,omitempty"`
+	Phase *PhaseView  `json:"phase,omitempty"`
+	Item  *ItemView   `json:"item,omitempty"`
 }
 
-// Set changes one field of a plan, epic or item.
+// Set changes one field of a plan, phase or item.
 //
 //	plan: title, summary
-//	epic: title, summary
-//	item: title, notes, epic ("" to unfile), doc (adds a path)
+//	phase: title, summary
+//	item: title, notes, phase ("" to unfile), doc (adds a path)
 func (m *Mull) Set(ref, field, value string) (SetResult, error) {
 	var out SetResult
 	err := m.update(fmt.Sprintf("set %s %s", ref, field), func(s *state) error {
@@ -364,22 +364,22 @@ func (m *Mull) set(s *state, ref, field, value string) (SetResult, error) {
 		}
 		p.Updated = now
 		return SetResult{Type: "plan", Plan: p}, s.putPlan(p)
-	case s.epics[ref] != nil:
-		e := s.epics[ref]
+	case s.phases[ref] != nil:
+		e := s.phases[ref]
 		switch field {
 		case "title":
 			e.Title = value
 		case "summary":
 			e.Summary = value
 		default:
-			return SetResult{}, errf(CodeInvalid, "an epic's settable fields are title and summary")
+			return SetResult{}, errf(CodeInvalid, "a phase's settable fields are title and summary")
 		}
 		e.Updated = now
-		if err := s.putEpic(e); err != nil {
+		if err := s.putPhase(e); err != nil {
 			return SetResult{}, err
 		}
-		v := s.epicView(e)
-		return SetResult{Type: "epic", Epic: &v}, nil
+		v := s.phaseView(e)
+		return SetResult{Type: "phase", Phase: &v}, nil
 	case s.items[ref] != nil:
 		i := s.items[ref]
 		switch field {
@@ -389,19 +389,19 @@ func (m *Mull) set(s *state, ref, field, value string) (SetResult, error) {
 			i.Notes = value
 		case "doc":
 			i.Docs = dedupe(append(i.Docs, value))
-		case "epic":
+		case "phase":
 			if value != "" {
-				e, err := s.epic(value)
+				e, err := s.phase(value)
 				if err != nil {
 					return SetResult{}, err
 				}
 				if e.Plan != i.Plan {
-					return SetResult{}, errf(CodeInvalid, "epic %s belongs to plan %q, not %q", e.ID, e.Plan, i.Plan)
+					return SetResult{}, errf(CodeInvalid, "phase %s belongs to plan %q, not %q", e.ID, e.Plan, i.Plan)
 				}
 			}
-			i.Epic = value
+			i.Phase = value
 		default:
-			return SetResult{}, errf(CodeInvalid, "an item's settable fields are title, notes, epic and doc")
+			return SetResult{}, errf(CodeInvalid, "an item's settable fields are title, notes, phase and doc")
 		}
 		i.Updated = now
 		if err := s.putItem(i); err != nil {
@@ -413,19 +413,19 @@ func (m *Mull) set(s *state, ref, field, value string) (SetResult, error) {
 		v := s.itemView(i)
 		return SetResult{Type: "item", Item: &v}, nil
 	}
-	return SetResult{}, errf(CodeNotFound, "no plan, epic or item %q", ref)
+	return SetResult{}, errf(CodeNotFound, "no plan, phase or item %q", ref)
 }
 
 // ---- Dependencies ----
 
-// NeedResult is the item or epic whose needs changed, tagged with its type.
+// NeedResult is the item or phase whose needs changed, tagged with its type.
 type NeedResult struct {
-	Type string    `json:"type"` // item, epic
-	Epic *EpicView `json:"epic,omitempty"`
-	Item *ItemView `json:"item,omitempty"`
+	Type  string     `json:"type"` // item, phase
+	Phase *PhaseView `json:"phase,omitempty"`
+	Item  *ItemView  `json:"item,omitempty"`
 }
 
-// Need records that ref (an item or epic) needs the targets.
+// Need records that ref (an item or phase) needs the targets.
 func (m *Mull) Need(ref string, targets []string) (NeedResult, error) {
 	return m.changeNeedsTx(ref, targets, true)
 }
@@ -452,7 +452,7 @@ func (m *Mull) changeNeedsTx(ref string, targets []string, add bool) (NeedResult
 func (m *Mull) changeNeeds(s *state, ref string, targets []string, add bool) (NeedResult, error) {
 	targets = dedupe(targets)
 	if len(targets) == 0 {
-		return NeedResult{}, errf(CodeInvalid, "give at least one item or epic it needs")
+		return NeedResult{}, errf(CodeInvalid, "give at least one item or phase it needs")
 	}
 	apply := func(needs []string) ([]string, error) {
 		if add {
@@ -481,23 +481,23 @@ func (m *Mull) changeNeeds(s *state, ref string, targets []string, add bool) (Ne
 		}
 		v := s.itemView(i)
 		out = NeedResult{Type: "item", Item: &v}
-	case s.epics[ref] != nil:
-		e := s.epics[ref]
+	case s.phases[ref] != nil:
+		e := s.phases[ref]
 		needs, err := apply(e.Needs)
 		if err != nil {
 			return out, err
 		}
 		e.Needs, e.Updated = needs, now
-		if err := s.putEpic(e); err != nil {
+		if err := s.putPhase(e); err != nil {
 			return out, err
 		}
 		if err := s.checkCycles(); err != nil {
 			return out, err
 		}
-		v := s.epicView(e)
-		out = NeedResult{Type: "epic", Epic: &v}
+		v := s.phaseView(e)
+		out = NeedResult{Type: "phase", Phase: &v}
 	default:
-		return out, errf(CodeNotFound, "no item or epic %q", ref)
+		return out, errf(CodeNotFound, "no item or phase %q", ref)
 	}
 	return out, nil
 }

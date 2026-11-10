@@ -8,24 +8,24 @@ import (
 
 // A need is satisfied when its target is finished. Unreviewed work is
 // incomplete work, so an item counts only once accepted (or dropped), and an
-// epic only once every item in it does.
+// phase only once every item in it does.
 
 func finished(i *model.Item) bool {
 	return i.State == model.StateAccepted || i.State == model.StateDropped
 }
 
-func (s *state) epicItems(epicID string) []*model.Item {
+func (s *state) phaseItems(phaseID string) []*model.Item {
 	var out []*model.Item
 	for _, id := range sortedKeys(s.items) {
-		if s.items[id].Epic == epicID {
+		if s.items[id].Phase == phaseID {
 			out = append(out, s.items[id])
 		}
 	}
 	return out
 }
 
-func (s *state) epicComplete(epicID string) bool {
-	items := s.epicItems(epicID)
+func (s *state) phaseComplete(phaseID string) bool {
+	items := s.phaseItems(phaseID)
 	if len(items) == 0 {
 		return false
 	}
@@ -41,16 +41,16 @@ func (s *state) satisfied(id string) bool {
 	if i := s.items[id]; i != nil {
 		return finished(i)
 	}
-	if s.epics[id] != nil {
-		return s.epicComplete(id)
+	if s.phases[id] != nil {
+		return s.phaseComplete(id)
 	}
 	return true // a missing target cannot block; doctor-style checks can flag it later
 }
 
-// requirements are what an item waits for: its own needs plus its epic's.
+// requirements are what an item waits for: its own needs plus its phase's.
 func (s *state) requirements(i *model.Item) []string {
 	reqs := append([]string{}, i.Needs...)
-	if e := s.epics[i.Epic]; e != nil {
+	if e := s.phases[i.Phase]; e != nil {
 		reqs = append(reqs, e.Needs...)
 	}
 	return dedupe(reqs)
@@ -82,7 +82,7 @@ func (s *state) itemView(i *model.Item) ItemView {
 	return v
 }
 
-// Progress counts an epic's or plan's items by state.
+// Progress counts a phase's or plan's items by state.
 type Progress struct {
 	Total    int `json:"total"`
 	Open     int `json:"open"`
@@ -116,19 +116,19 @@ func (s *state) progress(items []*model.Item) Progress {
 	return p
 }
 
-// EpicView is an epic with its derived progress.
-type EpicView struct {
-	model.Epic
+// PhaseView is a phase with its derived progress.
+type PhaseView struct {
+	model.Phase
 	Progress  Progress `json:"progress"`
 	Complete  bool     `json:"complete"`
 	BlockedBy []string `json:"blocked_by,omitempty"`
 }
 
-func (s *state) epicView(e *model.Epic) EpicView {
-	return EpicView{
-		Epic:      *e,
-		Progress:  s.progress(s.epicItems(e.ID)),
-		Complete:  s.epicComplete(e.ID),
+func (s *state) phaseView(e *model.Phase) PhaseView {
+	return PhaseView{
+		Phase:     *e,
+		Progress:  s.progress(s.phaseItems(e.ID)),
+		Complete:  s.phaseComplete(e.ID),
 		BlockedBy: s.blockedBy(e.Needs),
 	}
 }
@@ -139,24 +139,24 @@ func (s *state) checkNeedTargets(self string, targets []string) error {
 		if t == self {
 			return errf(CodeInvalid, "%s cannot need itself", self)
 		}
-		if s.items[t] == nil && s.epics[t] == nil {
-			return errf(CodeNotFound, "no item or epic %q", t)
+		if s.items[t] == nil && s.phases[t] == nil {
+			return errf(CodeNotFound, "no item or phase %q", t)
 		}
 	}
 	return nil
 }
 
 // checkCycles refuses a dependency graph with a cycle. Edges point from a
-// record to what it waits for: an item waits for its needs and its epic's
-// needs; an epic waits for its needs and for its own items.
+// record to what it waits for: an item waits for its needs and its phase's
+// needs; a phase waits for its needs and for its own items.
 func (s *state) checkCycles() error {
 	edges := map[string][]string{}
 	for id, i := range s.items {
 		edges[id] = s.requirements(i)
 	}
-	for id, e := range s.epics {
+	for id, e := range s.phases {
 		deps := append([]string{}, e.Needs...)
-		for _, i := range s.epicItems(id) {
+		for _, i := range s.phaseItems(id) {
 			deps = append(deps, i.ID)
 		}
 		edges[id] = deps

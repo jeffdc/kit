@@ -28,9 +28,9 @@ func flightByItem(b PlanBoard) map[string]FlightLine {
 func TestBoardFromGit(t *testing.T) {
 	m, dir := setup(t)
 	must[*model.Plan](t)(m.PlanNew("launch", "Public launch", ""))
-	epic := must[*model.Epic](t)(m.EpicAdd("launch", "Billing", "", nil))
+	phase := must[*model.Phase](t)(m.PhaseAdd("launch", "Billing", "", nil))
 	add := func(title string) ItemView {
-		return must[ItemView](t)(m.ItemAdd(NewItem{Plan: "launch", Epic: epic.ID, Title: title}))
+		return must[ItemView](t)(m.ItemAdd(NewItem{Plan: "launch", Phase: phase.ID, Title: title}))
 	}
 	a, b, c, d, e, f := add("A unmerged"), add("B trailer"), add("C merged"), add("D done no git"), add("E idle"), add("F unclaimed")
 
@@ -112,7 +112,7 @@ func TestBoardFromGit(t *testing.T) {
 		t.Errorf("needs you = %+v", board.NeedsYou)
 	}
 	text := v.Text(later)
-	for _, s := range []string{"LAUNCH", "EPICS", "PROBLEMS (4)", "IN FLIGHT", "NEEDS YOU  2 reviews", "UNLINKED  2 commits"} {
+	for _, s := range []string{"LAUNCH", "PHASES", "PROBLEMS (4)", "IN FLIGHT", "NEEDS YOU  2 reviews", "UNLINKED  2 commits"} {
 		if !strings.Contains(text, s) {
 			t.Errorf("view text lacks %q:\n%s", s, text)
 		}

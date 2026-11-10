@@ -107,7 +107,7 @@ func TestNotInitialized(t *testing.T) {
 	}
 }
 
-func TestPlansEpicsItems(t *testing.T) {
+func TestPlansPhasesItems(t *testing.T) {
 	m, _ := setup(t)
 	_, err := m.PlanNew("Bad Slug", "x", "")
 	wantErr(t, err, "invalid plan slug")
@@ -117,18 +117,18 @@ func TestPlansEpicsItems(t *testing.T) {
 	_, err = m.PlanNew("taxogall", "again", "")
 	wantErr(t, err, "already exists")
 
-	epic := must[*model.Epic](t)(m.EpicAdd("taxogall", "Phase 2", "", nil))
-	it := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "taxogall", Epic: epic.ID, Title: "Tree edits become Facts"}))
+	phase := must[*model.Phase](t)(m.PhaseAdd("taxogall", "Phase 2", "", nil))
+	it := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "taxogall", Phase: phase.ID, Title: "Tree edits become Facts"}))
 	if it.State != model.StateOpen || !it.Ready {
 		t.Fatalf("new item = %+v", it)
 	}
-	_, err = m.ItemAdd(NewItem{Plan: "general", Epic: epic.ID, Title: "wrong plan"})
+	_, err = m.ItemAdd(NewItem{Plan: "general", Phase: phase.ID, Title: "wrong plan"})
 	wantErr(t, err, "belongs to plan")
 	_, err = m.ItemAdd(NewItem{Plan: "nope", Title: "x"})
 	wantErr(t, err, `no plan "nope"`)
 
 	pv := must[PlanView](t)(m.PlanShow("taxogall"))
-	if len(pv.Epics) != 1 || len(pv.Items) != 1 || pv.Progress.Total != 1 || pv.Epics[0].Progress.Ready != 1 {
+	if len(pv.Phases) != 1 || len(pv.Items) != 1 || pv.Progress.Total != 1 || pv.Phases[0].Progress.Ready != 1 {
 		t.Fatalf("plan view = %+v", pv)
 	}
 
@@ -167,24 +167,24 @@ func TestReadinessAndUnreviewedIsIncomplete(t *testing.T) {
 	}
 }
 
-func TestEpicNeeds(t *testing.T) {
+func TestPhaseNeeds(t *testing.T) {
 	m, _ := setup(t)
-	p1 := must[*model.Epic](t)(m.EpicAdd("general", "Phase 1", "", nil))
-	p2 := must[*model.Epic](t)(m.EpicAdd("general", "Phase 2", "", []string{p1.ID}))
-	x := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "general", Epic: p1.ID, Title: "x"}))
-	y := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "general", Epic: p2.ID, Title: "y"}))
+	p1 := must[*model.Phase](t)(m.PhaseAdd("general", "Phase 1", "", nil))
+	p2 := must[*model.Phase](t)(m.PhaseAdd("general", "Phase 2", "", []string{p1.ID}))
+	x := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "general", Phase: p1.ID, Title: "x"}))
+	y := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "general", Phase: p2.ID, Title: "y"}))
 	if y.Ready {
-		t.Fatal("an item in a blocked epic should not be ready")
+		t.Fatal("an item in a blocked phase should not be ready")
 	}
 	must[DropResult](t)(m.Drop([]string{x.ID}, "not needed", SettleOpts{}))
 	if !item(t, m, y.ID).Ready {
-		t.Fatal("epic 1 complete (all dropped) should unblock epic 2's items")
+		t.Fatal("phase 1 complete (all dropped) should unblock phase 2's items")
 	}
-	// An empty epic is never complete.
-	empty := must[*model.Epic](t)(m.EpicAdd("general", "Empty", "", nil))
+	// An empty phase is never complete.
+	empty := must[*model.Phase](t)(m.PhaseAdd("general", "Empty", "", nil))
 	z := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "general", Title: "z", Needs: []string{empty.ID}}))
 	if z.Ready {
-		t.Fatal("needing an empty epic should block")
+		t.Fatal("needing an empty phase should block")
 	}
 }
 
@@ -196,9 +196,9 @@ func TestCyclesRefused(t *testing.T) {
 	wantErr(t, err, "dependency cycle")
 	_, err = m.Need(a.ID, []string{a.ID})
 	wantErr(t, err, "cannot need itself")
-	// An item that needs its own epic is a cycle too.
-	e := must[*model.Epic](t)(m.EpicAdd("general", "E", "", nil))
-	c := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "general", Epic: e.ID, Title: "C"}))
+	// An item that needs its own phase is a cycle too.
+	e := must[*model.Phase](t)(m.PhaseAdd("general", "E", "", nil))
+	c := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "general", Phase: e.ID, Title: "C"}))
 	_, err = m.Need(c.ID, []string{e.ID})
 	wantErr(t, err, "dependency cycle")
 	// A refused change writes nothing.
@@ -230,7 +230,7 @@ func TestClaimsAcrossWorktrees(t *testing.T) {
 	must[StartResult](t)(m.Start(a.ID))
 
 	_, err = m.ItemAdd(NewItem{Plan: "general", Title: "B", Needs: []string{"ffff"}})
-	wantErr(t, err, `no item or epic "ffff"`)
+	wantErr(t, err, `no item or phase "ffff"`)
 }
 
 func TestStartRaceOneWinner(t *testing.T) {

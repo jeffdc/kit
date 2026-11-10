@@ -1,0 +1,1237 @@
+<title>mull serve</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Red+Hat+Mono:wght@400;500;600&display=swap">
+<style>
+/* An issued drawing set: sheet-index rail on the left, a title block on every sheet, schedules for lists, revision clouds for what changed. */
+:root {
+  --ground: #FFFFFF;
+  --panel: #EEF2F6;
+  --ink: #121417;
+  --mut: #565F6B;
+  --faint: #69717C;
+  --line: #8DB0D6;      /* construction lines: minor rules, guides */
+  --red: #D2232A;       /* revision only: clouds and deltas */
+  --sel: #DCE6F1;
+  --blue: #2E58C2;      /* blueline ink: now, active, selected */
+  --blue-soft: #E3EBFA;
+  --green: #2B7A48;     /* checker's green: done, accepted, passed */
+  --hl: #FFE14D;        /* highlighter: blocking, needs you first */
+  --hl-ink: #121417;
+  --rail: #EEF3FB;      /* blueline paper: the sheet index */
+  --rail-sel: #DDE7F8;
+  --font: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --mono: "Red Hat Mono", ui-monospace, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #101215; --panel: #181C21; --ink: #E6E9ED; --mut: #A2ABB6; --faint: #828B97;
+    --line: #34506F; --red: #FF5D5D; --sel: #1F2A37; color-scheme: dark;
+    --blue: #86A8F5; --blue-soft: #1B2740; --green: #6CC48B; --hl: #F0CF45; --hl-ink: #101215; --rail: #131A25; --rail-sel: #1E2B42;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #101215; --panel: #181C21; --ink: #E6E9ED; --mut: #A2ABB6; --faint: #828B97;
+  --line: #34506F; --red: #FF5D5D; --sel: #1F2A37; color-scheme: dark;
+    --blue: #86A8F5; --blue-soft: #1B2740; --green: #6CC48B; --hl: #F0CF45; --hl-ink: #101215; --rail: #131A25; --rail-sel: #1E2B42;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--ground); color: var(--ink); font: 400 13.5px/1.45 var(--font); scrollbar-color: var(--line) transparent; }
+::selection { background: var(--sel); color: var(--ink); }
+a { color: inherit; text-decoration: none; }
+a:hover { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+button { font: inherit; color: inherit; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+code, .mono { font-family: var(--mono); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.lab { font-size: 11px; font-weight: 650; font-stretch: 75%; letter-spacing: .12em; text-transform: uppercase; color: var(--mut); }
+.mut { color: var(--mut); } .faint { color: var(--faint); }
+svg.ic { width: 10px; height: 10px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.6; }
+
+/* shell */
+.app { display: grid; grid-template-columns: 312px minmax(0, 1fr); min-height: 100%; }
+.rail { background: var(--rail); border-right: 1.5px solid var(--ink); position: sticky; top: env(safe-area-inset-top, 0px); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+.brand { height: 56px; flex: none; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 12px; padding: 0 16px; }
+.brand .live { margin-left: auto; }
+.brand b { font-size: 22px; font-weight: 800; font-stretch: 112%; letter-spacing: -.01em; }
+.live { display: inline-flex; align-items: center; gap: 6px; }
+.live i { width: 7px; height: 7px; border-radius: 50%; background: var(--ink); animation: pulse 2.4s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .35; } }
+.tree { flex: 1; overflow-y: auto; padding: 6px 0 12px; }
+.node { display: flex; align-items: center; gap: 7px; height: 29px; padding: 0 12px 0 calc(10px + var(--d) * 14px); white-space: nowrap; position: relative; }
+.node .guides { position: absolute; inset: 0 auto 0 0; width: calc(10px + var(--d) * 14px); background: repeating-linear-gradient(90deg, transparent 0 15px, var(--line) 15px 16px, transparent 16px 28px) 4px 0 / calc(var(--d) * 14px) 100% no-repeat; pointer-events: none; }
+.node .tg { width: 16px; height: 16px; display: grid; place-items: center; border: 0; background: none; padding: 0; cursor: pointer; color: var(--mut); flex: none; }
+.node .tg svg { transition: transform .15s ease-out; }
+.node .tg[aria-expanded="true"] svg { transform: rotate(90deg); }
+.node .tg.leaf { visibility: hidden; }
+.node .x { overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
+.node .x code { font-size: 11px; margin-right: 6px; }
+.node em { font: 600 11px var(--font); font-stretch: 78%; letter-spacing: .03em; font-style: normal; color: var(--mut); flex: none; font-variant-numeric: tabular-nums; }
+.node.top .x { font-weight: 700; }
+.node.cur { background: var(--rail-sel); box-shadow: inset 3px 0 var(--blue); }
+.node.cur .x { color: var(--blue); }
+.node.cur .x { font-weight: 700; }
+.node.waits .x, .node.waits em { color: var(--faint); }
+.node:hover { background: var(--rail-sel); }
+.node a:hover { text-decoration: none; }
+.brand .idx-toggle { display: none; }
+.rail-foot { flex: none; border-top: 1px solid var(--line); padding: 12px 16px 14px; display: flex; flex-direction: column; gap: 10px; }
+.rail-foot p { margin: 4px 0 0; font: 400 11.5px/1.6 var(--mono); color: var(--faint); }
+.rail-foot .row2 { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* stamps, tags, deltas */
+.stamp { background: var(--hl); color: var(--hl-ink); box-shadow: 0 0 0 1px var(--hl-ink) inset; font-size: 11px; font-weight: 700; font-stretch: 72%; letter-spacing: .08em; text-transform: uppercase; padding: 2px 5px; line-height: 1.2; flex: none; white-space: nowrap; }
+.tag { display: inline-block; font-size: 11px; font-weight: 650; font-stretch: 72%; letter-spacing: .09em; text-transform: uppercase; border: 1px solid currentColor; padding: 1px 5px; line-height: 1.3; white-space: nowrap; flex: none; }
+.s-captured { border-style: dashed; color: var(--mut); }
+.s-committed { color: var(--mut); }
+.s-ready { color: var(--blue); }
+.s-active { background: var(--blue); color: var(--ground); border-color: var(--blue); }
+.s-review { border: 3px double var(--ink); padding: 0 4px; }
+.s-done { color: var(--green); border-color: currentColor; }
+.s-pass { background: var(--green); color: var(--ground); border-color: var(--green); }
+.s-dropped { color: var(--faint); text-decoration: line-through; }
+.s-waits { color: var(--faint); border-style: dotted; }
+.s-shaping { color: var(--mut); border-style: dashed; }
+.s-now { color: var(--blue); border-width: 1.5px; }
+.cl { position: relative; }
+.cl::before { content: ""; position: absolute; inset: -6px -10px; pointer-events: none; z-index: 1;
+  background:
+    radial-gradient(circle at 50% 100%, #0000 4.7px, var(--red) 5.1px 6.1px, #0000 6.5px) 0 0 / 12px 7px round no-repeat,
+    radial-gradient(circle at 50% 0, #0000 4.7px, var(--red) 5.1px 6.1px, #0000 6.5px) 0 100% / 12px 7px round no-repeat,
+    radial-gradient(circle at 100% 50%, #0000 4.7px, var(--red) 5.1px 6.1px, #0000 6.5px) 0 0 / 7px 12px no-repeat round,
+    radial-gradient(circle at 0 50%, #0000 4.7px, var(--red) 5.1px 6.1px, #0000 6.5px) 100% 0 / 7px 12px no-repeat round; }
+/* table rows: each cell draws its share of the cloud; the end cells close it */
+tr.cl::before { display: none; }
+tr.cl > td { position: relative; border-bottom-color: transparent; }
+tr.cl > td::after { content: ""; position: absolute; inset: 1px 0; pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 100%, #0000 4.7px, var(--red) 5.1px 6.1px, #0000 6.5px) 0 0 / 12px 7px repeat-x,
+    radial-gradient(circle at 50% 0, #0000 4.7px, var(--red) 5.1px 6.1px, #0000 6.5px) 0 100% / 12px 7px repeat-x; }
+tr.cl > td:first-child::after { background:
+    radial-gradient(circle at 50% 100%, #0000 4.7px, var(--red) 5.1px 6.1px, #0000 6.5px) 0 0 / 12px 7px repeat-x,
+    radial-gradient(circle at 50% 0, #0000 4.7px, var(--red) 5.1px 6.1px, #0000 6.5px) 0 100% / 12px 7px repeat-x,
+    radial-gradient(circle at 0 50%, #0000 4.7px, var(--red) 5.1px 6.1px, #0000 6.5px) 0 0 / 7px 12px repeat-y; }
+tr.cl > td:last-child::after { background:
+    radial-gradient(circle at 50% 100%, #0000 4.7px, var(--red) 5.1px 6.1px, #0000 6.5px) 0 0 / 12px 7px repeat-x,
+    radial-gradient(circle at 50% 0, #0000 4.7px, var(--red) 5.1px 6.1px, #0000 6.5px) 0 100% / 12px 7px repeat-x,
+    radial-gradient(circle at 100% 50%, #0000 4.7px, var(--red) 5.1px 6.1px, #0000 6.5px) 100% 0 / 7px 12px repeat-y; }
+tr.cl + tr > td { border-top: 0; }
+tr.cl.cl-cont > td::after { background-size: 12px 0, 12px 7px, 7px 12px; top: 0; }
+tr.cl.cl-open > td::after { background-size: 12px 7px, 12px 0, 7px 12px; bottom: 0; }
+tr.cl.cl-cont.cl-open > td::after { background-size: 12px 0, 12px 0, 7px 12px; }
+tr.cl > td:last-child { position: relative; }
+.cl.fading > td::after { transition: opacity .35s ease-out; opacity: 0; }
+.cl.fresh::before { animation: draw .7s cubic-bezier(.16, 1, .3, 1); }
+td > .prose .cl { position: relative; }
+.pj .cl { position: relative; display: inline; }
+.pj .cl::before { inset: -8px -12px; }
+.pj .cl .tree .tcl { position: relative; margin: 7px 0; }
+.tree .tcl::before { inset: -5px 3px; }
+.tree .tcl .pr.cl .cl.fading::before { transition: opacity .35s ease-out, clip-path .35s ease-out; opacity: 0; clip-path: inset(0 0 0 100%); }
+@keyframes draw { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+
+/* cell bars: one cell per item */
+.cells { display: inline-flex; border: 1px solid var(--ink); height: 9px; flex: none; vertical-align: middle; }
+.cells i { width: 8px; height: 100%; border-left: 1px solid var(--line); }
+.cells i:first-child { border-left: 0; }
+.cells i.d1 { background: var(--green); border-color: var(--green); }
+.cells i.r1 { background: repeating-linear-gradient(135deg, var(--ink) 0 1.5px, transparent 1.5px 3.5px); }
+.cells i.a1 { background: var(--blue-soft); box-shadow: inset 0 -3px var(--blue); }
+
+/* buttons */
+.btn { height: 28px; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; border: 1px solid var(--ink); background: var(--ground); color: var(--ink); font: 600 12px var(--font); cursor: pointer; white-space: nowrap; }
+.btn:hover { background: var(--panel); text-decoration: none; }
+.btn:active { transform: translateY(1px); }
+.btn.p { background: var(--ink); color: var(--ground); }
+.btn.p:hover { opacity: .88; }
+.btn.s { height: 24px; padding: 0 10px; font-size: 11.5px; }
+.btn[disabled] { opacity: .45; cursor: default; }
+
+/* main + title block */
+main { min-width: 0; display: flex; flex-direction: column; }
+.tb { display: grid; grid-template-columns: minmax(280px, 1.5fr) repeat(3, minmax(0, 1fr)); border-bottom: 1.5px solid var(--ink); }
+.tb > .f { padding: 9px 18px 10px; border-left: 1px solid var(--line); min-width: 0; }
+.tb > .f:nth-child(n+5) { border-top: 1px solid var(--line); }
+.tb.wide { grid-template-columns: minmax(380px, 3fr) repeat(3, minmax(0, 1fr)); }
+.tb .pj { grid-row: span 2; border-left: 0; padding: 12px clamp(16px, 2.4vw, 32px); display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 0; }
+.pj h1 { font-size: clamp(24px, 2.6vw, 34px); line-height: 1.05; font-weight: 800; font-stretch: 118%; letter-spacing: -.015em; }
+.pj h1.long { font-size: clamp(20px, 1.9vw, 25px); font-stretch: 112%; line-height: 1.15; }
+.pj h1.xlong { font-size: 18px; font-stretch: 100%; line-height: 1.3; letter-spacing: -.01em; }
+.pj .crumbs { font-size: 12px; color: var(--mut); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.pj .crumbs a { color: var(--mut); }
+.v { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 7px; margin-top: 3px; font-size: 14.5px; font-weight: 550; min-width: 0; }
+.v small { font-size: 12px; font-weight: 400; color: var(--mut); }
+.tabs { min-height: 44px; display: flex; align-items: stretch; flex-wrap: wrap; padding: 0 clamp(16px, 2.4vw, 32px); border-bottom: 1px solid var(--ink); gap: 4px 28px; }
+.tabs a { display: flex; align-items: center; gap: 7px; font-weight: 550; color: var(--mut); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tabs a:hover { color: var(--ink); text-decoration: none; }
+.tabs a.on { color: var(--ink); border-color: var(--ink); font-weight: 700; }
+.tabs a em { font: 600 11.5px var(--font); font-stretch: 80%; font-style: normal; font-variant-numeric: tabular-nums; }
+.tabs .acts { margin-left: auto; display: flex; align-items: center; gap: 8px; padding-block: 8px; }
+
+.page { padding: 22px clamp(16px, 2.4vw, 32px) 64px; display: flex; flex-direction: column; gap: 34px; }
+.cols { display: grid; grid-template-columns: minmax(0, 1fr) 384px; gap: 40px; align-items: start; }
+.hd { display: flex; align-items: baseline; justify-content: space-between; gap: 6px 12px; flex-wrap: wrap; padding-bottom: 8px; border-bottom: 1.5px solid var(--ink); }
+.hd h2 { font-size: 19px; font-weight: 750; font-stretch: 95%; letter-spacing: -.01em; }
+
+/* schedule rows (Needs you) */
+.sch { display: flex; flex-direction: column; }
+.tier { border-bottom: 1px solid var(--line); }
+.tier > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 34px 16px auto 1fr; align-items: center; gap: 8px; min-height: 32px; background: var(--panel); padding-right: 10px; }
+.tier > summary::-webkit-details-marker { display: none; }
+.tier > summary .n { font: 600 11px var(--mono); padding-left: 4px; }
+.tier > summary b { font-size: 12.5px; font-weight: 700; white-space: nowrap; }
+.t-blocking > summary b { background: linear-gradient(transparent 12%, var(--hl) 12% 88%, transparent 88%); color: var(--hl-ink); padding: 0 4px; margin-left: -4px; }
+.t-blocking > summary b em { color: var(--hl-ink); }
+.tier > summary b em { font: 500 11px var(--mono); font-style: normal; color: var(--mut); margin-left: 6px; }
+.tier > summary small { font-size: 12px; color: var(--mut); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tier > summary svg { transition: transform .15s ease-out; color: var(--mut); }
+.tier[open] > summary svg { transform: rotate(90deg); }
+.it { display: grid; grid-template-columns: 34px 62px minmax(0, 1fr) auto; align-items: start; gap: 0 8px; padding: 10px 10px 10px 0; border-top: 1px solid var(--line); }
+.tier > summary + .it { border-top: 0; }
+.it .n { font: 400 11px var(--mono); color: var(--faint); padding: 2px 0 0 4px; }
+.it > code { padding-top: 2px; display: flex; gap: 5px; align-items: center; }
+.it p { margin: 0; font-size: 13.5px; font-weight: 550; line-height: 1.38; }
+.it p a:hover { text-decoration: underline; text-decoration-color: var(--line); }
+.it .w { display: block; margin-top: 3px; font-size: 12px; color: var(--mut); }
+.it .w a { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 2px; }
+.it .act { display: flex; gap: 6px; align-items: center; }
+.it.cl { margin: 6px 0; border-top-color: transparent; }
+.grp { padding: 8px 10px 10px 42px; border-top: 1px solid var(--line); }
+.grp > summary { cursor: pointer; display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; list-style: none; }
+.grp > summary::-webkit-details-marker { display: none; }
+.grp > summary svg { transition: transform .15s ease-out; color: var(--mut); }
+.grp[open] > summary svg { transform: rotate(90deg); }
+.grp > summary .sp { flex: 1; }
+.grp ul { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.grp li { display: grid; grid-template-columns: 54px 1fr; font-size: 12.5px; color: var(--mut); }
+.foot-act { padding: 8px 10px 10px 42px; display: flex; gap: 8px; }
+
+.revs > summary { list-style: none; cursor: pointer; }
+.revs > summary::-webkit-details-marker { display: none; }
+.revs > summary h2 { display: flex; align-items: center; gap: 8px; }
+.revs > summary svg { transition: transform .15s ease-out; color: var(--mut); }
+.revs[open] > summary svg { transform: rotate(90deg); }
+
+/* whole rows are targets; the title link stays the keyboard target */
+[data-href] { cursor: pointer; }
+tr[data-href]:hover > td, .it[data-href]:hover, .ag[data-href]:hover, .pr[data-href]:hover { background-color: var(--panel); }
+.tabcl::before { inset: -9px -12px; }
+/* definition lists (plans) */
+.plan { padding: 14px 0 10px; border-bottom: 1px solid var(--line); }
+.plan:last-child { border-bottom: 0; }
+.ph { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.ph h3 { font-size: 15px; font-weight: 700; }
+.dl { display: grid; grid-template-columns: 76px 1fr; column-gap: 12px; margin-top: 10px; }
+.dl > .lab { padding-top: 8px; border-top: 1px solid var(--line); }
+.dl > div { border-top: 1px solid var(--line); padding: 5px 0 6px; min-width: 0; }
+.dl > .lab:first-child, .dl > .lab:first-child + div { border-top: 0; }
+.pr { display: grid; grid-template-columns: minmax(0, 1fr) auto 40px; align-items: center; gap: 10px; min-height: 25px; }
+.pr > a { display: flex; gap: 6px; align-items: center; min-width: 0; }
+.pr > a span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pr em { font: 500 11px var(--mono); font-style: normal; text-align: right; }
+.pr.cl { margin: 9px 0 11px; }
+.sub { font-size: 12px; color: var(--mut); }
+.ag { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 10px; align-items: baseline; min-height: 22px; }
+
+/* tables */
+.tbl-wrap { overflow-x: auto; }
+table.t { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.t th { text-align: left; padding: 8px 10px; border-bottom: 1.5px solid var(--ink); white-space: nowrap; vertical-align: bottom; font-size: 11px; font-weight: 650; font-stretch: 75%; letter-spacing: .12em; text-transform: uppercase; color: var(--mut); }
+table.t td { padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.t td.n, table.t th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+table.t tr.grp-h td { background: var(--panel); font-weight: 700; font-size: 12.5px; padding-block: 7px; }
+table.t tr.grp-h.now td { background: var(--blue-soft); color: var(--blue); }
+table.t tr.grp-h td em { font: 500 11px var(--mono); font-style: normal; color: var(--mut); margin-left: 6px; }
+table.t tr.waits td { color: var(--mut); }
+table.t .ttl { font-weight: 600; }
+table.t .meta { display: block; font-size: 12px; color: var(--mut); font-weight: 400; margin-top: 2px; }
+table.t details summary { cursor: pointer; list-style: none; display: flex; gap: 8px; align-items: center; }
+table.t details summary::-webkit-details-marker { display: none; }
+table.t details summary svg { transition: transform .15s ease-out; color: var(--mut); }
+table.t details[open] summary svg { transform: rotate(90deg); }
+.empty { padding: 18px 0; color: var(--mut); margin: 0; }
+
+/* filters */
+.filters { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--ink); }
+.seg button { border: 0; border-left: 1px solid var(--ink); background: var(--ground); height: 28px; padding: 0 12px; font-weight: 600; font-size: 12px; cursor: pointer; }
+.seg button:first-child { border-left: 0; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--ground); }
+.filters label { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; }
+.filters select { appearance: none; height: 28px; border: 1px solid var(--ink); border-radius: 0; color: var(--ink); font: 600 12px var(--font); padding: 0 28px 0 9px; cursor: pointer;
+  background-color: var(--ground);
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink) 50% 62%, transparent 62%), linear-gradient(-45deg, transparent 50%, var(--ink) 50% 62%, transparent 62%);
+  background-position: calc(100% - 13px) 50%, calc(100% - 9px) 50%; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; }
+.filters select:hover { background-color: var(--panel); }
+.filters input[type=checkbox] { appearance: none; width: 15px; height: 15px; margin: 0; border: 1px solid var(--ink); background: var(--ground); display: inline-grid; place-items: center; cursor: pointer; }
+.filters input[type=checkbox]::after { content: ""; width: 7px; height: 7px; background: var(--ink); transform: scale(0); transition: transform .12s ease-out; }
+.filters input[type=checkbox]:checked::after { transform: scale(1); }
+
+/* docs: markdown with a status margin */
+.doc { display: flex; flex-direction: column; }
+.blk { display: grid; grid-template-columns: minmax(0, 68ch) minmax(200px, 270px); gap: 0 44px; }
+.prose { font-size: 16px; line-height: 1.66; color: var(--ink); }
+.prose h2 { font-size: 21px; font-weight: 750; font-stretch: 95%; letter-spacing: -.01em; line-height: 1.25; margin: 30px 0 10px; }
+.blk:first-child .prose h2 { margin-top: 4px; }
+.prose h3 { font-size: 16.5px; font-weight: 700; margin: 22px 0 6px; }
+.prose p { margin: 0 0 14px; }
+.prose ul, .prose ol { margin: 0 0 14px; padding-left: 24px; }
+.prose li { margin-bottom: 8px; padding-left: 4px; }
+.prose ol > li::marker { font: 600 13px var(--mono); color: var(--mut); }
+.prose ul > li::marker { color: var(--mut); }
+.prose strong { font-weight: 700; }
+.prose code { font-size: 13.5px; background: var(--panel); padding: 1px 5px; }
+.prose a { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+.prose a.ref { text-decoration: none; border-bottom: 1px solid var(--blue); white-space: nowrap; }
+.prose a.ref code { background: none; padding: 0; font-size: 13px; }
+.prose a.ref sup { font: 650 9.5px var(--font); font-stretch: 78%; letter-spacing: .1em; text-transform: uppercase; color: var(--mut); margin-left: 3px; vertical-align: 4px; }
+.prose .ph-empty { color: var(--mut); font-style: italic; }
+.prose .cl { margin: 10px 0 16px; }
+.margin { padding-top: 46px; display: flex; flex-direction: column; font-size: 12px; }
+.blk:first-child .margin { padding-top: 40px; }
+.co { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 7px 0 8px; border-top: 1px solid var(--line); }
+.co a { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.co .row3 { grid-column: 1 / 3; display: flex; align-items: center; gap: 8px; color: var(--mut); }
+
+/* review packet */
+.pk { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start; }
+.pk section { display: flex; flex-direction: column; gap: 14px; }
+.pk .prose { font-size: 15px; }
+.tour { margin: 0; padding-left: 26px; display: flex; flex-direction: column; gap: 6px; }
+.tour li::marker { font: 600 12px var(--mono); color: var(--mut); }
+.check { display: grid; grid-template-columns: auto auto 1fr; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--green); font-size: 12.5px; }
+.check .sub { text-align: right; }
+.decn { display: grid; grid-template-columns: 54px 1fr auto; gap: 4px 8px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 13px; align-items: start; }
+.decn .why { grid-column: 2 / 4; color: var(--mut); font-size: 12px; }
+
+/* model page */
+.model pre { font: 500 12.5px/1.7 var(--mono); margin: 0; padding: 14px 0; overflow-x: auto; white-space: pre; border-bottom: 1px solid var(--line); }
+.model pre b { font-weight: 700; }
+.model pre i { font-style: normal; color: var(--mut); }
+.stages { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 14px 0; }
+.rules { display: grid; grid-template-columns: 220px 1fr; margin: 0; }
+.rules dt, .rules dd { padding: 10px 0; border-bottom: 1px solid var(--line); margin: 0; }
+.rules dt { font-weight: 700; padding-right: 16px; }
+.rules dd { color: var(--mut); }
+
+.toast { position: fixed; right: 18px; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--ground); padding: 10px 14px; font-size: 12.5px; max-width: min(440px, calc(100vw - 36px)); z-index: 10; }
+.toast code { font-size: 12px; }
+.ex { color: var(--faint); font: 600 11px var(--font); font-stretch: 78%; letter-spacing: .04em; }
+
+@media (max-width: 1180px) {
+  .cols, .pk { grid-template-columns: minmax(0, 1fr); }
+  .blk { grid-template-columns: minmax(0, 1fr); }
+  .margin, .blk:first-child .margin { padding: 0 0 12px; }
+  .tb { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .tb .pj { grid-column: 1 / -1; grid-row: auto; border-bottom: 1px solid var(--line); }
+  .tb > .f:nth-child(n+2) { border-top: 0; }
+  .tb > .f:nth-child(n+5) { border-top: 1px solid var(--line); }
+  .tb > .f:nth-child(2), .tb > .f:nth-child(5) { border-left: 0; }
+}
+@media (max-width: 860px) {
+  .app { grid-template-columns: minmax(0, 1fr); }
+  .rail { position: static; height: auto; border-right: 0; border-bottom: 1.5px solid var(--ink); }
+  .brand { border-bottom: 0; }
+  .brand .idx-toggle { display: inline-flex; }
+  .rail .tree, .rail .rail-foot { display: none; }
+  .rail.open .tree { display: block; max-height: 60vh; border-top: 1px solid var(--line); }
+  .rail.open .rail-foot { display: flex; }
+  .tb { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tb > .f, .tb > .f:nth-child(n+2) { border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+  .tb > .f:nth-child(even) { border-left: 0; }
+  .it { grid-template-columns: 26px 56px minmax(0, 1fr); }
+  .it .act { grid-column: 3; padding-top: 8px; }
+  .tier > summary small { display: none; }
+  .tabs { display: grid; grid-template-columns: auto auto auto 1fr; align-content: start; align-items: stretch; column-gap: 22px; min-height: 0; }
+  .tabs a { padding-block: 12px; white-space: nowrap; }
+  .revs td:nth-child(2) { display: none; }
+  .revs th:nth-child(2) { display: none; }
+  .revs td.ttl { font-weight: 550; }
+  .tabs .acts { grid-column: 1 / -1; margin-left: 0; border-top: 1px solid var(--line); padding-block: 8px; }
+  .tb.wide { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rules { grid-template-columns: 1fr; }
+  .rules dt { border-bottom: 0; padding-bottom: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before { animation: none !important; transition: none !important; }
+}
+</style>
+
+<div class="app">
+  <aside class="rail" aria-label="Sheet index">
+    <div class="brand"><b>mull</b><span class="live lab"><i></i>Live</span><button class="btn s idx-toggle" id="idx" aria-expanded="false" aria-controls="tree">Sheet index</button></div>
+    <nav class="tree" id="tree"></nav>
+    <div class="rail-foot" id="railfoot"></div>
+  </aside>
+  <main id="main"></main>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+// ---------------- data: real gallformers and kit records, reshaped to the new model ----------------
+// ex: true marks a state or text invented for the prototype.
+const PROJECTS = {
+  gallformers: { integration: "taxogall", release: "main", ahead: 170, last: "4 min ago", lastAt: "10:38", rev: 14, seenAt: "08:15", lastTriage: "2026-11-09", plans: ["taxogall", "own-users"] },
+  kit: { integration: "main", release: "main", ahead: 0, last: "1 h ago", lastAt: "09:40", rev: 3, seenAt: "09:40", lastTriage: "2026-11-09", plans: ["mull-next", "forage-rework", "mull-serve"] },
+};
+const OLD = ["anxiety", "deadtree", "music_tools", "oaks", "reprise", "stejar", "trove"];
+
+// What changed since you last looked, per project (record ids, plus doc sections as "doc:<plan>:<name>").
+const CHANGED = {
+  gallformers: new Set(["11dc", "eb66", "ced2", "7378", "doc:taxogall:import", "4ce5", "ec21", "546d"]),
+  kit: new Set(),
+};
+
+const PLANS = {
+  taxogall: { project: "gallformers", title: "Taxogall: Galls and Facts, released", state: "active",
+    summary: "Replace the species model with Galls, Facts and Sources on the taxogall branch, and cut production over to it.",
+    doc: `## The picture
+Gallformers today treats everything as a species. Taxogall replaces that, in place, on the \`taxogall\` branch.
+
+- **Galls** are catalog entries; two generations are two Galls. Everything known about them (Hosts and other relationships, Traits, range, occurrences, common names, descriptions) is a **Fact**, attributed to the Sources that confirm or deny it. Gallformers is a Source too.
+- **Taxonomy is Facts too.** Names, authorship, placements, synonymies, ranks and splits are Facts credited to the Sources that make them. The tree is whatever the current taxonomic Facts say. Gall naming and plant data stay editorial.
+- **Every change goes through one Fact process.** Sources arrive as LLM-produced packages against a validated contract; curators settle questions and approve. Gallformers' own edits use the same process.
+- **The pipeline is the migration** for everything that lives in Sources: existing Sources are re-processed into the new model before release.
+
+## Done when
+- Every Fact edit, Gallformers' own included, goes through one ingestion path and one inline editor. {{9a53}} {{64e1}}
+- Existing Sources are processed into a copy of production, and a second curator can work the review. {{c887}}
+- Production runs on Galls, Facts and Sources, and the old species model is gone. {{9a05}}
+
+## Release order, and why
+1. **Make the review one way first.** {{db43}} The edit model's back end reuses the review's name handling, so there has to be one way to handle a name we don't hold before anything builds on it. Housekeeping {{726a}}, the migration data {{d51b}} and the preview environment {{f709}} depend on nothing and run alongside.
+2. [[doc:taxogall:import]] **Import at scale runs alongside too.** {{81e9}} Profiling uses a large test package, not the review's dry run, so it no longer waits for the review cleanup.
+3. **The edit model's back end.** {{9a53}} One Gallformers Source whose changes are packages, so the Facts the public sees have one history.
+4. **Then three things at once:** the one editor {{64e1}}, Gallformers notes as Facts and commentary {{e090}}, and processing Sources on preview {{c887}}, which needs the back end, the import at scale and preview.
+5. **Rehearse and cut over** until it's boring, with timing and a rollback. Nothing goes to production before this. {{9a05}}
+6. **After release:** drop the old tables and replace the domain docs. {{2e83}}
+
+## Not in this plan
+Public pages for non-plant taxa, the phenology explorer, the ID tool's regions and the other later work are ideas in the [backlog](#/g/gallformers/backlog), not steps here.
+
+## References
+Domain language \`docs/domain/domain-model.md\` · design rules 8567 · migration plan b5bd · import contract \`priv/import/\`. Read at \`taxogall\`, whatever is checked out.` },
+  "own-users": { project: "gallformers", title: "Own user management", state: "shaping", ex: true,
+    summary: "Move user management off Auth0, and refine permissions and roles at the same time. From your idea 27ae.",
+    doc: `## The picture
+Gallformers signs people in through Auth0 today. This plan moves accounts, sessions and roles into the app, and uses the move to rethink who may do what: curators, admins, and the public with accounts.
+
+## Done when
+_Not written yet. The agent drafts this with you._
+
+## Phases
+_None yet. A shaping plan has no phases until you agree it._` },
+  "mull-next": { project: "kit", title: "mull rewrite and cutover", state: "active",
+    summary: "The from-scratch rewrite of mull, and moving every repo onto it.",
+    doc: `## The picture
+_No plan doc yet. The rewrite's design lives in mull/docs/design.md; the agent moves its intent here with you._
+
+## Phases
+Land the rewrite on main {{4425}}, then move each repo over through its own intake {{c9c0}}.` },
+  "forage-rework": { project: "kit", title: "Forage rework: server + PWA", state: "active",
+    summary: "Forage's server and PWA rework, from matter e140.",
+    doc: `## The picture
+_No plan doc yet. Matter e140 holds it today._
+
+## Phases
+Quick add from the iOS share sheet {{9742}}, off-Sprite backups {{3060}}, and the cleanup once the new PWA is on the phone {{bcde}}.` },
+  "mull-serve": { project: "kit", title: "mull serve: the human's view", state: "shaping", ex: true,
+    summary: "A local web UI across every repo: where each plan stands, what's next, and what needs you. Live as agents write.",
+    doc: `## The picture
+mull's data is written by agents and read by the human. Reading it through an agent produced walls of text, so the human gets a live page of their own: \`mull serve\`, a Go server inside mull with an embedded UI, pinned in a browser tab at \`http://localhost\`.
+
+## The model it rests on
+Plans hold a shared doc. Phases are ordered only by what they need. Items are one session each, and anything can be captured as a bug or an idea and started directly. See [the model](#/model).
+
+## Done when
+_Not agreed yet._` },
+};
+
+const EPICS = {
+  "294c": { plan: "taxogall", title: "Import contract and producer", prior: true },
+  "9449": { plan: "taxogall", title: "Back end, phase 1", prior: true },
+  "803b": { plan: "taxogall", title: "Public pages and API", prior: true },
+  "a856": { plan: "taxogall", title: "Admin, review and vocabulary", prior: true },
+  "bc0d": { plan: "taxogall", title: "Design system", prior: true },
+  "f923": { plan: "taxogall", title: "Phase 2: taxonomy as Facts", prior: true },
+  "db43": { plan: "taxogall", title: "Review cleanup", summary: "One way to handle a name we don't have, the 2026-11-09 review audit (b230), and the review's last checks.",
+    doneWhen: ["A name the review doesn't hold is handled one way, in one place, with Undo and replay.", "The review has no dead code, one name search and one spelling helper.", "Package 115 walks cleanly on desktop and phone, light and dark."],
+    doc: `## Why this comes first
+The review grew three ways to handle a name we don't hold: the question card, the taxonomy queue and Renames. Each has its own carry-out, its own Undo and its own spelling rules. The edit model's back end {{9a53}} needs exactly one of them to build on.
+
+## The shape
+- One name-decision shape and one carry-out.
+- The iNat panel and **Add it by hand** hand their choice back to the same answer list.
+- ItemRow retires; the notes page, the taxonomy queue and Renames move onto the question card.
+
+## Out of scope
+The edit framework itself (d3b0) belongs to {{64e1}}.` },
+  "726a": { plan: "taxogall", title: "Housekeeping", summary: "Small pre-release leftovers: stale docs agents read, dead references, merging main in, CI." },
+  "81e9": { plan: "taxogall", title: "Import at scale", summary: "Make the import fast and cheap enough for many Sources: batching, the cost levers, format-4 reference answers, where the producer runs." },
+  "d51b": { plan: "taxogall", title: "Migration data", summary: "Settle the data the catalog migration gets wrong: one-word plants, Stephanomeria, the lost Gall aliases." },
+  "f709": { plan: "taxogall", title: "Preview environment", summary: "Preview gets its own Postgres with WCVP and a production copy, and an up-to-date runbook." },
+  "9a53": { plan: "taxogall", title: "Edit model: back end", needs: ["db43"], summary: "d3b0's model built: one Gallformers Source whose changes are packages; every taxonomic edit through the Fact process." },
+  "64e1": { plan: "taxogall", title: "Edit model: one editor", needs: ["9a53"], summary: "d3b0's five editors onto one framework, the Fact inspector on taxon, rank and Source pages." },
+  "e090": { plan: "taxogall", title: "Gallformers notes", needs: ["9a53"], summary: "Reconcile the notes plan with d3b0, then turn the notes into Facts and commentary." },
+  "c887": { plan: "taxogall", title: "Process Sources on preview", needs: ["9a53", "81e9", "f709"], summary: "Run Sources into the production copy on preview and onboard curators." },
+  "9a05": { plan: "taxogall", title: "Rehearse and cut over", needs: ["726a", "64e1", "e090", "c887", "d51b"], golive: true, summary: "Rehearse on preview until boring, with timing and rollback, then cut production over and merge to main." },
+  "2e83": { plan: "taxogall", title: "After release", needs: ["9a05"], summary: "Drop the old tables and species_id columns, replace the domain docs, CLAUDE.md and runbooks." },
+  "4425": { plan: "mull-next", title: "Land the rewrite on main" },
+  "c9c0": { plan: "mull-next", title: "Move repos onto the new mull", summary: "One intake per repo." },
+  "9742": { plan: "forage-rework", title: "Quick add from the iOS share sheet", summary: "A Shortcut that talks to the API directly." },
+  "3060": { plan: "forage-rework", title: "Automated off-Sprite backups" },
+  "bcde": { plan: "forage-rework", title: "Cleanup after the new PWA is on the phone" },
+};
+
+// stage: captured | committed | active | review | done | dropped
+const ITEMS = {
+  "eb66": { epic: "db43", title: "Delete the review's dead code; stop Review.dry_run crashing on an error", stage: "done", ex: true },
+  "11dc": { epic: "db43", title: "One name-decision shape and one carry-out in decide_queue_item, with Undo and replay for each creation", stage: "review", ex: true, review: "11dc", at: "10:31" },
+  "7378": { epic: "db43", title: "One spelling helper, one 'do we hold it' check, and Rank.parse/1 replacing its 9 copies", stage: "active", ex: true, claim: { wt: "7378-spelling", commits: 3, age: "4 h" } },
+  "e7ef": { epic: "db43", title: "One name search in GallformersWeb.Choices", stage: "committed" },
+  "bceb": { epic: "db43", title: "One answer list and the in-place 'Add it by hand'; the iNat panel hands its choice back", stage: "committed" },
+  "f926": { epic: "db43", title: "Retire ItemRow: the notes page, taxonomy queue and Renames move onto the question card", stage: "committed" },
+  "a81c": { epic: "db43", title: "Retire the review's step and Facts pages: Facts edits on the last step, and redirects", stage: "committed" },
+  "5e0c": { epic: "db43", title: "The iNat helpers: one URL module, one result map, the panel in its own module", stage: "committed" },
+  "7158": { epic: "db43", title: "Review leftovers: counts from one place, doc drift, one reading-fix test", stage: "committed" },
+  "ba1d": { epic: "db43", title: "Review tests: shared fixtures, and the causes of the 'client exited' errors", stage: "committed" },
+  "d64d": { epic: "db43", title: "Review keyboard: the ReviewKeys hook on the question card", stage: "committed" },
+  "fad8": { epic: "db43", title: "Review design-system fixes (link buttons, panels, one section heading, the shared photo grid)", stage: "committed" },
+  "ced2": { epic: "726a", title: "Merge main into taxogall (#596 role checks, #597 image upload events) and check both fixes hold", stage: "done", ex: true },
+  "867f": { epic: "726a", title: "Replace multi_select_dropdown with typeahead", stage: "committed" },
+  "a28e": { epic: "726a", title: "Rewrite the parts of CODING_STANDARDS.md and docs/architecture that describe deleted modules", stage: "committed" },
+  "e503": { epic: "726a", title: "Drop the dropped vocab_requests table from Undo's @machinery list", stage: "committed" },
+  "b408": { epic: "81e9", title: "Build a large test package from the five v6 Sources and profile one dry run and one decision", stage: "committed" },
+  "f2f9": { epic: "81e9", title: "Batch the largest query classes in the Fact writer and resolver", stage: "committed" },
+  "0dac": { epic: "d51b", title: "Map each of the 224 lost old Gall aliases to a synonym, former label or common name", stage: "committed" },
+  "1525": { epic: "d51b", title: "Fold the bogus 'Stephanomeria' species into its genus, and find others like it", stage: "committed" },
+  "a7cd": { epic: "d51b", title: "Make the 7 one-word plant 'species' their genus in the catalog migration", stage: "committed" },
+  "37cb": { epic: "f709", title: "Bring fly.preview.toml, Dockerfile.preview and the preview runbook up to date", stage: "active", ex: true, claim: { wt: "37cb-preview-config", commits: 1, age: "50 min" } },
+  "cde1": { epic: "f709", title: "Provision Postgres for preview and load WCVP and a production copy (with you)", stage: "committed" },
+  "bc85": { epic: "9a53", title: "Plan the edit model's back end (d3b0) as one-session tasks", stage: "committed" },
+  "a6a3": { epic: "e090", title: "Reconcile the notes plan (20e5) with d3b0 and plan step 4's build", stage: "committed" },
+  "0e96": { epic: "2e83", kind: "idea", category: "after release", title: "Drop the old tables, species_id columns and the audit source; redo b016's test seeds", stage: "captured", by: "agent", source: "your 2026-11-09 audit", at: "11-09" },
+  "6d33": { epic: "c887", kind: "idea", category: "preview", title: "Seed the ~850 existing trait-term pairs; check pending_trait_terms in the public snapshot", stage: "captured", by: "agent", source: "your 2026-11-09 audit", at: "11-09" },
+  "a169": { epic: "9a05", kind: "idea", category: "cutover", title: "Delete Galls.Identification; e381's storage leftovers", stage: "captured", by: "agent", source: "your 2026-11-09 audit", at: "11-09" },
+
+  "8f56": { project: "gallformers", kind: "bug", category: "admin", title: "Prod: the Sources admin list crashes on species-source PubSub events", stage: "review", ex: true, review: "8f56", by: "agent", source: "intake, matter 2c8c #1", fast: true, at: "09:52" },
+  "b8ef": { project: "gallformers", kind: "idea", category: "dev setup", title: "Dev image storage without production keys: a local adapter for Storage.Images", stage: "committed" },
+  "dfa5": { project: "gallformers", kind: "idea", category: "infra", title: "Move the database snapshot workflow onto GitHub OIDC and retire the litestream IAM user", stage: "committed" },
+  "fbb2": { project: "gallformers", kind: "idea", category: "analytics", title: "Track 404s on unrouted paths in analytics", stage: "committed" },
+
+  "09b0": { project: "gallformers", kind: "bug", category: "tests", title: "The e2e browser suite is broken on main (Playwright version mismatch); fixed on taxogall", stage: "captured", by: "agent", source: "matter 2c8c #2", at: "11-09" },
+  "3816": { project: "gallformers", kind: "bug", category: "public pages", title: "The canonical URL is a <meta name=canonical>, which search engines ignore; it should be <link rel=canonical>", stage: "captured", by: "agent", source: "matter 2c8c", at: "11-09" },
+  "4ce5": { project: "gallformers", plan: "taxogall", kind: "bug", category: "public pages", title: "Source page: a retracted Source's Facts stay listed, but their Galls drop out of Connected Galls", stage: "captured", by: "agent", source: "7378 session", at: "11-10", untriaged: true },
+  "670b": { project: "gallformers", plan: "taxogall", kind: "bug", category: "public pages", title: "Host page: Galls on a plant's genus never appear on its species' pages", stage: "captured", by: "agent", source: "matter 2c8c", at: "11-09" },
+  "ec21": { project: "gallformers", plan: "taxogall", kind: "bug", category: "public pages", title: "Source page shows unsupported Facts publicly, though they're hidden everywhere else", stage: "captured", by: "agent", source: "7378 session", at: "11-10", untriaged: true },
+  "8fc7": { project: "gallformers", plan: "taxogall", kind: "bug", category: "public pages", title: "Rank pages: case-sensitive lookups, synonyms don't redirect, dead /infratribe routes", stage: "captured", by: "agent", source: "matter bc0d", at: "11-09" },
+  "d476": { project: "gallformers", plan: "taxogall", kind: "bug", category: "design system", title: "Two design-system inventory bugs left unchecked (place names in italics, and one more)", stage: "captured", by: "agent", source: "matter 2c8c", at: "11-09" },
+  "546d": { project: "gallformers", plan: "taxogall", kind: "bug", category: "tests", title: "credo --strict flags a bare truthy assert in curated_test.exs", stage: "captured", by: "agent", source: "37cb session, mix precommit", at: "11-10", untriaged: true },
+  "6bef": { project: "gallformers", plan: "taxogall", kind: "bug", category: "docs", title: "Matter 8567's rules 11 and 12 don't match the code", stage: "captured", by: "agent", source: "your 2026-11-09 audit", at: "11-09" },
+  "74ac": { project: "gallformers", plan: "taxogall", kind: "bug", category: "performance", title: "The Fact inspector takes 3–4 s to open, and again to switch Facts", stage: "captured", by: "you", source: "trying the taxogall build", at: "11-09" },
+  "f438": { project: "gallformers", plan: "taxogall", kind: "bug", category: "importer", title: "An old Source's 'new species' may exist under another name, and still needs matching", stage: "captured", by: "agent", source: "matter 294c", at: "11-09" },
+  "4acc": { project: "gallformers", plan: "taxogall", kind: "idea", category: "public pages", title: "Gall page: move the Inducer section up into the dense info under the name", stage: "captured", by: "you", source: "trying the taxogall build", at: "11-09" },
+  "10f4": { project: "gallformers", plan: "taxogall", kind: "idea", category: "design system", title: "Catalog the components agents hand-built from tokens (segmented switch, progress bar, data table rows)", stage: "captured", by: "agent", source: "matter bc0d", at: "11-09" },
+  "8b3b": { project: "gallformers", plan: "taxogall", kind: "idea", category: "importer", title: "An imported Gall's plant part could become its form label instead of a ' (2)' override", stage: "captured", by: "agent", source: "matter 86e7", at: "11-09" },
+  "202c": { project: "gallformers", plan: "taxogall", kind: "idea", category: "importer", title: "An every-scenario import package, as a test control and demo", stage: "captured", by: "you", source: "2026-11-08", at: "11-09" },
+  "87d0": { project: "gallformers", plan: "taxogall", kind: "idea", category: "public pages", title: "Public pages for non-plant taxa", stage: "captured", by: "you", source: "matter 50ff, later matters", at: "11-09" },
+  "0ce2": { project: "gallformers", kind: "idea", category: "repo hygiene", title: "Delete about 10 old dependabot branches on origin", stage: "captured", by: "agent", source: "git, at intake", at: "11-09" },
+  "8966": { project: "gallformers", kind: "idea", category: "repo hygiene", title: "Decide on branches with unmerged commits: alpha-ui, workspace-gall-editor, postgres-migration", stage: "captured", by: "agent", source: "git, at intake", at: "11-09" },
+  "99b8": { project: "gallformers", kind: "idea", category: "repo hygiene", title: "Delete local branches with nothing unique", stage: "captured", by: "agent", source: "git, at intake", at: "11-09" },
+  "c98d": { project: "gallformers", kind: "idea", category: "phenology", title: "Phenology explorer and gall-page timing estimates (draft PR #578)", stage: "captured", by: "you", source: "your idea", at: "11-09" },
+  "d515": { project: "gallformers", kind: "idea", category: "ID tool", title: "ID tool: rethink how it handles regions", stage: "captured", by: "you", source: "your idea", at: "11-09" },
+  "dc6c": { project: "gallformers", kind: "idea", category: "performance", title: "Convert read-only LiveView pages to controllers", stage: "captured", by: "you", source: "after the 2026-02-18 OOM", at: "11-09" },
+  "fdf1": { project: "gallformers", kind: "idea", category: "performance", title: "The JS bundle is about 1.2 MB since MapLibre", stage: "captured", by: "you", source: "your idea", at: "11-09" },
+
+  "9bc7": { epic: "4425", title: "Review and merge mull-next into main", stage: "done" },
+  "450e": { epic: "c9c0", title: "Intake: stejar", stage: "committed" },
+  "5ea5": { epic: "c9c0", title: "Intake: oaks", stage: "committed" },
+  "67e3": { epic: "c9c0", title: "Intake: anxiety", stage: "committed" },
+  "88f7": { epic: "c9c0", title: "Intake: trove", stage: "committed" },
+  "e2f7": { epic: "c9c0", title: "Intake: music_tools", stage: "committed" },
+  "f249": { epic: "c9c0", title: "Intake: reprise", stage: "committed" },
+  "2d4b": { epic: "9742", title: "Shortcut: share a URL or text, resolve, pick, add to the wishlist", stage: "committed" },
+  "01ca": { epic: "9742", title: "Replace the bookmarklet page (add.html) with Shortcut setup instructions", stage: "committed" },
+  "b523": { epic: "9742", title: "Inbox for shares that don't resolve (server table + app view)", stage: "committed" },
+  "3649": { epic: "3060", title: "Daily GitHub Actions job copying the DB to another provider", stage: "committed" },
+  "02f7": { epic: "bcde", title: "Remove /api/books, /api/changes, /api/version and the changes package", stage: "committed" },
+  "0f04": { project: "kit", plan: "mull-next", kind: "bug", category: "mull", title: "Layer matching takes the first layer by name, so a broad layer would hide 'ui' files", stage: "captured", by: "agent", source: "setting up kit", at: "11-09" },
+  "51c8": { project: "kit", plan: "mull-next", kind: "idea", category: "mull", title: "Remove the old Claude skill skills/SKILL.md; mull guide agents replaces it", stage: "captured", by: "agent", source: "mull-next branch", at: "11-09" },
+  "6a95": { project: "kit", kind: "idea", category: "repo hygiene", title: "Remove old .mull/ directories, per repo, after its intake", stage: "captured", by: "agent", source: "design.md", at: "11-09" },
+  "8102": { project: "kit", kind: "idea", category: "repo hygiene", title: "Remove the old mull1 and mull-tui1 binaries once every repo is moved over", stage: "captured", by: "agent", source: "cutover", at: "11-09" },
+  "2616": { project: "kit", plan: "mull-serve", kind: "idea", category: "mull", title: "A view across all repos", stage: "captured", by: "you", source: "the original GUI plan", at: "11-09" },
+  "fcd1": { project: "kit", plan: "mull-serve", kind: "idea", category: "mull", title: "GUI cockpit for the board", stage: "captured", by: "you", source: "design.md step 6", at: "11-09" },
+  "782a": { project: "kit", plan: "mull-next", kind: "idea", category: "mull", title: "Automatic sync after writes", stage: "captured", by: "you", source: "your idea", at: "11-09" },
+  "783a": { project: "kit", kind: "idea", category: "new tool", title: "Space Tab Mover: move tabs between spaces with a keyboard shortcut", stage: "captured", by: "you", source: "your idea", at: "11-09" },
+  "d2a6": { project: "kit", plan: "forage-rework", kind: "idea", category: "forage", title: "LLM-powered library analysis and recommendations", stage: "captured", by: "you", source: "your idea", at: "11-09" },
+};
+
+const Q = (id, text, source, at) => Object.assign({ id, kind: "question", text, source }, at);
+const ENTRIES = [
+  Q("1000", "Which goes first: Task 5 (a81c), which replaces Review.dry_run, or profiling the dry run (this item)?", "your 2026-11-09 audit", { item: "b408" }),
+  Q("1a4a", "Walk package 115 through the new review yourself (desktop and phone, light and dark), after b230 lands.", "matter 6611, Task 11", { epic: "db43" }),
+  Q("2cb4", "Check cb28 on real data: package 119's Rubus Host (Arguti) and Floate's Syrphidae.", "matter cb28", { epic: "db43" }),
+  Q("4411", "Bring back any of what the new review dropped from the old overview: the Source head, the WCVP panel with POWO and IPNI links?", "matter 6611", { epic: "db43" }),
+  Q("29fd", "How should taxogall get a GitHub CI run before c800 closes: a draft PR into main, or a workflow trigger for taxogall?", "intake", { epic: "726a" }),
+  Q("40b0", "Where should the import producer run at scale: subscription, API account, or a server job?", "matter 50ff, step 5", { epic: "81e9" }),
+  Q("fd95", "The cost levers (one checker instead of two, about −22%; a cheaper model) and format-4 reference answers: who specifies them?", "matter 50ff, step 5", { epic: "81e9" }),
+  Q("24d8", "Merge the 6 plant pairs WCVP calls one plant? Cupressus nootkatensis into Callitropsis nootkatensis, and five more.", "matter b5bd (8861)", { epic: "d51b" }),
+  Q("c28e", "The 7 misapplied plant synonyms (Quercus dumosa / Q. cornelius-mulleri, …): how should each be carried?", "matter b5bd (8861)", { epic: "d51b" }),
+  Q("8609", "Keep the doubtful carried-over common names? 'Creeper', 'Plane', 'Plums, Cherries, and Allies', …", "matter 803b", { epic: "d51b" }),
+  Q("4974", "Should every Fact edit begin and end in the Facts panel, with the main view as presentation that links to the Fact? (The agent leaned yes.)", "matter d3b0", { epic: "9a53" }),
+  Q("a2eb", "Did split undos ever run on preview? If yes, pre-90a55ef0 undos need a compatibility path.", "matter 50ff", { epic: "9a53" }),
+  Q("c9e6", "OK to remove the six Fact-editing mockups (gall_facts_live, genus_facts_live, …)?", "matters 87a1, d3b0", { epic: "64e1" }),
+  Q("b772", "Fix keyboard access for file_drop? Fixing it changes the upload hooks.", "matter 50ff", { epic: "64e1" }),
+  Q("d8c6", "Notes: do undescribed Galls' 'observed in <place> in <month>' sentences also become occurrence Facts, by code?", "matter 20e5", { item: "a6a3" }),
+  Q("dd84", "Notes: are the ~200 judgement notes done by an LLM in chunks (~$60–90, one ~$6–10 trial first) or by a curator queue?", "matter 20e5", { item: "a6a3" }),
+  Q("8a87", "Is Trait 'texture' surface-only, and does 'succulent' belong under walls?", "matter 6611", { epic: "c887" }),
+  Q("5803", "What is the scope of the curated taxonomy?", "matter 50ff; 8567", { plan: "taxogall" }),
+  Q("ae47", "How should Traits that vary by Host be handled?", "matter 50ff; 8567", { plan: "taxogall" }),
+  Q("2076", "Introduced-range place counts: does an introduced plant change the potential range itself, or only the display?", "matter bc0d", { plan: "taxogall" }),
+  Q("09b7", "Should an unknown taxon name return 200 (as now) or 404?", "matter bc0d", { plan: "taxogall" }),
+  Q("51a7", "Which replaces Auth0: phx.gen.auth in the app, or another hosted provider?", "example", { plan: "own-users", ex: true }),
+  Q("4247", "Which provider for off-Sprite backups (R2, B2, or other)? The bucket and secrets need creating.", "matter e140", { item: "3649" }),
+  Q("bf6b", "iPhone check of the new PWA: does the update take, does offline work in a store, does opening a book from search work?", "matter e140, phase 3", { epic: "bcde" }),
+];
+const D = (group, plan, list) => list.forEach(([id, text]) => ENTRIES.push({ id, kind: "decision", text, group, plan }));
+D("Phase 2: taxonomy as Facts", "taxogall", [["0cd4", "Taxa an import creates have their name and placement accepted as created"], ["3481", "A Gallformers taxonomy batch moves the tree without acceptance"], ["351c", "A paper agreeing with the tree raises no question but stays 'awaiting'"], ["89a2", "A split may keep A among its daughters"], ["8ab8", "Split questions suggest a daughter from shared Hosts (never bulk-accepted)"], ["8f63", "A retracted split or lump leaves moved Galls where they are"], ["9b18", "The cutover carry-over records no curator on its acceptances"], ["9cf2", "A non-plant's first common name raises a taxonomy question"], ["e97d", "Lumping B declines real Sources' statements about B"], ["9a2f", "A revalidated name keeps outranking the old synonymy even after a later rename"]]);
+D("iNat panel", "taxogall", [["176d", "A rank we don't use starts on 'Choose a rank' with no default"], ["473b", "An inactive iNat taxon can't be added; the panel points to its replacement"], ["e72e", "Children of a rank we don't use show 'A rank we don't use' with no checkbox"], ["01d0", "One iNat request per search (debounced, 3+ characters), one per taxon in the panel"], ["2c9f", "Find with no question says 'iNaturalist has nothing by …'"], ["2f75", "iNat wording on the New Taxon and Edit pages, as listed in cb28 #11"], ["3aeb", "iNat links are set on the taxon, every lineage rank and every child added or moved"], ["3b01", "The folded ranks line counts unused ranks"], ["3c75", "WCVP authorship is offered only where WCVP holds the name at that rank"], ["44d1", "The day's iNat Source is kind database, author 'iNaturalist', no license"], ["5f72", "Names the held taxon already has are left out of Names"], ["6559", "The button reads 'Add 2 names' / 'Move 1 and add 2 names'"]]);
+D("Curation", "taxogall", [["23c3", "Any admin can undo anyone's decision"], ["39a8", "Undo refuses decisions made before decisions recorded their tree edits"], ["7a83", "A correction to a taxonomic statement awaits a curator unless 'Accept it now'"], ["a7ef", "Creating a citation is logged as a Source edit"], ["e1ae", "Applying from the tray leaves Edit mode unless every item is held"], ["f4e0", "Imports and migrations don't refresh the dashboard live"]]);
+D("Design system and pages", "taxogall", [["67a7", "Rank pages: related-genus filter became the Host genus facet"], ["3b61", "Admin migration look changes: image manager copy-mode controls moved, row tints gone"], ["b999", "Browse pages: undescribed toggle is a checkbox; /hosts ordered by Galls"], ["87c0", "The review options' Recommended chip comes after the tags"], ["c485", "Image manager copy-mode 'select all' sits in the table header"], ["cd5c", "Host range 'select all' sits in the table header"]]);
+D("WCVP authorship", "taxogall", [["33ec", "Only blank plant authorships are filled; ambiguous names are listed"], ["fbc1", "Replaying a WCVP link change reads WCVP to fill authorship"]]);
+D("Intake", "taxogall", [["c099", "The 25 intake items' breakdown and sizing are the intake agent's, not yours"]]);
+
+const REVIEWS = {
+  "11dc": {
+    summary: "Name decisions now share one shape (`%NameDecision{}`) and one carry-out in `decide_queue_item/3`. Every creation (taxon, plant, synonym) writes its Undo and replay entry in the same transaction.",
+    tour: ["Open /admin/review/115 and go to the Names step.", "On Rubus (Arguti), choose “Add it by hand” and save. The taxon is created and the question shows as decided.", "Press Undo on that decision. The taxon is gone and the question is open again.", "Open /admin/replay. The creation is listed once, with its Undo.", "Do the same from the taxonomy queue. It behaves identically."],
+    how: "I used a struct rather than a tagged map, so a missing field fails at compile time. The three old carry-outs (question card, taxonomy queue, Renames) now call one function. Undo is recorded per creation, not per decision, so a decision that creates two records undoes both.",
+    decisions: [["d4e1", "Old decision rows convert to the new shape when read; no data migration.", "Fewer than 300 rows on preview, and the conversion is one function with a test."], ["d4e2", "A decision that creates nothing records no Undo entry.", "Undo of a no-op confused the replay log in the old code."]],
+    checks: ["make done-checks", "4 m 08 s", "precommit · dialyzer · 2,412 tests"],
+    files: [["domain", "lib/gallformers/review/", 6, 312, 540], ["ui", "lib/gallformers_web/live/review/", 3, 40, 118], ["tests", "test/gallformers/review/", 4, 260, 35]],
+    commits: "4 commits on 11dc-name-decision, from a0434bc",
+  },
+  "8f56": {
+    summary: "The Sources list assumed one payload shape on the `species_source` topic. It now handles both events the broadcaster sends.",
+    tour: ["Run main locally and open /admin/sources.", "In another tab, edit a species' Source.", "The list updates in place and doesn't crash."],
+    how: "I handled the event in the LiveView instead of changing the broadcaster, because taxogall replaces the broadcaster anyway; a broadcaster change would be thrown away at cutover.",
+    decisions: [],
+    checks: ["make done-checks", "2 m 51 s", "precommit · 1,960 tests"],
+    files: [["ui", "lib/gallformers_web/live/admin/source_live/", 1, 14, 3], ["tests", "test/gallformers_web/live/admin/", 1, 38, 0]],
+    commits: "1 commit on 8f56-sources-pubsub, from main",
+  },
+};
+
+// ---------------- derived ----------------
+for (const [id, e] of Object.entries(EPICS)) e.id = id;
+for (const [id, p] of Object.entries(PLANS)) p.slug = id;
+for (const [id, it] of Object.entries(ITEMS)) { it.id = id; if (it.epic) it.plan = EPICS[it.epic].plan; if (it.plan) it.project = PLANS[it.plan].project; }
+for (const it of Object.values(ITEMS)) if (it.stage === "review") ENTRIES.push({ id: it.id, kind: "review", item: it.id, text: it.title });
+for (const e of ENTRIES) {
+  if (e.item) { const it = ITEMS[e.item]; e.epic = e.epic || it.epic; e.plan = e.plan || it.plan; e.project = it.project; }
+  if (e.epic && !e.plan) e.plan = EPICS[e.epic].plan;
+  if (e.plan) e.project = PLANS[e.plan].project;
+}
+
+const ORDER = { active: 0, review: 1, committed: 2, done: 3, dropped: 4, captured: 5 };
+const epicItems = id => Object.values(ITEMS).filter(i => i.epic === id && i.stage !== "captured").sort((a, b) => ORDER[a.stage] - ORDER[b.stage]);
+const epicCaptured = id => Object.values(ITEMS).filter(i => i.epic === id && i.stage === "captured");
+function progress(id) {
+  const c = { total: 0, done: 0, review: 0, active: 0, committed: 0 };
+  epicItems(id).filter(i => i.stage !== "dropped").forEach(i => { c.total++; c[i.stage]++; });
+  return c;
+}
+const complete = id => EPICS[id].prior || (progress(id).total > 0 && progress(id).done === progress(id).total);
+const isNow = id => !complete(id) && (EPICS[id].needs || []).every(complete);
+const epicState = id => complete(id) ? "done" : isNow(id) ? "now" : "waits";
+const layer = id => { const n = EPICS[id].needs || []; return n.length ? 1 + Math.max(...n.map(layer)) : 0; };
+const planEpics = slug => Object.values(EPICS).filter(e => e.plan === slug);
+const liveEpics = slug => planEpics(slug).filter(e => !e.prior).sort((a, b) => layer(a.id) - layer(b.id));
+const itemStage = it => it.stage === "committed" && (!it.epic || isNow(it.epic)) ? "ready" : it.stage;
+const projItems = pid => Object.values(ITEMS).filter(i => i.project === pid);
+const backlogOf = pid => projItems(pid).filter(i => i.stage === "captured");
+const unplannedOf = pid => projItems(pid).filter(i => !i.plan && i.stage !== "captured");
+const qsFor = pred => ENTRIES.filter(e => e.kind === "question" && pred(e));
+const blockingFor = pred => ENTRIES.filter(e => pred(e) && tierOf(e) === "blocking").length;
+
+function tierOf(e) {
+  if (e.kind === "review") return "review";
+  if (e.kind === "decision") return "decide";
+  const it = e.item && ITEMS[e.item];
+  if (it && (it.stage === "active" || itemStage(it) === "ready")) return "blocking";
+  if (e.epic) return isNow(e.epic) ? "now" : "later";
+  return "plan";
+}
+const TIERS = [
+  ["blocking", "Blocking work", "Committed work that can't finish without your answer", true],
+  ["review", "Waiting for your review", "Not done until you accept it", true],
+  ["now", "Questions for the current phases", "Will block soon", true],
+  ["later", "Questions for later phases", "Can wait for their phase", false],
+  ["plan", "Questions about the whole plan", "Shape the plan, not one phase", false],
+  ["decide", "Decisions to approve", "Choices agents made; approve, or decide differently", false],
+];
+
+// ---------------- helpers ----------------
+const h = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const ICON_CHEV = `<svg class="ic" viewBox="0 0 10 10" aria-hidden="true"><path d="M3.5 1.5 7 5l-3.5 3.5"/></svg>`;
+const STAGE_LABEL = { captured: "captured", committed: "committed", ready: "ready", active: "active", review: "in review", done: "done", dropped: "dropped", waits: "waits", now: "now", shaping: "shaping" };
+const tag = (st, label) => `<span class="tag s-${st}">${h(label || STAGE_LABEL[st] || st)}</span>`;
+const exMark = o => o && o.ex ? ` <span class="ex" title="Invented for the prototype">ex</span>` : "";
+const P = pid => `#/g/${pid}`;
+const L = {
+  item: it => `${P(it.project)}/item/${it.id}`,
+  epic: e => `${P(PLANS[e.plan].project)}/epic/${e.id}`,
+  plan: p => `${P(p.project)}/plan/${p.slug}`,
+};
+const short = p => p.title.split(":")[0];
+const sep = `<span class="faint">/</span>`;
+function cells(p) {
+  if (!p.total) return "";
+  const cls = [];
+  for (let i = 0; i < p.done; i++) cls.push("d1");
+  for (let i = 0; i < p.review; i++) cls.push("r1");
+  for (let i = 0; i < p.active; i++) cls.push("a1");
+  while (cls.length < p.total) cls.push("");
+  return `<i class="cells" role="img" aria-label="${p.done} of ${p.total} done">${cls.slice(0, 16).map(c => `<i class="${c}"></i>`).join("")}</i>`;
+}
+const FRESH = new Set();
+const isChanged = (pid, key) => !!(CHANGED[pid] && CHANGED[pid].has(key));
+const cl = (pid, key) => isChanged(pid, key) ? " cl" + (FRESH.has(key) ? " fresh" : "") : "";
+
+// ---------------- tiny markdown ----------------
+function inline(s) {
+  let out = h(s);
+  out = out.replace(/`([^`]+)`/g, "<code>$1</code>");
+  out = out.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  out = out.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+  out = out.replace(/\{\{([0-9a-f]{4})\}\}/g, (_, id) => {
+    const e = EPICS[id]; if (!e) return id;
+    return `<a class="ref" href="${L.epic(e)}" title="${h(e.title)}"><code>${id}</code><sup>${e.prior ? "built" : epicState(id)}</sup></a>`;
+  });
+  return out;
+}
+function markdown(src, pid) {
+  const lines = src.split("\n"), blocks = [];
+  const refsOf = t => [...t.matchAll(/\{\{([0-9a-f]{4})\}\}/g)].map(m => m[1]);
+  const chg = t => { const m = t.match(/^\s*\[\[([^\]]+)\]\]\s*/); return m ? [m[1], t.slice(m[0].length)] : [null, t]; };
+  let i = 0;
+  while (i < lines.length) {
+    const ln = lines[i];
+    if (!ln.trim()) { i++; continue; }
+    if (ln.startsWith("## ")) { blocks.push({ html: `<h2>${inline(ln.slice(3))}</h2>`, refs: [], head: true }); i++; continue; }
+    if (ln.startsWith("### ")) { blocks.push({ html: `<h3>${inline(ln.slice(4))}</h3>`, refs: [], head: true }); i++; continue; }
+    const ol = /^\d+\.\s/, ul = /^[-*]\s/;
+    if (ol.test(ln) || ul.test(ln)) {
+      const ordered = ol.test(ln), re = ordered ? ol : ul, lis = [], refs = [];
+      while (i < lines.length && re.test(lines[i])) {
+        const [key, body] = chg(lines[i].replace(re, ""));
+        refs.push(...refsOf(body));
+        lis.push(`<li${key && isChanged(pid, key) ? ` class="${cl(pid, key).trim()}"` : ""}>${inline(body)}</li>`);
+        i++;
+      }
+      blocks.push({ html: `<${ordered ? "ol" : "ul"}>${lis.join("")}</${ordered ? "ol" : "ul"}>`, refs });
+      continue;
+    }
+    const para = [];
+    while (i < lines.length && lines[i].trim() && !/^(##|[-*]\s|\d+\.\s)/.test(lines[i])) para.push(lines[i++]);
+    const [key, body] = chg(para.join(" "));
+    const only = body.match(/^_(.+)_$/);
+    blocks.push({ html: only ? `<p class="ph-empty">${inline(only[1])}</p>` : `<p${key && isChanged(pid, key) ? ` class="${cl(pid, key).trim()}"` : ""}>${inline(body)}</p>`, refs: refsOf(body) });
+  }
+  return blocks;
+}
+function renderDoc(src, pid) {
+  // Each heading and the blocks under it share a row, so the margin sits beside its section.
+  const groups = [];
+  for (const b of markdown(src, pid)) { if (b.head || !groups.length) groups.push([]); groups[groups.length - 1].push(b); }
+  return `<div class="doc">${groups.map(g => {
+    const refs = [...new Set(g.flatMap(b => b.refs))];
+    const margin = refs.map(id => {
+      const e = EPICS[id], st = epicState(id), p = progress(id), qn = qsFor(x => x.epic === id).length;
+      return `<div class="co"><a href="${L.epic(e)}">${h(e.title)}</a><code class="faint">${id}</code>
+        <span class="row3">${e.prior ? tag("done", "built") : tag(st)}${cells(p)}${p.total ? `<span class="mono">${p.done}/${p.total}</span>` : ""}${qn ? `<span>${qn} question${qn > 1 ? "s" : ""}</span>` : ""}</span></div>`;
+    }).join("");
+    return `<div class="blk"><div class="prose">${g.map(b => b.html).join("")}</div><div class="margin"${refs.length ? ' aria-label="Status of the phases this section mentions"' : ""}>${margin}</div></div>`;
+  }).join("")}</div>`;
+}
+
+// ---------------- tree (sheet index) ----------------
+let EXPANDED = new Set(["p:gallformers"]);
+try { const s = JSON.parse(localStorage.getItem("mull.tree.v2") || "null"); if (Array.isArray(s)) EXPANDED = new Set(s); } catch (e) {}
+const saveTree = () => { try { localStorage.setItem("mull.tree.v2", JSON.stringify([...EXPANDED])); } catch (e) {} };
+const countChanged = (pid, keys) => keys.filter(k => isChanged(pid, k)).length;
+
+function treeModel() {
+  const nodes = [{ key: "home", label: "All projects", href: "#/", depth: 0, meta: `<em>${Object.keys(PROJECTS).length}</em>` }];
+  for (const pid of Object.keys(PROJECTS)) {
+    const pk = "p:" + pid, blk = blockingFor(e => e.project === pid), all = CHANGED[pid].size;
+    nodes.push({ key: pk, label: pid, href: P(pid), depth: 0, top: true, kids: true, meta: (blk ? `<span class="stamp">${blk} blocking</span>` : ""), ch: !EXPANDED.has(pk) ? all : 0 });
+    if (!EXPANDED.has(pk)) continue;
+    const plans = PROJECTS[pid].plans.map(s => PLANS[s]).sort((a, b) => (a.state === "shaping") - (b.state === "shaping"));
+    for (const p of plans) {
+      const k = "plan:" + p.slug, eps = planEpics(p.slug);
+      const ch = countChanged(pid, Object.values(ITEMS).filter(i => i.plan === p.slug && i.stage !== "captured").map(i => i.id)) + (isChanged(pid, `doc:${p.slug}:import`) ? 1 : 0);
+      nodes.push({ key: k, label: p.title, href: L.plan(p), depth: 1, kids: eps.length > 0, ch: !EXPANDED.has(k) ? ch : 0, meta: (p.state === "shaping" ? `<span class="tag s-shaping">shaping</span>` : "") });
+      if (!EXPANDED.has(k)) continue;
+      const prior = eps.filter(e => e.prior);
+      if (prior.length) {
+        const bk = "built:" + p.slug;
+        nodes.push({ key: bk, label: "Built before mull", depth: 2, kids: true, waits: true, meta: `<em>${prior.length}</em>` });
+        if (EXPANDED.has(bk)) prior.forEach(e => nodes.push({ key: "e:" + e.id, label: e.title, href: L.epic(e), depth: 3, waits: true, meta: `<em>built</em>` }));
+      }
+      for (const e of liveEpics(p.slug)) {
+        const ek = "e:" + e.id, st = epicState(e.id), pr = progress(e.id), its = epicItems(e.id);
+        const b = blockingFor(x => x.epic === e.id), ech = countChanged(pid, its.map(i => i.id));
+        nodes.push({ key: ek, ch: !EXPANDED.has(ek) ? ech : 0, label: e.title, href: L.epic(e), depth: 2, kids: its.length > 0, waits: st === "waits",
+          meta: (b ? `<span class="stamp">${b}</span>` : "") + (e.golive ? `<span class="tag">Go live</span>` : "") + `<em>${st === "waits" ? "waits" : st === "done" ? "done" : pr.total ? `${pr.done}/${pr.total}` : "now"}</em>` });
+        if (!EXPANDED.has(ek)) continue;
+        its.forEach(it => nodes.push({ key: "i:" + it.id, label: it.title, href: L.item(it), depth: 3, code: it.id, waits: it.stage === "done",
+          ch: isChanged(pid, it.id) ? 1 : 0, meta: `<em>${STAGE_LABEL[itemStage(it)]}</em>` }));
+      }
+    }
+    const un = unplannedOf(pid), bl = backlogOf(pid), untri = bl.filter(i => i.untriaged).length, unch = countChanged(pid, un.map(i => i.id));
+    nodes.push({ key: "un:" + pid, label: "Unplanned", href: P(pid) + "/unplanned", depth: 1, ch: unch, meta: `<em>${un.length}</em>` });
+    nodes.push({ key: "bl:" + pid, label: "Backlog", href: P(pid) + "/backlog", depth: 1, ch: countChanged(pid, bl.map(i => i.id)), meta: `<em>${bl.length}${untri ? ` · ${untri} new` : ""}</em>` });
+  }
+  return nodes;
+}
+function currentKey(r) {
+  if (!r.length) return "home";
+  if (r[0] !== "g") return "";
+  const [, pid, kind, id] = r;
+  return !kind ? "p:" + pid : kind === "plan" ? "plan:" + id : kind === "epic" ? "e:" + id : kind === "item" ? "i:" + id : kind === "unplanned" ? "un:" + pid : kind === "backlog" ? "bl:" + pid : "";
+}
+function expandFor(r) {
+  if (r[0] !== "g" || !PROJECTS[r[1]]) return;
+  const [, pid, kind, id] = r;
+  EXPANDED.add("p:" + pid);
+  if (kind === "plan") EXPANDED.add("plan:" + id);
+  if (kind === "epic" && EPICS[id]) { EXPANDED.add("plan:" + EPICS[id].plan); if (EPICS[id].prior) EXPANDED.add("built:" + EPICS[id].plan); }
+  if (kind === "item" && ITEMS[id] && ITEMS[id].epic && ITEMS[id].stage !== "captured") { EXPANDED.add("plan:" + ITEMS[id].plan); EXPANDED.add("e:" + ITEMS[id].epic); }
+  saveTree();
+}
+function renderTree(r) {
+  const cur = currentKey(r);
+  const rows = treeModel().map(n => {
+    const open = EXPANDED.has(n.key);
+    const tg = n.kids ? `<button class="tg" data-tg="${n.key}" aria-expanded="${open}" aria-label="${open ? "Collapse" : "Expand"} ${h(n.label)}">${ICON_CHEV}</button>` : `<span class="tg leaf"></span>`;
+    const label = `${n.code ? `<code>${n.code}</code>` : ""}${h(n.label)}`;
+    const body = n.href ? `<a class="x" href="${n.href}"${n.key === cur ? ' aria-current="page"' : ""} title="${h(n.label)}">${label}</a>`
+      : `<button class="x" data-tg="${n.key}" style="border:0;background:none;padding:0;text-align:left;cursor:pointer">${label}</button>`;
+    return { ch: n.ch || 0, html: `<div class="node${n.top ? " top" : ""}${n.key === cur ? " cur" : ""}${n.waits ? " waits" : ""}" style="--d:${n.depth}"><span class="guides"></span>${tg}${body}${n.meta || ""}</div>` };
+  });
+  // Consecutive changed rows share one cloud, as a drafter clouds a region.
+  let out = "", run = [];
+  const flush = () => { if (run.length) { out += `<div class="tcl cl">${run.map(r => r.html).join("")}</div>`; run = []; } };
+  for (const r of rows) { if (r.ch) run.push(r); else { flush(); out += r.html; } }
+  flush();
+  document.getElementById("tree").innerHTML = out;
+  document.getElementById("railfoot").innerHTML = `
+    <div><span class="lab">Not on mull yet</span><p>${OLD.join(" · ")}</p></div>
+    <div class="row2"><a class="btn s" href="#/model">The model</a><button class="btn s" id="sim">Simulate an agent capture</button></div>`;
+  const c = document.querySelector(".node.cur");
+  // Keep the current row visible by scrolling the tree only, never the page.
+  const t = document.getElementById("tree");
+  if (c && t.scrollHeight > t.clientHeight) { const top = c.offsetTop - t.offsetTop; if (top < t.scrollTop || top > t.scrollTop + t.clientHeight - 30) t.scrollTop = top - t.clientHeight / 2; }
+}
+
+// ---------------- title block + tabs ----------------
+function titleBlock(title, crumbs, fields, long, changed) {
+  return `<header class="tb${long ? " wide" : ""}"><div class="pj">${crumbs ? `<nav class="crumbs" aria-label="Breadcrumb">${crumbs}</nav>` : ""}<h1 class="${long ? (title.replace(/<[^>]+>/g, "").length > 48 ? "xlong" : "long") : ""}"><span class="${changed ? "cl" : ""}">${title}</span></h1></div>
+    ${fields.map(([l, v]) => `<div class="f"><span class="lab">${l}</span><div class="v">${v}</div></div>`).join("")}</header>`;
+}
+function projectFields(pid) {
+  const pr = PROJECTS[pid], n = CHANGED[pid].size;
+  return [
+    ["Integration branch", `<code style="font-size:14px">${pr.integration}</code>`],
+    ["Ahead of " + pr.release, pr.ahead ? `${pr.ahead} commits` : `<span class="mut">level</span>`],
+    ["Status", `<span class="live"><i></i></span>Live`],
+    ["Last change", `${pr.last} <small class="mono">${pr.lastAt}</small>`],
+    ["Agents working", `${projItems(pid).filter(i => i.stage === "active").length}`],
+    ["Revision", n ? `Rev ${pr.rev} <small>${n} change${n > 1 ? "s" : ""} since ${pr.seenAt}</small>` : `Rev ${pr.rev} <small>nothing new since ${pr.seenAt}</small>`],
+  ];
+}
+function tabs(pid, on) {
+  const bl = backlogOf(pid), untri = bl.filter(i => i.untriaged).length;
+  const t = (k, label, href, extra) => `<a class="${on === k ? "on" : ""}" href="${href}"${on === k ? ' aria-current="page"' : ""}>${label}${extra !== undefined ? ` <em>${extra}</em>` : ""}</a>`;
+  return `<nav class="tabs" aria-label="Project sections">${t("overview", "Overview", P(pid))}${t("unplanned", "Unplanned", P(pid) + "/unplanned", unplannedOf(pid).length)}${t("backlog", "Backlog", P(pid) + "/backlog", bl.length + (untri ? ` · ${untri} untriaged` : ""))}
+    <div class="acts"><button class="btn" data-seen="${pid}"${CHANGED[pid].size ? "" : " disabled"}>Mark revision seen</button><button class="btn p" data-cmd="mull idea &quot;…&quot; (or mull add)">Capture</button></div></nav>`;
+}
+
+// ---------------- Needs you schedule ----------------
+function schedule(entries, opts = {}) {
+  const by = {}; entries.forEach(e => (by[tierOf(e)] ||= []).push(e));
+  const present = TIERS.filter(([k]) => by[k]);
+  if (!present.length) return `<p class="empty">Nothing needs you here.</p>`;
+  return `<div class="sch">${present.map(([k, label, hint, open], ti) => {
+    const num = ti + 1, list = by[k];
+    let body;
+    if (k === "decide") {
+      const groups = {}; list.forEach(e => (groups[e.group] ||= []).push(e));
+      body = Object.entries(groups).map(([g, es]) => `<details class="grp"><summary>${ICON_CHEV}<span>${h(g)}</span><span class="sp"></span><span class="mono mut">${es.length}</span><button class="btn s" data-cmd="mull accept ${es.map(e => e.id).join(" ")}">Approve all</button></summary>
+        <ul>${es.map(e => `<li><code>${e.id}</code><span>${h(e.text)}</span></li>`).join("")}</ul></details>`).join("");
+    } else {
+      body = list.map((e, i) => {
+        const it = e.item && ITEMS[e.item], rv = k === "review" && REVIEWS[it.id];
+        const where = [
+          !opts.noPlan && e.plan ? `<a href="${L.plan(PLANS[e.plan])}">${h(short(PLANS[e.plan]))}</a>` : "",
+          e.epic && !opts.noEpic ? `<a href="${L.epic(EPICS[e.epic])}">${h(EPICS[e.epic].title)}</a>` : "",
+          it && k !== "review" ? `on <a href="${L.item(it)}"><code>${it.id}</code></a> ${STAGE_LABEL[itemStage(it)]}` : "",
+          k === "review" && it.fast ? "unplanned bug · fast path" : "",
+          rv && rv.decisions.length ? `${rv.decisions.length} decisions inside` : "",
+          k === "review" && it.at ? `in review since ${it.at}` : "",
+          e.source && k !== "review" ? `from ${h(e.source)}` : "",
+        ].filter(Boolean).join(" · ");
+        const pid = e.project, key = e.item && k === "review" ? e.item : e.id;
+        const text = k === "review" ? `<a href="${L.item(it)}">${h(e.text)}</a>${exMark(it)}` : h(e.text) + exMark(e);
+        const act = k === "review" ? `<a class="btn s" href="${L.item(it)}">Review</a>` : `<button class="btn s${k === "blocking" ? " p" : ""}" data-copy="${e.id}">Answer</button>`;
+        const href = it ? L.item(it) : e.epic ? L.epic(EPICS[e.epic]) : e.plan ? L.plan(PLANS[e.plan]) : "";
+        return `<div class="it${cl(pid, key)}"${href ? ` data-href="${href}"` : ""}><span class="n">${num}.${i + 1}</span><code>${e.id}</code><div><p>${text}</p><span class="w">${where}</span></div><div class="act">${act}</div></div>`;
+      }).join("");
+      if (list.length > 1 && k !== "review") body += `<div class="foot-act"><button class="btn s" data-copy="${list.map(e => e.id).join(", ")}">Copy all ${list.length} for an agent</button></div>`;
+    }
+    return `<details class="tier t-${k}"${open ? " open" : ""}><summary><span class="n">${String(num).padStart(2, "0")}</span>${ICON_CHEV}<b>${label}<em>${k === "decide" ? `${list.length} in ${new Set(list.map(e => e.group)).size} groups` : list.length}</em></b><small>${hint}</small></summary>${body}</details>`;
+  }).join("")}</div>`;
+}
+
+// ---------------- plans column ----------------
+function planSummary(p) {
+  const pid = p.project, eps = planEpics(p.slug), live = liveEpics(p.slug);
+  const prior = eps.filter(e => e.prior), now = live.filter(e => isNow(e.id));
+  const golive = live.find(e => e.golive);
+  const next = live.filter(e => epicState(e.id) === "waits" && (e.needs || []).some(n => isNow(n)) && !e.golive);
+  const agents = Object.values(ITEMS).filter(i => i.plan === p.slug && i.stage === "active");
+  const qn = qsFor(x => x.plan === p.slug).length;
+  const rows = [];
+  if (p.state === "shaping") {
+    rows.push(["State", `<div>Plan doc in progress<div class="sub">${qn} open question${qn === 1 ? "" : "s"} · no phases yet</div></div>`]);
+  } else {
+    if (prior.length) rows.push(["Built", `<div class="sub">${prior.length} phases built before mull</div>`]);
+    if (now.length) rows.push([`Now · ${now.length}`, `<div>${now.map(e => {
+      const pr = progress(e.id), b = blockingFor(x => x.epic === e.id);
+      const chItem = epicItems(e.id).find(i => isChanged(pid, i.id)), ch = epicItems(e.id).filter(i => isChanged(pid, i.id)).length;
+      return `<div class="pr${chItem ? cl(pid, chItem.id) : ""}" data-href="${L.epic(e)}"><a href="${L.epic(e)}"><span>${h(e.title)}</span>${b ? `<span class="stamp">${b} blocking</span>` : ""}</a>${cells(pr)}<em>${pr.done}/${pr.total}</em></div>`;
+    }).join("")}</div>`]);
+    if (next.length) rows.push(["Next", `<div>${next.map(e => `<a href="${L.epic(e)}">${h(e.title)}</a><div class="sub">waits for ${(e.needs || []).filter(n => !complete(n)).map(n => h(EPICS[n].title)).join(", ")}</div>`).join("")}</div>`]);
+    if (golive) { const w = (golive.needs || []).filter(n => !complete(n)).length; rows.push(["Go live", `<div><a href="${L.epic(golive)}">${h(golive.title)}</a><div class="sub">${w ? `waits for ${w} phase${w > 1 ? "s" : ""}` : "can start"}</div></div>`]); }
+    if (agents.length) rows.push(["Agents", `<div>${agents.map(a => `<div class="ag" data-href="${L.item(a)}"><a href="${L.item(a)}"><code>${a.id}</code></a><span>${h(EPICS[a.epic].title)}</span><span class="sub">${a.claim.age} · ${a.claim.commits} commit${a.claim.commits > 1 ? "s" : ""}</span></div>`).join("")}</div>`]);
+  }
+  return `<div class="plan"><div class="ph"><h3><a href="${L.plan(p)}">${h(p.title)}</a>${exMark(p)}</h3>${tag(p.state === "shaping" ? "shaping" : "now", p.state)}</div>
+    <div class="dl">${rows.map(([l, v]) => `<span class="lab">${l}</span>${v}`).join("")}</div></div>`;
+}
+
+// ---------------- pages ----------------
+function pageHome() {
+  const rows = Object.entries(PROJECTS).map(([pid, pr]) => {
+    const es = ENTRIES.filter(e => e.project === pid), b = blockingFor(e => e.project === pid), n = CHANGED[pid].size;
+    const plans = pr.plans.map(s => PLANS[s]).filter(p => p.state === "active");
+    return `<tr data-href="${P(pid)}"><td><a class="ttl" href="${P(pid)}" style="font-size:15px">${pid}</a><span class="meta"><code>${pr.integration}</code>${pr.ahead ? ` · ${pr.ahead} ahead of ${pr.release}` : ""}</span></td>
+      <td>${plans.map(p => `<div><a href="${L.plan(p)}">${h(p.title)}</a><span class="meta">now: ${h(liveEpics(p.slug).filter(e => isNow(e.id)).map(e => e.title).join(", ") || "nothing can start")}</span></div>`).join("")}</td>
+      <td class="n">${b ? `<span class="stamp">${b}</span>` : "0"}</td><td class="n">${es.filter(e => e.kind === "review").length}</td><td class="n">${es.filter(e => e.kind === "question").length}</td>
+      <td class="n">${projItems(pid).filter(i => i.stage === "active").length}</td><td class="n">${backlogOf(pid).filter(i => i.untriaged).length}</td>
+      <td class="n">Rev ${pr.rev}${n ? `<span class="meta">${n} changed</span>` : ""}</td><td class="n mut">${pr.last}</td></tr>`;
+  }).join("");
+  const old = OLD.map(o => `<tr class="waits"><td>${o}</td><td colspan="8">Old .mull/ data. Not moved to mull yet; its intake is an item in kit's mull-next plan.</td></tr>`).join("");
+  return titleBlock("All projects", "", [["Projects on mull", Object.keys(PROJECTS).length], ["Blocking", blockingFor(() => true)], ["Waiting for review", ENTRIES.filter(e => e.kind === "review").length], ["Agents working", Object.values(ITEMS).filter(i => i.stage === "active").length], ["Status", `<span class="live"><i></i></span>Live`], ["Not on mull yet", OLD.length]]) +
+    `<div class="page"><section><div class="hd"><h2>Projects</h2><span class="lab">Updates when any repo's mull branch moves</span></div>
+    <div class="tbl-wrap"><table class="t"><thead><tr><th>Project</th><th>Active plans</th><th class="n">Blocking</th><th class="n">Reviews</th><th class="n">Questions</th><th class="n">Agents</th><th class="n">Untriaged</th><th class="n">Revision</th><th class="n">Last change</th></tr></thead><tbody>${rows}${old}</tbody></table></div></section></div>`;
+}
+
+const CHANGE_TEXT = it => it.stage === "review" ? "finished; waiting for your review" : it.stage === "done" ? "accepted, done" : it.stage === "active" ? `started in ${it.claim ? it.claim.wt : "a worktree"}` : it.stage === "captured" ? `captured: new ${it.kind}` : it.stage;
+function revisionSchedule(pid) {
+  const keys = [...CHANGED[pid]];
+  if (!keys.length) return "";
+  const rows = keys.map((k, i) => {
+    if (k.startsWith("doc:")) { const slug = k.split(":")[1], p = PLANS[slug]; return [i + 1, "doc", `<a href="${L.plan(p)}/doc">${h(short(p))} plan doc</a>`, "release order changed (step 2)", `${L.plan(p)}/doc`]; }
+    const it = ITEMS[k]; if (!it) return null;
+    return [i + 1, k, `<a href="${L.item(it)}">${h(it.title)}</a>`, CHANGE_TEXT(it), L.item(it)];
+  }).filter(Boolean);
+  return `<section><details class="revs"><summary class="hd"><h2>${ICON_CHEV} Revision ${PROJECTS[pid].rev}</h2><span class="lab">${rows.length} changes since you last looked at ${PROJECTS[pid].seenAt}</span></summary>
+    <div class="tbl-wrap"><table class="t"><thead><tr><th style="width:70px">ID</th><th>Record</th><th>What changed</th></tr></thead><tbody>
+    ${rows.map(([n, id, rec, what, href]) => `<tr data-href="${href}"><td><code>${id}</code></td><td class="ttl">${rec}</td><td class="mut">${h(what)}</td></tr>`).join("")}</tbody></table></div></details></section>`;
+}
+function pageProject(pid, tab) {
+  const head = titleBlock(pid, `<a href="#/">All projects</a>`, projectFields(pid)) + tabs(pid, tab);
+  if (tab === "unplanned") return head + `<div class="page">${pageUnplanned(pid)}</div>`;
+  if (tab === "backlog") return head + `<div class="page">${pageBacklog(pid)}</div>`;
+  const es = ENTRIES.filter(e => e.project === pid);
+  const plans = PROJECTS[pid].plans.map(s => PLANS[s]).sort((a, b) => (a.state === "shaping") - (b.state === "shaping"));
+  return head + `<div class="page">${revisionSchedule(pid)}<div class="cols">
+    <section><div class="hd"><h2>Needs you</h2><span class="lab">${es.length} open · ranked by what it unblocks</span></div>${schedule(es)}</section>
+    <aside><div class="hd"><h2>Plans</h2><span class="lab">${plans.length} in ${pid}</span></div>${plans.map(planSummary).join("")}</aside>
+  </div></div>`;
+}
+
+function itemTable(items, opts = {}) {
+  if (!items.length) return `<p class="empty">${opts.empty || "None."}</p>`;
+  return `<div class="tbl-wrap"><table class="t"><thead><tr><th style="width:70px">ID</th><th>Item</th>${opts.kind ? "<th>Kind</th>" : ""}<th>Stage</th>${opts.extra ? `<th>${opts.extra[0]}</th>` : ""}</tr></thead><tbody>
+    ${items.map(it => `<tr class="${it.stage === "done" ? "waits" : ""}${cl(it.project, it.id)}" data-href="${L.item(it)}"><td><code>${it.id}</code></td><td><a class="ttl" href="${L.item(it)}">${h(it.title)}</a>${exMark(it)}${it.claim ? `<span class="meta">${it.claim.wt} · ${it.claim.commits} commit${it.claim.commits > 1 ? "s" : ""} · ${it.claim.age}</span>` : ""}${it.fast ? `<span class="meta">fast path: started from the backlog</span>` : ""}</td>${opts.kind ? `<td>${it.kind || ""}</td>` : ""}<td>${tag(itemStage(it))}</td>${opts.extra ? `<td>${opts.extra[1](it)}</td>` : ""}</tr>`).join("")}</tbody></table></div>`;
+}
+
+function pageUnplanned(pid) {
+  const un = unplannedOf(pid).sort((a, b) => ORDER[a.stage] - ORDER[b.stage]);
+  return `<section><div class="hd"><h2>Unplanned work</h2><span class="lab">Committed, no plan · a bug or idea started straight from the backlog lands here</span></div>
+    ${itemTable(un, { kind: true, extra: ["Category", it => h(it.category || "")], empty: "Nothing unplanned is committed." })}</section>`;
+}
+
+const BL = { kind: "all", untri: false, plan: "all", cat: "all" };
+function pageBacklog(pid) {
+  const all = backlogOf(pid);
+  const cats = [...new Set(all.map(i => i.category))].sort(), plans = [...new Set(all.map(i => i.plan).filter(Boolean))];
+  const list = all.filter(i => (BL.kind === "all" || i.kind === BL.kind) && (!BL.untri || i.untriaged) && (BL.plan === "all" || (BL.plan === "none" ? !i.plan : i.plan === BL.plan)) && (BL.cat === "all" || i.category === BL.cat))
+    .sort((a, b) => (!!b.untriaged - !!a.untriaged) || a.category.localeCompare(b.category));
+  const untri = all.filter(i => i.untriaged).length;
+  const seg = (v, label) => `<button data-bk="${v}" aria-pressed="${BL.kind === v}">${label}</button>`;
+  return `<section><div class="hd"><h2>Backlog</h2><span class="lab">Captured, not committed · last triage ${PROJECTS[pid].lastTriage} · triage runs with an agent</span></div>
+    <div class="filters" style="padding:12px 0">
+      <span class="seg" role="group" aria-label="Kind">${seg("all", `All ${all.length}`)}${seg("bug", `Bugs ${all.filter(i => i.kind === "bug").length}`)}${seg("idea", `Ideas ${all.filter(i => i.kind === "idea").length}`)}</span>
+      <label><input type="checkbox" id="f-untri"${BL.untri ? " checked" : ""}> Untriaged only (${untri})</label>
+      <label>Plan <select id="f-plan"><option value="all">Any</option>${plans.map(p => `<option value="${p}"${BL.plan === p ? " selected" : ""}>${h(short(PLANS[p]))}</option>`).join("")}<option value="none"${BL.plan === "none" ? " selected" : ""}>No plan</option></select></label>
+      <label>Category <select id="f-cat"><option value="all">Every category</option>${cats.map(c => `<option${BL.cat === c ? " selected" : ""}>${h(c)}</option>`).join("")}</select></label>
+    </div>
+    ${list.length ? `<div class="tbl-wrap"><table class="t"><thead><tr><th style="width:70px">ID</th><th>Captured</th><th>Kind</th><th>Category</th><th>Plan</th><th>From</th><th class="n">Date</th></tr></thead><tbody>
+      ${list.map(i => `<tr class="${cl(pid, i.id).trim()}" data-href="${L.item(i)}"><td><code>${i.id}</code></td><td><a class="ttl" href="${L.item(i)}">${h(i.title)}</a>${i.untriaged ? ` <span class="tag">untriaged</span>` : ""}</td><td>${i.kind}</td><td>${h(i.category)}</td>
+      <td>${i.plan ? `<a href="${L.plan(PLANS[i.plan])}">${h(short(PLANS[i.plan]))}</a>${i.epic ? `<span class="meta">${h(EPICS[i.epic].title)}</span>` : ""}` : `<span class="mut">none</span>`}</td><td>${i.by === "you" ? "<b>you</b>" : "agent"}<span class="meta">${h(i.source)}</span></td><td class="n mono">${i.at}</td></tr>`).join("")}
+    </tbody></table></div>` : `<p class="empty">Nothing matches these filters. <button class="btn s" id="f-clear">Clear filters</button></p>`}</section>`;
+}
+
+function pagePlan(pid, slug, sub) {
+  sub = sub === "doc" || sub === "backlog" ? sub : "status";
+  const p = PLANS[slug]; if (!p || p.project !== pid) return notFound();
+  const eps = planEpics(slug), live = liveEpics(slug), prior = eps.filter(e => e.prior);
+  const now = live.filter(e => isNow(e.id)), golive = live.find(e => e.golive);
+  const qn = qsFor(x => x.plan === slug).length, docChanged = isChanged(pid, `doc:${slug}:import`);
+  const head = titleBlock(h(p.title) + exMark(p), `<a href="#/">All projects</a>${sep}<a href="${P(pid)}">${pid}</a>`, [
+    ["State", p.state === "shaping" ? `${tag("shaping")} <small>not agreed yet</small>` : tag("now", "active")],
+    ["Phases", eps.length ? `${eps.filter(e => complete(e.id)).length} of ${eps.length} done` : `<span class="mut">none yet</span>`],
+    ["Can start now", now.length ? `${now.length} phase${now.length > 1 ? "s" : ""}` : `<span class="mut">none</span>`],
+    ["Go live", golive ? `<a href="${L.epic(golive)}">${h(golive.title)}</a>` : `<span class="mut">not set</span>`],
+    ["Open questions", qn],
+    ["Plan doc", docChanged ? `<a href="${L.plan(p)}/doc">changed</a> <small>since ${PROJECTS[pid].seenAt}</small>` : `<small>no changes since ${PROJECTS[pid].seenAt}</small>`],
+  ], true);
+  const layers = []; live.forEach(e => (layers[layer(e.id)] ||= []).push(e));
+  const goliveLayer = golive ? layer(golive.id) : -1;
+  const groups = layers.map((col, i) => [i === goliveLayer ? "Go live" : i === 0 ? "Can start now" : i > goliveLayer && goliveLayer >= 0 ? "After release" : "Then", col]);
+  const phaseRow = (e, built) => {
+    const st = epicState(e.id), pr = progress(e.id), q = qsFor(x => x.epic === e.id).length, b = blockingFor(x => x.epic === e.id);
+    const ch = epicItems(e.id).filter(i => isChanged(pid, i.id)).length;
+    return `<tr class="${st !== "now" ? "waits" : ""}${ch ? " cl" : ""}" data-ch="${ch}" data-href="${L.epic(e)}"${built ? " data-built hidden" : ""}><td><code>${e.id}</code></td><td><a class="ttl" href="${L.epic(e)}">${h(e.title)}</a>${e.summary ? `<span class="meta">${h(e.summary)}</span>` : ""}</td>
+      <td>${e.prior ? tag("done", "built") : tag(st)}${b ? ` <span class="stamp">${b} blocking</span>` : ""}</td><td>${cells(pr)}</td><td class="n">${pr.total ? `<span class="mono">${pr.done}/${pr.total}</span>` : e.prior ? "" : `<span class="mut">no items</span>`}</td><td class="n">${q || ""}</td>
+      <td class="mono">${(e.needs || []).map(n => `<a href="${L.epic(EPICS[n])}" title="${h(EPICS[n].title)}">${n}</a>`).join(" ")}</td></tr>`;
+  };
+  const phaseTable = eps.length ? `<section><div class="hd"><h2>Where we are</h2><span class="lab">Phases in the order their needs allow</span></div>
+    <div class="tbl-wrap"><table class="t"><thead><tr><th style="width:70px">ID</th><th>Phase</th><th>State</th><th>Items</th><th class="n">Done</th><th class="n">Questions</th><th>Needs</th></tr></thead><tbody>
+    ${prior.length ? `<tr class="grp-h"><td colspan="7"><details id="built-det"><summary>${ICON_CHEV}Built before mull<em>${prior.length}</em></summary></details></td></tr>${prior.map(e => phaseRow(e, true)).join("")}` : ""}
+    ${groups.map(([label, list]) => `<tr class="grp-h${label === "Can start now" ? " now" : ""}"><td colspan="7">${label}<em>${list.length}</em></td></tr>${list.map(e => phaseRow(e)).join("")}`).join("")}
+    </tbody></table></div></section>` : "";
+  const nowBlock = now.length ? now.map(e => {
+    const its = epicItems(e.id).filter(i => i.stage !== "done");
+    const show = its.filter(i => i.stage !== "committed").concat(its.filter(i => i.stage === "committed").slice(0, 2));
+    const more = its.length - show.length;
+    return `<div class="plan"><div class="ph"><h3><a href="${L.epic(e)}">${h(e.title)}</a></h3><span class="mono mut">${progress(e.id).done}/${progress(e.id).total}</span></div>
+      <div style="margin-top:8px">${show.map(i => `<div class="ag" style="padding:4px 0" data-href="${L.item(i)}"><a href="${L.item(i)}"><code>${i.id}</code></a><a href="${L.item(i)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h(i.title)}</a>${tag(itemStage(i))}</div>`).join("")}
+      ${more ? `<div class="sub" style="padding-top:4px">and ${more} more ready</div>` : ""}</div></div>`;
+  }).join("") : `<p class="empty">${p.state === "shaping" ? "No phases yet. When you agree the plan, its phases appear here." : "Nothing can start."}</p>`;
+  const pb = Object.values(ITEMS).filter(i => i.plan === slug && i.stage === "captured");
+  const untri = pb.filter(i => i.untriaged).length, base = L.plan(p);
+  const t = (k, label, href, extra) => `<a class="${sub === k ? "on" : ""}" href="${href}"${sub === k ? ' aria-current="page"' : ""}>${label}${extra !== undefined ? ` <em>${extra}</em>` : ""}</a>`;
+  const nav = `<nav class="tabs" aria-label="Plan sections">${t("status", "Status", base, qn ? `${qn} questions` : undefined)}${t("doc", docChanged ? `<span class="cl tabcl">Plan doc</span>` : "Plan doc", base + "/doc")}${t("backlog", "Backlog", base + "/backlog", pb.length + (untri ? ` · ${untri} untriaged` : ""))}
+    <div class="acts">${p.state === "shaping" ? `<button class="btn p" data-cmd="mull plan agree ${slug}">Agree this plan</button>` : ""}<button class="btn" data-seen="${pid}"${CHANGED[pid].size ? "" : " disabled"}>Mark revision seen</button></div></nav>`;
+  let body;
+  if (sub === "doc") {
+    body = `<section><div class="hd"><h2>The plan</h2><span class="lab">Shared by you and the agents · intent only; status is in the margin</span></div><div style="padding-top:18px">${renderDoc(p.doc, pid)}</div></section>`;
+  } else if (sub === "backlog") {
+    body = `<section><div class="hd"><h2>This plan's backlog</h2><span class="lab">Captured, not committed · <a href="${P(pid)}/backlog">the whole project's backlog</a></span></div>${itemTable(pb.sort((a, b) => (!!b.untriaged - !!a.untriaged)), { kind: true, extra: ["Category", it => h(it.category) + (it.epic ? `<span class="meta">for ${h(EPICS[it.epic].title)}</span>` : "")], empty: "Nothing captured for this plan." })}</section>`;
+  } else {
+    body = `${p.state === "shaping" ? `<p class="sub" style="margin:0">A shaping plan has no phases until you agree it. Read and shape it in the Plan doc tab.</p>` : ""}
+    ${phaseTable}
+    <div class="cols">
+      <section><div class="hd"><h2>Needs you</h2><span class="lab">This plan · ranked</span></div>${schedule(ENTRIES.filter(e => e.plan === slug), { noPlan: true })}</section>
+      <aside><div class="hd"><h2>What's next</h2><span class="lab">Phases that can start now</span></div>${nowBlock}</aside>
+    </div>`;
+  }
+  return head + nav + `<div class="page">${body}</div>`;
+}
+
+function pageEpic(pid, id) {
+  const e = EPICS[id]; if (!e || PLANS[e.plan].project !== pid) return notFound();
+  const p = PLANS[e.plan], st = epicState(id), pr = progress(id);
+  const neededBy = Object.values(EPICS).filter(x => (x.needs || []).includes(id));
+  const head = titleBlock(h(e.title), `<a href="#/">All projects</a>${sep}<a href="${P(pid)}">${pid}</a>${sep}<a href="${L.plan(p)}">${h(short(p))}</a>`, [
+    ["State", e.prior ? tag("done", "built before mull") : tag(st)],
+    ["Items", pr.total ? `${cells(pr)} <span class="mono">${pr.done}/${pr.total}</span>` : `<span class="mut">${e.prior ? "before mull" : "none yet"}</span>`],
+    ["ID", `<code style="font-size:14px">${id}</code>`],
+    ["Needs", (e.needs || []).length ? e.needs.map(n => `<a href="${L.epic(EPICS[n])}">${h(EPICS[n].title)}</a>`).join(", ") : `<span class="mut">nothing</span>`],
+    ["Needed by", neededBy.length ? neededBy.map(n => `<a href="${L.epic(n)}">${h(n.title)}</a>`).join(", ") : `<span class="mut">nothing</span>`],
+    ["Open questions", qsFor(x => x.epic === id).length],
+  ], true);
+  const its = epicItems(id), cap = epicCaptured(id);
+  return head + `<div class="page">
+    ${e.summary ? `<p style="margin:0;max-width:72ch;font-size:15px">${h(e.summary)}</p>` : ""}
+    ${e.doneWhen ? `<section><div class="hd"><h2>Done when</h2></div><div class="prose" style="font-size:15px;padding-top:12px"><ul>${e.doneWhen.map(d => `<li>${h(d)}</li>`).join("")}</ul></div></section>` : ""}
+    <div class="cols">
+      <section><div class="hd"><h2>Items</h2><span class="lab">One session each · unordered</span></div>${itemTable(its, { empty: e.prior ? "Built before mull." : "No items yet. They're written when this phase comes up." })}
+        ${cap.length ? `<div class="hd" style="margin-top:24px"><h2>Captured for this phase</h2><span class="lab">Not committed yet</span></div>${itemTable(cap, { kind: true })}` : ""}</section>
+      <aside><div class="hd"><h2>Needs you</h2><span class="lab">This phase</span></div>${schedule(ENTRIES.filter(x => x.epic === id), { noPlan: true, noEpic: true })}</aside>
+    </div>
+    <section><div class="hd"><h2>The phase doc</h2><span class="lab">Its design, shared with the agents</span></div><div style="padding-top:18px">${e.doc ? renderDoc(e.doc, pid) : `<div class="prose"><p class="ph-empty">${e.prior ? `Built before mull. Its design lives in the old matter ${id}.` : "Not written yet. The agent drafts it with you when this phase comes up."}</p></div>`}</div></section>
+  </div>`;
+}
+
+function pageItem(pid, id) {
+  const it = ITEMS[id]; if (!it || it.project !== pid) return notFound();
+  const p = it.plan && PLANS[it.plan], e = it.epic && EPICS[it.epic], r = it.review && REVIEWS[it.review];
+  const crumbs = `<a href="#/">All projects</a>${sep}<a href="${P(pid)}">${pid}</a>${sep}${p ? `<a href="${L.plan(p)}">${h(short(p))}</a>` : `<a href="${P(pid)}/${it.stage === "captured" ? "backlog" : "unplanned"}">${it.stage === "captured" ? "Backlog" : "Unplanned"}</a>`}${e ? `${sep}<a href="${L.epic(e)}">${h(e.title)}</a>` : ""}`;
+  const head = titleBlock(h(it.title) + exMark(it), crumbs, [
+    ["Stage", tag(itemStage(it))],
+    ["ID", `<code style="font-size:14px">${id}</code>`],
+    ["Kind", it.kind ? `${it.kind}${it.category ? ` <small>${h(it.category)}</small>` : ""}` : `<span class="mut">work item</span>`],
+    ["Claim", it.claim ? `<code>${it.claim.wt}</code> <small>${it.claim.age}</small>` : `<span class="mut">none</span>`],
+    ["Captured by", it.by ? `${it.by} <small>${h(it.source)}</small>` : `<span class="mut">planning</span>`],
+    ["Path", it.fast ? "fast path" : p ? "planned" : it.stage === "captured" ? "backlog" : "unplanned"],
+  ], true, isChanged(pid, id));
+  const qs = ENTRIES.filter(x => x.item === id && x.kind === "question");
+  if (!r) {
+    const acts = it.stage === "captured" ? `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn p" data-cmd="mull start ${id}">Start it now</button><button class="btn" data-cmd="mull commit ${id}">Commit to a plan</button><button class="btn" data-cmd="mull drop ${id}">Drop</button><span class="sub">Starting it skips planning; it keeps this ID through review and done.</span></div>` : "";
+    return head + `<div class="page">${acts}${qs.length ? `<section><div class="hd"><h2>Open questions on this item</h2></div>${schedule(qs, { noPlan: true, noEpic: true })}</section>` : ""}
+      <section><div class="hd"><h2>Notes</h2><span class="lab">The brief an agent works from</span></div><div class="prose" style="padding-top:12px"><p class="ph-empty">${it.stage === "captured" ? "One line is enough to capture. The agent who starts it writes what it needs here." : "No notes yet."}</p></div></section></div>`;
+  }
+  return head + `<div class="page">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding-bottom:12px;border-bottom:1.5px solid var(--ink)">
+      <h2 style="font-size:19px;font-weight:750;margin-right:auto">Review: does it work, and was it built well?</h2>
+      <span class="ex">example content</span>
+      <button class="btn" data-cmd="mull do ${id} --reason &quot;…&quot;">Send it back</button>
+      <button class="btn p" data-cmd="mull accept ${id}${r.decisions.length ? " " + r.decisions.map(d => d[0]).join(" ") : ""}">Accept${r.decisions.length ? ` with its ${r.decisions.length} decisions` : ""}</button>
+    </div>
+    ${it.fast ? `<p class="sub" style="margin:-18px 0 0">This bug went from the backlog to review in one session, with no planning step. It still needs your review.</p>` : ""}
+    <div class="pk">
+      <section><div class="hd"><h2>What was built</h2><span class="lab">Does it work?</span></div>
+        <div class="prose"><p>${inline(r.summary)}</p></div>
+        <div><span class="lab">Try it</span><ol class="tour" style="margin-top:8px">${r.tour.map(t => `<li>${h(t)}</li>`).join("")}</ol></div>
+        <div class="check"><span class="tag s-pass">passed</span><code>${h(r.checks[0])}</code><span class="sub">${h(r.checks[2])} · ${h(r.checks[1])}</span></div>
+        <span class="sub">${h(r.commits)}</span></section>
+      <section><div class="hd"><h2>How it was built</h2><span class="lab">Sound design?</span></div>
+        <div class="prose"><p>${h(r.how)}</p></div>
+        <div><span class="lab">Decisions made in this session · ${r.decisions.length || "none"}</span>
+          ${r.decisions.map(([did, t, why]) => `<div class="decn"><code>${did}</code><span>${h(t)}</span><button class="btn s" data-cmd="mull decide ${did} &quot;…&quot;">Decide differently</button><span class="why">${h(why)}</span></div>`).join("")}</div>
+        <div><span class="lab">Files by layer</span><table class="t" style="margin-top:6px"><tbody>${r.files.map(([l, path, n, a, d]) => `<tr><td><b>${l}</b> <code class="mut">${h(path)}</code></td><td class="n">${n} files</td><td class="n mono">+${a}</td><td class="n mono">−${d}</td></tr>`).join("")}</tbody></table></div>
+      </section>
+    </div></div>`;
+}
+
+function pageModel() {
+  return titleBlock("The model", `<a href="#/">All projects</a>`, [["Settled", "2026-11-10"], ["Stages", "6"], ["Records", "plan · phase · item"], ["Needs you", "questions · decisions · reviews"], ["Backlog kinds", "bug · idea"], ["Still open", "4"]]) +
+  `<div class="page model">
+  <section><div class="hd"><h2>Hierarchy</h2></div><pre>Project            <i>a repo; kit is the one exception and isn't designed around</i>
+├─ <b>Needs you</b>       questions · decisions · reviews <i>(attention only, ranked)</i>
+├─ <b>Plan</b>            shaping → active → done      <i>"agreed" is explicit, by you</i>
+│  │  doc             the picture, done-when, why the order; intent only
+│  └─ <b>Phase</b>        doc: its design + done-when
+│     │  needs        other phases only  <i>("go live" needs X, Y, Z)</i>
+│     └─ <b>Item</b>      one session; no needs, no ordering
+├─ <b>Unplanned</b>       items committed without a plan
+└─ <b>Backlog</b>         captured items: bug | idea, free-text category,
+                   optionally tagged to a plan or phase</pre></section>
+  <section><div class="hd"><h2>One item, stages instead of steps</h2></div><div class="stages">${["captured", "committed", "active", "review", "done"].map(s => tag(s)).join(`<span class="faint">→</span>`)}</div>
+    <p class="sub" style="max-width:72ch;margin:0">Start works from captured or committed. “Done” means reviewed: the old <code>done</code> becomes <code>in review</code>, and <code>accepted</code> becomes <code>done</code>. Dropped from anywhere.</p></section>
+  <section><div class="hd"><h2>Rules</h2></div><dl class="rules">
+    <dt>No status in prose</dt><dd>Docs hold intent and reasons. Status comes from records and shows in the doc's margin.</dd>
+    <dt>Review is always required</dt><dd>What was built (tour, checks) and how (design notes, the session's decisions, files by layer), settled together.</dd>
+    <dt>Order only where it matters</dt><dd>Needs exist between phases only. What's next is derived: phases whose needs are done.</dd>
+    <dt>Needs you is attention only</dt><dd>Questions, decisions, reviews. Bugs and ideas go to the backlog and never nag.</dd>
+    <dt>Triage is a process</dt><dd>Run with an agent (mull guide triage). mull stamps a triaged time; the UI shows only the untriaged count.</dd>
+    <dt>Anyone captures, you commit</dt><dd>Agents file bugs and ideas with their source. You decide what gets committed and what becomes a plan.</dd>
+    <dt>Revisions</dt><dd>What changed since you last looked is clouded in red. Mark revision seen clears it.</dd>
+  </dl></section>
+  <section><div class="hd"><h2>Still open</h2></div><div class="prose" style="font-size:15px;padding-top:12px"><ul>
+    <li>“Epic” or “phase”? The prototype says phase.</li>
+    <li>When you answer a question, does an agent fold the answer into the plan doc, and how is that prompted?</li>
+    <li>How mull serve finds repos: a registry written by <code>mull init</code>, a scan of ~/dev, or both.</li>
+    <li>Where “last looked” lives: per browser, or recorded by mull serve.</li>
+  </ul></div></section></div>`;
+}
+const notFound = () => titleBlock("Not found", `<a href="#/">All projects</a>`, []) + `<div class="page"><p>That record doesn't exist in this project. <a href="#/">Back to all projects</a>.</p></div>`;
+
+// ---------------- router ----------------
+const route = () => location.hash.replace(/^#\/?/, "").split("#")[0].split("/").filter(Boolean);
+function render() {
+  const r = route();
+  let html;
+  if (!r.length) html = pageHome();
+  else if (r[0] === "model") html = pageModel();
+  else if (r[0] === "g" && PROJECTS[r[1]]) {
+    const [, pid, kind, id] = r;
+    html = !kind ? pageProject(pid, "overview") : kind === "unplanned" || kind === "backlog" ? pageProject(pid, kind)
+      : kind === "plan" ? pagePlan(pid, id, r[4]) : kind === "epic" ? pageEpic(pid, id) : kind === "item" ? pageItem(pid, id) : notFound();
+  } else html = notFound();
+  document.getElementById("main").innerHTML = html;
+  renderTree(r);
+  document.querySelectorAll("tr.cl").forEach(tr => {
+    const prev = tr.previousElementSibling, next = tr.nextElementSibling;
+    if (prev && prev.classList.contains("cl") && !prev.hidden) tr.classList.add("cl-cont");
+    if (next && next.classList.contains("cl") && !next.hidden) tr.classList.add("cl-open");
+  });
+  const bd = document.getElementById("built-det");
+  if (bd) bd.addEventListener("toggle", () => document.querySelectorAll("tr[data-built]").forEach(tr => tr.hidden = !bd.open));
+  FRESH.clear();
+}
+function toast(html) {
+  const t = document.getElementById("toast");
+  t.innerHTML = html; t.hidden = false;
+  clearTimeout(toast._t); toast._t = setTimeout(() => (t.hidden = true), 3800);
+}
+window.addEventListener("hashchange", () => {
+  if (location.hash === "#doc") return;
+  document.querySelector(".rail").classList.remove("open"); document.getElementById("idx").setAttribute("aria-expanded", "false");
+  expandFor(route()); render(); window.scrollTo(0, 0);
+});
+document.addEventListener("click", ev => {
+  if (ev.target.id === "idx") { const r = document.querySelector(".rail"), o = r.classList.toggle("open"); ev.target.setAttribute("aria-expanded", o); return; }
+  const tg = ev.target.closest("[data-tg]");
+  if (tg) { const k = tg.dataset.tg; EXPANDED.has(k) ? EXPANDED.delete(k) : EXPANDED.add(k); saveTree(); renderTree(route()); return; }
+  const row = ev.target.closest("[data-href]");
+  if (row && !ev.target.closest("a, button, summary, input, select, label")) {
+    if (ev.metaKey || ev.ctrlKey) window.open(row.dataset.href, "_blank"); else location.hash = row.dataset.href;
+    return;
+  }
+  const j = ev.target.closest("[data-jump]");
+  if (j) { ev.preventDefault(); document.getElementById(j.dataset.jump)?.scrollIntoView({ behavior: "smooth" }); return; }
+  const c = ev.target.closest("[data-cmd]");
+  if (c) { ev.preventDefault(); toast(`Prototype. This would run <code>${h(c.dataset.cmd)}</code>`); return; }
+  const cp = ev.target.closest("[data-copy]");
+  if (cp) {
+    ev.preventDefault();
+    const text = `Let's work through these open mull questions together: ${cp.dataset.copy}. Run mull context for each first.`;
+    Promise.resolve().then(() => navigator.clipboard.writeText(text)).then(() => toast("Copied a prompt for an agent. Paste it into your agent session."), () => toast(`Copy this for an agent: <code>${h(text)}</code>`));
+    return;
+  }
+  const seen = ev.target.closest("[data-seen]");
+  if (seen) {
+    const pid = seen.dataset.seen;
+    document.querySelectorAll(".cl").forEach(el => el.classList.add("fading"));
+    setTimeout(() => { CHANGED[pid].clear(); PROJECTS[pid].seenAt = "now"; render(); toast(`Revision ${PROJECTS[pid].rev} marked seen. New changes will be clouded.`); }, 360);
+    return;
+  }
+  const bk = ev.target.closest("[data-bk]");
+  if (bk) { BL.kind = bk.dataset.bk; render(); return; }
+  if (ev.target.id === "f-clear") { Object.assign(BL, { kind: "all", untri: false, plan: "all", cat: "all" }); render(); return; }
+  if (ev.target.id === "sim") {
+    const id = "c7" + (0x10 + (Object.keys(ITEMS).length % 0xe0)).toString(16).padStart(2, "0");
+    ITEMS[id] = { id, project: "gallformers", plan: "taxogall", kind: "bug", category: "performance", title: "Fact inspector: Escape doesn't close it after switching Facts", stage: "captured", by: "agent", source: "7378 session", at: "11-10", untriaged: true };
+    CHANGED.gallformers.add(id); FRESH.add(id); PROJECTS.gallformers.rev++; PROJECTS.gallformers.last = "just now";
+    render();
+    toast(`gallformers' mull branch moved: new capture <code>${id}</code>, clouded in the backlog.`);
+  }
+});
+document.addEventListener("change", ev => {
+  if (ev.target.id === "f-untri") { BL.untri = ev.target.checked; render(); }
+  if (ev.target.id === "f-plan") { BL.plan = ev.target.value; render(); }
+  if (ev.target.id === "f-cat") { BL.cat = ev.target.value; render(); }
+});
+expandFor(route());
+render();
+</script>
