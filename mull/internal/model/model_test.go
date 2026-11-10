@@ -30,6 +30,28 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 	}
 }
 
+func TestItemStagesKeepTheirStoredNames(t *testing.T) {
+	for stage, stored := range map[string]string{
+		StateCaptured: "captured", StateCommitted: "open", StateActive: "active",
+		StateInReview: "done", StateDone: "accepted", StateDropped: "dropped",
+	} {
+		data, err := Encode(Item{Title: "x", State: stage}, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(data), "\nstate: "+stored+"\n") {
+			t.Errorf("%s stored as:\n%s", stage, data)
+		}
+		var out Item
+		if _, err := Decode(data, &out); err != nil {
+			t.Fatal(err)
+		}
+		if out.State != stage {
+			t.Errorf("stored %q read back as %q, want %q", stored, out.State, stage)
+		}
+	}
+}
+
 func TestAllDigitIDsStayStrings(t *testing.T) {
 	data, err := Encode(Item{Needs: []string{"7877"}, Phase: "0123"}, "")
 	if err != nil {

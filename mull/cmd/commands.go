@@ -297,14 +297,14 @@ func listCmd(a *app) *cobra.Command {
 	}
 	c.Flags().StringVar(&f.Plan, "plan", "", "only this plan")
 	c.Flags().StringVar(&f.Phase, "phase", "", "only this phase")
-	c.Flags().StringVar(&f.State, "state", "", "only this state (open, active, done, accepted, dropped)")
+	c.Flags().StringVar(&f.State, "state", "", "only this stage (captured, committed, active, in-review, done, dropped)")
 	return c
 }
 
 func readyCmd(a *app) *cobra.Command {
 	var f mull.ItemFilter
 	c := &cobra.Command{
-		Use: "ready", Short: "List items ready to start (open, with every need finished)", Args: noArgs,
+		Use: "ready", Short: "List items ready to start (committed, with every need finished)", Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f.ReadyOnly = true
 			return a.read(func(m *mull.Mull) (any, error) {
@@ -359,7 +359,7 @@ func startCmd(a *app) *cobra.Command {
 
 func releaseCmd(a *app) *cobra.Command {
 	return &cobra.Command{
-		Use: "release <id>", Short: "Give back a claim; the item returns to open", Args: exact(1),
+		Use: "release <id>", Short: "Give back a claim; the item returns to committed", Args: exact(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.write("release", &mull.ReleaseIn{ID: args[0]})
 		},

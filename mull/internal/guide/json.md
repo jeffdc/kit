@@ -53,11 +53,11 @@ A `batch_invalid` error also lists every failed line:
 
 - **Plan:** `{slug, title, state ("active"|"closed"), created, updated, summary?}`
 - **Phase:** `{id, plan, title, needs?, from?, created, updated, summary?}`. `from` is the inbox entry (e.g. an idea) it was promoted from.
-- **Item:** `{id, plan, phase?, title, state ("open"|"active"|"done"|"accepted"|"dropped"), needs?, docs?, claim?, from?, created, updated, notes?}`. `from` is the inbox entry (idea, question or loose end) it was made from.
+- **Item:** `{id, plan, phase?, title, state ("captured"|"committed"|"active"|"in-review"|"done"|"dropped"), needs?, docs?, claim?, from?, created, updated, notes?}`. `from` is the inbox entry (idea, question or loose end) it was made from.
   - **claim:** `{worktree, branch, at, base?}`
 - **ItemView:** Item plus `{ready, blocked_by?}`.
 - **PhaseView:** Phase plus `{progress, complete, blocked_by?}`.
-- **Progress:** `{total, open, active, done_unreviewed, accepted, dropped, ready}`
+- **Progress:** `{total, captured, committed, active, in_review, done, dropped, ready}`. `total` counts committed work (every stage but captured); captured items tagged to the phase or plan are counted only in `captured`.
 - **Entry** (inbox): `{id, kind ("decision"|"question"|"loose-end"|"review"|"idea"), text, plan, item?, source?, by, created, settled?, detail?}`
   - **settled:** `{action ("accept"|"decide"|"do"|"drop"|"park"), note?, item?, phase?, by, on_request?, at}`. `item` or `phase` is what `do` made.
   - **An idea** is an Entry with `kind: "idea"`. `text` is its title and `detail` its note. `plan` may be `""` (no plan). Ideas aren't work: they're never ready, never in `inbox` (unless `--kind idea`) and never in `needs_you`.

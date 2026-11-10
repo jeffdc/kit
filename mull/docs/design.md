@@ -46,17 +46,20 @@ New mull is the record of a program: its plans, where they stand, and everything
 - `mull init` creates one standing plan, `general`, for work outside any big effort, so the rule never forces a plan to be invented.
 - No docket, no sessions, no free-floating epics.
 
-**Item states:** `open → active → done → accepted`, plus `dropped`.
+**Item stages** (Model v2, see `serve/README.md`): `captured → committed → active → in-review → done`, plus `dropped` from any stage before done.
 
-| Step | What triggers it |
+| Stage | What triggers it |
 |---|---|
-| `active` | The item is claimed by an agent (see "Claims") |
-| `done` | Only through `mull done`, after the hard checks pass |
-| `accepted` | The work is reviewed (see "Review") |
+| `captured` | The item is in the backlog, not committed to |
+| `committed` | The item is committed work (`mull add` creates items here) |
+| `active` | The item is claimed by an agent (see "Claims"). `start` works from captured or committed |
+| `in-review` | Only through `mull done`, after the hard checks pass |
+| `done` | The work is reviewed and accepted (see "Review") |
 
-**Unreviewed work is incomplete work.** A `done` item counts as finished only once it's `accepted`.
-- An epic's progress counts accepted items out of the total, with done-but-unreviewed items shown separately.
-- An epic is complete when all its items are accepted or dropped.
+**Unreviewed work is incomplete work.** An item counts as finished only once it's `done`, which means reviewed.
+- A phase's progress counts done items out of its committed items, with items in review shown separately. Captured items tagged to a phase are counted on their own and never hold it open.
+- A phase is complete when it has committed items and all of them are done or dropped.
+- Until the Model v2 migration, stages are stored under their old names (`open`, `done`, `accepted` for committed, in-review and done).
 
 ### Ordering: loose, with dependencies
 

@@ -11,7 +11,7 @@ When you settle or file more than a couple of records at once, use `mull batch`.
 - Read `mull decisions`. Workers must not re-decide what's settled, and neither must you.
 
 ## Handing out work
-- Pick from `mull ready`. These items are open, with everything they need finished.
+- Pick from `mull ready`. These items are committed, with everything they need finished.
 - Prefer items in unblocked phases. Don't hand out two items likely to touch the same files at the same time.
 - Give each worker exactly one item ID, its worktree, and this instruction: "Follow `mull guide agents`. Your item is `<id>`."
 - Don't create items yourself unless the human asked you to. If a piece of work is too big for one session, propose a split with `mull ask`.
@@ -33,7 +33,7 @@ When a worker runs `mull done`, you review before the human sees it:
 4. If it doesn't, find its review entry with `mull inbox --kind review` and send it back with `mull do <entry-id> --reason "<what's wrong>"`. The item reopens for another session.
 5. Tell the human what you accepted and what you sent back, with the UI tour for anything they should click through themselves.
 
-Unreviewed work is incomplete work. Nothing counts as finished until it's accepted.
+Unreviewed work is incomplete work. An item is in review after `mull done`, and done only once its review is accepted.
 
 ## End of session
 - Run `mull sync`.

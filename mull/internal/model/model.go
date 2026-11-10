@@ -10,13 +10,34 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Item states.
+// Item stages: captured → committed → active → in review → done, or
+// dropped from anywhere. A done item is a reviewed item.
 const (
-	StateOpen     = "open"
-	StateActive   = "active"
-	StateDone     = "done"
-	StateAccepted = "accepted"
-	StateDropped  = "dropped"
+	StateCaptured  = "captured"  // in the backlog, not committed to
+	StateCommitted = "committed" // committed work, not yet started
+	StateActive    = "active"
+	StateInReview  = "in-review" // finished through mull done, waiting for review
+	StateDone      = "done"      // reviewed and accepted
+	StateDropped   = "dropped"
+)
+
+// Stages lists every item stage, in order.
+var Stages = []string{StateCaptured, StateCommitted, StateActive, StateInReview, StateDone, StateDropped}
+
+// Item stages are stored under their pre-Model v2 names until the Model v2
+// migration rewrites them, so the file format is unchanged. Stored "done"
+// means in review, so the two vocabularies must never be mixed on disk.
+var (
+	storedState = map[string]string{
+		StateCommitted: "open",
+		StateInReview:  "done",
+		StateDone:      "accepted",
+	}
+	loadedState = map[string]string{
+		"open":     StateCommitted,
+		"done":     StateInReview,
+		"accepted": StateDone,
+	}
 )
 
 // Plan states.
@@ -106,6 +127,30 @@ type Item struct {
 	Created string   `yaml:"created" json:"created"`
 	Updated string   `yaml:"updated" json:"updated"`
 	Notes   string   `yaml:"-" json:"notes,omitempty"`
+}
+
+// MarshalYAML stores the item's stage under its stored name.
+func (i Item) MarshalYAML() (any, error) {
+	type plain Item
+	p := plain(i)
+	if st, ok := storedState[p.State]; ok {
+		p.State = st
+	}
+	return p, nil
+}
+
+// UnmarshalYAML reads a stored stage back into its Model v2 name.
+func (i *Item) UnmarshalYAML(node *yaml.Node) error {
+	type plain Item
+	var p plain
+	if err := node.Decode(&p); err != nil {
+		return err
+	}
+	if st, ok := loadedState[p.State]; ok {
+		p.State = st
+	}
+	*i = Item(p)
+	return nil
 }
 
 // Settlement records how an inbox entry was settled.

@@ -215,7 +215,7 @@ type AcceptResult struct {
 }
 
 // Accept ratifies decisions and accepts reviewed work. refs may be decision
-// or review entries, or done items (whose review is settled with them).
+// or review entries, or items in review (whose review is settled with them).
 // followUp, if set, creates a follow-up item for an accepted review; it
 // applies only when accepting a single review.
 func (m *Mull) Accept(refs []string, followUp string, o SettleOpts) (AcceptResult, error) {
@@ -281,16 +281,16 @@ func (m *Mull) accept(s *state, refs []string, followUp string, o SettleOpts) (A
 	return out, nil
 }
 
-// acceptItem marks done work accepted. The worker that claimed the item may
+// acceptItem marks work in review done. The worker that claimed the item may
 // not accept it from its own worktree unless the human asked it to.
 func (m *Mull) acceptItem(s *state, i *model.Item, o SettleOpts) error {
-	if i.State != model.StateDone {
-		return errf(CodeState, "item %s is %s; only done items can be accepted", i.ID, i.State)
+	if i.State != model.StateInReview {
+		return errf(CodeState, "item %s is %s; only items in review can be accepted", i.ID, i.State)
 	}
 	if i.Claim != nil && i.Claim.Worktree == m.Worktree() && !o.OnRequest {
 		return errf(CodeNotAllowed, "item %s was done from this worktree; a worker cannot accept its own work unless the human asks (use --on-request)", i.ID)
 	}
-	i.State, i.Updated = model.StateAccepted, m.now()
+	i.State, i.Updated = model.StateDone, m.now()
 	return s.putItem(i)
 }
 
@@ -366,8 +366,8 @@ func (m *Mull) do(s *state, in DoInput) (DoResult, error) {
 		if err != nil {
 			return DoResult{}, err
 		}
-		if i.State != model.StateDone {
-			return DoResult{}, errf(CodeState, "item %s is %s; only done items can be sent back", i.ID, i.State)
+		if i.State != model.StateInReview {
+			return DoResult{}, errf(CodeState, "item %s is %s; only items in review can be sent back", i.ID, i.State)
 		}
 		if in.Reason == "" {
 			return DoResult{}, errf(CodeInvalid, "say why the work is sent back (--reason)")
@@ -375,7 +375,7 @@ func (m *Mull) do(s *state, in DoInput) (DoResult, error) {
 		if err := m.settle(s, e, model.ActDo, in.Reason, i.ID, in.SettleOpts); err != nil {
 			return DoResult{}, err
 		}
-		i.State, i.Claim, i.Updated = model.StateOpen, nil, m.now()
+		i.State, i.Claim, i.Updated = model.StateCommitted, nil, m.now()
 		i.Notes = joinNotes(i.Notes, fmt.Sprintf("Sent back on review (%s): %s", m.now(), in.Reason))
 		if err := s.putItem(i); err != nil {
 			return DoResult{}, err
@@ -501,8 +501,8 @@ func (m *Mull) drop(s *state, refs []string, reason string, o SettleOpts) (DropR
 			out.Entries = append(out.Entries, e)
 		case s.items[ref] != nil:
 			i := s.items[ref]
-			if i.State == model.StateAccepted {
-				return out, errf(CodeState, "item %s is accepted and cannot be dropped", i.ID)
+			if i.State == model.StateDone {
+				return out, errf(CodeState, "item %s is done and cannot be dropped", i.ID)
 			}
 			i.State, i.Updated = model.StateDropped, m.now()
 			if reason != "" {

@@ -376,7 +376,7 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 			out.Item = s.itemView(i)
 			return nil
 		}
-		i.State, i.Updated = model.StateDone, m.now()
+		i.State, i.Updated = model.StateInReview, m.now()
 		if err := s.putItem(i); err != nil {
 			return err
 		}
@@ -405,7 +405,7 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 
 func ownActive(i *model.Item, wt string) error {
 	switch {
-	case i.State == model.StateOpen:
+	case i.State == model.StateCaptured || i.State == model.StateCommitted:
 		return errf(CodeState, "item %s is not started; claim it with: mull start %s", i.ID, i.ID)
 	case i.State != model.StateActive:
 		return errf(CodeState, "item %s is %s", i.ID, i.State)
