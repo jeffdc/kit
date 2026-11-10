@@ -53,8 +53,9 @@ A `batch_invalid` error also lists every failed line:
 
 ## Records
 
-- **Plan:** `{slug, title, state ("shaping"|"active"|"done"), created, updated, summary?}`. A new plan is `shaping`; `plan agree` (the human) makes it `active`, and `plan close` makes it `done`. A shaping plan takes phases, items, captures and inbox entries, but none of its items is ready until it is agreed.
-- **Phase:** `{id, plan, title, needs?, from?, created, updated, summary?}`. `from` is the inbox entry (e.g. an idea) it was promoted from. `needs` are the phases it waits for: needs exist between phases only. (A need on an item, from before Model v2, still counts until `mull migrate` converts it.)
+- **Plan:** `{slug, title, state ("shaping"|"active"|"done"), created, updated, summary?, doc?}`. A new plan is `shaping`; `plan agree` (the human) makes it `active`, and `plan close` makes it `done`. A shaping plan takes phases, items, captures and inbox entries, but none of its items is ready until it is agreed.
+- **Phase:** `{id, plan, title, needs?, from?, created, updated, summary?, doc?}`. `from` is the inbox entry (e.g. an idea) it was promoted from. `needs` are the phases it waits for: needs exist between phases only. (A need on an item, from before Model v2, still counts until `mull migrate` converts it.)
+- **Docs:** `doc` is a plan's or phase's doc, in markdown: a plan's picture, done-when and why the order; a phase's design and done-when. Docs hold intent only, never status: status comes from the records. A doc is kept apart from its record, so changing the record (`summary` included) never makes a new version of the doc. `plan doc` and `phase doc` print it, replace it (`-`) and list its versions (`--log`).
 - **Item:** `{id, plan?, phase?, title, state ("captured"|"committed"|"active"|"in-review"|"done"|"dropped"), kind?, category?, source?, needs?, docs?, claim?, from?, created, updated, notes?}`. `from` is the inbox entry (idea, question or loose end) it was made from.
   - **No `plan`** means unplanned work, or (captured) backlog not tagged to a plan.
   - **Captured items** (`mull bug`, `mull idea`) carry `kind` (`"bug"`|`"idea"`), and `category` and `source` when given; `notes` holds the `--detail`. They keep them once committed.
@@ -83,6 +84,7 @@ Times are RFC 3339 in UTC. IDs are 4 hex characters; plans use their slug.
 | `plan show` | Plan + `{progress, phases: [PhaseView], items: [ItemView]}` |
 | `phase add` | Phase |
 | `phase list` | `{phases: [PhaseView]}` |
+| `plan doc`, `phase doc` | `{type: "plan"\|"phase", id, doc}`: `id` is the plan's slug or the phase's ID, and `doc` is `""` when there is none. `<slug\|id> -` replaces the doc from stdin, and empty stdin removes it. `--text` prints the doc as markdown. `--log` prints `{type, id, versions: [{commit, at, doc}]}`, newest first: one version per commit that changed the doc, `doc` `""` where it was removed |
 | `add`, `release`, `bug`, `idea`, `commit` | ItemView |
 | `show` | `{type: "plan"\|"phase"\|"item"\|"entry", <type>: …}`. A plan is shown as in `plan show`, a phase as PhaseView + `{items}`, an item as ItemView, an entry as Entry |
 | `list`, `ready` | `{items: [ItemView]}`. `list --plan none` selects items with no plan; `--kind bug\|idea` selects captured kinds |
@@ -99,7 +101,7 @@ Times are RFC 3339 in UTC. IDs are 4 hex characters; plans use their slug.
 | `decisions` | `{decisions: [{id, plan, item?, kind, context, decision, by, on_request?, at}]}`, newest first |
 | `config`, `config set\|checks\|layer` | Config |
 | `view` | `{generated, integration, integration_found, release, ahead_of_release, plans: [Board], unlinked_commits_this_week, unlinked_recent?, unplanned?: Board, legacy?: {loose_ends, ideas}}`. `unplanned` is a Board (slug `""`, title `"Unplanned"`, no `state`) for items with no plan and entries with no plan, present when there are any. `legacy` counts open loose ends and inbox ideas until `mull migrate`. `plans` holds the active plans, then the shaping ones; a done plan only with `--plan`. Board: `{slug, title, state?, progress, phases: [{id, title, progress, complete, blocked_by?}], unfiled: Progress, problems: [{kind, item, text}], in_flight: [{id, title, state, worktree?, branches?, commits, last_activity?}], needs_you: {reviews, decisions, questions, older_than_a_week, parked}}`. Problem kinds: `idle-claim`, `unclaimed-work`, `done-not-in-git`, `failed-done` |
-| `context` | `{worktree, branch, protocol: [], item?: …, my_claims: [], plans: [], ready: [], active: [], decisions: []}`. `plans` are the shaping and active plans: `{slug, title, state, phases?}` |
+| `context` | `{worktree, branch, protocol: [], item?: …, my_claims: [], plans: [], ready: [], active: [], decisions: []}`. `plans` are the shaping and active plans: `{slug, title, state, phases?}`. `item` is the ItemView plus `phase_title?`, `phase_summary?`, `phase_doc?` (its phase's doc), `open_questions?`, `item_decisions?`, `last_report?`, `last_report_passed?` |
 | `check` | `{tree, commit, at, by, passed, results: [{command, exit, duration_ms, tail?}], cached}` |
 | `done` | `{report: Report, report_path, item: ItemView, review_entry?, reminder?}`. `--design` is required; only one of `--summary`, `--tour` and `--design` can be `-` (stdin) |
 | `report` | `{report: Report, text}`. `text` is the markdown rendering |
@@ -125,7 +127,9 @@ Times are RFC 3339 in UTC. IDs are 4 hex characters; plans use their slug.
 | `plan new` | `slug`, `title`, `summary` |
 | `plan agree` | `slug`, `on-request` (required: only the human agrees a plan) |
 | `plan close` | `slug` |
+| `plan doc` | `slug`, `doc` (required: the whole new doc; `""` removes it) |
 | `phase add` | `title`, `plan`, `summary`, `needs` |
+| `phase doc` | `id`, `doc` (required: the whole new doc; `""` removes it) |
 | `add` | `title`, `plan` (optional with `phase`; `none` for unplanned work), `phase`, `notes`, `doc` |
 | `set` | `id`, `field`, `value` |
 | `need`, `unneed` | `id` (a phase), `needs` (phases) |

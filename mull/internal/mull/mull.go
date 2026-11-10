@@ -98,6 +98,7 @@ func load(tx *store.Tx) (*state, error) {
 			return nil, err
 		}
 		v.Slug, v.Summary = baseName(p), body
+		v.Doc = getDoc(tx, model.PlanDocPath(v.Slug))
 		s.plans[v.Slug] = &v
 	}
 	for _, p := range tx.List("epics/") {
@@ -107,6 +108,7 @@ func load(tx *store.Tx) (*state, error) {
 			return nil, err
 		}
 		v.ID, v.Summary = baseName(p), body
+		v.Doc = getDoc(tx, model.PhaseDocPath(v.ID))
 		s.phases[v.ID] = &v
 	}
 	for _, p := range tx.List("items/") {
@@ -137,6 +139,28 @@ func decodeFile(tx *store.Tx, path string, v any) (string, error) {
 		return "", fmt.Errorf("%s: %w", path, err)
 	}
 	return body, nil
+}
+
+// getDoc reads a doc: plain markdown, no frontmatter. A missing doc is "".
+func getDoc(tx *store.Tx, path string) string {
+	b, _ := tx.Get(path)
+	return strings.TrimRight(string(b), "\n")
+}
+
+// putDoc writes a doc to its own file, ending in one newline; an empty doc
+// removes the file. It leaves the record alone, so a doc's history holds
+// only its own versions.
+func (s *state) putDoc(path, doc string) {
+	old, exists := s.tx.Get(path)
+	doc = strings.TrimRight(doc, "\n")
+	switch {
+	case strings.TrimSpace(doc) == "":
+		if exists {
+			s.tx.Delete(path)
+		}
+	case !exists || string(old) != doc+"\n": // an unchanged doc writes nothing
+		s.tx.Put(path, []byte(doc+"\n"))
+	}
 }
 
 func baseName(path string) string {

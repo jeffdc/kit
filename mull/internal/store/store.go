@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"mull/internal/git"
 )
@@ -126,6 +127,79 @@ func (s *Store) loadCommit(commit string) (*Snapshot, error) {
 		snap.Files[e.path] = data
 	}
 	return snap, nil
+}
+
+// Version is one version of a file on the mull branch: its content after a
+// commit that changed it. Removed means the commit deleted it.
+type Version struct {
+	Commit  string
+	At      time.Time // the commit's time
+	Data    []byte
+	Removed bool
+}
+
+// History returns every version of path on the mull branch, newest first:
+// one per commit that changed it.
+func (s *Store) History(path string) ([]Version, error) {
+	commit, err := s.git.RefCommit(Ref)
+	if err != nil {
+		return nil, err
+	}
+	if commit == "" {
+		return nil, ErrNotInitialized
+	}
+	out, err := s.git.Output(nil, nil, "log", "--format=%H %ct", "--no-renames", commit, "--", path)
+	if err != nil {
+		return nil, err
+	}
+	var versions []Version
+	var req bytes.Buffer
+	for _, line := range strings.Split(out, "\n") {
+		sha, ts, ok := strings.Cut(strings.TrimSpace(line), " ")
+		if !ok {
+			continue
+		}
+		secs, err := strconv.ParseInt(ts, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("unexpected git log line %q", line)
+		}
+		versions = append(versions, Version{Commit: sha, At: time.Unix(secs, 0).UTC()})
+		fmt.Fprintf(&req, "%s:%s\n", sha, path)
+	}
+	if len(versions) == 0 {
+		return versions, nil
+	}
+	data, err := s.git.Run(nil, &req, "cat-file", "--batch")
+	if err != nil {
+		return nil, err
+	}
+	rd := bufio.NewReader(bytes.NewReader(data))
+	for i := range versions {
+		header, err := rd.ReadString('\n')
+		if err != nil {
+			return nil, fmt.Errorf("reading cat-file output: %w", err)
+		}
+		fields := strings.Fields(header)
+		if len(fields) == 2 && fields[1] == "missing" { // the commit removed it
+			versions[i].Removed = true
+			continue
+		}
+		if len(fields) != 3 {
+			return nil, fmt.Errorf("unexpected cat-file header %q", header)
+		}
+		size, err := strconv.Atoi(fields[2])
+		if err != nil {
+			return nil, fmt.Errorf("unexpected cat-file size %q", header)
+		}
+		versions[i].Data = make([]byte, size)
+		if _, err := io.ReadFull(rd, versions[i].Data); err != nil {
+			return nil, fmt.Errorf("reading %s: %w", path, err)
+		}
+		if _, err := rd.ReadByte(); err != nil { // trailing newline
+			return nil, fmt.Errorf("reading %s: %w", path, err)
+		}
+	}
+	return versions, nil
 }
 
 // Tx is a set of changes against one snapshot.

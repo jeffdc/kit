@@ -33,8 +33,8 @@ New mull is the record of a program: its plans, where they stand, and everything
 
 | Record | What it is | Fields | Who writes it |
 |---|---|---|---|
-| **Plan** | A large effort, such as `taxogall`. High-level only. | id (plain-English slug, e.g. `taxogall`, `general`), title, summary, state `shaping`, `active` or `done` | You |
-| **Epic** | A big piece of a plan; a set of items. | id (4-hex), plan (required), title, summary, needs | You, or agents on your instruction |
+| **Plan** | A large effort, such as `taxogall`. High-level only. | id (plain-English slug, e.g. `taxogall`, `general`), title, summary, doc, state `shaping`, `active` or `done` | You |
+| **Epic** | A big piece of a plan; a set of items. | id (4-hex), plan (required), title, summary, doc, needs | You, or agents on your instruction |
 | **Item** | A unit of work **one agent completes in one session.** | id (4-hex), plan (required), epic (optional), title, notes, docs (paths), state, claim (no needs: see "Ordering") | Agents and you |
 | **Inbox entry** | Something that needs you | id, kind (`decision`, `question`, `loose-end` or `review`), one-line text, detail, item/epic/plan, source, created; when settled: action, note, by, time | Agents capture; you settle |
 | **Idea** | Not work: something to keep until its time comes | an inbox entry of kind `idea`: title, short note (`detail`), source, optional plan | Agents file only ideas the human raises; only the human promotes |
@@ -146,9 +146,16 @@ items/<id>.md
 inbox/<id>.md
 reports/<item>-<n>.md
 checks/<tree-hash>.json        # cached hard-check results
+docs/plans/<slug>.md           # a plan's doc
+docs/epics/<id>.md             # a phase's doc
 ```
 
 There's one file per record, so concurrent writes and merges rarely conflict.
+
+**Docs** (Model v2). A plan's doc is the picture, done-when and why the order; a phase's doc is its design and done-when. Docs hold intent only, never status, which comes from the records and shows beside the doc.
+- A doc is plain markdown with no frontmatter, in its own file at `docs/` plus its record's path. Writing it never touches the record, and changing the record never touches the doc, so the doc's history is exactly its own versions.
+- `mull plan doc <slug> [-]` and `mull phase doc <id> [-]` print a doc or replace it from stdin; empty stdin removes it. `--log` lists its versions, newest first, read from the commits that changed the file.
+- A plan's or phase's `summary` is separate and unchanged. `mull migrate` turns summaries into doc stubs.
 
 **Writes:**
 - Git plumbing: a temporary index, `write-tree`, `commit-tree`, then `update-ref refs/heads/mull <new> <old>`.
@@ -274,8 +281,8 @@ The ops are every write except `init`, `sync`, `check` and `done`.
 | Group | Commands |
 |---|---|
 | Setup | `mull init` · `mull sync [--dry-run]` |
-| Plans (you) | `mull plan new <slug> "title" [--summary -]` · `plan agree <slug>` · `plan list` · `plan show <slug>` · `plan close <slug>` |
-| Epics | `mull epic add "title" --plan <slug> [--needs …]` · `epic show <id>` · `epic list [--plan]` |
+| Plans (you) | `mull plan new <slug> "title" [--summary -]` · `plan agree <slug>` · `plan list` · `plan show <slug>` · `plan doc <slug> [-] [--log]` · `plan close <slug>` |
+| Epics | `mull epic add "title" --plan <slug> [--needs …]` · `epic show <id>` · `epic list [--plan]` · `phase doc <id> [-] [--log]` |
 | Items | `mull add "title" (--plan <slug> \| --epic <id>) [--notes -] [--doc path]` · `show` · `list` · `set` · `drop` |
 | Dependencies | `mull need <phase> <phase…>` · `mull unneed <phase> <phase…>` · `mull ready [--plan]` |
 | Work (agents) | `mull start <id>` · `release <id>` · `check` (run the hard checks, cache the result) · `done <id> --summary "…" --tour "…" --design -` |
