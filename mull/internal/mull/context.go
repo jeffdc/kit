@@ -75,10 +75,10 @@ const (
 var protocol = []string{
 	"Use only the mull CLI; never read or edit the mull branch or its files.",
 	"One item per session: mull start <id>; branch <id>-<name>; end each commit message with 'Mull: <id>'.",
-	"Read the decisions below before deciding anything they settle.",
-	"Capture as you go: mull decided / mull ask with --item <id>; anything out of scope with mull bug / mull idea --source \"item <id>\".",
-	"Don't change plans or phases or add items unless the human asks; propose with mull ask.",
-	"Finish only with mull done <id> --summary ... --tour ... --design - (design notes on stdin: how and why); it runs the hard checks. Never claim done in prose.",
+	"Read the decisions below before deciding anything they settle, and the item's docs and phase_doc for intent.",
+	"Capture as you go: mull decided / mull ask with --item <id>; anything out of scope with mull bug (wrong) / mull idea (a possibility) --source \"item <id>\". Captures go to the backlog; only the human commits them.",
+	"Don't change plans, phases or their docs, add items, or commit or retag captures unless the human asks; propose with mull ask.",
+	"Finish only with mull done <id> --summary ... --tour ... --design - (design notes on stdin: how and why); it runs the hard checks, and the item is in review until accepted. Never claim done in prose.",
 	"Settle inbox entries only on the human's explicit instruction, with --on-request. mull sync after done.",
 }
 

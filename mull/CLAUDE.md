@@ -8,9 +8,10 @@ The record of a program, kept on a dedicated git branch (`mull`) in the project'
 - **plans** (top level, plain-English slugs);
 - **phases** (big pieces of a plan; called epics before Model v2);
 - **items** (one agent, one session);
-- **an inbox** of decisions, questions, loose ends and reviews that need the human.
+- **a backlog** of captured items (bugs and ideas) that aren't work until the human commits them;
+- **an inbox** of decisions, questions and reviews that need the human.
 
-Agents and humans use it only through the CLI. Data commands print JSON; errors go to stderr as `{"error": "..."}`.
+Agents and humans use it only through the CLI. Data commands print JSON; errors go to stderr as `{"code", "error"}` (see `internal/guide/json.md`).
 
 ## Rules
 

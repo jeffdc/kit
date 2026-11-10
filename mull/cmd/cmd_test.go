@@ -196,6 +196,21 @@ func TestCLIEndToEnd(t *testing.T) {
 		!strings.Contains(g, `--source "human,`) {
 		t.Fatal("guide agents lacks the human-feedback rule")
 	}
+	// Model v2 rules each guide must keep: who captures and commits, how done is
+	// called, where the backlog is triaged, and migrating old data first.
+	for g, wants := range map[string][]string{
+		"agents":     {"Anyone captures; only the human commits", "--design -", "mull guide triage", "phase_doc"},
+		"supervisor": {"mull guide triage", "mull set <id> plan", "with or without `--on-request`"},
+		"intake":     {"mull migrate --dry-run", "plan agree", "phase doc"},
+		"triage":     {"--on-request", "mull migrate"},
+	} {
+		text := r.ok("guide", g)["text"].(string)
+		for _, want := range wants {
+			if !strings.Contains(text, want) {
+				t.Errorf("guide %s lacks %q", g, want)
+			}
+		}
+	}
 
 	// Sync to a bare remote: only the mull branch arrives there.
 	remote := t.TempDir() + "/remote.git"
@@ -314,5 +329,26 @@ func TestTriageCommand(t *testing.T) {
 	}
 	if v := r.ok("view"); v["untriaged"] != float64(0) {
 		t.Fatalf("view = %v", v)
+	}
+}
+
+// The intake guide's example batch is the one agents copy: it must run as written.
+func TestIntakeExampleBatchRuns(t *testing.T) {
+	r := run{t: t, dir: gittest.NewRepo(t)}
+	r.ok("init")
+	text := r.ok("guide", "intake")["text"].(string)
+	_, after, ok := strings.Cut(text, "## An example batch")
+	if !ok {
+		t.Fatal("intake guide has no example batch")
+	}
+	parts := strings.SplitN(after, "```", 3)
+	if len(parts) < 3 {
+		t.Fatal("intake guide's example batch has no code block")
+	}
+	if out, errOut, code := r.mull(strings.TrimSpace(parts[1])+"\n", "batch"); code != 0 {
+		t.Fatalf("example batch exited %d: %s\n%s", code, errOut, out)
+	}
+	if d := r.ok("plan", "doc", "launch"); d["doc"] == "" {
+		t.Fatalf("example batch wrote no plan doc: %v", d)
 	}
 }
