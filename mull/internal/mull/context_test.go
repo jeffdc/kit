@@ -11,7 +11,8 @@ func TestContextBriefing(t *testing.T) {
 	must[*model.Plan](t)(m.PlanNew("launch", "Launch", ""))
 	e := must[*model.Phase](t)(m.PhaseAdd("launch", "Billing", "Stripe first.", nil))
 	a := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "launch", Phase: e.ID, Title: "Webhook"}))
-	b := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "launch", Phase: e.ID, Title: "Invoices", Needs: []string{a.ID}}))
+	later := must[*model.Phase](t)(m.PhaseAdd("launch", "Invoicing", "", []string{e.ID}))
+	b := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "launch", Phase: later.ID, Title: "Invoices"}))
 	c := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "launch", Title: "Pricing copy"}))
 	must[StartResult](t)(m.Start(a.ID))
 

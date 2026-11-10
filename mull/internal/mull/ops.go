@@ -79,7 +79,7 @@ var ops = map[string]opDef{
 	"plan new":      {func() Input { return &PlanNewIn{} }, "slug, title, summary"},
 	"plan close":    {func() Input { return &PlanCloseIn{} }, "slug"},
 	"phase add":     {func() Input { return &PhaseAddIn{} }, "title, plan, summary, needs"},
-	"add":           {func() Input { return &AddIn{} }, "title, plan, phase, needs, notes, doc"},
+	"add":           {func() Input { return &AddIn{} }, "title, plan, phase, notes, doc"},
 	"set":           {func() Input { return &SetIn{} }, "id, field, value"},
 	"need":          {func() Input { return &NeedIn{add: true} }, "id, needs"},
 	"unneed":        {func() Input { return &NeedIn{} }, "id, needs"},
@@ -183,16 +183,19 @@ type AddIn struct {
 	Title string  `json:"title"`
 	Plan  string  `json:"plan"`
 	Phase string  `json:"phase"`
-	Needs IDList  `json:"needs"`
+	Needs IDList  `json:"needs"` // refused: items have no needs
 	Notes string  `json:"notes"`
 	Doc   StrList `json:"doc"`
 }
 
 func (in *AddIn) refFields() ([]*string, []*IDList) {
-	return []*string{&in.Plan, &in.Phase}, []*IDList{&in.Needs}
+	return []*string{&in.Plan, &in.Phase}, nil
 }
 func (in *AddIn) run(m *Mull, s *state) (any, string, error) {
-	i, err := m.addItem(s, NewItem{Plan: in.Plan, Phase: in.Phase, Title: in.Title, Notes: in.Notes, Needs: in.Needs, Docs: in.Doc})
+	if len(in.Needs) > 0 {
+		return nil, "", errItemNeeds("add takes no needs")
+	}
+	i, err := m.addItem(s, NewItem{Plan: in.Plan, Phase: in.Phase, Title: in.Title, Notes: in.Notes, Docs: in.Doc})
 	if err != nil {
 		return nil, "", err
 	}

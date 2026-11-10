@@ -190,7 +190,7 @@ func (m *Mull) PhaseList(plan string) ([]PhaseView, error) {
 // makes it unplanned work.
 type NewItem struct {
 	Plan, Phase, Title, Notes string
-	Needs, Docs               []string
+	Docs                      []string
 	From                      string // the inbox entry it was made from
 
 	// A captured item's kind, category and source; stage is set by capture.
@@ -258,14 +258,10 @@ func (m *Mull) addItem(s *state, in NewItem) (*model.Item, error) {
 	if err != nil {
 		return nil, err
 	}
-	needs := dedupe(in.Needs)
-	if err := s.checkNeedTargets(id, needs); err != nil {
-		return nil, err
-	}
 	now := m.now()
 	i := &model.Item{
 		ID: id, Plan: plan, Phase: in.Phase, Title: in.Title, State: stage,
-		Kind: in.kind, Category: in.category, Source: in.source, Needs: needs, Docs: dedupe(in.Docs), From: in.From, Created: now, Updated: now, Notes: in.Notes,
+		Kind: in.kind, Category: in.category, Source: in.source, Docs: dedupe(in.Docs), From: in.From, Created: now, Updated: now, Notes: in.Notes,
 	}
 	if err := s.putItem(i); err != nil {
 		return nil, err
@@ -528,14 +524,22 @@ func (m *Mull) set(s *state, ref, field, value string) (SetResult, error) {
 
 // ---- Dependencies ----
 
-// NeedResult is the item or phase whose needs changed, tagged with its type.
+// Needs exist between phases only: a phase may need other phases, and items
+// inside a phase are unordered. "Can start now" is derived: a phase whose
+// needs are done, and the committed items in it.
+
+// NeedResult is the phase whose needs changed, tagged with its type.
 type NeedResult struct {
-	Type  string     `json:"type"` // item, phase
+	Type  string     `json:"type"` // phase
 	Phase *PhaseView `json:"phase,omitempty"`
-	Item  *ItemView  `json:"item,omitempty"`
 }
 
-// Need records that ref (an item or phase) needs the targets.
+// errItemNeeds refuses needs on an item, or an item's needs at creation.
+func errItemNeeds(what string) error {
+	return errf(CodeNotAllowed, "%s: items have no needs; order work with needs between phases (mull need <phase> <phase>...)", what)
+}
+
+// Need records that ref (a phase) needs the targets (phases).
 func (m *Mull) Need(ref string, targets []string) (NeedResult, error) {
 	return m.changeNeedsTx(ref, targets, true)
 }
@@ -562,7 +566,10 @@ func (m *Mull) changeNeedsTx(ref string, targets []string, add bool) (NeedResult
 func (m *Mull) changeNeeds(s *state, ref string, targets []string, add bool) (NeedResult, error) {
 	targets = dedupe(targets)
 	if len(targets) == 0 {
-		return NeedResult{}, errf(CodeInvalid, "give at least one item or phase it needs")
+		return NeedResult{}, errf(CodeInvalid, "give at least one phase it needs")
+	}
+	if s.items[ref] != nil {
+		return NeedResult{}, errItemNeeds(ref + " is an item")
 	}
 	apply := func(needs []string) ([]string, error) {
 		if add {
@@ -576,21 +583,6 @@ func (m *Mull) changeNeeds(s *state, ref string, targets []string, add bool) (Ne
 	now := m.now()
 	var out NeedResult
 	switch {
-	case s.items[ref] != nil:
-		i := s.items[ref]
-		needs, err := apply(i.Needs)
-		if err != nil {
-			return out, err
-		}
-		i.Needs, i.Updated = needs, now
-		if err := s.putItem(i); err != nil {
-			return out, err
-		}
-		if err := s.checkCycles(); err != nil {
-			return out, err
-		}
-		v := s.itemView(i)
-		out = NeedResult{Type: "item", Item: &v}
 	case s.phases[ref] != nil:
 		e := s.phases[ref]
 		needs, err := apply(e.Needs)
@@ -607,7 +599,7 @@ func (m *Mull) changeNeeds(s *state, ref string, targets []string, add bool) (Ne
 		v := s.phaseView(e)
 		out = NeedResult{Type: "phase", Phase: &v}
 	default:
-		return out, errf(CodeNotFound, "no item or phase %q", ref)
+		return out, errf(CodeNotFound, "no phase %q", ref)
 	}
 	return out, nil
 }

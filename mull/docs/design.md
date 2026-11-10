@@ -35,7 +35,7 @@ New mull is the record of a program: its plans, where they stand, and everything
 |---|---|---|---|
 | **Plan** | A large effort, such as `taxogall`. High-level only. | id (plain-English slug, e.g. `taxogall`, `general`), title, summary, state `active` or `closed` | You |
 | **Epic** | A big piece of a plan; a set of items. | id (4-hex), plan (required), title, summary, needs | You, or agents on your instruction |
-| **Item** | A unit of work **one agent completes in one session.** | id (4-hex), plan (required), epic (optional), title, notes, docs (paths), needs, state, claim | Agents and you |
+| **Item** | A unit of work **one agent completes in one session.** | id (4-hex), plan (required), epic (optional), title, notes, docs (paths), state, claim (no needs: see "Ordering") | Agents and you |
 | **Inbox entry** | Something that needs you | id, kind (`decision`, `question`, `loose-end` or `review`), one-line text, detail, item/epic/plan, source, created; when settled: action, note, by, time | Agents capture; you settle |
 | **Idea** | Not work: something to keep until its time comes | an inbox entry of kind `idea`: title, short note (`detail`), source, optional plan | Agents file only ideas the human raises; only the human promotes |
 | **Done report** | The record of a finished item | item, commit SHA, tree hash, UI tour, summary, check results, system context | Agent plus mull |
@@ -61,13 +61,15 @@ New mull is the record of a program: its plans, where they stand, and everything
 - A phase is complete when it has committed items and all of them are done or dropped.
 - Until the Model v2 migration, stages are stored under their old names (`open`, `done`, `accepted` for committed, in-review and done).
 
-### Ordering: loose, with dependencies
+### Ordering: loose, with dependencies between phases
 
-There is no priority list and no ordering field. Order comes only from dependencies:
-- An item or epic may **need** other items or epics. An item that needs an epic needs every item in it.
-- **Ready** means open, with every need done.
-- **Blocked** means open, with at least one need not done.
+There is no priority list and no ordering field. Order only where it matters (Model v2):
+- A phase may **need** other phases. That is the only ordering: items have no needs, and items inside a phase are unordered. A phase's need is met when the needed phase is complete.
+- "Can start now" is derived: the phases whose needs are done.
+- **Ready** means committed, in a phase whose needs are done (or in no phase).
+- **Blocked** means committed, in a phase with at least one need not done.
 - Cycles are refused when written.
+- Needs from before Model v2 are kept until `mull migrate` converts them: an item's needs are shown but ignored, and a phase's needs on items still count.
 - `mull ready [--plan p]` lists ready items. A supervisor agent uses it to hand out work.
 - The view sorts epics and items by readiness, then by age.
 
@@ -264,8 +266,8 @@ The ops are every write except `init`, `sync`, `check` and `done`.
 | Setup | `mull init` · `mull sync [--dry-run]` |
 | Plans (you) | `mull plan new <slug> "title" [--summary -]` · `plan list` · `plan show <slug>` · `plan close <slug>` |
 | Epics | `mull epic add "title" --plan <slug> [--needs …]` · `epic show <id>` · `epic list [--plan]` |
-| Items | `mull add "title" (--plan <slug> \| --epic <id>) [--needs …] [--notes -] [--doc path]` · `show` · `list` · `set` · `drop` |
-| Dependencies | `mull need <id> <id…>` · `mull unneed <id> <id…>` · `mull ready [--plan]` |
+| Items | `mull add "title" (--plan <slug> \| --epic <id>) [--notes -] [--doc path]` · `show` · `list` · `set` · `drop` |
+| Dependencies | `mull need <phase> <phase…>` · `mull unneed <phase> <phase…>` · `mull ready [--plan]` |
 | Work (agents) | `mull start <id>` · `release <id>` · `check` (run the hard checks, cache the result) · `done <id> --tour - --summary "…"` |
 | Capture (agents) | `mull decided "text"`, `ask "question"`, `loose "text"`, each with `--item <id>` or `--plan <slug>`, plus `[--detail -] [--source …]` |
 | Batch | `mull batch [--dry-run] < ops.jsonl` |

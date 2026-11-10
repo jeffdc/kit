@@ -49,13 +49,15 @@ func (s *state) satisfied(id string) bool {
 	return true // a missing target cannot block; doctor-style checks can flag it later
 }
 
-// requirements are what an item waits for: its own needs plus its phase's.
+// requirements are what an item waits for: its phase's needs. Needs exist
+// between phases only, and items inside a phase are unordered. An item's own
+// needs, left from before Model v2, are kept and shown but ignored until
+// mull migrate converts them.
 func (s *state) requirements(i *model.Item) []string {
-	reqs := append([]string{}, i.Needs...)
 	if e := s.phases[i.Phase]; e != nil {
-		reqs = append(reqs, e.Needs...)
+		return dedupe(e.Needs)
 	}
-	return dedupe(reqs)
+	return nil
 }
 
 func (s *state) blockedBy(reqs []string) []string {
@@ -69,8 +71,7 @@ func (s *state) blockedBy(reqs []string) []string {
 }
 
 // ItemView is an item with its derived readiness: committed, with its phase's
-// needs (and, for now, its own) done. Items with no phase wait only on their
-// own needs.
+// needs done. Items with no phase wait on nothing.
 type ItemView struct {
 	model.Item
 	Ready     bool     `json:"ready"`
@@ -143,22 +144,27 @@ func (s *state) phaseView(e *model.Phase) PhaseView {
 	}
 }
 
-// checkNeedTargets validates that every target exists and is not the record itself.
+// checkNeedTargets validates that every target is a phase other than the
+// phase itself: phases need phases, nothing else. (A phase's needs on items,
+// left from before Model v2, still count until mull migrate converts them.)
 func (s *state) checkNeedTargets(self string, targets []string) error {
 	for _, t := range targets {
 		if t == self {
 			return errf(CodeInvalid, "%s cannot need itself", self)
 		}
-		if s.items[t] == nil && s.phases[t] == nil {
-			return errf(CodeNotFound, "no item or phase %q", t)
+		if s.items[t] != nil {
+			return errf(CodeNotAllowed, "%s is an item: phases need phases only", t)
+		}
+		if s.phases[t] == nil {
+			return errf(CodeNotFound, "no phase %q", t)
 		}
 	}
 	return nil
 }
 
 // checkCycles refuses a dependency graph with a cycle. Edges point from a
-// record to what it waits for: an item waits for its needs and its phase's
-// needs; a phase waits for its needs and for its own items.
+// record to what it waits for: an item waits for its phase's needs; a phase
+// waits for its needs and for its own items.
 func (s *state) checkCycles() error {
 	edges := map[string][]string{}
 	for id, i := range s.items {

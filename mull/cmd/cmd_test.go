@@ -87,7 +87,8 @@ func TestCLIEndToEnd(t *testing.T) {
 		t.Fatalf("item = %v", it)
 	}
 
-	second := id(r.ok("add", "Admin writes through Curation", "--plan", "taxogall", "--needs", item))
+	release := id(r.ok("phase", "add", "Release", "--plan", "taxogall", "--needs", phase))
+	second := id(r.ok("add", "Admin writes through Curation", "--phase", release))
 	ready := r.ok("ready", "--plan", "taxogall")["items"].([]any)
 	if len(ready) != 1 || ready[0].(map[string]any)["id"] != item {
 		t.Fatalf("ready = %v", ready)
@@ -123,7 +124,12 @@ func TestCLIEndToEnd(t *testing.T) {
 	if n := len(r.ok("decisions")["decisions"].([]any)); n != 1 {
 		t.Fatalf("decision log has %d entries", n)
 	}
-	r.fails("dependency_cycle", "need", item, second)
+	r.fails("dependency_cycle", "need", phase, release)
+	// Needs exist between phases only.
+	r.fails("not_allowed", "need", second, item)
+	r.fails("not_allowed", "unneed", second, item)
+	r.fails("not_allowed", "need", release, item)
+	r.fails("not_allowed", "add", "Docs", "--phase", release, "--needs", phase)
 
 	// Finish the item: config, done, report, review.
 	r.ok("config", "checks", "true")

@@ -26,7 +26,7 @@ On failure, mull prints nothing to stdout, prints this to stderr, and exits 1:
 | `invalid_state` | the record is in the wrong state (e.g. accepting an item that isn't done) |
 | `claimed` | the item is claimed by another worktree |
 | `already_settled` | the inbox entry is already settled |
-| `not_allowed` | not allowed (kind rules; a worker accepting its own work; promoting an idea or committing a captured item without `--on-request`) |
+| `not_allowed` | not allowed (kind rules; a worker accepting its own work; promoting an idea or committing a captured item without `--on-request`; needs on an item, or a phase needing an item) |
 | `dependency_cycle` | the needs would form a cycle |
 | `scope_required` | say which plan or item: `--plan` or `--item` (or `--phase`, or `--plan none` for unplanned work, for `add`) |
 | `tour_required` | UI files changed and no `--tour` was given |
@@ -53,12 +53,13 @@ A `batch_invalid` error also lists every failed line:
 ## Records
 
 - **Plan:** `{slug, title, state ("active"|"closed"), created, updated, summary?}`
-- **Phase:** `{id, plan, title, needs?, from?, created, updated, summary?}`. `from` is the inbox entry (e.g. an idea) it was promoted from.
+- **Phase:** `{id, plan, title, needs?, from?, created, updated, summary?}`. `from` is the inbox entry (e.g. an idea) it was promoted from. `needs` are the phases it waits for: needs exist between phases only. (A need on an item, from before Model v2, still counts until `mull migrate` converts it.)
 - **Item:** `{id, plan?, phase?, title, state ("captured"|"committed"|"active"|"in-review"|"done"|"dropped"), kind?, category?, source?, needs?, docs?, claim?, from?, created, updated, notes?}`. `from` is the inbox entry (idea, question or loose end) it was made from.
   - **No `plan`** means unplanned work, or (captured) backlog not tagged to a plan.
   - **Captured items** (`mull bug`, `mull idea`) carry `kind` (`"bug"`|`"idea"`), and `category` and `source` when given; `notes` holds the `--detail`. They keep them once committed.
   - **claim:** `{worktree, branch, at, base?}`
-- **ItemView:** Item plus `{ready, blocked_by?}`.
+  - **Items have no needs;** items inside a phase are unordered. An item's `needs`, from before Model v2, is kept and shown until `mull migrate` converts it, but no longer affects readiness.
+- **ItemView:** Item plus `{ready, blocked_by?}`. Ready means committed, in a phase whose needs are done (or in no phase); `blocked_by` lists the phase's needs that aren't.
 - **PhaseView:** Phase plus `{progress, complete, blocked_by?}`.
 - **Progress:** `{total, captured, committed, active, in_review, done, dropped, ready}`. `total` counts committed work (every stage but captured); captured items tagged to the phase or plan are counted only in `captured`.
 - **Entry** (inbox): `{id, kind ("decision"|"question"|"review"|"loose-end"|"idea"), text, plan, item?, source?, by, created, settled?, detail?}`. `plan` is `""` for an entry about the whole project or an unplanned item.
@@ -83,7 +84,7 @@ Times are RFC 3339 in UTC. IDs are 4 hex characters; plans use their slug.
 | `show` | `{type: "plan"\|"phase"\|"item"\|"entry", <type>: …}`. A plan is shown as in `plan show`, a phase as PhaseView + `{items}`, an item as ItemView, an entry as Entry |
 | `list`, `ready` | `{items: [ItemView]}`. `list --plan none` selects items with no plan; `--kind bug\|idea` selects captured kinds |
 | `set` | `{type: "plan"\|"phase"\|"item", plan?: Plan, phase?: PhaseView, item?: ItemView}` |
-| `need`, `unneed` | `{type: "item"\|"phase", item?: ItemView, phase?: PhaseView}` |
+| `need`, `unneed` | `{type: "phase", phase: PhaseView}`. Only a phase has needs, and only on phases; on an item they fail with `not_allowed` |
 | `start` | `{item: ItemView, warnings: []}` |
 | `decided`, `ask` | Entry |
 | `inbox` | `{entries: [Entry]}`, oldest first: questions, decisions and reviews. Loose ends and ideas only with `--kind loose-end\|idea`. `--plan none` for entries with no plan |
@@ -121,9 +122,9 @@ Times are RFC 3339 in UTC. IDs are 4 hex characters; plans use their slug.
 | `plan new` | `slug`, `title`, `summary` |
 | `plan close` | `slug` |
 | `phase add` | `title`, `plan`, `summary`, `needs` |
-| `add` | `title`, `plan` (optional with `phase`; `none` for unplanned work), `phase`, `needs`, `notes`, `doc` |
+| `add` | `title`, `plan` (optional with `phase`; `none` for unplanned work), `phase`, `notes`, `doc` |
 | `set` | `id`, `field`, `value` |
-| `need`, `unneed` | `id`, `needs` |
+| `need`, `unneed` | `id` (a phase), `needs` (phases) |
 | `decided`, `ask` | `text`, `item`, `plan`, `source`, `detail` |
 | `bug`, `idea` | `text` (the title), `plan`, `phase` (both optional), `category`, `source`, `detail` (kept as notes) |
 | `commit` | `id`, `plan` (`none` for unplanned), `phase`, `on-request` (required: only the human commits) |
