@@ -9,7 +9,7 @@ Use the mull CLI for everything you record. Read old material directly: old `.mu
 ## 0. Already on mull?
 If the repo already has a `mull` branch (`mull view` works), its records may come from before Model v2: epics, loose ends, inbox ideas, needs on items, a `general` plan. Bring them up to date first, with the human:
 - Run `mull migrate --dry-run` and walk the human through what it would change.
-- Once they agree, run `mull migrate`. Then carry on below, skipping `mull init`, and fill in what the repo still lacks.
+- Once they agree, run `mull migrate --on-request` (the real run is the human's call; it writes one commit). Then carry on below, skipping `mull init`, and fill in what the repo still lacks.
 
 ## 1. Look around (read only)
 - **Old `.mull/` data:** read `.mull/matters/*.md` (YAML frontmatter plus a body), `.mull/docket.yml`, and `.mull/archive/` if present. Note each matter's status, epic, links (`parent`, `needs`, `blocks`, `relates`) and size.
