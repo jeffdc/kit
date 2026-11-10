@@ -1,0 +1,14 @@
+{
+  "tree": "5eb2b74a83706ecc77ce4bb54b74b701e4df8882",
+  "commit": "85826624acbfff32ed70fd971282401d2b83fe6a",
+  "at": "2026-11-10T20:33:36Z",
+  "by": "/Users/jeff/dev/kit/.claude/worktrees/agent-afcfd701cc8845f4e",
+  "passed": true,
+  "results": [
+    {
+      "command": "make done-checks",
+      "exit": 0,
+      "duration_ms": 4334
+    }
+  ]
+}
