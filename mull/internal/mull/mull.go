@@ -207,13 +207,14 @@ func (s *state) plan(slug string) (*model.Plan, error) {
 	return p, nil
 }
 
-func (s *state) activePlan(slug string) (*model.Plan, error) {
+// openPlan returns a plan that can take new work: shaping or active, not done.
+func (s *state) openPlan(slug string) (*model.Plan, error) {
 	p, err := s.plan(slug)
 	if err != nil {
 		return nil, err
 	}
-	if p.State != model.PlanActive {
-		return nil, errf(CodeState, "plan %q is closed", slug)
+	if p.State == model.PlanDone {
+		return nil, errf(CodeState, "plan %q is done", slug)
 	}
 	return p, nil
 }

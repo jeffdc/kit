@@ -43,6 +43,7 @@ type BriefItem struct {
 type BriefPlan struct {
 	Slug   string       `json:"slug"`
 	Title  string       `json:"title"`
+	State  string       `json:"state"` // shaping or active
 	Phases []BriefPhase `json:"phases,omitempty"`
 }
 
@@ -99,10 +100,10 @@ func (m *Mull) Context(itemID string) (Context, error) {
 		}
 		for _, slug := range sortedKeys(s.plans) {
 			p := s.plans[slug]
-			if p.State != model.PlanActive {
+			if p.State == model.PlanDone {
 				continue
 			}
-			bp := BriefPlan{Slug: slug, Title: p.Title}
+			bp := BriefPlan{Slug: slug, Title: p.Title, State: p.State}
 			for _, id := range sortedKeys(s.phases) {
 				if e := s.phases[id]; e.Plan == slug {
 					ev := s.phaseView(e)
@@ -113,7 +114,7 @@ func (m *Mull) Context(itemID string) (Context, error) {
 		}
 		for _, id := range sortedKeys(s.items) {
 			i := s.items[id]
-			if p := s.plans[i.Plan]; i.Plan != "" && (p == nil || p.State != model.PlanActive) {
+			if p := s.plans[i.Plan]; i.Plan != "" && (p == nil || p.State == model.PlanDone) {
 				continue // unplanned work is always in view
 			}
 			switch {

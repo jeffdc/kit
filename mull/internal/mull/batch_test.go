@@ -48,6 +48,7 @@ func TestBatchIntakeSized(t *testing.T) {
 	var lines []map[string]any
 	lines = append(lines,
 		map[string]any{"op": "plan new", "ref": "p", "slug": "taxogall", "title": "Taxogall", "summary": "Galls as catalog entries."},
+		map[string]any{"op": "plan agree", "slug": "@p", "on-request": true},
 		map[string]any{"op": "config checks", "commands": []string{"make done-checks"}},
 		map[string]any{"op": "phase add", "ref": "e1", "plan": "@p", "title": "How the admin works"},
 		map[string]any{"op": "phase add", "ref": "e2", "plan": "@p", "title": "Phase 2 and gaps", "needs": []string{"@e1"}},

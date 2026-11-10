@@ -52,6 +52,27 @@ func TestItemStagesKeepTheirStoredNames(t *testing.T) {
 	}
 }
 
+func TestPlanStatesKeepTheirStoredNames(t *testing.T) {
+	for state, stored := range map[string]string{
+		PlanShaping: "shaping", PlanActive: "active", PlanDone: "closed",
+	} {
+		data, err := Encode(Plan{Slug: "launch", Title: "x", State: state}, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(data), "\nstate: "+stored+"\n") {
+			t.Errorf("%s stored as:\n%s", state, data)
+		}
+		var out Plan
+		if _, err := Decode(data, &out); err != nil {
+			t.Fatal(err)
+		}
+		if out.State != state {
+			t.Errorf("stored %q read back as %q, want %q", stored, out.State, state)
+		}
+	}
+}
+
 func TestAllDigitIDsStayStrings(t *testing.T) {
 	data, err := Encode(Item{Needs: []string{"7877"}, Phase: "0123"}, "")
 	if err != nil {

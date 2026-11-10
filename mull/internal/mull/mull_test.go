@@ -21,8 +21,11 @@ func setup(t *testing.T) (*Mull, string) {
 	if _, err := m.Init("main", "main"); err != nil {
 		t.Fatal(err)
 	}
-	// Init creates no plans; most tests want one to put work in.
+	// Init creates no plans; most tests want an agreed one to put work in.
 	if _, err := m.PlanNew("general", "General", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.PlanAgree("general", true); err != nil {
 		t.Fatal(err)
 	}
 	return m, dir
@@ -136,6 +139,7 @@ func TestPlansPhasesItems(t *testing.T) {
 	must[*model.Plan](t)(m.PlanNew("taxogall", "Taxogall", "Galls as catalog entries."))
 	_, err = m.PlanNew("taxogall", "again", "")
 	wantErr(t, err, "already exists")
+	must[*model.Plan](t)(m.PlanAgree("taxogall", true))
 
 	phase := must[*model.Phase](t)(m.PhaseAdd("taxogall", "Phase 2", "", nil))
 	it := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "taxogall", Phase: phase.ID, Title: "Tree edits become Facts"}))
@@ -161,7 +165,7 @@ func TestPlansPhasesItems(t *testing.T) {
 
 	must[*model.Plan](t)(m.PlanClose("taxogall"))
 	_, err = m.ItemAdd(NewItem{Plan: "taxogall", Title: "x"})
-	wantErr(t, err, "closed")
+	wantErr(t, err, `plan "taxogall" is done`)
 }
 
 func TestReadinessAndUnreviewedIsIncomplete(t *testing.T) {

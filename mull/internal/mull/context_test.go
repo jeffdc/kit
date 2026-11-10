@@ -9,6 +9,7 @@ import (
 func TestContextBriefing(t *testing.T) {
 	m, _ := setup(t)
 	must[*model.Plan](t)(m.PlanNew("launch", "Launch", ""))
+	must[*model.Plan](t)(m.PlanAgree("launch", true))
 	e := must[*model.Phase](t)(m.PhaseAdd("launch", "Billing", "Stripe first.", nil))
 	a := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "launch", Phase: e.ID, Title: "Webhook"}))
 	later := must[*model.Phase](t)(m.PhaseAdd("launch", "Invoicing", "", []string{e.ID}))

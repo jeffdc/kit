@@ -77,6 +77,7 @@ type opDef struct {
 
 var ops = map[string]opDef{
 	"plan new":      {func() Input { return &PlanNewIn{} }, "slug, title, summary"},
+	"plan agree":    {func() Input { return &PlanAgreeIn{} }, "slug, on-request"},
 	"plan close":    {func() Input { return &PlanCloseIn{} }, "slug"},
 	"phase add":     {func() Input { return &PhaseAddIn{} }, "title, plan, summary, needs"},
 	"add":           {func() Input { return &AddIn{} }, "title, plan, phase, notes, doc"},
@@ -142,6 +143,20 @@ type PlanNewIn struct {
 func (in *PlanNewIn) refFields() ([]*string, []*IDList) { return nil, nil }
 func (in *PlanNewIn) run(m *Mull, s *state) (any, string, error) {
 	p, err := m.planNew(s, in.Slug, in.Title, in.Summary)
+	if err != nil {
+		return nil, "", err
+	}
+	return p, p.Slug, nil
+}
+
+type PlanAgreeIn struct {
+	Slug      string `json:"slug"`
+	OnRequest bool   `json:"on-request"`
+}
+
+func (in *PlanAgreeIn) refFields() ([]*string, []*IDList) { return []*string{&in.Slug}, nil }
+func (in *PlanAgreeIn) run(m *Mull, s *state) (any, string, error) {
+	p, err := m.planAgree(s, in.Slug, in.OnRequest)
 	if err != nil {
 		return nil, "", err
 	}

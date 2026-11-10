@@ -63,7 +63,7 @@ func (m *Mull) capture(s *state, in CaptureInput) (*model.Entry, error) {
 	if in.Text == "" {
 		return nil, errf(CodeInvalid, "an inbox entry needs text")
 	}
-	if in.Item == "" && in.Plan == "" && s.activePlans() > 1 {
+	if in.Item == "" && in.Plan == "" && s.openPlans() > 1 {
 		return nil, errf(CodeScope, "this repository has more than one plan: say what the entry is about with --item or --plan")
 	}
 	return m.newEntry(s, in.Kind, in.Text, in.Item, in.Plan, in.Source, in.Detail)
@@ -73,10 +73,11 @@ func (m *Mull) capture(s *state, in CaptureInput) (*model.Entry, error) {
 const retiredCapture = "loose ends and inbox ideas are retired: capture it as an item with " +
 	"mull bug \"...\" or mull idea \"...\" (--source says where it came from; --plan or --phase tag it)"
 
-func (s *state) activePlans() int {
+// openPlans counts the plans not done: shaping or active.
+func (s *state) openPlans() int {
 	n := 0
 	for _, p := range s.plans {
-		if p.State == model.PlanActive {
+		if p.State != model.PlanDone {
 			n++
 		}
 	}
