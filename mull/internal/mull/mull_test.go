@@ -21,7 +21,23 @@ func setup(t *testing.T) (*Mull, string) {
 	if _, err := m.Init("main", "main"); err != nil {
 		t.Fatal(err)
 	}
+	// Init creates no plans; most tests want one to put work in.
+	if _, err := m.PlanNew("general", "General", ""); err != nil {
+		t.Fatal(err)
+	}
 	return m, dir
+}
+
+// captureLegacy files an entry of a retired kind (loose end, inbox idea),
+// standing in for data written before they were retired.
+func (m *Mull) captureLegacy(in CaptureInput) (*model.Entry, error) {
+	var out *model.Entry
+	err := m.update("test legacy "+in.Kind, func(s *state) error {
+		var err error
+		out, err = m.newEntry(s, in.Kind, in.Text, in.Item, in.Plan, in.Source, in.Detail)
+		return err
+	})
+	return out, err
 }
 
 func must[T any](t *testing.T) func(T, error) T {
@@ -83,18 +99,22 @@ func item(t *testing.T, m *Mull, id string) ItemView {
 	return *v.Item
 }
 
-func TestInitCreatesGeneralPlan(t *testing.T) {
-	m, _ := setup(t)
-	plans := must[[]PlanSummary](t)(m.PlanList())
-	if len(plans) != 1 || plans[0].Slug != model.GeneralPlan {
+func TestInitCreatesNoPlans(t *testing.T) {
+	dir := gittest.NewRepo(t)
+	m := must[*Mull](t)(Open(dir))
+	must[*model.Config](t)(m.Init("main", "main"))
+	if plans := must[[]PlanSummary](t)(m.PlanList()); len(plans) != 0 {
 		t.Fatalf("plans = %+v", plans)
 	}
 	_, err := m.Init("main", "main")
 	if !errors.Is(err, store.ErrExists) {
 		t.Fatalf("second init: %v", err)
 	}
-	_, err = m.PlanClose(model.GeneralPlan)
-	wantErr(t, err, "cannot be closed")
+	// With no plan, an entry is about the whole project.
+	q := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindQuestion, Text: "Which license?"}))
+	if q.Plan != "" {
+		t.Fatalf("question plan = %q", q.Plan)
+	}
 }
 
 func TestNotInitialized(t *testing.T) {
@@ -383,18 +403,18 @@ func TestCaptureAndSettle(t *testing.T) {
 	}
 	q := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindQuestion, Text: "Do split undos run on preview?", Item: it.ID}))
 	// With two plans, an entry must say which plan or item it is about.
-	_, err := m.Capture(CaptureInput{Kind: model.KindLoose, Text: "Canonical URL emitted as meta"})
+	_, err := m.Capture(CaptureInput{Kind: model.KindQuestion, Text: "Canonical URL emitted as meta?"})
 	wantCode(t, err, CodeScope)
-	loose := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindLoose, Text: "Canonical URL emitted as meta", Plan: "general", Source: "2c8c"}))
-	if loose.Plan != model.GeneralPlan {
-		t.Fatalf("loose end without item or plan should land in general: %+v", loose)
-	}
+	loose := must[*model.Entry](t)(m.captureLegacy(CaptureInput{Kind: model.KindLoose, Text: "Canonical URL emitted as meta", Plan: "general", Source: "2c8c"}))
 	_, err = m.Capture(CaptureInput{Kind: model.KindReview, Text: "x"})
 	wantErr(t, err, "cannot capture")
 
-	inbox := must[[]*model.Entry](t)(m.Inbox(InboxFilter{}))
-	if len(inbox) != 3 {
+	// A retired loose end stays out of the inbox unless asked for by kind.
+	if inbox := must[[]*model.Entry](t)(m.Inbox(InboxFilter{})); len(inbox) != 2 {
 		t.Fatalf("inbox has %d entries", len(inbox))
+	}
+	if l := must[[]*model.Entry](t)(m.Inbox(InboxFilter{Kind: model.KindLoose})); len(l) != 1 || l[0].ID != loose.ID {
+		t.Fatalf("loose ends = %+v", l)
 	}
 
 	// Kind rules.
@@ -409,15 +429,15 @@ func TestCaptureAndSettle(t *testing.T) {
 
 	must[*model.Entry](t)(m.Decide(q.ID, "No; no compatibility path needed.", SettleOpts{OnRequest: true}))
 	do := must[DoResult](t)(m.Do(DoInput{ID: loose.ID}))
-	if do.Item.Title != "Canonical URL emitted as meta" || do.Item.Plan != model.GeneralPlan || do.Entry.Settled.Item != do.Item.ID {
+	if do.Item.Title != "Canonical URL emitted as meta" || do.Item.Plan != "general" || do.Entry.Settled.Item != do.Item.ID {
 		t.Fatalf("do = %+v", do)
 	}
 
 	if n := len(must[[]*model.Entry](t)(m.Inbox(InboxFilter{}))); n != 0 {
 		t.Fatalf("inbox should be empty, has %d", n)
 	}
-	if n := len(must[[]*model.Entry](t)(m.Inbox(InboxFilter{All: true}))); n != 3 {
-		t.Fatalf("--all should list 3, got %d", n)
+	if n := len(must[[]*model.Entry](t)(m.Inbox(InboxFilter{All: true}))); n != 2 {
+		t.Fatalf("--all should list 2, got %d", n)
 	}
 
 	log := must[[]Decision](t)(m.Decisions(""))
@@ -438,7 +458,7 @@ func TestCaptureAndSettle(t *testing.T) {
 
 func TestParkKeepsEntryListedAndSettleable(t *testing.T) {
 	m, _ := setup(t)
-	e := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindLoose, Text: "Stale branch quercus-leafminer-key"}))
+	e := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindQuestion, Text: "Delete stale branch quercus-leafminer-key?"}))
 	_, err := m.Park(e.ID, "", SettleOpts{})
 	wantErr(t, err, "needs a reason")
 	must[*model.Entry](t)(m.Park(e.ID, "after release", SettleOpts{}))

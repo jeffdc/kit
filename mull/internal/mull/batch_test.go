@@ -67,9 +67,14 @@ func TestBatchIntakeSized(t *testing.T) {
 		}
 		lines = append(lines, l)
 	}
-	kinds := []string{"decided", "ask", "loose"}
+	kinds := []string{"decided", "ask", "bug"}
 	for k := 1; k <= 20; k++ {
 		l := map[string]any{"op": kinds[k%3], "text": fmt.Sprintf("Entry %d", k), "source": "matter 50ff"}
+		if kinds[k%3] == "bug" {
+			l["plan"] = "@p" // captures tag a plan; they aren't about an item
+			lines = append(lines, l)
+			continue
+		}
 		if k%2 == 0 {
 			l["item"] = fmt.Sprintf("@i%d", (k%10)+1)
 		} else {
@@ -128,8 +133,11 @@ func TestBatchIntakeSized(t *testing.T) {
 	if i8 := item(t, m, created["i8"]); i8.Phase != created["e3"] || i8.Needs[0] != created["i7"] {
 		t.Errorf("item 8 = %+v", i8.Item)
 	}
-	if n := len(must[[]*model.Entry](t)(m.Inbox(InboxFilter{Plan: "taxogall"}))); n != 20 {
-		t.Errorf("inbox has %d entries for the plan, want 20", n)
+	if n := len(must[[]*model.Entry](t)(m.Inbox(InboxFilter{Plan: "taxogall"}))); n != 13 {
+		t.Errorf("inbox has %d entries for the plan, want 13", n)
+	}
+	if n := len(must[[]ItemView](t)(m.ItemList(ItemFilter{Plan: "taxogall", State: model.StateCaptured}))); n != 7 {
+		t.Errorf("%d captured bugs for the plan, want 7", n)
 	}
 	cfg := must[model.Config](t)(m.Config())
 	if len(cfg.DoneChecks) != 1 || cfg.DoneChecks[0] != "make done-checks" {
@@ -217,9 +225,9 @@ func TestBatchSettleInbox(t *testing.T) {
 	m, _ := setup(t)
 	d := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindDecision, Text: "d"}))
 	q := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindQuestion, Text: "q"}))
-	l1 := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindLoose, Text: "l1"}))
-	l2 := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindLoose, Text: "l2"}))
-	l3 := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindLoose, Text: "l3"}))
+	l1 := must[*model.Entry](t)(m.captureLegacy(CaptureInput{Kind: model.KindLoose, Text: "l1", Plan: "general"}))
+	l2 := must[*model.Entry](t)(m.captureLegacy(CaptureInput{Kind: model.KindLoose, Text: "l2", Plan: "general"}))
+	l3 := must[*model.Entry](t)(m.captureLegacy(CaptureInput{Kind: model.KindLoose, Text: "l3", Plan: "general"}))
 	input := jsonl(t,
 		map[string]any{"op": "accept", "ids": []string{d.ID}, "on-request": true},
 		map[string]any{"op": "decide", "id": q.ID, "decision": "yes", "on-request": true},
@@ -261,7 +269,7 @@ func TestScopeForItemsAndDo(t *testing.T) {
 	_, err = m.ItemAdd(NewItem{Title: "z"})
 	wantCode(t, err, CodeScope)
 	// do --phase files into the phase's plan, even though the entry is in general.
-	l := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindLoose, Text: "fix the footer", Plan: "general"}))
+	l := must[*model.Entry](t)(m.captureLegacy(CaptureInput{Kind: model.KindLoose, Text: "fix the footer", Plan: "general"}))
 	res := must[DoResult](t)(m.Do(DoInput{ID: l.ID, Phase: e.ID}))
 	if res.Item.Plan != "alpha" || res.Item.Phase != e.ID {
 		t.Fatalf("do item = %+v", res.Item)

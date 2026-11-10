@@ -60,11 +60,12 @@ const (
 const (
 	KindDecision = "decision"
 	KindQuestion = "question"
-	KindLoose    = "loose-end"
 	KindReview   = "review"
-	// KindIdea is not work: it needs no sizing, is never ready, and stays
-	// out of the inbox until the human promotes it.
-	KindIdea = "idea"
+	// Loose ends and inbox ideas are retired: captured items (bug, idea)
+	// replaced them. Existing ones are still read, listed with inbox --kind
+	// and settled, until the Model v2 migration converts them.
+	KindLoose = "loose-end"
+	KindIdea  = "idea"
 )
 
 // Inbox settle actions.
@@ -75,9 +76,6 @@ const (
 	ActDrop   = "drop"
 	ActPark   = "park"
 )
-
-// GeneralPlan is the standing plan for work outside any big effort.
-const GeneralPlan = "general"
 
 var (
 	idPattern   = regexp.MustCompile(`^[0-9a-f]{4}$`)

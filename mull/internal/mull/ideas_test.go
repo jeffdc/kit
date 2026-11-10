@@ -7,43 +7,44 @@ import (
 	"mull/internal/model"
 )
 
-func TestIdeasFiledListedAndCounted(t *testing.T) {
+func TestLooseEndsAndInboxIdeasAreRetired(t *testing.T) {
+	m, dir := setup(t)
+	_, err := m.Capture(CaptureInput{Kind: model.KindLoose, Text: "x", Plan: "general"})
+	wantCode(t, err, CodeRetired)
+	wantErr(t, err, "mull bug")
+	_, err = m.Capture(CaptureInput{Kind: model.KindIdea, Text: "x"})
+	wantCode(t, err, CodeRetired)
+
+	before := mullHead(t, dir)
+	_, err = m.Batch(strings.NewReader(`{"op": "loose", "plan": "general", "text": "x"}`), false)
+	if e := batchErr(t, err); e.Lines[0].Code != CodeRetired {
+		t.Fatalf("lines = %+v", e.Lines)
+	}
+	if mullHead(t, dir) != before {
+		t.Fatal("failed batch wrote")
+	}
+}
+
+func TestLegacyEntriesStayOutOfNeedsYou(t *testing.T) {
 	m, _ := setup(t)
 	must[*model.Plan](t)(m.PlanNew("alpha", "Alpha", ""))
-	must[*model.Plan](t)(m.PlanNew("beta", "Beta", ""))
-
-	// An idea needs no plan, even with several plans: unlike other entries.
-	loose := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindIdea, Text: "Mobile ID tool",
-		Detail: "Phones in the field.", Source: "conversation 2026-11-09"}))
-	if loose.Plan != "" || loose.Kind != model.KindIdea || loose.Detail != "Phones in the field." {
-		t.Fatalf("idea = %+v", loose)
-	}
-	planned := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindIdea, Text: "Phenology explorer", Plan: "alpha"}))
-	_, err := m.Capture(CaptureInput{Kind: model.KindIdea, Text: "x", Plan: "nope"})
-	wantCode(t, err, CodeNotFound)
-	it := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "alpha", Title: "work"}))
-	_, err = m.Capture(CaptureInput{Kind: model.KindIdea, Text: "x", Item: it.ID})
-	wantCode(t, err, CodeInvalid)
+	loose := must[*model.Entry](t)(m.captureLegacy(CaptureInput{Kind: model.KindLoose, Text: "Stale branch", Plan: "alpha"}))
+	idea := must[*model.Entry](t)(m.captureLegacy(CaptureInput{Kind: model.KindIdea, Text: "Mobile ID tool"}))
 	must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindQuestion, Text: "a real question", Plan: "alpha"}))
 
-	// Ideas stay out of the inbox...
+	// Needs you is questions, decisions and reviews; the retired kinds are
+	// listed only by kind.
 	inbox := must[[]*model.Entry](t)(m.Inbox(InboxFilter{All: true}))
 	if len(inbox) != 1 || inbox[0].Kind != model.KindQuestion {
 		t.Fatalf("inbox = %+v", inbox)
 	}
-	// ...and are listed by Ideas.
-	all := must[[]*model.Entry](t)(m.Ideas(IdeaFilter{}))
-	if len(all) != 2 {
-		t.Fatalf("ideas = %+v", all)
+	if l := must[[]*model.Entry](t)(m.Inbox(InboxFilter{Kind: model.KindLoose})); len(l) != 1 || l[0].ID != loose.ID {
+		t.Fatalf("loose ends = %+v", l)
 	}
-	if none := must[[]*model.Entry](t)(m.Ideas(IdeaFilter{Plan: "none"})); len(none) != 1 || none[0].ID != loose.ID {
-		t.Fatalf("ideas with no plan = %+v", none)
-	}
-	if a := must[[]*model.Entry](t)(m.Ideas(IdeaFilter{Plan: "alpha"})); len(a) != 1 || a[0].ID != planned.ID {
-		t.Fatalf("alpha ideas = %+v", a)
+	if l := must[[]*model.Entry](t)(m.Inbox(InboxFilter{Kind: model.KindIdea, Plan: model.NoPlan})); len(l) != 1 || l[0].ID != idea.ID {
+		t.Fatalf("ideas with no plan = %+v", l)
 	}
 
-	// The board shows counts, not lists, and needs_you leaves ideas out.
 	v := must[View](t)(m.Board(""))
 	var alpha PlanBoard
 	for _, p := range v.Plans {
@@ -51,97 +52,57 @@ func TestIdeasFiledListedAndCounted(t *testing.T) {
 			alpha = p
 		}
 	}
-	if alpha.Ideas != 1 || alpha.NeedsYou.total() != 1 || v.IdeasUnplanned != 1 {
-		t.Fatalf("board alpha = ideas %d needs %+v; unplanned %d", alpha.Ideas, alpha.NeedsYou, v.IdeasUnplanned)
+	if alpha.NeedsYou.total() != 1 || v.Legacy == nil || *v.Legacy != (Legacy{LooseEnds: 1, Ideas: 1}) || v.Unplanned != nil {
+		t.Fatalf("board alpha needs %+v; legacy %+v; unplanned %+v", alpha.NeedsYou, v.Legacy, v.Unplanned)
 	}
-	text := v.Text(m.Now())
-	if !strings.Contains(text, "IDEAS  1 idea (mull ideas --plan alpha)") || !strings.Contains(text, "IDEAS  1 idea with no plan") {
+	if text := v.Text(m.Now()); !strings.Contains(text, "LEGACY  1 loose end (mull inbox --kind loose-end) · 1 inbox idea") {
 		t.Fatalf("board text:\n%s", text)
+	}
+
+	// Settled, they leave the legacy count.
+	must[DropResult](t)(m.Drop([]string{loose.ID, idea.ID}, "", SettleOpts{OnRequest: true}))
+	if v := must[View](t)(m.Board("")); v.Legacy != nil {
+		t.Fatalf("legacy = %+v", v.Legacy)
 	}
 }
 
-func TestPromotingIdeas(t *testing.T) {
+func TestPromotingLegacyIdeas(t *testing.T) {
 	m, _ := setup(t)
 	must[*model.Plan](t)(m.PlanNew("alpha", "Alpha", ""))
-	asItem := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindIdea, Text: "Host-family filter", Plan: "alpha", Detail: "Browse by family.", Source: "matter 67c9"}))
-	asPhase := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindIdea, Text: "iNaturalist integration", Plan: "alpha"}))
-	noPlan := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindIdea, Text: "DNA barcodes"}))
+	asItem := must[*model.Entry](t)(m.captureLegacy(CaptureInput{Kind: model.KindIdea, Text: "Host-family filter", Plan: "alpha", Detail: "Browse by family.", Source: "matter 67c9"}))
+	asPhase := must[*model.Entry](t)(m.captureLegacy(CaptureInput{Kind: model.KindIdea, Text: "iNaturalist integration", Plan: "alpha"}))
+	noPlan := must[*model.Entry](t)(m.captureLegacy(CaptureInput{Kind: model.KindIdea, Text: "DNA barcodes"}))
 
-	// Only the human promotes ideas: an agent needs the human's say-so.
+	// Only the human promotes ideas.
 	_, err := m.Do(DoInput{ID: asItem.ID})
 	wantCode(t, err, CodeNotAllowed)
 	// Ideas are promoted, dropped or parked; never accepted or decided.
-	_, err = m.Accept([]string{asItem.ID}, "", SettleOpts{OnRequest: true})
-	wantCode(t, err, CodeNotAllowed)
-	_, err = m.Decide(asItem.ID, "yes", SettleOpts{OnRequest: true})
+	_, err = m.Accept([]string{asItem.ID}, "", SettleOpts{})
 	wantCode(t, err, CodeNotAllowed)
 
 	res := must[DoResult](t)(m.Do(DoInput{ID: asItem.ID, SettleOpts: SettleOpts{OnRequest: true}}))
-	if res.Item == nil || res.Item.From != asItem.ID || res.Item.Plan != "alpha" || res.Phase != nil {
-		t.Fatalf("promoted item = %+v", res)
+	if res.Item == nil || res.Item.Plan != "alpha" || res.Item.From != asItem.ID ||
+		!strings.Contains(res.Item.Notes, "Browse by family.") || !strings.Contains(res.Item.Notes, "matter 67c9") {
+		t.Fatalf("promoted item = %+v", res.Item)
 	}
-	if !strings.Contains(res.Item.Notes, "Browse by family.") || !strings.Contains(res.Item.Notes, "matter 67c9") {
-		t.Errorf("promoted item notes = %q", res.Item.Notes)
+	ph := must[DoResult](t)(m.Do(DoInput{ID: asPhase.ID, As: "phase", SettleOpts: SettleOpts{OnRequest: true}}))
+	if ph.Phase == nil || ph.Phase.From != asPhase.ID || ph.Entry.Settled.Phase != ph.Phase.ID {
+		t.Fatalf("promoted phase = %+v", ph)
 	}
-	if res.Entry.Settled.Item != res.Item.ID || !res.Entry.Settled.OnRequest {
-		t.Errorf("settlement = %+v", res.Entry.Settled)
-	}
-
-	res = must[DoResult](t)(m.Do(DoInput{ID: asPhase.ID, As: "phase", SettleOpts: SettleOpts{OnRequest: true}}))
-	if res.Phase == nil || res.Phase.From != asPhase.ID || res.Phase.Plan != "alpha" || res.Item != nil || res.Entry.Settled.Phase != res.Phase.ID {
-		t.Fatalf("promoted phase = %+v", res)
-	}
-	// Items can then go in the phase.
-	must[ItemView](t)(m.ItemAdd(NewItem{Phase: res.Phase.ID, Title: "Pull observations"}))
-
-	// An idea with no plan needs one to become work.
+	// An idea with no plan needs one to become work, or --plan none.
 	_, err = m.Do(DoInput{ID: noPlan.ID, SettleOpts: SettleOpts{OnRequest: true}})
 	wantCode(t, err, CodeScope)
-	res = must[DoResult](t)(m.Do(DoInput{ID: noPlan.ID, Plan: "alpha", SettleOpts: SettleOpts{OnRequest: true}}))
-	if res.Item.Plan != "alpha" {
-		t.Fatalf("promoted unplanned idea = %+v", res.Item)
-	}
-
-	// Promoted ideas leave the open list but stay on record with --all.
-	if n := len(must[[]*model.Entry](t)(m.Ideas(IdeaFilter{}))); n != 0 {
-		t.Fatalf("%d ideas still open", n)
-	}
-	if n := len(must[[]*model.Entry](t)(m.Ideas(IdeaFilter{All: true}))); n != 3 {
-		t.Fatalf("--all lists %d ideas, want 3", n)
-	}
-	_, err = m.Do(DoInput{ID: asItem.ID, SettleOpts: SettleOpts{OnRequest: true}})
-	wantCode(t, err, CodeSettled)
-	_, err = m.Do(DoInput{ID: asPhase.ID, As: "story", SettleOpts: SettleOpts{OnRequest: true}})
-	wantCode(t, err, CodeInvalid)
-}
-
-func TestIdeasParkAndDrop(t *testing.T) {
-	m, _ := setup(t)
-	a := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindIdea, Text: "a"}))
-	b := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindIdea, Text: "b"}))
-	must[*model.Entry](t)(m.Park(a.ID, "after launch", SettleOpts{OnRequest: true}))
-	must[DropResult](t)(m.Drop([]string{b.ID}, "not worth it", SettleOpts{OnRequest: true}))
-	if n := len(must[[]*model.Entry](t)(m.Ideas(IdeaFilter{}))); n != 0 {
-		t.Fatalf("%d open ideas", n)
-	}
-	if p := must[[]*model.Entry](t)(m.Ideas(IdeaFilter{Parked: true})); len(p) != 1 || p[0].ID != a.ID {
-		t.Fatalf("parked = %+v", p)
-	}
-	// A parked idea can still be promoted later.
-	must[*model.Plan](t)(m.PlanNew("later", "Later", ""))
-	res := must[DoResult](t)(m.Do(DoInput{ID: a.ID, Plan: "later", SettleOpts: SettleOpts{OnRequest: true}}))
-	if res.Item.From != a.ID {
-		t.Fatalf("promoted parked idea = %+v", res.Item)
+	np := must[DoResult](t)(m.Do(DoInput{ID: noPlan.ID, Plan: model.NoPlan, SettleOpts: SettleOpts{OnRequest: true}}))
+	if np.Item.Plan != "" {
+		t.Fatalf("unplanned promotion = %+v", np.Item)
 	}
 }
 
-func TestIdeasInBatch(t *testing.T) {
+func TestPromotingLegacyIdeasInBatch(t *testing.T) {
 	m, dir := setup(t)
-	// Inbox ideas are no longer filed (mull idea captures an item now), but
-	// existing ones are still promoted, in batch as on the command line.
 	must[*model.Plan](t)(m.PlanNew("alpha", "Alpha", ""))
-	i1 := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindIdea, Text: "Mobile ID tool"}))
-	i2 := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindIdea, Plan: "alpha", Text: "iNaturalist integration"}))
+	i1 := must[*model.Entry](t)(m.captureLegacy(CaptureInput{Kind: model.KindIdea, Text: "Mobile ID tool"}))
+	i2 := must[*model.Entry](t)(m.captureLegacy(CaptureInput{Kind: model.KindIdea, Plan: "alpha", Text: "iNaturalist integration"}))
 	input := strings.Join([]string{
 		`{"op": "do", "ref": "e", "id": "` + i2.ID + `", "as": "phase", "on-request": true}`,
 		`{"op": "add", "phase": "@e", "title": "Pull observations"}`,
@@ -153,9 +114,6 @@ func TestIdeasInBatch(t *testing.T) {
 	phase := results[0].Result.(DoResult).Phase
 	if phase == nil || results[0].ID != phase.ID || results[1].Result.(ItemView).Phase != phase.ID {
 		t.Fatalf("results = %+v", results)
-	}
-	if ideas := must[[]*model.Entry](t)(m.Ideas(IdeaFilter{})); len(ideas) != 1 || ideas[0].ID != i1.ID {
-		t.Fatalf("open ideas = %+v", ideas)
 	}
 
 	// Promoting without the human's say-so fails the whole batch.

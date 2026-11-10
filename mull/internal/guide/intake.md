@@ -29,7 +29,7 @@ Then run `mull init --integration <branch> --release <branch>`. Config can go in
 ```
 
 ## 3. Plans and phases (propose, then record)
-- **Plans.** Propose one plan per large effort (from the hub documents), using a plain-English slug. Small, unrelated work goes in the standing `general` plan.
+- **Plans.** Propose one plan per large effort (from the hub documents), using a plain-English slug. Small, unrelated work is unplanned (`--plan none`).
 - **Phases.** For each plan, propose phases: big pieces, in roughly the order they must happen. Add `--needs` between phases only where one truly must finish first.
 - **Show the human the whole outline** (plans, then phases, with needs) and adjust until they approve. Then record it in a batch (see the example below).
 
@@ -44,7 +44,7 @@ Then run `mull init --integration <branch> --release <branch>`. Config can go in
 File what needs the human in a batch, citing sources with `source`:
 - **Decisions agents made that the human never reviewed:** `decided` lines, with `item` or `plan`, and the reasoning in `detail`. Look for sections like "for review", "decisions made" and "assumed".
 - **Open questions:** `ask` lines.
-- **Loose ends:** `loose` lines. That covers:
+- **Loose ends:** `bug` lines (captured items, not inbox entries). That covers:
   - known bugs and findings that never became work;
   - stale branches and worktrees (name, age, and commits ahead);
   - uncommitted changes;
@@ -60,18 +60,18 @@ Plan, phases, items and inbox entries in one go. `@` refs point at records creat
 {"op": "add", "ref": "inv", "phase": "@billing", "title": "Invoices page", "needs": ["@hook"]}
 {"op": "decided", "item": "@hook", "text": "Store raw webhook payloads", "detail": "Replay after outages", "source": "matter 50ff, For review"}
 {"op": "ask", "plan": "@p", "text": "Monthly or annual plans first?", "source": "matter 50ff, Open"}
-{"op": "loose", "plan": "@p", "text": "Branch quercus-leafminer-key: 2 commits ahead, last touched 2026-09-08", "source": "git"}
+{"op": "bug", "plan": "@p", "text": "Branch quercus-leafminer-key: 2 commits ahead, last touched 2026-09-08", "source": "git"}
 {"op": "idea", "text": "Mobile-first ID tool", "detail": "Field use on phones.", "source": "matter 32a5"}
 ```
 - An item's plan comes from its phase, so `add` needs only `phase`.
-- An inbox entry needs `item` or `plan` when the repo has more than one plan.
+- An inbox entry needs `item` or `plan` when the repo has more than one plan. Captures (`bug`, `idea`) don't.
 - The results (one per line, each with its `id`) are the record of what was created.
 
 ## 6. The old backlog
 Matters with no place in any plan are **not migrated automatically**. List them for the human, grouped by theme, with a one-line summary each. The human decides, usually in batches:
 - **ideas:** things worth keeping that aren't work yet. File them as `idea` lines with the matter as `source` and a short note in `detail`. Most old backlog belongs here;
-- items in `general`;
-- loose ends;
+- unplanned items (`add` with `plan: "none"`);
+- bugs (`bug` lines);
 - or left behind.
 
 They stay readable in `.mull/` either way. Don't delete the old `.mull/` directory. That's a separate decision for the human.

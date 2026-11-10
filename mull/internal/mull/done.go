@@ -279,12 +279,11 @@ type DoneInput struct {
 
 // DoneResult reports a done attempt.
 type DoneResult struct {
-	Report         model.Report `json:"report"`
-	ReportPath     string       `json:"report_path"`
-	Item           ItemView     `json:"item"`
-	Review         string       `json:"review_entry,omitempty"`
-	LooseEndsFiled int          `json:"loose_ends_filed"`
-	Reminder       string       `json:"reminder,omitempty"`
+	Report     model.Report `json:"report"`
+	ReportPath string       `json:"report_path"`
+	Item       ItemView     `json:"item"`
+	Review     string       `json:"review_entry,omitempty"`
+	Reminder   string       `json:"reminder,omitempty"`
 }
 
 // ErrChecksFailed means the hard checks failed; the item stays active.
@@ -386,11 +385,6 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 		}
 		out.Review = e.ID
 		out.Item = s.itemView(i)
-		for _, eid := range sortedKeys(s.entries) {
-			if en := s.entries[eid]; en.Item == id && en.Kind == model.KindLoose && en.Created >= claim.At {
-				out.LooseEndsFiled++
-			}
-		}
 		return nil
 	})
 	if err != nil {
@@ -399,7 +393,7 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 	if !finished {
 		return out, &ErrChecksFailed{Report: out.ReportPath}
 	}
-	out.Reminder = "Show the human (or the supervisor) the report and the UI tour; they accept or send it back. File any loose ends you noticed with: mull loose \"...\" --item " + id
+	out.Reminder = "Show the human (or the supervisor) the report and the UI tour; they accept or send it back. Capture anything out of scope you noticed with mull bug \"...\" or mull idea \"...\" --source \"item " + id + "\""
 	return out, nil
 }
 

@@ -373,7 +373,6 @@ func captureCmd(a *app, op string) *cobra.Command {
 	short := map[string]string{
 		"decided": "Record a decision you made that the human didn't (--detail: why)",
 		"ask":     "Ask the human something",
-		"loose":   "Capture a loose end: a bug, inconsistency, half-finished work or assumption",
 	}[op]
 	var item, plan, source, detail string
 	c := &cobra.Command{
@@ -463,70 +462,22 @@ func inboxCmd(a *app) *cobra.Command {
 		},
 	}
 	c.Flags().StringVar(&f.Plan, "plan", "", "only this plan")
-	c.Flags().StringVar(&f.Kind, "kind", "", "only this kind (decision, question, loose-end, review)")
+	c.Flags().StringVar(&f.Kind, "kind", "", "only this kind (decision, question, review; or the retired loose-end, idea)")
 	c.Flags().BoolVar(&f.Parked, "parked", false, "include parked entries")
 	c.Flags().BoolVar(&f.All, "all", false, "include settled entries")
 	c.Flags().BoolVar(&asText, "text", false, "render for a human instead of JSON")
 	return c
 }
 
-func ideasCmd(a *app) *cobra.Command {
-	var f mull.IdeaFilter
-	var asText bool
-	c := &cobra.Command{
-		Use: "ideas", Short: "List ideas (not work; the board shows only their count), oldest first", Args: noArgs,
+// retiredCmd stands in for a retired command: it accepts anything and
+// fails with code retired and a pointer to the replacement.
+func retiredCmd(use, pointer string) *cobra.Command {
+	return &cobra.Command{
+		Use: use, Short: "Retired: " + pointer, Hidden: true, DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			m, err := a.open()
-			if err != nil {
-				return err
-			}
-			es, err := m.Ideas(f)
-			if err != nil {
-				return err
-			}
-			if asText {
-				return printIdeas(a, es)
-			}
-			return a.json(map[string]any{"ideas": es})
+			return &mull.Error{Code: mull.CodeRetired, Msg: cmd.Name() + " is retired: " + pointer}
 		},
 	}
-	c.Flags().StringVar(&f.Plan, "plan", "", "only this plan; \"none\" for ideas with no plan")
-	c.Flags().BoolVar(&f.Parked, "parked", false, "include parked ideas")
-	c.Flags().BoolVar(&f.All, "all", false, "include promoted and dropped ideas")
-	c.Flags().BoolVar(&asText, "text", false, "render for a human instead of JSON")
-	return c
-}
-
-func printIdeas(a *app, es []*model.Entry) error {
-	if len(es) == 0 {
-		_, err := fmt.Fprintln(a.stdout, "No ideas.")
-		return err
-	}
-	var b strings.Builder
-	fmt.Fprintf(&b, "IDEAS (%d)\n", len(es))
-	for _, e := range es {
-		plan := e.Plan
-		if plan == "" {
-			plan = "(no plan)"
-		}
-		status := ""
-		if e.Settled != nil {
-			status = "  [" + e.Settled.Action
-			if e.Settled.Item != "" {
-				status += " → item " + e.Settled.Item
-			}
-			if e.Settled.Phase != "" {
-				status += " → phase " + e.Settled.Phase
-			}
-			status += "]"
-		}
-		fmt.Fprintf(&b, "  %s  %-14s %s  %s%s\n", e.ID, plan, e.Created[:10], e.Text, status)
-		if e.Detail != "" {
-			fmt.Fprintf(&b, "        %s\n", strings.ReplaceAll(e.Detail, "\n", "\n        "))
-		}
-	}
-	_, err := fmt.Fprint(a.stdout, b.String())
-	return err
 }
 
 func printInbox(a *app, es []*model.Entry) error {

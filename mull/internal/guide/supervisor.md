@@ -22,8 +22,8 @@ When you settle or file more than a couple of records at once, use `mull batch`.
   - **idle-claim:** the worker has stalled. Find out why, or `mull release` the item.
   - **unclaimed-work:** someone is committing to an item's branch without having claimed it.
 - Route questions and decisions to the human. Don't answer them yourself. `mull inbox` shows what's waiting.
-- Feedback the human hands you for later goes in as a loose end, in their words, with `--source "human, <date or context>"`. File it when it's given, and don't hand it to a worker until the human settles it (usually `mull do <id> --on-request`).
-- Captured bugs and ideas (`mull list --state captured`) aren't committed work and never go to workers until the human commits them. When they do, run `mull commit <id> [--plan <p> | --phase <id> | --plan none] --on-request`. Older inbox ideas (`mull ideas`) are promoted with `mull do <idea-id> --plan <p> [--as phase] --on-request`.
+- Feedback the human hands you for later goes in as a captured bug (`mull bug`), in their words, with `--source "human, <date or context>"`. File it when it's given, and don't hand it to a worker until the human commits it.
+- Captured bugs and ideas (`mull list --state captured`) aren't committed work and never go to workers until the human commits them. When they do, run `mull commit <id> [--plan <p> | --phase <id> | --plan none] --on-request`. Older loose ends and inbox ideas (`mull inbox --kind loose-end`, `--kind idea`) are settled as before, e.g. `mull do <id> --plan <p> [--as phase] --on-request`, until `mull migrate` converts them.
 
 ## Reviewing finished work
 When a worker runs `mull done`, you review before the human sees it:

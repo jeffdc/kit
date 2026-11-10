@@ -40,6 +40,7 @@ On failure, mull prints nothing to stdout, prints this to stderr, and exits 1:
 | `invalid_json` | a batch line isn't a JSON object |
 | `busy` | too many concurrent writers; try again |
 | `git_error` | git failed unexpectedly |
+| `retired` | a retired command or batch op (`loose`, `ideas`); the message names its replacement |
 | `internal` | anything else |
 
 A `batch_invalid` error also lists every failed line:
@@ -60,10 +61,9 @@ A `batch_invalid` error also lists every failed line:
 - **ItemView:** Item plus `{ready, blocked_by?}`.
 - **PhaseView:** Phase plus `{progress, complete, blocked_by?}`.
 - **Progress:** `{total, captured, committed, active, in_review, done, dropped, ready}`. `total` counts committed work (every stage but captured); captured items tagged to the phase or plan are counted only in `captured`.
-- **Entry** (inbox): `{id, kind ("decision"|"question"|"loose-end"|"review"|"idea"), text, plan, item?, source?, by, created, settled?, detail?}`
+- **Entry** (inbox): `{id, kind ("decision"|"question"|"review"|"loose-end"|"idea"), text, plan, item?, source?, by, created, settled?, detail?}`. `plan` is `""` for an entry about the whole project or an unplanned item.
   - **settled:** `{action ("accept"|"decide"|"do"|"drop"|"park"), note?, item?, phase?, by, on_request?, at}`. `item` or `phase` is what `do` made.
-  - **An inbox idea** is an Entry with `kind: "idea"`, filed before ideas became captured items. `text` is its title and `detail` its note. `plan` may be `""` (no plan). They aren't work: never ready, never in `inbox` (unless `--kind idea`) and never in `needs_you`. `mull idea` no longer files them; existing ones are listed by `ideas` and settled as before.
-- An entry about an unplanned item has `plan: ""`.
+  - **Loose ends and inbox ideas** (`kind: "loose-end"`, `"idea"`) are retired: captured items replaced them, and nothing files them any more. Existing ones are kept until `mull migrate` converts them: listed only by `inbox --kind loose-end|idea`, counted in the view's `legacy`, never in `needs_you`, and settled as before (an idea's `text` is its title and `detail` its note).
 - **Config:** `{integration, release, remote, done_checks: [], layers: {name: [globs]}}`
 
 Times are RFC 3339 in UTC. IDs are 4 hex characters; plans use their slug.
@@ -85,19 +85,19 @@ Times are RFC 3339 in UTC. IDs are 4 hex characters; plans use their slug.
 | `set` | `{type: "plan"\|"phase"\|"item", plan?: Plan, phase?: PhaseView, item?: ItemView}` |
 | `need`, `unneed` | `{type: "item"\|"phase", item?: ItemView, phase?: PhaseView}` |
 | `start` | `{item: ItemView, warnings: []}` |
-| `decided`, `ask`, `loose` | Entry |
-| `ideas` | `{ideas: [Entry]}`: inbox ideas, oldest first. Open ones by default; `--plan none` for those with no plan |
-| `inbox` | `{entries: [Entry]}`, oldest first. Ideas are left out unless `--kind idea` |
+| `decided`, `ask` | Entry |
+| `inbox` | `{entries: [Entry]}`, oldest first: questions, decisions and reviews. Loose ends and ideas only with `--kind loose-end\|idea`. `--plan none` for entries with no plan |
+| `loose`, `ideas` | retired: fail with code `retired` |
 | `accept` | `{entries: [Entry], items: [ItemView], follow_up: ItemView\|null}` |
 | `decide`, `park` | Entry |
 | `do` | `{entry: Entry, item?: ItemView, phase?: PhaseView}`: the new item (or phase, with `--as phase`), or the reopened item for a review |
 | `drop` | `{entries: [Entry], items: [ItemView]}` |
 | `decisions` | `{decisions: [{id, plan, item?, kind, context, decision, by, on_request?, at}]}`, newest first |
 | `config`, `config set\|checks\|layer` | Config |
-| `view` | `{generated, integration, integration_found, release, ahead_of_release, plans: [Board], unlinked_commits_this_week, unlinked_recent?, ideas_without_plan, unplanned?: Board}`. `unplanned` is a Board (slug `""`, title `"Unplanned"`) for items with no plan, present when there are any or something needs you about them; its `ideas` is always 0. Board: `{slug, title, progress, phases: [{id, title, progress, complete, blocked_by?}], unfiled: Progress, problems: [{kind, item, text}], in_flight: [{id, title, state, worktree?, branches?, commits, last_activity?}], needs_you: {reviews, decisions, questions, loose_ends, older_than_a_week, parked}, ideas}`. `ideas` is a count; `mull ideas` lists them. Problem kinds: `idle-claim`, `unclaimed-work`, `done-not-in-git`, `failed-done` |
+| `view` | `{generated, integration, integration_found, release, ahead_of_release, plans: [Board], unlinked_commits_this_week, unlinked_recent?, unplanned?: Board, legacy?: {loose_ends, ideas}}`. `unplanned` is a Board (slug `""`, title `"Unplanned"`) for items with no plan and entries with no plan, present when there are any. `legacy` counts open loose ends and inbox ideas until `mull migrate`. Board: `{slug, title, progress, phases: [{id, title, progress, complete, blocked_by?}], unfiled: Progress, problems: [{kind, item, text}], in_flight: [{id, title, state, worktree?, branches?, commits, last_activity?}], needs_you: {reviews, decisions, questions, older_than_a_week, parked}}`. Problem kinds: `idle-claim`, `unclaimed-work`, `done-not-in-git`, `failed-done` |
 | `context` | `{worktree, branch, protocol: [], item?: …, my_claims: [], plans: [], ready: [], active: [], decisions: []}` |
 | `check` | `{tree, commit, at, by, passed, results: [{command, exit, duration_ms, tail?}], cached}` |
-| `done` | `{report, report_path, item: ItemView, review_entry?, loose_ends_filed, reminder?}` |
+| `done` | `{report, report_path, item: ItemView, review_entry?, reminder?}` |
 | `report` | `{report, text}`. `text` is the markdown rendering |
 | `sync` | `{remote, action ("up-to-date"\|"pushed"\|"pulled"\|"merged"\|"cloned"), local, remote_before?, pushed_commits, dry_run?, commands?}` |
 | `guide` | `{guide, text}` |
@@ -124,13 +124,14 @@ Times are RFC 3339 in UTC. IDs are 4 hex characters; plans use their slug.
 | `add` | `title`, `plan` (optional with `phase`; `none` for unplanned work), `phase`, `needs`, `notes`, `doc` |
 | `set` | `id`, `field`, `value` |
 | `need`, `unneed` | `id`, `needs` |
-| `decided`, `ask`, `loose` | `text`, `item`, `plan`, `source`, `detail` |
+| `decided`, `ask` | `text`, `item`, `plan`, `source`, `detail` |
 | `bug`, `idea` | `text` (the title), `plan`, `phase` (both optional), `category`, `source`, `detail` (kept as notes) |
 | `commit` | `id`, `plan` (`none` for unplanned), `phase`, `on-request` (required: only the human commits) |
 | `start`, `release` | `id` |
 | `accept` | `ids`, `follow-up`, `on-request` |
 | `decide` | `id`, `decision`, `on-request` |
 | `do` | `id`, `plan`, `phase`, `as` (`item` or `phase`), `reason`, `on-request`. Promoting an idea needs `on-request: true` |
+| `loose` | retired: the line fails with code `retired` |
 | `drop` | `ids`, `reason`, `on-request` |
 | `park` | `id`, `reason`, `on-request` |
 | `config set` | `key`, `value` |

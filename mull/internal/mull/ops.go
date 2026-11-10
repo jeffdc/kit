@@ -85,7 +85,7 @@ var ops = map[string]opDef{
 	"unneed":        {func() Input { return &NeedIn{} }, "id, needs"},
 	"decided":       {func() Input { return &CaptureIn{kind: model.KindDecision} }, "text, item, plan, source, detail"},
 	"ask":           {func() Input { return &CaptureIn{kind: model.KindQuestion} }, "text, item, plan, source, detail"},
-	"loose":         {func() Input { return &CaptureIn{kind: model.KindLoose} }, "text, item, plan, source, detail"},
+	"loose":         {func() Input { return &CaptureIn{kind: model.KindLoose} }, "retired: use bug or idea"},
 	"bug":           {func() Input { return &CaptureItemIn{kind: model.ItemBug} }, "text, plan, phase, category, source, detail"},
 	"idea":          {func() Input { return &CaptureItemIn{kind: model.ItemIdea} }, "text, plan, phase, category, source, detail"},
 	"commit":        {func() Input { return &CommitIn{} }, "id, plan, phase, on-request"},

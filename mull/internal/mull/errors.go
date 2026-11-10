@@ -35,6 +35,7 @@ const (
 	CodeInvalidJSON        = "invalid_json"        // a batch line is not a valid JSON object
 	CodeBusy               = "busy"                // too many concurrent writers; try again
 	CodeGit                = "git_error"           // git failed unexpectedly
+	CodeRetired            = "retired"             // the command or op was retired; the message names its replacement
 	CodeInternal           = "internal"            // anything else
 )
 

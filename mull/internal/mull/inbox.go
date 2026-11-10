@@ -54,25 +54,24 @@ func (m *Mull) Capture(in CaptureInput) (*model.Entry, error) {
 
 func (m *Mull) capture(s *state, in CaptureInput) (*model.Entry, error) {
 	switch in.Kind {
-	case model.KindDecision, model.KindQuestion, model.KindLoose, model.KindIdea:
+	case model.KindDecision, model.KindQuestion:
+	case model.KindLoose, model.KindIdea:
+		return nil, errf(CodeRetired, "%s", retiredCapture)
 	default:
 		return nil, errf(CodeInvalid, "cannot capture an entry of kind %q", in.Kind)
 	}
 	if in.Text == "" {
 		return nil, errf(CodeInvalid, "an inbox entry needs text")
 	}
-	if in.Kind == model.KindIdea {
-		// An idea isn't about an item, and its plan is optional.
-		if in.Item != "" {
-			return nil, errf(CodeInvalid, "an idea isn't about an item; give a --plan, or none")
-		}
-		return m.newEntry(s, in.Kind, in.Text, "", in.Plan, in.Source, in.Detail)
-	}
 	if in.Item == "" && in.Plan == "" && s.activePlans() > 1 {
 		return nil, errf(CodeScope, "this repository has more than one plan: say what the entry is about with --item or --plan")
 	}
 	return m.newEntry(s, in.Kind, in.Text, in.Item, in.Plan, in.Source, in.Detail)
 }
+
+// retiredCapture points from mull loose and inbox ideas to captures.
+const retiredCapture = "loose ends and inbox ideas are retired: capture it as an item with " +
+	"mull bug \"...\" or mull idea \"...\" (--source says where it came from; --plan or --phase tag it)"
 
 func (s *state) activePlans() int {
 	n := 0
@@ -95,9 +94,6 @@ func (m *Mull) newEntry(s *state, kind, text, item, plan, source, detail string)
 		}
 		plan = i.Plan
 	}
-	if plan == "" && item == "" && kind != model.KindIdea {
-		plan = model.GeneralPlan // an entry about an unplanned item has no plan either
-	}
 	if plan != "" {
 		if _, err := s.plan(plan); err != nil {
 			return nil, err
@@ -115,7 +111,9 @@ func (m *Mull) newEntry(s *state, kind, text, item, plan, source, detail string)
 }
 
 // InboxFilter selects inbox entries. By default only unsettled entries,
-// and never ideas unless Kind is "idea": ideas aren't waiting on anyone.
+// and never the retired kinds (loose ends, ideas) unless Kind names one:
+// needs you is questions, decisions and reviews. Plan "none" selects
+// entries with no plan.
 type InboxFilter struct {
 	Plan, Kind string
 	Parked     bool // include parked entries
@@ -126,17 +124,20 @@ type InboxFilter struct {
 func (m *Mull) Inbox(f InboxFilter) ([]*model.Entry, error) {
 	out := []*model.Entry{}
 	err := m.view(func(s *state) error {
-		if f.Plan != "" {
-			if _, err := s.plan(f.Plan); err != nil {
+		plan := f.Plan
+		if plan == model.NoPlan {
+			plan = ""
+		} else if plan != "" {
+			if _, err := s.plan(plan); err != nil {
 				return err
 			}
 		}
 		for _, id := range sortedKeys(s.entries) {
 			e := s.entries[id]
-			if (f.Plan != "" && e.Plan != f.Plan) || (f.Kind != "" && e.Kind != f.Kind) {
+			if (f.Plan != "" && e.Plan != plan) || (f.Kind != "" && e.Kind != f.Kind) {
 				continue
 			}
-			if e.Kind == model.KindIdea && f.Kind != model.KindIdea {
+			if retiredKind(e.Kind) && f.Kind != e.Kind {
 				continue
 			}
 			parked := e.Settled != nil && e.Settled.Action == model.ActPark
@@ -151,30 +152,7 @@ func (m *Mull) Inbox(f InboxFilter) ([]*model.Entry, error) {
 	return out, err
 }
 
-// IdeaFilter selects ideas. By default only open ones, from every plan
-// (and none); Plan "none" selects ideas with no plan.
-type IdeaFilter struct {
-	Plan        string
-	Parked, All bool
-}
-
-// Ideas lists ideas, oldest first.
-func (m *Mull) Ideas(f IdeaFilter) ([]*model.Entry, error) {
-	if f.Plan == "none" {
-		out, err := m.Inbox(InboxFilter{Kind: model.KindIdea, Parked: f.Parked, All: f.All})
-		if err != nil {
-			return nil, err
-		}
-		kept := []*model.Entry{}
-		for _, e := range out {
-			if e.Plan == "" {
-				kept = append(kept, e)
-			}
-		}
-		return kept, nil
-	}
-	return m.Inbox(InboxFilter{Kind: model.KindIdea, Plan: f.Plan, Parked: f.Parked, All: f.All})
-}
+func retiredKind(kind string) bool { return kind == model.KindLoose || kind == model.KindIdea }
 
 // SettleOpts are the common options for settling.
 type SettleOpts struct {
