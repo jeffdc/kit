@@ -33,8 +33,8 @@ var projectAddCmd = &cobra.Command{
 }
 
 var projectListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List all projects",
+	Use:     "list",
+	Short:   "List all projects",
 	Aliases: []string{"ls"},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		projects := store.ListProjects()

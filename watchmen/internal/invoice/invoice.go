@@ -12,7 +12,7 @@ import (
 // InvoiceData holds data needed to generate an invoice
 type InvoiceData struct {
 	InvoiceNumber        string
-	PurchaseOrder        string             // Client's PO number
+	PurchaseOrder        string // Client's PO number
 	Date                 time.Time
 	Project              model.Project
 	Entries              []model.Entry
