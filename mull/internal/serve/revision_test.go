@@ -227,7 +227,7 @@ func TestRevisionUnreadableProject(t *testing.T) {
 	h := Handler(func() ([]string, error) { return []string{bare, gone}, nil })
 	for _, p := range []string{bare, gone} {
 		rec := get(t, h, "/api/projects/"+filepath.Base(p)+"/revision")
-		if e := decode[mull.Error](t, rec); rec.Code != 409 || (e.Code != mull.CodeNotInitialized && e.Code != mull.CodeNotRepo) {
+		if e := decode[mull.Error](t, rec); rec.Code != 500 || (e.Code != mull.CodeNotInitialized && e.Code != mull.CodeNotRepo) {
 			t.Errorf("GET revision of %s: %d %s", p, rec.Code, rec.Body)
 		}
 	}

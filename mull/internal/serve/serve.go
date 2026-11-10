@@ -162,7 +162,8 @@ func writeError(w http.ResponseWriter, status int, e *mull.Error) {
 
 // writeMullError writes err with the HTTP status its code means: a record
 // or project that doesn't exist is 404, a bad value 400, a refused action
-// 403, a registered project that can't be read 409, anything else 500.
+// 403, anything else 500. A registered project that can't be read is 500:
+// the request is fine, the server can't serve it (the code says why).
 func writeMullError(w http.ResponseWriter, err error) {
 	e := mull.AsError(err)
 	status := http.StatusInternalServerError
@@ -173,8 +174,6 @@ func writeMullError(w http.ResponseWriter, err error) {
 		status = http.StatusBadRequest
 	case mull.CodeNotAllowed:
 		status = http.StatusForbidden
-	case mull.CodeNotRepo, mull.CodeNotInitialized, mull.CodeUnsupportedFormat:
-		status = http.StatusConflict
 	}
 	writeError(w, status, e)
 }
