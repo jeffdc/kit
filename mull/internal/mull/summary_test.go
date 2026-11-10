@@ -1,6 +1,7 @@
 package mull
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -49,7 +50,8 @@ func TestSummary(t *testing.T) {
 		t.Errorf("agents = %d, untriaged = %d", sum.Agents, sum.Untriaged)
 	}
 	tip := gittest.Git(t, dir, "rev-parse", "refs/heads/mull")
-	if sum.Commit != tip || sum.LastChange != gittest.Git(t, dir, "log", "-1", "--format=%cI", tip) {
+	at, _ := time.Parse(time.RFC3339, gittest.Git(t, dir, "log", "-1", "--format=%cI", tip))
+	if sum.Commit != tip || sum.LastChange != at.UTC().Format(time.RFC3339) || !strings.HasSuffix(sum.LastChange, "Z") {
 		t.Errorf("commit = %q at %q, want the mull branch tip %q", sum.Commit, sum.LastChange, tip)
 	}
 	if sum.Format != model.Format || sum.MigrationRequired {

@@ -85,3 +85,32 @@ func TestReposSkipsDuplicatesBlanksAndComments(t *testing.T) {
 		t.Errorf("Repos = %v, want %v", got, want)
 	}
 }
+
+func TestReposShareOneRegistryPerTest(t *testing.T) {
+	// Register each repo as soon as it's made: a second repo must not move
+	// the test to a new config dir and lose the first registration.
+	a := onMull(t)
+	if err := Register(a); err != nil {
+		t.Fatal(err)
+	}
+	b := onMull(t)
+	if err := Register(b); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := Repos(); !reflect.DeepEqual(got, []string{a, b}) {
+		t.Errorf("Repos = %v, want both repos", got)
+	}
+}
+
+func onMull(t *testing.T) string {
+	t.Helper()
+	dir := gittest.NewRepo(t)
+	m, err := mull.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Init("", ""); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}

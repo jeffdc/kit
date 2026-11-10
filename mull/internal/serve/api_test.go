@@ -96,8 +96,8 @@ func TestAPIPages(t *testing.T) {
 		"/api/projects/" + id + "/plans/nope":        {404, mull.CodeNotFound},
 		"/api/projects/" + id + "/phases/ffff":       {404, mull.CodeNotFound},
 		"/api/projects/" + id + "/backlog?plan=nope": {404, mull.CodeNotFound},
-		"/api/projects/gone":                         {500, mull.CodeNotRepo},
-		"/api/projects/gone/tree":                    {500, mull.CodeNotRepo},
+		"/api/projects/gone":                         {409, mull.CodeNotRepo},
+		"/api/projects/gone/tree":                    {409, mull.CodeNotRepo},
 	} {
 		rec := get(t, h, path)
 		var e mull.Error

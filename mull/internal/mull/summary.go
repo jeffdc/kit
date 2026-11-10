@@ -2,6 +2,7 @@ package mull
 
 import (
 	"sort"
+	"time"
 
 	"mull/internal/model"
 )
@@ -69,11 +70,11 @@ func (m *Mull) summary(s *state) (Summary, error) {
 		out.NeedsYou.add(e, now)
 	}
 	out.Blocking = s.countBlocking(nil)
-	var err error
-	out.LastChange, err = m.repo.Output(nil, nil, "log", "-1", "--format=%cI", out.Commit)
+	unix, err := m.repo.Output(nil, nil, "log", "-1", "--format=%ct", out.Commit)
 	if err != nil {
 		return out, err
 	}
+	out.LastChange = time.Unix(int64(atoi(unix)), 0).UTC().Format(time.RFC3339)
 	return out, m.summaryRefs(s, &out)
 }
 

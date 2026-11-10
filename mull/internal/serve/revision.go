@@ -39,12 +39,12 @@ func registerRevision(mux *http.ServeMux, repos Repos) {
 		id := r.PathValue("id")
 		path, err := resolve(repos, id)
 		if err != nil {
-			writeRevisionError(w, err)
+			writeMullError(w, err)
 			return
 		}
 		rev, at, err := revisionSince(path)
 		if err != nil {
-			writeRevisionError(w, err)
+			writeMullError(w, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, RevisionReport{ID: id, Revision: rev, SeenAt: at})
@@ -66,27 +66,27 @@ func registerRevision(mux *http.ServeMux, repos Repos) {
 		id := r.PathValue("id")
 		path, err := resolve(repos, id)
 		if err != nil {
-			writeRevisionError(w, err)
+			writeMullError(w, err)
 			return
 		}
 		m, err := mull.Open(path)
 		if err != nil {
-			writeRevisionError(w, err)
+			writeMullError(w, err)
 			return
 		}
 		pt, err := m.RevisionAt(body.Commit)
 		if err != nil {
-			writeRevisionError(w, err)
+			writeMullError(w, err)
 			return
 		}
 		at := time.Now().UTC().Format(time.RFC3339)
 		if err := seen.Mark(path, seen.Look{Commit: pt.Commit, At: at}); err != nil {
-			writeRevisionError(w, err)
+			writeMullError(w, err)
 			return
 		}
 		rev, at, err := revisionSince(path)
 		if err != nil {
-			writeRevisionError(w, err)
+			writeMullError(w, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, RevisionReport{ID: id, Revision: rev, SeenAt: at})
@@ -150,21 +150,4 @@ func writeAllowed(r *http.Request) (int, *mull.Error) {
 		return http.StatusUnsupportedMediaType, &mull.Error{Code: mull.CodeNotAllowed, Msg: "a write must have Content-Type: application/json"}
 	}
 	return 0, nil
-}
-
-// writeRevisionError writes err with the HTTP status its code means.
-func writeRevisionError(w http.ResponseWriter, err error) {
-	e := mull.AsError(err)
-	status := http.StatusInternalServerError
-	switch e.Code {
-	case mull.CodeNotFound:
-		status = http.StatusNotFound
-	case mull.CodeInvalid:
-		status = http.StatusBadRequest
-	case mull.CodeNotAllowed:
-		status = http.StatusForbidden
-	case mull.CodeNotRepo, mull.CodeNotInitialized, mull.CodeUnsupportedFormat:
-		status = http.StatusConflict // the project is registered but can't be read
-	}
-	writeError(w, status, e)
 }
