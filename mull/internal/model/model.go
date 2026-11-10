@@ -21,6 +21,16 @@ const (
 	StateDropped   = "dropped"
 )
 
+// Kinds of captured item.
+const (
+	ItemBug  = "bug"
+	ItemIdea = "idea"
+)
+
+// NoPlan, given as a plan, means "no plan": unplanned work, or backlog not
+// tagged to a plan.
+const NoPlan = "none"
+
 // Stages lists every item stage, in order.
 var Stages = []string{StateCaptured, StateCommitted, StateActive, StateInReview, StateDone, StateDropped}
 
@@ -113,20 +123,26 @@ type Claim struct {
 	Base string `yaml:"base,omitempty" json:"base,omitempty"`
 }
 
-// Item is a unit of work one agent completes in one session.
+// Item is a unit of work one agent completes in one session. An item with
+// no plan is unplanned work (or, captured, untagged backlog). Captured items
+// carry a kind (bug or idea), and may carry a free-text category and a
+// source; they keep them once committed.
 type Item struct {
-	ID      string   `yaml:"-" json:"id"`
-	Plan    string   `yaml:"plan" json:"plan"`
-	Phase   string   `yaml:"epic,omitempty" json:"phase,omitempty"`
-	Title   string   `yaml:"title" json:"title"`
-	State   string   `yaml:"state" json:"state"`
-	Needs   []string `yaml:"needs,omitempty" json:"needs,omitempty"`
-	Docs    []string `yaml:"docs,omitempty" json:"docs,omitempty"`
-	Claim   *Claim   `yaml:"claim,omitempty" json:"claim,omitempty"`
-	From    string   `yaml:"from,omitempty" json:"from,omitempty"` // the inbox entry it was made from
-	Created string   `yaml:"created" json:"created"`
-	Updated string   `yaml:"updated" json:"updated"`
-	Notes   string   `yaml:"-" json:"notes,omitempty"`
+	ID       string   `yaml:"-" json:"id"`
+	Plan     string   `yaml:"plan,omitempty" json:"plan,omitempty"`
+	Phase    string   `yaml:"epic,omitempty" json:"phase,omitempty"`
+	Title    string   `yaml:"title" json:"title"`
+	State    string   `yaml:"state" json:"state"`
+	Kind     string   `yaml:"kind,omitempty" json:"kind,omitempty"`
+	Category string   `yaml:"category,omitempty" json:"category,omitempty"`
+	Source   string   `yaml:"source,omitempty" json:"source,omitempty"`
+	Needs    []string `yaml:"needs,omitempty" json:"needs,omitempty"`
+	Docs     []string `yaml:"docs,omitempty" json:"docs,omitempty"`
+	Claim    *Claim   `yaml:"claim,omitempty" json:"claim,omitempty"`
+	From     string   `yaml:"from,omitempty" json:"from,omitempty"` // the inbox entry it was made from
+	Created  string   `yaml:"created" json:"created"`
+	Updated  string   `yaml:"updated" json:"updated"`
+	Notes    string   `yaml:"-" json:"notes,omitempty"`
 }
 
 // MarshalYAML stores the item's stage under its stored name.

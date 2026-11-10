@@ -267,7 +267,7 @@ func addCmd(a *app) *cobra.Command {
 			return a.write("add", &in)
 		},
 	}
-	c.Flags().StringVar(&in.Plan, "plan", "", "plan slug (not needed with --phase)")
+	c.Flags().StringVar(&in.Plan, "plan", "", "plan slug (not needed with --phase; none: unplanned work)")
 	c.Flags().StringVar(&in.Phase, "phase", "", "phase ID")
 	c.Flags().StringSliceVar(&needs, "needs", nil, "items or phases this item needs")
 	c.Flags().StringVar(&in.Notes, "notes", "", "short notes (- reads stdin)")
@@ -295,9 +295,10 @@ func listCmd(a *app) *cobra.Command {
 			})
 		},
 	}
-	c.Flags().StringVar(&f.Plan, "plan", "", "only this plan")
+	c.Flags().StringVar(&f.Plan, "plan", "", "only this plan (none: items with no plan)")
 	c.Flags().StringVar(&f.Phase, "phase", "", "only this phase")
 	c.Flags().StringVar(&f.State, "state", "", "only this stage (captured, committed, active, in-review, done, dropped)")
+	c.Flags().StringVar(&f.Kind, "kind", "", "only this kind of captured item (bug, idea)")
 	return c
 }
 
@@ -373,7 +374,6 @@ func captureCmd(a *app, op string) *cobra.Command {
 		"decided": "Record a decision you made that the human didn't (--detail: why)",
 		"ask":     "Ask the human something",
 		"loose":   "Capture a loose end: a bug, inconsistency, half-finished work or assumption",
-		"idea":    "File an idea the human raised: not work, never ready; only the human promotes it (mull do --on-request)",
 	}[op]
 	var item, plan, source, detail string
 	c := &cobra.Command{
@@ -389,17 +389,54 @@ func captureCmd(a *app, op string) *cobra.Command {
 			return a.write(op, ci)
 		},
 	}
-	if op == "idea" {
-		c.Use = "idea <title>"
-		c.Flags().StringVar(&plan, "plan", "", "the plan it belongs to (optional)")
-		c.Flags().StringVar(&source, "source", "", "where it came from (a conversation, a matter, a doc)")
-		c.Flags().StringVar(&detail, "detail", "", "a short note (- reads stdin)")
-		return c
-	}
 	c.Flags().StringVar(&item, "item", "", "the item this concerns (implies the plan)")
 	c.Flags().StringVar(&plan, "plan", "", "the plan, when there is no item (required when the repo has more than one plan)")
 	c.Flags().StringVar(&source, "source", "", "where this came from (file, matter, commit)")
 	c.Flags().StringVar(&detail, "detail", "", "more detail; for a decision, why (- reads stdin)")
+	return c
+}
+
+func captureItemCmd(a *app, op string) *cobra.Command {
+	short := map[string]string{
+		"bug":  "Capture a bug into the backlog: a captured item, not committed work",
+		"idea": "Capture an idea into the backlog: a captured item, not committed work",
+	}[op]
+	var in mull.CaptureItemIn
+	c := &cobra.Command{
+		Use: op + " <title>", Short: short + " (only the human commits it: mull commit)", Args: exact(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ci, _ := mull.NewInput(op)
+			c := ci.(*mull.CaptureItemIn)
+			var err error
+			if c.Detail, err = a.text(in.Detail); err != nil {
+				return err
+			}
+			c.Text, c.Plan, c.Phase, c.Category, c.Source = args[0], in.Plan, in.Phase, in.Category, in.Source
+			return a.write(op, c)
+		},
+	}
+	c.Flags().StringVar(&in.Plan, "plan", "", "the plan it belongs to (optional)")
+	c.Flags().StringVar(&in.Phase, "phase", "", "the phase it belongs to (optional; implies the plan)")
+	c.Flags().StringVar(&in.Category, "category", "", "a free-text category")
+	c.Flags().StringVar(&in.Source, "source", "", "where it came from (a conversation, a file, a commit)")
+	c.Flags().StringVar(&in.Detail, "detail", "", "a short note, kept as the item's notes (- reads stdin)")
+	return c
+}
+
+func commitCmd(a *app) *cobra.Command {
+	var in mull.CommitIn
+	c := &cobra.Command{
+		Use:   "commit <id>",
+		Short: "Commit a captured item as work, optionally moving it to a plan or phase (--plan none: unplanned). Only the human commits",
+		Args:  exact(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			in.ID = args[0]
+			return a.write("commit", &in)
+		},
+	}
+	c.Flags().StringVar(&in.Plan, "plan", "", "move it to this plan (none: unplanned work)")
+	c.Flags().StringVar(&in.Phase, "phase", "", "move it to this phase (implies the plan)")
+	c.Flags().BoolVar(&in.OnRequest, "on-request", false, "an agent committing this on the human's explicit instruction")
 	return c
 }
 

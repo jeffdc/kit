@@ -27,6 +27,7 @@ type View struct {
 	Release          string      `json:"release"`
 	AheadOfRelease   int         `json:"ahead_of_release"`
 	Plans            []PlanBoard `json:"plans"`
+	Unplanned        *PlanBoard  `json:"unplanned,omitempty"` // items with no plan, and what needs you about them
 	UnlinkedCount    int         `json:"unlinked_commits_this_week"`
 	IdeasUnplanned   int         `json:"ideas_without_plan"` // open ideas with no plan (mull ideas --plan none)
 	UnlinkedRecent   []string    `json:"unlinked_recent,omitempty"`
@@ -128,6 +129,13 @@ func (m *Mull) Board(plan string) (View, error) {
 				continue // an empty general plan is noise
 			}
 			v.Plans = append(v.Plans, b)
+		}
+		if plan == "" {
+			b := s.board(&model.Plan{Title: "Unplanned"}, g, now)
+			b.Ideas = 0 // counted in ideas_without_plan
+			if b.Progress.Total+b.Progress.Captured > 0 || b.NeedsYou.total() > 0 {
+				v.Unplanned = &b
+			}
 		}
 		return nil
 	})
@@ -341,72 +349,16 @@ func (v View) Text(now time.Time) string {
 		header += fmt.Sprintf(" · %d ahead of %s", v.AheadOfRelease, v.Release)
 	}
 	fmt.Fprintf(&b, "%s · %s\n", header, now.Format("2006-01-02"))
-	if len(v.Plans) == 0 {
+	if len(v.Plans) == 0 && v.Unplanned == nil {
 		b.WriteString("\nNo active plans with work.\n")
 	}
 	for _, p := range v.Plans {
 		fmt.Fprintf(&b, "\n%s  %s\n", strings.ToUpper(p.Slug), p.Title)
-		fmt.Fprintf(&b, "  %s %s\n", bar(p.Progress), progressText(p.Progress))
-		if len(p.Phases) > 0 || p.Unfiled.Total > 0 {
-			b.WriteString("  PHASES\n")
-			for _, e := range p.Phases {
-				status := progressText(e.Progress)
-				if e.Complete {
-					status = "complete"
-				} else if len(e.BlockedBy) > 0 {
-					status += " · blocked by " + strings.Join(e.BlockedBy, ", ")
-				}
-				fmt.Fprintf(&b, "    %s  %-28s %-10s %s\n", e.ID, truncate(e.Title, 28), bar(e.Progress), status)
-			}
-			if p.Unfiled.Total > 0 {
-				fmt.Fprintf(&b, "    ----  %-28s %-10s %s\n", "(no phase)", bar(p.Unfiled), progressText(p.Unfiled))
-			}
-		}
-		if len(p.Problems) > 0 {
-			fmt.Fprintf(&b, "  PROBLEMS (%d)\n", len(p.Problems))
-			for _, pr := range p.Problems {
-				fmt.Fprintf(&b, "    %s  %s\n", pr.Item, pr.Text)
-			}
-		}
-		if len(p.InFlight) > 0 {
-			b.WriteString("  IN FLIGHT\n")
-			for _, f := range p.InFlight {
-				var bits []string
-				if f.Worktree != "" {
-					bits = append(bits, f.Worktree)
-				}
-				if len(f.Branches) > 0 {
-					bits = append(bits, strings.Join(f.Branches, ","))
-				}
-				bits = append(bits, plural(f.Commits, "commit"))
-				if t, ok := parseTime(f.LastActivity); ok {
-					bits = append(bits, "last "+ago(now, t))
-				}
-				fmt.Fprintf(&b, "    %s  %-36s %s\n", f.ID, truncate(f.Title, 36), strings.Join(bits, " · "))
-			}
-		}
-		if p.Ideas > 0 {
-			fmt.Fprintf(&b, "  IDEAS  %s (mull ideas --plan %s)\n", plural(p.Ideas, "idea"), p.Slug)
-		}
-		n := p.NeedsYou
-		if n.total() > 0 {
-			var parts []string
-			for _, c := range []struct {
-				n    int
-				noun string
-			}{{n.Reviews, "review"}, {n.Decisions, "decision"}, {n.Questions, "question"}, {n.Loose, "loose end"}} {
-				if c.n > 0 {
-					parts = append(parts, plural(c.n, c.noun))
-				}
-			}
-			line := strings.Join(parts, " · ")
-			if n.Older > 0 {
-				line += fmt.Sprintf(" (%d older than a week)", n.Older)
-			}
-			fmt.Fprintf(&b, "  NEEDS YOU  %s\n", line)
-		} else {
-			b.WriteString("  NEEDS YOU  nothing\n")
-		}
+		writeBoard(&b, p, now)
+	}
+	if v.Unplanned != nil {
+		b.WriteString("\nUNPLANNED\n")
+		writeBoard(&b, *v.Unplanned, now)
 	}
 	if v.IdeasUnplanned > 0 {
 		fmt.Fprintf(&b, "\nIDEAS  %s with no plan (mull ideas --plan none)\n", plural(v.IdeasUnplanned, "idea"))
@@ -423,4 +375,69 @@ func (v View) Text(now time.Time) string {
 		b.WriteString("\n")
 	}
 	return b.String()
+}
+
+// writeBoard renders one plan's (or the unplanned work's) block.
+func writeBoard(b *strings.Builder, p PlanBoard, now time.Time) {
+	fmt.Fprintf(b, "  %s %s\n", bar(p.Progress), progressText(p.Progress))
+	if len(p.Phases) > 0 || p.Unfiled.Total > 0 {
+		b.WriteString("  PHASES\n")
+		for _, e := range p.Phases {
+			status := progressText(e.Progress)
+			if e.Complete {
+				status = "complete"
+			} else if len(e.BlockedBy) > 0 {
+				status += " · blocked by " + strings.Join(e.BlockedBy, ", ")
+			}
+			fmt.Fprintf(b, "    %s  %-28s %-10s %s\n", e.ID, truncate(e.Title, 28), bar(e.Progress), status)
+		}
+		if p.Unfiled.Total > 0 {
+			fmt.Fprintf(b, "    ----  %-28s %-10s %s\n", "(no phase)", bar(p.Unfiled), progressText(p.Unfiled))
+		}
+	}
+	if len(p.Problems) > 0 {
+		fmt.Fprintf(b, "  PROBLEMS (%d)\n", len(p.Problems))
+		for _, pr := range p.Problems {
+			fmt.Fprintf(b, "    %s  %s\n", pr.Item, pr.Text)
+		}
+	}
+	if len(p.InFlight) > 0 {
+		b.WriteString("  IN FLIGHT\n")
+		for _, f := range p.InFlight {
+			var bits []string
+			if f.Worktree != "" {
+				bits = append(bits, f.Worktree)
+			}
+			if len(f.Branches) > 0 {
+				bits = append(bits, strings.Join(f.Branches, ","))
+			}
+			bits = append(bits, plural(f.Commits, "commit"))
+			if t, ok := parseTime(f.LastActivity); ok {
+				bits = append(bits, "last "+ago(now, t))
+			}
+			fmt.Fprintf(b, "    %s  %-36s %s\n", f.ID, truncate(f.Title, 36), strings.Join(bits, " · "))
+		}
+	}
+	if p.Ideas > 0 {
+		fmt.Fprintf(b, "  IDEAS  %s (mull ideas --plan %s)\n", plural(p.Ideas, "idea"), p.Slug)
+	}
+	n := p.NeedsYou
+	if n.total() > 0 {
+		var parts []string
+		for _, c := range []struct {
+			n    int
+			noun string
+		}{{n.Reviews, "review"}, {n.Decisions, "decision"}, {n.Questions, "question"}, {n.Loose, "loose end"}} {
+			if c.n > 0 {
+				parts = append(parts, plural(c.n, c.noun))
+			}
+		}
+		line := strings.Join(parts, " · ")
+		if n.Older > 0 {
+			line += fmt.Sprintf(" (%d older than a week)", n.Older)
+		}
+		fmt.Fprintf(b, "  NEEDS YOU  %s\n", line)
+	} else {
+		b.WriteString("  NEEDS YOU  nothing\n")
+	}
 }

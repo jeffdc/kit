@@ -8,7 +8,7 @@ The record of a program run by you and your agents: its plans, where they stand,
 
 - **Plans → phases → items.** An item is a unit of work one agent completes in one session. Items and phases can *need* each other, and mull works out what's ready and what's blocked.
 - **Claims.** `mull start <id>` claims an item for the current worktree. It's atomic, so two agents can't take the same item.
-- **Ideas** (`mull idea`, `mull ideas`) are kept apart from work and only counted on the board. Only the human promotes one, into an item or a phase that links back to it.
+- **A backlog of captured items.** `mull bug` and `mull idea` capture an item that isn't committed work: never ready, kept out of a phase's progress. Only the human commits one (`mull commit`), optionally into a plan or phase; work with no plan is unplanned. Older inbox ideas (`mull ideas`) are still promoted with `mull do`.
 - **One inbox for what needs you:** decisions agents made, questions, loose ends and reviews. You settle each with one action: accept, decide, do, drop or park. Settled decisions form a log agents read before deciding anything.
 - **Stored in git, out of the way.** Everything lives on a `mull` branch that is never checked out. Writes never touch your working tree, and every worktree sees the same data.
 - **Any LLM, any harness.** Agents use the CLI. Nothing depends on a particular tool.

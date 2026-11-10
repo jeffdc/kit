@@ -35,7 +35,7 @@ type ContextItem struct {
 type BriefItem struct {
 	ID       string `json:"id"`
 	Title    string `json:"title"`
-	Plan     string `json:"plan"`
+	Plan     string `json:"plan,omitempty"`
 	Phase    string `json:"phase,omitempty"`
 	Worktree string `json:"worktree,omitempty"`
 }
@@ -113,8 +113,8 @@ func (m *Mull) Context(itemID string) (Context, error) {
 		}
 		for _, id := range sortedKeys(s.items) {
 			i := s.items[id]
-			if p := s.plans[i.Plan]; p == nil || p.State != model.PlanActive {
-				continue
+			if p := s.plans[i.Plan]; i.Plan != "" && (p == nil || p.State != model.PlanActive) {
+				continue // unplanned work is always in view
 			}
 			switch {
 			case i.State == model.StateActive:
