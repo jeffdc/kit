@@ -219,6 +219,20 @@ func (s *state) openPlan(slug string) (*model.Plan, error) {
 	return p, nil
 }
 
+// agreedPlan returns a plan that can take phases and committed work: an
+// active one. A shaping plan holds a doc, questions and captures until the
+// human agrees it.
+func (s *state) agreedPlan(slug string) (*model.Plan, error) {
+	p, err := s.openPlan(slug)
+	if err != nil {
+		return nil, err
+	}
+	if p.State == model.PlanShaping {
+		return nil, errf(CodeState, "plan %q is shaping: it takes phases and committed work once the human agrees it (mull plan agree %s --on-request)", slug, slug)
+	}
+	return p, nil
+}
+
 func (s *state) phase(id string) (*model.Phase, error) {
 	e := s.phases[id]
 	if e == nil {

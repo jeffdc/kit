@@ -32,7 +32,7 @@ Then run `mull init --integration <branch> --release <branch>`. Config can go in
 - **Plans.** Propose one plan per large effort (from the hub documents), using a plain-English slug. Small, unrelated work is unplanned (`--plan none`).
 - **Phases.** For each plan, propose phases: big pieces, in roughly the order they must happen. Add `--needs` between phases only where one truly must finish first. Needs exist between phases only: items inside a phase are unordered, so work that must wait for other work goes in a later phase.
 - **Show the human the whole outline** (plans, then phases, with needs) and adjust until they approve. Then record it in a batch (see the example below).
-- **Agreeing.** A new plan starts `shaping`, and none of its work is ready until the human agrees it. When they've agreed a plan as it stands, add a `plan agree` line with `"on-request": true`. Leave a plan they're still shaping as it is.
+- **Agreeing.** A new plan starts `shaping`: it takes captures and questions, but no phases or committed items until the human agrees it. When they've agreed a plan, add a `plan agree` line with `"on-request": true` right after its `plan new`, before its phases and items. Leave a plan they're still shaping with only its captures and questions.
 
 ## 4. Items for work in flight or ready
 - **What gets an item.** Only work that's in flight, ready, or clearly next. Each item must be something **one agent can finish in one session**; split anything bigger.

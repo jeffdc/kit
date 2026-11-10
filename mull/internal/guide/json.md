@@ -53,7 +53,7 @@ A `batch_invalid` error also lists every failed line:
 
 ## Records
 
-- **Plan:** `{slug, title, state ("shaping"|"active"|"done"), created, updated, summary?}`. A new plan is `shaping`; `plan agree` (the human) makes it `active`, and `plan close` makes it `done`. A shaping plan takes phases, items, captures and inbox entries, but none of its items is ready until it is agreed.
+- **Plan:** `{slug, title, state ("shaping"|"active"|"done"), created, updated, summary?}`. A new plan is `shaping`; `plan agree` (the human) makes it `active`, and `plan close` makes it `done`. A shaping plan takes captures and inbox entries but refuses phases and committed items (`invalid_state`) until it is agreed.
 - **Phase:** `{id, plan, title, needs?, from?, created, updated, summary?}`. `from` is the inbox entry (e.g. an idea) it was promoted from. `needs` are the phases it waits for: needs exist between phases only. (A need on an item, from before Model v2, still counts until `mull migrate` converts it.)
 - **Item:** `{id, plan?, phase?, title, state ("captured"|"committed"|"active"|"in-review"|"done"|"dropped"), kind?, category?, source?, needs?, docs?, claim?, from?, created, updated, notes?}`. `from` is the inbox entry (idea, question or loose end) it was made from.
   - **No `plan`** means unplanned work, or (captured) backlog not tagged to a plan.
@@ -88,7 +88,7 @@ Times are RFC 3339 in UTC. IDs are 4 hex characters; plans use their slug.
 | `list`, `ready` | `{items: [ItemView]}`. `list --plan none` selects items with no plan; `--kind bug\|idea` selects captured kinds |
 | `set` | `{type: "plan"\|"phase"\|"item", plan?: Plan, phase?: PhaseView, item?: ItemView}` |
 | `need`, `unneed` | `{type: "phase", phase: PhaseView}`. Only a phase has needs, and only on phases; on an item they fail with `not_allowed` |
-| `start` | `{item: ItemView, warnings: []}`. Starting a blocked item, or one in a shaping plan, is allowed with a warning |
+| `start` | `{item: ItemView, warnings: []}`. Starting a blocked item is allowed with a warning. A captured item tagged to a shaping plan can't be started (`invalid_state`), since starting commits it |
 | `decided`, `ask` | Entry |
 | `inbox` | `{entries: [Entry]}`, oldest first: questions, decisions and reviews. Loose ends and ideas only with `--kind loose-end\|idea`. `--plan none` for entries with no plan |
 | `loose`, `ideas` | retired: fail with code `retired` |

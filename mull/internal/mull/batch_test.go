@@ -149,14 +149,14 @@ func TestBatchAllOrNothing(t *testing.T) {
 		`{"op": "plan new", "ref": "p", "slug": "launch", "title": "Launch"}`,
 		`{"op": "add", "ref": "a", "phase": "ffff", "title": "bad phase"}`,
 		``,
-		`{"op": "add", "ref": "b", "plan": "@p", "title": "fine"}`,
+		`{"op": "add", "ref": "b", "plan": "general", "title": "fine"}`,
 		`{"op": "ask", "item": "@a", "text": "about a failed line"}`,
-		`{"op": "ask", "plan": "@p", "text": "unknown ref", "item": "@nope"}`,
+		`{"op": "ask", "plan": "general", "text": "unknown ref", "item": "@nope"}`,
 		`not json`,
 		`{"title": "no op"}`,
 		`{"op": "frobnicate"}`,
-		`{"op": "add", "plan": "@p", "title": "x", "colour": "red"}`,
-		`{"op": "add", "ref": "b", "plan": "@p", "title": "duplicate ref"}`,
+		`{"op": "add", "plan": "general", "title": "x", "colour": "red"}`,
+		`{"op": "add", "ref": "b", "plan": "general", "title": "duplicate ref"}`,
 		`{"op": "drop", "ref": "d", "ids": ["@b"]}`,
 	}, "\n")
 	before := mullHead(t, dir)
@@ -200,13 +200,14 @@ func TestBatchDryRun(t *testing.T) {
 	m, dir := setup(t)
 	before := mullHead(t, dir)
 	input := `{"op": "plan new", "ref": "p", "slug": "launch", "title": "Launch"}
+{"op": "plan agree", "slug": "@p", "on-request": true}
 {"op": "phase add", "ref": "e", "plan": "@p", "title": "E"}
 {"op": "add", "phase": "@e", "title": "B"}`
 	results, err := m.Batch(strings.NewReader(input), true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(results) != 3 || results[2].Result.(ItemView).Phase != results[1].ID {
+	if len(results) != 4 || results[3].Result.(ItemView).Phase != results[2].ID {
 		t.Fatalf("dry-run results = %+v", results)
 	}
 	if mullHead(t, dir) != before {
@@ -256,7 +257,7 @@ func TestBatchEmpty(t *testing.T) {
 
 func TestScopeForItemsAndDo(t *testing.T) {
 	m, _ := setup(t)
-	must[*model.Plan](t)(m.PlanNew("alpha", "Alpha", ""))
+	agreedPlan(t, m, "alpha", "Alpha", "")
 	e := must[*model.Phase](t)(m.PhaseAdd("alpha", "E", "", nil))
 	// The phase implies the plan.
 	if it := must[ItemView](t)(m.ItemAdd(NewItem{Phase: e.ID, Title: "x"})); it.Plan != "alpha" {
