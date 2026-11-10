@@ -2,3 +2,4 @@
 .expert/
 .DS_Store
 .worktrees/
+cd2beets/src/cd2beets.egg-info/
