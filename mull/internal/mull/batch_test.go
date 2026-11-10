@@ -47,7 +47,7 @@ func TestBatchIntakeSized(t *testing.T) {
 	m, dir := setup(t)
 	var lines []map[string]any
 	lines = append(lines,
-		map[string]any{"op": "plan new", "ref": "p", "slug": "taxogall", "title": "Taxogall", "summary": "Galls as catalog entries."},
+		map[string]any{"op": "plan new", "ref": "p", "slug": "taxogall", "title": "Taxogall", "summary": "Galls as catalog entries.", "on-request": true},
 		map[string]any{"op": "plan agree", "slug": "@p", "on-request": true},
 		map[string]any{"op": "config checks", "commands": []string{"make done-checks"}},
 		map[string]any{"op": "phase add", "ref": "e1", "plan": "@p", "title": "How the admin works"},
@@ -146,7 +146,7 @@ func TestBatchIntakeSized(t *testing.T) {
 func TestBatchAllOrNothing(t *testing.T) {
 	m, dir := setup(t)
 	input := strings.Join([]string{
-		`{"op": "plan new", "ref": "p", "slug": "launch", "title": "Launch"}`,
+		`{"op": "plan new", "ref": "p", "slug": "launch", "title": "Launch", "on-request": true}`,
 		`{"op": "add", "ref": "a", "phase": "ffff", "title": "bad phase"}`,
 		``,
 		`{"op": "add", "ref": "b", "plan": "general", "title": "fine"}`,
@@ -199,7 +199,7 @@ func TestBatchAllOrNothing(t *testing.T) {
 func TestBatchDryRun(t *testing.T) {
 	m, dir := setup(t)
 	before := mullHead(t, dir)
-	input := `{"op": "plan new", "ref": "p", "slug": "launch", "title": "Launch"}
+	input := `{"op": "plan new", "ref": "p", "slug": "launch", "title": "Launch", "on-request": true}
 {"op": "plan agree", "slug": "@p", "on-request": true}
 {"op": "phase add", "ref": "e", "plan": "@p", "title": "E"}
 {"op": "add", "phase": "@e", "title": "B"}`

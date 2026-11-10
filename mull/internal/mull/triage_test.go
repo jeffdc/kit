@@ -12,7 +12,7 @@ func TestTriageStampsCapturedItems(t *testing.T) {
 	m, _ := setup(t)
 	clock := time.Date(2026, 11, 10, 9, 0, 0, 0, time.UTC)
 	m.Now = func() time.Time { return clock }
-	must[*model.Plan](t)(m.PlanNew("launch", "Public launch", ""))
+	must[*model.Plan](t)(m.PlanNew("launch", "Public launch", "", true))
 	must[*model.Plan](t)(m.PlanAgree("launch", true))
 
 	a := must[ItemView](t)(m.CaptureItem(NewCapture{Kind: model.ItemBug, Title: "Footer links", Plan: "launch"}))
@@ -95,7 +95,7 @@ func TestTriageStampsCapturedItems(t *testing.T) {
 
 func TestRetagCapturedItems(t *testing.T) {
 	m, _ := setup(t)
-	must[*model.Plan](t)(m.PlanNew("launch", "Public launch", ""))
+	must[*model.Plan](t)(m.PlanNew("launch", "Public launch", "", true))
 	must[*model.Plan](t)(m.PlanAgree("launch", true))
 	billing := must[*model.Phase](t)(m.PhaseAdd("launch", "Billing", "", nil))
 	ops := must[*model.Phase](t)(m.PhaseAdd("general", "Ops", "", nil))
@@ -133,7 +133,7 @@ func TestRetagCapturedItems(t *testing.T) {
 	wantCode(t, err, CodeInvalid)
 	_, err = m.Set(bug.ID, "plan", "nope")
 	wantCode(t, err, CodeNotFound)
-	must[*model.Plan](t)(m.PlanNew("old", "Old", ""))
+	must[*model.Plan](t)(m.PlanNew("old", "Old", "", true))
 	must[*model.Plan](t)(m.PlanClose("old"))
 	_, err = m.Set(bug.ID, "plan", "old")
 	wantCode(t, err, CodeState)

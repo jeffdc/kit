@@ -12,7 +12,7 @@ import (
 func TestPlanAndPhaseDocs(t *testing.T) {
 	m, dir := setup(t)
 	// A shaping plan takes a doc: a shaping plan is its doc and questions.
-	must[*model.Plan](t)(m.PlanNew("launch", "Public launch", "Billing, then the switch."))
+	must[*model.Plan](t)(m.PlanNew("launch", "Public launch", "Billing, then the switch.", true))
 	if d := must[DocResult](t)(m.PlanDoc("launch")); d.Type != "plan" || d.ID != "launch" || d.Doc != "" {
 		t.Fatalf("doc before any = %+v", d)
 	}
@@ -108,7 +108,7 @@ func TestSyncPushesDocs(t *testing.T) {
 
 func TestDocsInBatch(t *testing.T) {
 	m, _ := setup(t)
-	in := `{"op": "plan new", "ref": "p", "slug": "launch", "title": "Launch"}
+	in := `{"op": "plan new", "ref": "p", "slug": "launch", "title": "Launch", "on-request": true}
 {"op": "plan doc", "slug": "@p", "doc": "The picture."}
 {"op": "plan agree", "slug": "@p", "on-request": true}
 {"op": "phase add", "ref": "b", "plan": "@p", "title": "Billing"}

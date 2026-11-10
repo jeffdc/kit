@@ -77,7 +77,8 @@ func TestCLIEndToEnd(t *testing.T) {
 	}
 
 	r.ok("init", "--integration", "taxogall")
-	if p := r.ok("plan", "new", "taxogall", "Taxogall"); p["state"] != "shaping" {
+	r.fails("not_allowed", "plan", "new", "taxogall", "Taxogall")
+	if p := r.ok("plan", "new", "taxogall", "Taxogall", "--on-request"); p["state"] != "shaping" {
 		t.Fatalf("new plan = %v", p)
 	}
 	// A shaping plan takes no phases or committed work until the human agrees it.
@@ -230,7 +231,7 @@ func TestUsageErrorsHaveACode(t *testing.T) {
 func TestDocCommands(t *testing.T) {
 	r := run{t: t, dir: gittest.NewRepo(t)}
 	r.ok("init")
-	r.ok("plan", "new", "launch", "Launch") // shaping: a doc and questions
+	r.ok("plan", "new", "launch", "Launch", "--on-request") // shaping: a doc and questions
 	if d := r.okIn("# Launch\n\nDone when: it ships.\n", "plan", "doc", "launch", "-"); d["doc"] != "# Launch\n\nDone when: it ships." {
 		t.Fatalf("plan doc - = %v", d)
 	}
@@ -261,9 +262,9 @@ func TestScopeRules(t *testing.T) {
 	if e := r.ok("ask", "no plans yet"); e["plan"] != "" {
 		t.Fatalf("entry = %v", e)
 	}
-	r.ok("plan", "new", "alpha", "Alpha")
+	r.ok("plan", "new", "alpha", "Alpha", "--on-request")
 	r.ok("plan", "agree", "alpha", "--on-request")
-	r.ok("plan", "new", "beta", "Beta")
+	r.ok("plan", "new", "beta", "Beta", "--on-request")
 	for _, verb := range []string{"decided", "ask"} {
 		r.fails("scope_required", verb, "about something")
 	}
@@ -290,7 +291,7 @@ func TestScopeRules(t *testing.T) {
 func TestTriageCommand(t *testing.T) {
 	r := run{t: t, dir: gittest.NewRepo(t)}
 	r.ok("init")
-	r.ok("plan", "new", "alpha", "Alpha")
+	r.ok("plan", "new", "alpha", "Alpha", "--on-request")
 	a := id(r.ok("bug", "Crash on empty list"))
 	b := id(r.ok("idea", "Dark mode"))
 	// Tag a capture to a plan without committing it.

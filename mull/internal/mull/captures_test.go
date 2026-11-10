@@ -117,7 +117,7 @@ func TestUnplannedWork(t *testing.T) {
 func TestCapturesInBatch(t *testing.T) {
 	m, _ := setup(t)
 	input := strings.Join([]string{
-		`{"op": "plan new", "slug": "alpha", "title": "Alpha"}`,
+		`{"op": "plan new", "slug": "alpha", "title": "Alpha", "on-request": true}`,
 		`{"op": "plan agree", "slug": "alpha", "on-request": true}`,
 		`{"op": "bug", "ref": "b", "text": "Crash on empty list", "category": "ui", "source": "human"}`,
 		`{"op": "idea", "ref": "i", "plan": "alpha", "text": "Dark mode", "detail": "Asked for twice."}`,

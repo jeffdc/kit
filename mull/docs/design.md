@@ -47,7 +47,7 @@ New mull is the record of a program: its plans, where they stand, and everything
 - No docket, no sessions, no free-floating epics.
 
 **Plan states** (Model v2): `shaping → active → done`.
-- `mull plan new` creates a plan `shaping`: its doc and questions are being worked out with you. It takes captures and inbox entries, but refuses phases and committed items (and starting a capture tagged to it) until you agree it.
+- `mull plan new` creates a plan `shaping`, and only on your explicit ask (`--on-request`): its doc and questions are being worked out with you. It takes captures and inbox entries, but refuses phases and committed items (and starting a capture tagged to it) until you agree it.
 - `mull plan agree <slug>` makes it `active`. Agreeing is yours: an agent must pass `--on-request`, and mull refuses otherwise.
 - `mull plan close <slug>` makes it `done`, from either state. A done plan takes no new work and leaves the view (`view --plan` still shows it).
 - Until the Model v2 migration, a done plan is stored as `closed`.
@@ -283,7 +283,7 @@ The ops are every write except `init`, `sync`, `check` and `done`.
 | Group | Commands |
 |---|---|
 | Setup | `mull init` · `mull sync [--dry-run]` |
-| Plans (you) | `mull plan new <slug> "title" [--summary -]` · `plan agree <slug>` · `plan list` · `plan show <slug>` · `plan doc <slug> [-] [--log]` · `plan close <slug>` |
+| Plans (you) | `mull plan new <slug> "title" [--summary -] --on-request` · `plan agree <slug>` · `plan list` · `plan show <slug>` · `plan doc <slug> [-] [--log]` · `plan close <slug>` |
 | Epics | `mull epic add "title" --plan <slug> [--needs …]` · `epic show <id>` · `epic list [--plan]` · `phase doc <id> [-] [--log]` |
 | Items | `mull add "title" (--plan <slug> \| --epic <id>) [--notes -] [--doc path]` · `show` · `list` · `set` · `drop` |
 | Dependencies | `mull need <phase> <phase…>` · `mull unneed <phase> <phase…>` · `mull ready [--plan]` |
