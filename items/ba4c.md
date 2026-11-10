@@ -1,8 +1,8 @@
 ---
 plan: mull-serve
-epic: 204f
+phase: 204f
 title: 'Item stages: captured, committed, active, in review, done'
-state: accepted
+stage: done
 docs:
   - mull/docs/serve/
 claim:

@@ -1,0 +1,1 @@
+A local web UI across every repo that answers where we are, what's next and what needs you, live as agents write; plus the mull model changes it rests on (plan and phase docs, captured items, stages, reviews). Design: mull/docs/serve/.

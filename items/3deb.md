@@ -1,8 +1,8 @@
 ---
 plan: mull-serve
-epic: 482f
+phase: 482f
 title: 'Last looked and revisions: what changed since you last looked'
-state: open
+stage: committed
 docs:
   - mull/docs/serve/
 created: "2026-11-10T19:18:49Z"
