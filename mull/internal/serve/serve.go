@@ -44,6 +44,7 @@ func Handler(repos Repos) http.Handler {
 		}
 		writeJSON(w, http.StatusOK, ProjectList{Projects: projects(paths)})
 	})
+	registerAPI(mux, repos)
 	mux.HandleFunc("GET /api/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, &mull.Error{Code: mull.CodeNotFound, Msg: "no API endpoint " + r.URL.Path})
 	})
