@@ -42,7 +42,7 @@ func (m *Mull) Worktree() string { return m.repo.Worktree() }
 
 func (m *Mull) now() string { return m.Now().UTC().Format(time.RFC3339) }
 
-// Init creates the mull branch with a config and the standing general plan.
+// Init creates the mull branch with a config, in the current format.
 func (m *Mull) Init(integration, release string) (*model.Config, error) {
 	if integration == "" {
 		integration = "main"
@@ -51,6 +51,7 @@ func (m *Mull) Init(integration, release string) (*model.Config, error) {
 		release = "main"
 	}
 	cfg := &model.Config{
+		Format:      model.Format,
 		Integration: integration,
 		Release:     release,
 		Remote:      "origin",
@@ -91,6 +92,12 @@ func load(tx *store.Tx) (*state, error) {
 			return nil, fmt.Errorf("%s: %w", model.ConfigPath, err)
 		}
 	}
+	if s.config.Format == 0 {
+		s.config.Format = 1 // a config from before formats were recorded
+	}
+	if s.config.Format > model.Format {
+		return nil, errf(CodeUnsupportedFormat, "this repository's mull data is format %d, newer than this mull understands (%d): update mull", s.config.Format, model.Format)
+	}
 	for _, p := range tx.List("plans/") {
 		var v model.Plan
 		body, err := decodeFile(tx, p, &v)
@@ -101,15 +108,19 @@ func load(tx *store.Tx) (*state, error) {
 		v.Doc = getDoc(tx, model.PlanDocPath(v.Slug))
 		s.plans[v.Slug] = &v
 	}
-	for _, p := range tx.List("epics/") {
-		var v model.Phase
-		body, err := decodeFile(tx, p, &v)
-		if err != nil {
-			return nil, err
+	// Phases are under phases/, or under epics/ in format 1. A phase in
+	// both (a format 1 straggler) is read from phases/.
+	for _, dir := range []string{"epics/", "phases/"} {
+		for _, p := range tx.List(dir) {
+			var v model.Phase
+			body, err := decodeFile(tx, p, &v)
+			if err != nil {
+				return nil, err
+			}
+			v.ID, v.Summary, v.Legacy = baseName(p), body, dir == "epics/"
+			v.Doc = getDoc(tx, phaseDocPath(&v))
+			s.phases[v.ID] = &v
 		}
-		v.ID, v.Summary = baseName(p), body
-		v.Doc = getDoc(tx, model.PhaseDocPath(v.ID))
-		s.phases[v.ID] = &v
 	}
 	for _, p := range tx.List("items/") {
 		var v model.Item
@@ -185,6 +196,58 @@ func (s *state) putPhase(e *model.Phase) error {
 	}
 	s.tx.Put(model.PhasePath(e.ID), b)
 	s.phases[e.ID] = e
+	return nil
+}
+
+// phaseDocPath is where a phase's doc is: beside its record, so under
+// docs/epics/ for a phase still in format 1.
+func phaseDocPath(e *model.Phase) string {
+	if e.Legacy {
+		return model.LegacyPhaseDocPath(e.ID)
+	}
+	return model.PhaseDocPath(e.ID)
+}
+
+// legacyRecords lists, by path, the records still stored in format 1 (see
+// model.Format).
+func (s *state) legacyRecords() []string {
+	var out []string
+	for _, slug := range sortedKeys(s.plans) {
+		if s.plans[slug].Legacy {
+			out = append(out, model.PlanPath(slug))
+		}
+	}
+	for _, p := range s.tx.List("epics/") {
+		out = append(out, p)
+	}
+	for _, p := range s.tx.List("docs/epics/") {
+		out = append(out, p)
+	}
+	for _, id := range sortedKeys(s.items) {
+		if s.items[id].Legacy {
+			out = append(out, model.ItemPath(id))
+		}
+	}
+	for _, id := range sortedKeys(s.entries) {
+		if e := s.entries[id]; e.Settled != nil && e.Settled.Legacy {
+			out = append(out, model.EntryPath(id))
+		}
+	}
+	return out
+}
+
+// writable refuses writes to data mull can't write faithfully: a repository
+// in format 1, or one holding format 1 records (most likely merged in by
+// sync from a machine on an older mull). mull migrate converts them.
+func (s *state) writable() error {
+	if s.config.Format < model.Format {
+		return errf(CodeMigrationRequired, "this repository's mull data is from before Model v2 (format %d), so writes are refused until it is migrated: "+
+			"the human runs mull migrate --dry-run, then mull migrate --on-request", s.config.Format)
+	}
+	if old := s.legacyRecords(); len(old) > 0 {
+		return errf(CodeMigrationRequired, "%s on the mull branch still in the format from before Model v2 (%s; merged in by sync from an older mull?), so writes are refused: "+
+			"the human runs mull migrate --dry-run, then mull migrate --on-request", plural(len(old), "record"), strings.Join(old[:min(len(old), 3)], ", "))
+	}
 	return nil
 }
 
@@ -293,7 +356,19 @@ func (m *Mull) view(fn func(s *state) error) error {
 }
 
 // update runs fn on the latest state and commits its changes atomically.
+// It refuses data that isn't migrated (see writable).
 func (m *Mull) update(msg string, fn func(s *state) error) error {
+	return m.updateAny(msg, func(s *state) error {
+		if err := s.writable(); err != nil {
+			return err
+		}
+		return fn(s)
+	})
+}
+
+// updateAny is update for data in any format: for writes that touch no
+// record (the check cache), and for mull migrate itself.
+func (m *Mull) updateAny(msg string, fn func(s *state) error) error {
 	return m.store.Update("mull: "+msg, func(tx *store.Tx) error {
 		s, err := load(tx)
 		if err != nil {

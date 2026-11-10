@@ -102,7 +102,7 @@ Shapes and error codes: mull guide json. Many writes at once: mull batch.`,
 	}
 	root.SetFlagErrorFunc(func(c *cobra.Command, err error) error { return usage(err) })
 	root.AddCommand(
-		initCmd(a), versionCmd(a), syncCmd(a), viewCmd(a), configCmd(a), batchCmd(a),
+		initCmd(a), versionCmd(a), syncCmd(a), migrateCmd(a), viewCmd(a), configCmd(a), batchCmd(a),
 		checkCmd(a), doneCmd(a), reportCmd(a), contextCmd(a), guideCmd(a),
 		planCmd(a), phaseCmd(a),
 		addCmd(a), showCmd(a), listCmd(a), setCmd(a), dropCmd(a),

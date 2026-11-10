@@ -109,6 +109,35 @@ func syncCmd(a *app) *cobra.Command {
 	return c
 }
 
+func migrateCmd(a *app) *cobra.Command {
+	var dryRun, onRequest, asText bool
+	c := &cobra.Command{
+		Use: "migrate",
+		Short: "Convert this repository's mull data to Model v2 (format 2) in one commit. " +
+			"Run --dry-run first; the real run is the human's call (--on-request)",
+		Args: noArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			m, err := a.open()
+			if err != nil {
+				return err
+			}
+			r, err := m.Migrate(dryRun, onRequest)
+			if err != nil {
+				return err
+			}
+			if asText {
+				_, err = fmt.Fprint(a.stdout, r.Text())
+				return err
+			}
+			return a.json(r)
+		},
+	}
+	c.Flags().BoolVar(&dryRun, "dry-run", false, "show exactly what would change, write nothing")
+	c.Flags().BoolVar(&onRequest, "on-request", false, "an agent migrating on the human's explicit instruction")
+	c.Flags().BoolVar(&asText, "text", false, "render for a human instead of JSON")
+	return c
+}
+
 func configCmd(a *app) *cobra.Command {
 	c := &cobra.Command{
 		Use: "config", Short: "Show or change this repository's mull configuration (human-owned)", Args: noArgs,
@@ -402,7 +431,7 @@ func readyCmd(a *app) *cobra.Command {
 func setCmd(a *app) *cobra.Command {
 	return &cobra.Command{
 		Use:   "set <slug|id> <field> <value>",
-		Short: "Change a field (plan/phase: title, summary; item: title, notes, category, phase, doc; captured item: plan too, none untags). Value - reads stdin",
+		Short: "Change a field (plan/phase: title, summary; item: title, notes, category, phase, doc; captured item: plan too, none untags, and kind bug or idea). Value - reads stdin",
 		Args:  exact(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			val, err := a.text(args[2])

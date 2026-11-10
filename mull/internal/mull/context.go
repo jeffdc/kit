@@ -92,6 +92,10 @@ func (m *Mull) Context(itemID string) (Context, error) {
 		return c, err
 	}
 	err = m.view(func(s *state) error {
+		if err := s.writable(); err != nil {
+			c.Protocol = append([]string{"Writes are refused until the human migrates this repository's mull data (code migration_required): " +
+				"tell the human; mull migrate --dry-run shows what it would change, and the real run is theirs (mull migrate --on-request)."}, protocol...)
+		}
 		brief := func(i *model.Item) BriefItem {
 			b := BriefItem{ID: i.ID, Title: i.Title, Plan: i.Plan, Phase: i.Phase}
 			if i.Claim != nil {

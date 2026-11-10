@@ -216,7 +216,7 @@ func (m *Mull) Check() (CheckOutcome, error) {
 	if err != nil {
 		return CheckOutcome{}, err
 	}
-	err = m.update("check "+tree[:12], func(s *state) error {
+	err = m.updateAny("check "+tree[:12], func(s *state) error { // a cache, not a record
 		s.tx.Put(model.CheckPath(tree), append(data, '\n'))
 		return nil
 	})

@@ -6,7 +6,9 @@ import (
 	"strings"
 	"testing"
 
+	"mull/internal/git"
 	"mull/internal/gittest"
+	"mull/internal/store"
 )
 
 // keys describes a documented JSON object: keys that must be present and
@@ -24,7 +26,7 @@ var (
 	itemViewKeys  = itemKeys.plus(keys{[]string{"ready"}, []string{"blocked_by"}})
 	phaseViewKeys = phaseKeys.plus(keys{[]string{"progress", "complete"}, []string{"blocked_by"}})
 	entryKeys     = keys{[]string{"id", "kind", "text", "plan", "by", "created"}, []string{"item", "source", "settled", "decisions", "detail"}}
-	configKeys    = keys{[]string{"integration", "release", "remote", "done_checks", "layers"}, nil}
+	configKeys    = keys{[]string{"format", "integration", "release", "remote", "done_checks", "layers"}, nil}
 	progressKeys  = keys{[]string{"total", "captured", "untriaged", "committed", "active", "in_review", "done", "dropped", "ready"}, nil}
 	reportKeys    = keys{[]string{"item", "n", "passed", "commit", "at", "by", "summary", "checks"}, []string{"override", "base", "tour", "changes", "design", "decisions"}}
 )
@@ -200,8 +202,8 @@ func TestOutputShapes(t *testing.T) {
 		t.Errorf("review entry decisions = %v", ds)
 	}
 
-	v := shape(keys{[]string{"generated", "integration", "integration_found", "release", "ahead_of_release", "plans", "unlinked_commits_this_week", "untriaged"},
-		[]string{"unlinked_recent", "unplanned", "legacy", "last_triage"}}, "view")
+	v := shape(keys{[]string{"generated", "integration", "integration_found", "release", "ahead_of_release", "plans", "unlinked_commits_this_week", "untriaged", "format"},
+		[]string{"unlinked_recent", "unplanned", "legacy", "last_triage", "migration_required"}}, "view")
 	board := first(t, "view.plans", v["plans"])
 	boardKeys := keys{[]string{"slug", "title", "progress", "phases", "unfiled", "problems", "in_flight", "needs_you"}, []string{"state"}}
 	checkKeys(t, "view.plans[0]", board, boardKeys)
@@ -231,4 +233,69 @@ func TestOutputShapes(t *testing.T) {
 	// Errors: a JSON object with a code on stderr, nothing on stdout.
 	e := r.fails("not_found", "show", "ffff")
 	checkKeys(t, "error", e, keys{[]string{"code", "error"}, []string{"lines"}})
+}
+
+// TestMigrateShapes runs mull migrate on data written as the mull before
+// Model v2 wrote it (format 1), straight through the store.
+func TestMigrateShapes(t *testing.T) {
+	dir := gittest.NewRepo(t)
+	g, err := git.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	created := `created: "2026-11-01T00:00:00Z"` + "\n" + `updated: "2026-11-01T00:00:00Z"` + "\n"
+	err = store.New(g).Init("mull: format 1 fixture", map[string][]byte{
+		"config.yml":         []byte("integration: main\nrelease: main\nremote: origin\ndone_checks: []\nlayers: {}\n"),
+		"plans/launch.md":    []byte("---\ntitle: Launch\nstate: active\n" + created + "---\n\nShip it.\n"),
+		"epics/1a2b.md":      []byte("---\nplan: launch\ntitle: Billing\n" + created + "---\n"),
+		"epics/3c4d.md":      []byte("---\nplan: launch\ntitle: Go live\nneeds:\n  - aa01\n" + created + "---\n"),
+		"docs/epics/1a2b.md": []byte("Design.\n"),
+		"items/aa01.md":      []byte("---\nplan: launch\nepic: 1a2b\ntitle: Webhook\nstate: done\n" + created + "---\n"),
+		"inbox/bb01.md":      []byte("---\nkind: loose-end\ntext: Old pricing links\nplan: launch\nby: /w\n" + `created: "2026-11-01T00:00:00Z"` + "\n---\n"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := run{t: t, dir: dir}
+	if v := r.ok("show", "aa01"); v["item"].(map[string]any)["state"] != "in-review" {
+		t.Fatalf("format 1 done read as %v", v["item"])
+	}
+	if e := r.fails("migration_required", "add", "x", "--plan", "launch"); !strings.Contains(e["error"].(string), "mull migrate") {
+		t.Fatalf("error = %v", e)
+	}
+	if v := r.ok("view"); v["format"] != float64(1) || v["migration_required"] != true {
+		t.Fatalf("view format %v, migration_required %v", v["format"], v["migration_required"])
+	}
+
+	resultKeys := keys{[]string{"dry_run", "format_before", "format", "changed", "counts", "records", "captured", "needs", "warnings"}, []string{"commit"}}
+	countKeys := keys{[]string{"plans", "phases", "items", "entries", "docs", "captured", "needs"}, nil}
+	check := func(what string, v map[string]any) {
+		t.Helper()
+		checkKeys(t, what, v, resultKeys)
+		checkKeys(t, what+".counts", v["counts"], countKeys)
+		checkKeys(t, what+".records[0]", first(t, "records", v["records"]), keys{[]string{"type", "id", "path", "changes"}, []string{"from"}})
+		checkKeys(t, what+".captured[0]", first(t, "captured", v["captured"]), keys{[]string{"item", "kind", "title", "entry", "entry_kind", "was"}, []string{"plan"}})
+		checkKeys(t, what+".needs[0]", first(t, "needs", v["needs"]), keys{[]string{"type", "id", "need", "action", "reason"}, []string{"to"}})
+	}
+	check("migrate --dry-run", r.ok("migrate", "--dry-run"))
+	out, _, code := r.mull("", "migrate", "--dry-run", "--text")
+	if code != 0 || !strings.Contains(out, "Nothing was written") || !strings.Contains(out, "mull set <id> kind bug") {
+		t.Fatalf("migrate --dry-run --text = %s", out)
+	}
+	r.fails("not_allowed", "migrate")
+	v := r.ok("migrate", "--on-request")
+	check("migrate", v)
+	if v["commit"] == nil || v["changed"] != true {
+		t.Fatalf("migrate = %v", v)
+	}
+	again := r.ok("migrate", "--on-request")
+	checkKeys(t, "migrate again", again, resultKeys)
+	if again["changed"] != false {
+		t.Fatalf("second migrate = %v", again)
+	}
+	set := r.ok("set", first(t, "captured", v["captured"]).(map[string]any)["item"].(string), "kind", "bug")
+	if set["item"].(map[string]any)["kind"] != "bug" {
+		t.Fatalf("set kind = %v", set)
+	}
+	r.ok("add", "x", "--plan", "launch")
 }

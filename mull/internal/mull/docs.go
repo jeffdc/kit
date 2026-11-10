@@ -1,10 +1,12 @@
 package mull
 
 import (
+	"sort"
 	"strings"
 	"time"
 
 	"mull/internal/model"
+	"mull/internal/store"
 )
 
 // Plans and phases each have a doc: markdown holding intent only (a plan's
@@ -113,20 +115,35 @@ func (m *Mull) PlanDocLog(slug string) (DocLog, error) {
 	return m.docLog("plan", slug, model.PlanDocPath(slug))
 }
 
-// PhaseDocLog returns every version of a phase's doc, newest first.
+// PhaseDocLog returns every version of a phase's doc, newest first. Its
+// versions from before mull migrate moved it, under docs/epics/, are part
+// of its history too.
 func (m *Mull) PhaseDocLog(id string) (DocLog, error) {
 	if _, err := m.PhaseDoc(id); err != nil {
 		return DocLog{}, err
 	}
-	return m.docLog("phase", id, model.PhaseDocPath(id))
+	return m.docLog("phase", id, model.PhaseDocPath(id), model.LegacyPhaseDocPath(id))
 }
 
-func (m *Mull) docLog(typ, id, path string) (DocLog, error) {
+// docLog reads a doc's history at its path, then at any older paths it had.
+// A commit that moved the doc shows once, as its version at the newer path.
+func (m *Mull) docLog(typ, id string, paths ...string) (DocLog, error) {
 	out := DocLog{Type: typ, ID: id, Versions: []DocVersion{}}
-	vs, err := m.store.History(path)
-	if err != nil {
-		return out, err
+	var vs []store.Version
+	seen := map[string]bool{}
+	for _, path := range paths {
+		h, err := m.store.History(path)
+		if err != nil {
+			return out, err
+		}
+		for _, v := range h {
+			if !seen[v.Commit] {
+				seen[v.Commit] = true
+				vs = append(vs, v)
+			}
+		}
 	}
+	sort.SliceStable(vs, func(a, b int) bool { return vs[a].At.After(vs[b].At) })
 	for _, v := range vs {
 		out.Versions = append(out.Versions, DocVersion{
 			Commit: v.Commit, At: v.At.UTC().Format(time.RFC3339), Doc: strings.TrimRight(string(v.Data), "\n"),

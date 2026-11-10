@@ -30,46 +30,70 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 	}
 }
 
-func TestItemStagesKeepTheirStoredNames(t *testing.T) {
-	for stage, stored := range map[string]string{
-		StateCaptured: "captured", StateCommitted: "open", StateActive: "active",
-		StateInReview: "done", StateDone: "accepted", StateDropped: "dropped",
-	} {
-		data, err := Encode(Item{Title: "x", State: stage}, "")
+func TestItemsAreStoredInFormat2(t *testing.T) {
+	for _, stage := range Stages {
+		data, err := Encode(Item{Title: "x", State: stage, Phase: "1a2b"}, "")
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(string(data), "\nstate: "+stored+"\n") {
+		if !strings.Contains(string(data), "\nstage: "+stage+"\n") || !strings.Contains(string(data), "\nphase: 1a2b\n") ||
+			strings.Contains(string(data), "state:") || strings.Contains(string(data), "epic:") {
 			t.Errorf("%s stored as:\n%s", stage, data)
 		}
 		var out Item
 		if _, err := Decode(data, &out); err != nil {
 			t.Fatal(err)
 		}
-		if out.State != stage {
-			t.Errorf("stored %q read back as %q, want %q", stored, out.State, stage)
+		if out.State != stage || out.Phase != "1a2b" || out.Legacy {
+			t.Errorf("stored %q read back as %+v", stage, out)
 		}
+	}
+	data, err := Encode(Plan{Slug: "launch", Title: "x", State: PlanDone}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "\nstate: done\n") {
+		t.Errorf("a done plan stored as:\n%s", data)
 	}
 }
 
-func TestPlanStatesKeepTheirStoredNames(t *testing.T) {
-	for state, stored := range map[string]string{
-		PlanShaping: "shaping", PlanActive: "active", PlanDone: "closed",
+// Format 1 records read correctly, and are marked Legacy: a stored "done"
+// is an item in review there, and done only under stage:.
+func TestFormat1RecordsRead(t *testing.T) {
+	for stored, stage := range map[string]string{
+		"captured": StateCaptured, "open": StateCommitted, "active": StateActive,
+		"done": StateInReview, "accepted": StateDone, "dropped": StateDropped,
 	} {
-		data, err := Encode(Plan{Slug: "launch", Title: "x", State: state}, "")
-		if err != nil {
+		var out Item
+		if _, err := Decode([]byte("---\ntitle: x\nstate: "+stored+"\nepic: \"0123\"\n---\n"), &out); err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(string(data), "\nstate: "+stored+"\n") {
-			t.Errorf("%s stored as:\n%s", state, data)
+		if out.State != stage || out.Phase != "0123" || !out.Legacy {
+			t.Errorf("format 1 %q read as %+v, want %s", stored, out, stage)
 		}
-		var out Plan
-		if _, err := Decode(data, &out); err != nil {
+	}
+	var done Item
+	if _, err := Decode([]byte("---\ntitle: x\nstage: done\n---\n"), &done); err != nil {
+		t.Fatal(err)
+	}
+	if done.State != StateDone || done.Legacy {
+		t.Errorf("format 2 done read as %+v", done)
+	}
+	for stored, want := range map[string]string{"shaping": PlanShaping, "active": PlanActive, "closed": PlanDone, "done": PlanDone} {
+		var p Plan
+		if _, err := Decode([]byte("---\ntitle: x\nstate: "+stored+"\n---\n"), &p); err != nil {
 			t.Fatal(err)
 		}
-		if out.State != state {
-			t.Errorf("stored %q read back as %q, want %q", stored, out.State, state)
+		if p.State != want || p.Legacy != (stored == "closed") {
+			t.Errorf("plan %q read as %+v", stored, p)
 		}
+	}
+	var e Entry
+	if _, err := Decode([]byte("---\nkind: idea\ntext: x\nplan: \"\"\nby: w\ncreated: t\nsettled:\n  action: do\n  epic: beef\n  by: w\n  at: t\n---\n"), &e); err != nil {
+		t.Fatal(err)
+	}
+	if e.Settled == nil || e.Settled.Phase != "beef" || !e.Settled.Legacy {
+		t.Errorf("format 1 settlement read as %+v", e.Settled)
 	}
 }
 
@@ -89,8 +113,8 @@ func TestAllDigitIDsStayStrings(t *testing.T) {
 
 func TestValidDataPath(t *testing.T) {
 	for _, p := range []string{
-		"config.yml", "plans/general.md", "plans/phase-two.md", "epics/1a2b.md", "items/7877.md",
-		"inbox/beef.md", "reports/1a2b-3.md", "docs/plans/general.md", "docs/epics/1a2b.md", "checks/" + strings.Repeat("a", 40) + ".json",
+		"config.yml", "plans/general.md", "plans/phase-two.md", "phases/1a2b.md", "epics/1a2b.md", "items/7877.md",
+		"inbox/beef.md", "reports/1a2b-3.md", "docs/plans/general.md", "docs/phases/1a2b.md", "docs/epics/1a2b.md", "checks/" + strings.Repeat("a", 40) + ".json",
 	} {
 		if !ValidDataPath(p) {
 			t.Errorf("%q should be a valid data path", p)
@@ -99,7 +123,7 @@ func TestValidDataPath(t *testing.T) {
 	for _, p := range []string{
 		"", "README", "src/secret.go", "items/1a2b.md.bak", "items/12345.md", "plans/Bad.md",
 		"plans/../x.md", "items/sub/1a2b.md", ".gitignore", "checks/abc.json", "config.yaml",
-		"docs/items/1a2b.md", "docs/inbox/beef.md", "docs/plans/Bad.md", "docs/epics/12345.md", "docs/README.md", "docs/docs/plans/x.md",
+		"docs/items/1a2b.md", "docs/inbox/beef.md", "docs/plans/Bad.md", "docs/epics/12345.md", "docs/phases/12345.md", "phases/x.md", "docs/README.md", "docs/docs/plans/x.md",
 	} {
 		if ValidDataPath(p) {
 			t.Errorf("%q should not be a valid data path", p)

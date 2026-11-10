@@ -43,14 +43,14 @@ New mull is the record of a program: its plans, where they stand, and everything
 
 **Structure rules:**
 - Every epic and every item belongs to a plan. An item may sit directly under its plan with no epic. The view shows those as "unfiled" in that plan.
-- `mull init` creates one standing plan, `general`, for work outside any big effort, so the rule never forces a plan to be invented.
+- Before Model v2, `mull init` created one standing plan, `general`, for work outside any big effort. Model v2 has unplanned work instead, and `mull migrate` retires `general`.
 - No docket, no sessions, no free-floating epics.
 
 **Plan states** (Model v2): `shaping → active → done`.
 - `mull plan new` creates a plan `shaping`, and only on your explicit ask (`--on-request`): its doc and questions are being worked out with you. It takes captures and inbox entries, but refuses phases and committed items (and starting a capture tagged to it) until you agree it.
 - `mull plan agree <slug>` makes it `active`. Agreeing is yours: an agent must pass `--on-request`, and mull refuses otherwise.
 - `mull plan close <slug>` makes it `done`, from either state. A done plan takes no new work and leaves the view (`view --plan` still shows it).
-- Until the Model v2 migration, a done plan is stored as `closed`.
+- Data from before Model v2 stores a done plan as `closed` (see "Formats and `mull migrate`").
 
 **Item stages** (Model v2, see `serve/README.md`): `captured → committed → active → in-review → done`, plus `dropped` from any stage before done.
 
@@ -65,7 +65,7 @@ New mull is the record of a program: its plans, where they stand, and everything
 **Unreviewed work is incomplete work.** An item counts as finished only once it's `done`, which means reviewed.
 - A phase's progress counts done items out of its committed items, with items in review shown separately. Captured items tagged to a phase are counted on their own and never hold it open.
 - A phase is complete when it has committed items and all of them are done or dropped.
-- Until the Model v2 migration, stages are stored under their old names (`open`, `done`, `accepted` for committed, in-review and done).
+- Data from before Model v2 stores stages under their old names (`open`, `done`, `accepted` for committed, in-review and done), under a different key, so the two are never confused (see "Formats and `mull migrate`").
 
 **Triage** (Model v2) is a process the human runs with an agent (`mull guide triage`), not a screen. Each captured item is committed, tagged to a plan or phase (`mull set <id> plan|phase`, captured items only, so tagging never commits), started, dropped or left. `mull triage <id…> --on-request` (or `--all [--plan <slug>|none]`) stamps an item's `triaged` time; a captured item with no stamp is untriaged. The view shows only the untriaged count: for the project, on each board, and in each progress line.
 
@@ -77,7 +77,7 @@ There is no priority list and no ordering field. Order only where it matters (Mo
 - **Ready** means committed, in a phase whose needs are done (or in no phase).
 - **Blocked** means committed, in a phase with at least one need not done.
 - Cycles are refused when written.
-- Needs from before Model v2 are kept until `mull migrate` converts them: an item's needs are shown but ignored, and a phase's needs on items still count.
+- Needs from before Model v2 are kept until `mull migrate` converts them: an item's needs are shown but ignored (migrate drops them), and a phase's needs on items still count (migrate makes each a need on that item's phase).
 - `mull ready [--plan p]` lists ready items. A supervisor agent uses it to hand out work.
 - The view sorts epics and items by readiness, then by age.
 
@@ -143,13 +143,13 @@ All data lives on a dedicated git branch, `mull`, which is never checked out. It
 ```
 config.yml
 plans/<slug>.md
-epics/<id>.md
+phases/<id>.md                 # epics/<id>.md before Model v2
 items/<id>.md
 inbox/<id>.md
 reports/<item>-<n>.md
 checks/<tree-hash>.json        # cached hard-check results
 docs/plans/<slug>.md           # a plan's doc
-docs/epics/<id>.md             # a phase's doc
+docs/phases/<id>.md            # a phase's doc (docs/epics/ before Model v2)
 ```
 
 There's one file per record, so concurrent writes and merges rarely conflict.
@@ -157,7 +157,7 @@ There's one file per record, so concurrent writes and merges rarely conflict.
 **Docs** (Model v2). A plan's doc is the picture, done-when and why the order; a phase's doc is its design and done-when. Docs hold intent only, never status, which comes from the records and shows beside the doc.
 - A doc is plain markdown with no frontmatter, in its own file at `docs/` plus its record's path. Writing it never touches the record, and changing the record never touches the doc, so the doc's history is exactly its own versions.
 - `mull plan doc <slug> [-]` and `mull phase doc <id> [-]` print a doc or replace it from stdin; empty stdin removes it. `--log` lists its versions, newest first, read from the commits that changed the file.
-- A plan's or phase's `summary` is separate and unchanged. `mull migrate` turns summaries into doc stubs.
+- A plan's or phase's `summary` is separate and unchanged. `mull migrate` turned summaries into doc stubs.
 
 **Writes:**
 - Git plumbing: a temporary index, `write-tree`, `commit-tree`, then `update-ref refs/heads/mull <new> <old>`.
@@ -165,6 +165,39 @@ There's one file per record, so concurrent writes and merges rarely conflict.
 - Writes work from any worktree on any branch and never touch the working tree.
 
 **Reading:** `ls-tree` plus `cat-file --batch`. Every worktree sees the same branch, because branches live in the repo's shared git directory.
+
+### Formats and `mull migrate`
+
+`config.yml` records the data's storage **format**. Format 1 is the data from before Model v2 (a config with no `format`); format 2 is Model v2's, and `mull init` writes it.
+
+| | Format 1 | Format 2 |
+|---|---|---|
+| Phases | `epics/<id>.md`, docs at `docs/epics/<id>.md` | `phases/<id>.md`, docs at `docs/phases/<id>.md` |
+| An item's phase | `epic:` | `phase:` |
+| An item's stage | `state:` with `open`, `done`, `accepted` for committed, in review, done | `stage:` with the Model v2 names |
+| A done plan | `state: closed` | `state: done` |
+| A settlement's phase | `epic:` | `phase:` |
+
+**Each record shows its own format.** A stored `done` means in review in format 1 and done in format 2, so items use a different key (`state:` or `stage:`) in each, and a record is never read in the wrong one.
+
+**This mull reads both and writes only format 2.**
+- On format 1 data, reads work and every write fails with `migration_required`, pointing at `mull migrate`. There's no format 1 writer to keep, and nothing writes old names under the new format or new names under the old.
+- Format 1 records can still reach migrated data: `sync` merges work from a machine on an older mull. While any are present, writes fail the same way, and `mull migrate` converts them.
+- A newer format than mull knows fails every command with `unsupported_format`.
+- The view shows `format`, and `migration_required` while writes are refused. `context` tells the agent to stop and tell the human.
+- The older binary doesn't know any of this, and writes format 1 into migrated data. Install the new mull on every machine before migrating.
+
+**`mull migrate`** converts a repository in one commit. It isn't a batch op, because it reaches across every record.
+- `--dry-run` only reads, and prints exactly what would change: counts, every record with its changes, the loose ends and ideas it captures, the needs it converts or drops, and warnings. `--text` renders it for the human.
+- The real run is the human's call: an agent passes `--on-request`. It settles inbox entries and retires a plan, as `plan new` and settling need it.
+- It's idempotent: on migrated data it writes nothing.
+- **Format:** it rewrites every record in format 1, moves `epics/` and `docs/epics/` to `phases/` and `docs/phases/` (`phase doc --log` reads both paths, so a doc's history survives the move), and records `format: 2`.
+- **Loose ends and inbox ideas,** open or parked, become captured items of kind `idea`: title, detail as notes (with the item it was filed on, and a parked entry's reason), source, its plan (none if that plan is done), `from` the entry, and the entry's created time. They're untriaged, so triage reaches them, and the human re-kinds the bugs with `mull set <id> kind bug`. Each entry is settled `do`, pointing at its item, so the history stays. Settled entries are left as they are.
+- **Needs:** a phase's need on an item becomes a need on that item's phase. Waiting for a whole phase is stricter than waiting for one item, but it keeps the phase blocked rather than freeing it early. It's dropped instead when the item is done or dropped, has no phase, is in the same phase, or the need would make a cycle. Items' needs are dropped, and an unfinished item keeps them as a line in its notes.
+- **First migration only** (format 1 to 2), so a rerun never redoes them:
+  - the standing `general` plan is retired, because Model v2 has no standing plan. Its items become unplanned (or untagged backlog), its entries project-wide, and the plan `done`. A `general` plan with phases is real work, so it stays as it is, with a warning;
+  - every plan and phase with a `summary` and no doc gets a doc stub holding the summary, except a retired `general`. The summary stays, as decided for docs.
+- **Times:** a record rewritten only for the format keeps its `updated` time. One whose meaning changes (a plan retired, an item unplanned, needs converted or dropped) gets the migration's time.
 
 ### `mull sync`, and why it can only push the `mull` branch
 
@@ -274,7 +307,7 @@ mull is used only by agents; humans see its data through an agent.
 - **References.** `"@ref"` refers to a record an earlier line created.
 - **`--dry-run`** runs every line and writes nothing.
 
-The ops are every write except `init`, `sync`, `check` and `done`.
+The ops are every write except `init`, `sync`, `migrate`, `check` and `done`.
 
 **Scope is never silent:**
 - `add` takes its plan from `--epic`, and refuses a `--plan` that disagrees.
@@ -282,7 +315,7 @@ The ops are every write except `init`, `sync`, `check` and `done`.
 
 | Group | Commands |
 |---|---|
-| Setup | `mull init` · `mull sync [--dry-run]` |
+| Setup | `mull init` · `mull sync [--dry-run]` · `mull migrate [--dry-run] [--text] [--on-request]` |
 | Plans (you) | `mull plan new <slug> "title" [--summary -] --on-request` · `plan agree <slug>` · `plan list` · `plan show <slug>` · `plan doc <slug> [-] [--log]` · `plan close <slug>` |
 | Epics | `mull epic add "title" --plan <slug> [--needs …]` · `epic show <id>` · `epic list [--plan]` · `phase doc <id> [-] [--log]` |
 | Items | `mull add "title" (--plan <slug> \| --epic <id>) [--notes -] [--doc path]` · `show` · `list` · `set` · `drop` |
