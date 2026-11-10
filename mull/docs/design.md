@@ -47,7 +47,7 @@ New mull is the record of a program: its plans, where they stand, and everything
 - No docket, no sessions, no free-floating epics.
 
 **Plan states** (Model v2): `shaping → active → done`.
-- `mull plan new` creates a plan `shaping`: its doc and questions are being worked out with you. It may already hold phases, items, captures and inbox entries, but none of its items is ready, and starting one is warned about.
+- `mull plan new` creates a plan `shaping`: its doc and questions are being worked out with you. It takes captures and inbox entries, but refuses phases and committed items (and starting a capture tagged to it) until you agree it.
 - `mull plan agree <slug>` makes it `active`. Agreeing is yours: an agent must pass `--on-request`, and mull refuses otherwise.
 - `mull plan close <slug>` makes it `done`, from either state. A done plan takes no new work and leaves the view (`view --plan` still shows it).
 - Until the Model v2 migration, a done plan is stored as `closed`.

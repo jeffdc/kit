@@ -27,7 +27,7 @@ func flightByItem(b PlanBoard) map[string]FlightLine {
 
 func TestBoardFromGit(t *testing.T) {
 	m, dir := setup(t)
-	must[*model.Plan](t)(m.PlanNew("launch", "Public launch", ""))
+	agreedPlan(t, m, "launch", "Public launch", "")
 	phase := must[*model.Phase](t)(m.PhaseAdd("launch", "Billing", "", nil))
 	add := func(title string) ItemView {
 		return must[ItemView](t)(m.ItemAdd(NewItem{Plan: "launch", Phase: phase.ID, Title: title}))

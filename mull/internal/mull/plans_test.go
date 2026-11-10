@@ -14,19 +14,21 @@ func TestPlanStates(t *testing.T) {
 		t.Fatalf("a new plan is %q, want shaping", p.State)
 	}
 
-	// A shaping plan takes phases, items, captures and questions, but none
-	// of its work is ready until the human agrees it.
-	phase := must[*model.Phase](t)(m.PhaseAdd("launch", "Billing", "", nil))
-	it := must[ItemView](t)(m.ItemAdd(NewItem{Phase: phase.ID, Title: "Webhook"}))
-	if it.Ready || len(it.BlockedBy) > 0 {
-		t.Fatalf("item in a shaping plan = %+v", it)
-	}
-	must[ItemView](t)(m.CaptureItem(NewCapture{Kind: model.ItemIdea, Title: "Annual billing", Plan: "launch"}))
+	// A shaping plan holds a doc, questions and captures; it refuses phases
+	// and committed work until the human agrees it.
+	_, err := m.PhaseAdd("launch", "Billing", "", nil)
+	wantCode(t, err, CodeState)
+	wantErr(t, err, "plan agree launch")
+	_, err = m.ItemAdd(NewItem{Plan: "launch", Title: "Webhook"})
+	wantCode(t, err, CodeState)
+	idea := must[ItemView](t)(m.CaptureItem(NewCapture{Kind: model.ItemIdea, Title: "Annual billing", Plan: "launch"}))
 	must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindQuestion, Text: "Stripe or Paddle?", Plan: "launch"}))
-	if ready := must[[]ItemView](t)(m.ItemList(ItemFilter{ReadyOnly: true})); len(ready) != 0 {
-		t.Fatalf("ready = %+v", ready)
-	}
-	if pv := must[PlanView](t)(m.PlanShow("launch")); pv.State != model.PlanShaping || pv.Progress.Ready != 0 || pv.Phases[0].Progress.Ready != 0 {
+	// A capture tagged to it can't be committed, or started, into it yet.
+	_, err = m.Commit(CommitInput{ID: idea.ID, OnRequest: true})
+	wantCode(t, err, CodeState)
+	_, err = m.Start(idea.ID)
+	wantCode(t, err, CodeState)
+	if pv := must[PlanView](t)(m.PlanShow("launch")); pv.State != model.PlanShaping || pv.Progress.Captured != 1 || len(pv.Phases) != 0 {
 		t.Fatalf("plan show = %+v", pv)
 	}
 
@@ -51,22 +53,20 @@ func TestPlanStates(t *testing.T) {
 		t.Fatalf("view text:\n%s", text)
 	}
 
-	// Starting its work is allowed but warned about.
-	res := must[StartResult](t)(m.Start(it.ID))
-	if len(res.Warnings) != 1 || !strings.Contains(res.Warnings[0], "shaping") {
-		t.Fatalf("warnings = %v", res.Warnings)
-	}
-	must[ItemView](t)(m.Release(it.ID))
-
 	// Only the human agrees a plan.
-	_, err := m.PlanAgree("launch", false)
+	_, err = m.PlanAgree("launch", false)
 	wantCode(t, err, CodeNotAllowed)
 	p = must[*model.Plan](t)(m.PlanAgree("launch", true))
 	if p.State != model.PlanActive {
 		t.Fatalf("agreed plan = %+v", p)
 	}
-	if got := item(t, m, it.ID); !got.Ready {
-		t.Fatalf("item after agree = %+v", got)
+	// Agreed, it takes phases and committed work, and the work is ready.
+	phase := must[*model.Phase](t)(m.PhaseAdd("launch", "Billing", "", nil))
+	if it := must[ItemView](t)(m.ItemAdd(NewItem{Phase: phase.ID, Title: "Webhook"})); !it.Ready {
+		t.Fatalf("item after agree = %+v", it)
+	}
+	if c := must[ItemView](t)(m.Commit(CommitInput{ID: idea.ID, OnRequest: true})); c.State != model.StateCommitted || !c.Ready {
+		t.Fatalf("committed idea = %+v", c)
 	}
 	_, err = m.PlanAgree("launch", true)
 	wantCode(t, err, CodeState)
@@ -105,17 +105,17 @@ func TestPlanAgreeInBatch(t *testing.T) {
 	m, _ := setup(t)
 	input := strings.Join([]string{
 		`{"op": "plan new", "ref": "p", "slug": "launch", "title": "Launch"}`,
-		`{"op": "add", "ref": "a", "plan": "@p", "title": "Webhook"}`,
 		`{"op": "plan agree", "slug": "@p", "on-request": true}`,
+		`{"op": "add", "ref": "a", "plan": "@p", "title": "Webhook"}`,
 	}, "\n")
 	results, err := m.Batch(strings.NewReader(input), false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p := results[2].Result.(*model.Plan); p.State != model.PlanActive || results[2].ID != "launch" {
-		t.Fatalf("plan agree result = %+v", results[2])
+	if p := results[1].Result.(*model.Plan); p.State != model.PlanActive || results[1].ID != "launch" {
+		t.Fatalf("plan agree result = %+v", results[1])
 	}
-	if !item(t, m, results[1].ID).Ready {
+	if !item(t, m, results[2].ID).Ready {
 		t.Fatal("work in an agreed plan should be ready")
 	}
 	must[*model.Plan](t)(m.PlanNew("later", "Later", ""))

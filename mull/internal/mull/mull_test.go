@@ -31,6 +31,14 @@ func setup(t *testing.T) (*Mull, string) {
 	return m, dir
 }
 
+// agreedPlan creates a plan and agrees it, so it takes phases and committed
+// work, as most tests want.
+func agreedPlan(t *testing.T, m *Mull, slug, title, summary string) *model.Plan {
+	t.Helper()
+	must[*model.Plan](t)(m.PlanNew(slug, title, summary))
+	return must[*model.Plan](t)(m.PlanAgree(slug, true))
+}
+
 // captureLegacy files an entry of a retired kind (loose end, inbox idea),
 // standing in for data written before they were retired.
 func (m *Mull) captureLegacy(in CaptureInput) (*model.Entry, error) {
@@ -136,10 +144,9 @@ func TestPlansPhasesItems(t *testing.T) {
 	wantErr(t, err, "invalid plan slug")
 	_, err = m.PlanNew("beef", "x", "")
 	wantErr(t, err, "invalid plan slug")
-	must[*model.Plan](t)(m.PlanNew("taxogall", "Taxogall", "Galls as catalog entries."))
+	agreedPlan(t, m, "taxogall", "Taxogall", "Galls as catalog entries.")
 	_, err = m.PlanNew("taxogall", "again", "")
 	wantErr(t, err, "already exists")
-	must[*model.Plan](t)(m.PlanAgree("taxogall", true))
 
 	phase := must[*model.Phase](t)(m.PhaseAdd("taxogall", "Phase 2", "", nil))
 	it := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "taxogall", Phase: phase.ID, Title: "Tree edits become Facts"}))
@@ -464,7 +471,7 @@ func TestStartBlockedWarns(t *testing.T) {
 
 func TestCaptureAndSettle(t *testing.T) {
 	m, _ := setup(t)
-	must[*model.Plan](t)(m.PlanNew("taxogall", "Taxogall", ""))
+	agreedPlan(t, m, "taxogall", "Taxogall", "")
 	it := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "taxogall", Title: "Phase 2"}))
 
 	dec := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindDecision, Text: "Any admin can undo anyone's decision", Item: it.ID, Detail: "Simplest rule."}))

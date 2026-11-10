@@ -27,7 +27,7 @@ func TestLooseEndsAndInboxIdeasAreRetired(t *testing.T) {
 
 func TestLegacyEntriesStayOutOfNeedsYou(t *testing.T) {
 	m, _ := setup(t)
-	must[*model.Plan](t)(m.PlanNew("alpha", "Alpha", ""))
+	agreedPlan(t, m, "alpha", "Alpha", "")
 	loose := must[*model.Entry](t)(m.captureLegacy(CaptureInput{Kind: model.KindLoose, Text: "Stale branch", Plan: "alpha"}))
 	idea := must[*model.Entry](t)(m.captureLegacy(CaptureInput{Kind: model.KindIdea, Text: "Mobile ID tool"}))
 	must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindQuestion, Text: "a real question", Plan: "alpha"}))
@@ -68,7 +68,7 @@ func TestLegacyEntriesStayOutOfNeedsYou(t *testing.T) {
 
 func TestPromotingLegacyIdeas(t *testing.T) {
 	m, _ := setup(t)
-	must[*model.Plan](t)(m.PlanNew("alpha", "Alpha", ""))
+	agreedPlan(t, m, "alpha", "Alpha", "")
 	asItem := must[*model.Entry](t)(m.captureLegacy(CaptureInput{Kind: model.KindIdea, Text: "Host-family filter", Plan: "alpha", Detail: "Browse by family.", Source: "matter 67c9"}))
 	asPhase := must[*model.Entry](t)(m.captureLegacy(CaptureInput{Kind: model.KindIdea, Text: "iNaturalist integration", Plan: "alpha"}))
 	noPlan := must[*model.Entry](t)(m.captureLegacy(CaptureInput{Kind: model.KindIdea, Text: "DNA barcodes"}))
@@ -100,7 +100,7 @@ func TestPromotingLegacyIdeas(t *testing.T) {
 
 func TestPromotingLegacyIdeasInBatch(t *testing.T) {
 	m, dir := setup(t)
-	must[*model.Plan](t)(m.PlanNew("alpha", "Alpha", ""))
+	agreedPlan(t, m, "alpha", "Alpha", "")
 	i1 := must[*model.Entry](t)(m.captureLegacy(CaptureInput{Kind: model.KindIdea, Text: "Mobile ID tool"}))
 	i2 := must[*model.Entry](t)(m.captureLegacy(CaptureInput{Kind: model.KindIdea, Plan: "alpha", Text: "iNaturalist integration"}))
 	input := strings.Join([]string{

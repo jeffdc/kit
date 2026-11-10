@@ -169,7 +169,7 @@ func (m *Mull) phaseAdd(s *state, plan, title, summary string, needs []string, f
 	if plan == "" {
 		return nil, errf(CodeInvalid, "a phase needs a plan")
 	}
-	if _, err := s.openPlan(plan); err != nil {
+	if _, err := s.agreedPlan(plan); err != nil {
 		return nil, err
 	}
 	id, err := s.newID()
@@ -275,14 +275,18 @@ func (m *Mull) addItem(s *state, in NewItem) (*model.Item, error) {
 	if err != nil {
 		return nil, err
 	}
-	if plan != "" {
-		if _, err := s.openPlan(plan); err != nil {
-			return nil, err
-		}
-	}
 	stage := in.stage
 	if stage == "" {
 		stage = model.StateCommitted
+	}
+	if plan != "" {
+		check := s.agreedPlan // committed work needs an agreed plan
+		if stage == model.StateCaptured {
+			check = s.openPlan // captures may be tagged to a shaping plan
+		}
+		if _, err := check(plan); err != nil {
+			return nil, err
+		}
 	}
 	id, err := s.newID()
 	if err != nil {
@@ -400,21 +404,21 @@ func (m *Mull) commit(s *state, in CommitInput) (ItemView, error) {
 	if !in.OnRequest {
 		return ItemView{}, errf(CodeNotAllowed, "only the human commits work: pass --on-request when the human has asked for %s to be committed", i.ID)
 	}
+	plan, phase := i.Plan, i.Phase
 	if in.Plan != "" || in.Phase != "" {
-		plan, err := s.resolvePlan(in.Plan, in.Phase)
-		if err != nil {
+		if plan, err = s.resolvePlan(in.Plan, in.Phase); err != nil {
 			return ItemView{}, err
 		}
-		if plan != "" {
-			if _, err := s.openPlan(plan); err != nil {
-				return ItemView{}, err
-			}
-		}
 		if in.Phase != "" || plan != i.Plan {
-			i.Phase = in.Phase // a new plan leaves the old phase behind
+			phase = in.Phase // a new plan leaves the old phase behind
 		}
-		i.Plan = plan
 	}
+	if plan != "" {
+		if _, err := s.agreedPlan(plan); err != nil {
+			return ItemView{}, err
+		}
+	}
+	i.Plan, i.Phase = plan, phase
 	i.State, i.Updated = model.StateCommitted, m.now()
 	if err := s.putItem(i); err != nil {
 		return ItemView{}, err
@@ -680,6 +684,12 @@ func (m *Mull) start(s *state, id string) (StartResult, error) {
 		out.Warnings = append(out.Warnings, fmt.Sprintf("started while blocked by %v", blocked))
 	}
 	if s.inShapingPlan(i) {
+		if i.State == model.StateCaptured {
+			// Starting a capture commits it, and a shaping plan takes no committed work.
+			_, err := s.agreedPlan(i.Plan)
+			return out, err
+		}
+		// Committed work from before shaping plans refused it.
 		out.Warnings = append(out.Warnings, fmt.Sprintf("started while plan %q is shaping: the human hasn't agreed it", i.Plan))
 	}
 	base, _ := m.repo.RefCommit("HEAD")
