@@ -5,6 +5,12 @@ plan: mull-serve
 item: 488d
 by: /Users/jeff/dev/kit/.claude/worktrees/agent-ae1995ea8ca4c288d
 created: "2026-11-10T22:08:35Z"
+settled:
+  action: accept
+  note: with review d8ca
+  by: /Users/jeff/dev/kit
+  on_request: true
+  at: "2026-11-10T22:21:30Z"
 ---
 
 Counts plus every record with its changes, and the converted loose ends listed for re-kinding; documented in guide json and enforced by shapes_test.
