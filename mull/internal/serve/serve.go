@@ -29,8 +29,8 @@ type Repos func() ([]string, error)
 
 // Handler serves the UI and the API for the repositories repos lists. It
 // reads the list on every request, so repositories registered while it runs
-// show up without a restart.
-func Handler(repos Repos) http.Handler {
+// show up without a restart. Options add endpoints (WithEvents).
+func Handler(repos Repos, opts ...Option) http.Handler {
 	static, err := fs.Sub(web, "web")
 	if err != nil {
 		panic(err) // the embedded tree is fixed at build time
@@ -46,6 +46,9 @@ func Handler(repos Repos) http.Handler {
 	})
 	registerAPI(mux, repos)
 	registerRevision(mux, repos)
+	for _, opt := range opts {
+		opt(mux)
+	}
 	mux.HandleFunc("GET /api/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, &mull.Error{Code: mull.CodeNotFound, Msg: "no API endpoint " + r.URL.Path})
 	})

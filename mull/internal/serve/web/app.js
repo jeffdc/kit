@@ -1,4 +1,5 @@
-// The placeholder page: the project list from GET /api/projects.
+// The placeholder page: the project list from GET /api/projects, refetched
+// whenever GET /api/events says a project changed.
 
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
@@ -25,6 +26,8 @@ async function load() {
     if (!res.ok) throw new Error(body.error || res.statusText);
     if (!body.projects.length) {
       status.textContent = "No projects yet. Run any mull command in a repository with a mull branch to add it.";
+      table.hidden = true;
+      status.hidden = false;
       return;
     }
     table.tBodies[0].innerHTML = body.projects.map(row).join("");
@@ -32,7 +35,27 @@ async function load() {
     status.hidden = true;
   } catch (err) {
     status.textContent = `Couldn't load projects: ${err.message}`;
+    status.hidden = false;
   }
 }
 
-load();
+// refresh loads the list, once more after the current load if asked again
+// meanwhile, so a burst of events is at most two fetches.
+let loading = null, again = false;
+function refresh() {
+  if (loading) { again = true; return; }
+  loading = load().finally(() => {
+    loading = null;
+    if (again) { again = false; refresh(); }
+  });
+}
+
+// The browser reconnects a dropped stream itself; whatever changed while it
+// was down is caught by refetching when it reopens.
+const events = new EventSource("/api/events");
+let dropped = false;
+events.addEventListener("project", refresh);
+events.onerror = () => { dropped = true; };
+events.onopen = () => { if (dropped) { dropped = false; refresh(); } };
+
+refresh();

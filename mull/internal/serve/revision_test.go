@@ -44,6 +44,8 @@ func decode[T any](t *testing.T, rec *httptest.ResponseRecorder) T {
 	return v
 }
 
+// capture writes to the mull branch of the repository dir is in, as any
+// mull command would, and returns the captured item's ID.
 func capture(t *testing.T, dir, title string) string {
 	t.Helper()
 	m, err := mull.Open(dir)
@@ -57,7 +59,7 @@ func capture(t *testing.T, dir, title string) string {
 	return it.ID
 }
 
-func mullTip(t *testing.T, dir string) string {
+func tipOf(t *testing.T, dir string) string {
 	t.Helper()
 	return gittest.Git(t, dir, "rev-parse", "refs/heads/mull")
 }
@@ -71,7 +73,7 @@ func TestRevisionAndSeen(t *testing.T) {
 	// The first look is the baseline: nothing is new yet, and it is kept.
 	rec := get(t, h, revURL)
 	rev := decode[RevisionReport](t, rec)
-	if rec.Code != 200 || rev.ID != id || !rev.Baseline || rev.Tip.Commit != mullTip(t, dir) || rev.Since != rev.Tip || len(rev.Changes) != 0 || rev.SeenAt == "" {
+	if rec.Code != 200 || rev.ID != id || !rev.Baseline || rev.Tip.Commit != tipOf(t, dir) || rev.Since != rev.Tip || len(rev.Changes) != 0 || rev.SeenAt == "" {
 		t.Fatalf("first GET revision: %d %+v", rec.Code, rev)
 	}
 	if l, ok, _ := seen.Get(dir); !ok || l.Commit != rev.Tip.Commit || l.At != rev.SeenAt {
@@ -90,13 +92,13 @@ func TestRevisionAndSeen(t *testing.T) {
 	}
 
 	// Marking seen clears the changes, and never writes the mull branch.
-	before := mullTip(t, dir)
+	before := tipOf(t, dir)
 	rec = post(t, h, seenURL, "", nil)
 	rev = decode[RevisionReport](t, rec)
 	if rec.Code != 200 || rev.Since.Commit != before || len(rev.Changes) != 0 || rev.Baseline {
 		t.Errorf("POST seen: %d %+v", rec.Code, rev)
 	}
-	if mullTip(t, dir) != before {
+	if tipOf(t, dir) != before {
 		t.Error("POST seen moved the mull branch")
 	}
 	if rev := decode[RevisionReport](t, get(t, h, revURL)); len(rev.Changes) != 0 || rev.Since.Commit != before {
@@ -104,7 +106,7 @@ func TestRevisionAndSeen(t *testing.T) {
 	}
 
 	// The page can say which revision it showed; a later write stays new.
-	shown := mullTip(t, dir)
+	shown := tipOf(t, dir)
 	later := capture(t, dir, "Header")
 	rev = decode[RevisionReport](t, post(t, h, seenURL, `{"commit": "`+shown+`"}`, nil))
 	if rev.Since.Commit != shown || len(rev.Changes) != 1 || rev.Changes[0].ID != later {
