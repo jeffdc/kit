@@ -51,15 +51,15 @@ func wantErr(t *testing.T, err error, contains string) {
 	}
 }
 
-// markDone stands in for `mull done`, which arrives in a later step.
-func markDone(t *testing.T, m *Mull, id string) {
+// markInReview stands in for `mull done`: it puts the item in review and files its review entry.
+func markInReview(t *testing.T, m *Mull, id string) {
 	t.Helper()
 	err := m.update("test done "+id, func(s *state) error {
 		i, err := s.item(id)
 		if err != nil {
 			return err
 		}
-		i.State = model.StateDone
+		i.State = model.StateInReview
 		if err := s.putItem(i); err != nil {
 			return err
 		}
@@ -119,7 +119,7 @@ func TestPlansPhasesItems(t *testing.T) {
 
 	phase := must[*model.Phase](t)(m.PhaseAdd("taxogall", "Phase 2", "", nil))
 	it := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "taxogall", Phase: phase.ID, Title: "Tree edits become Facts"}))
-	if it.State != model.StateOpen || !it.Ready {
+	if it.State != model.StateCommitted || !it.Ready {
 		t.Fatalf("new item = %+v", it)
 	}
 	_, err = m.ItemAdd(NewItem{Plan: "general", Phase: phase.ID, Title: "wrong plan"})
@@ -156,14 +156,14 @@ func TestReadinessAndUnreviewedIsIncomplete(t *testing.T) {
 		t.Fatalf("ready = %+v", ready)
 	}
 	must[StartResult](t)(m.Start(a.ID))
-	markDone(t, m, a.ID)
+	markInReview(t, m, a.ID)
 	if item(t, m, b.ID).Ready {
-		t.Fatal("B ready while A is done but unreviewed")
+		t.Fatal("B ready while A is in review")
 	}
 	// Accept from another worktree identity: simulate by on-request.
 	must[AcceptResult](t)(m.Accept([]string{a.ID}, "", SettleOpts{OnRequest: true}))
 	if !item(t, m, b.ID).Ready {
-		t.Fatal("B not ready after A accepted")
+		t.Fatal("B not ready after A is done")
 	}
 }
 
@@ -186,6 +186,98 @@ func TestPhaseNeeds(t *testing.T) {
 	if z.Ready {
 		t.Fatal("needing an empty phase should block")
 	}
+}
+
+// markCaptured stands in for capture, which arrives in a later step: it
+// moves the item back to the backlog.
+func markCaptured(t *testing.T, m *Mull, id string) {
+	t.Helper()
+	err := m.update("test capture "+id, func(s *state) error {
+		i, err := s.item(id)
+		if err != nil {
+			return err
+		}
+		i.State = model.StateCaptured
+		return s.putItem(i)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestStartFromCaptured(t *testing.T) {
+	m, _ := setup(t)
+	a := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "general", Title: "A small bug"}))
+	if a.State != model.StateCommitted || !a.Ready {
+		t.Fatalf("a new item should be committed and ready: %+v", a.Item)
+	}
+	markCaptured(t, m, a.ID)
+	if v := item(t, m, a.ID); v.Ready {
+		t.Fatal("a captured item should never be ready")
+	}
+	st := must[StartResult](t)(m.Start(a.ID))
+	if st.Item.State != model.StateActive {
+		t.Fatalf("start from captured: %+v", st.Item.Item)
+	}
+	// Released, it stays committed: starting it committed to it.
+	if v := must[ItemView](t)(m.Release(a.ID)); v.State != model.StateCommitted {
+		t.Fatalf("released item = %s, want committed", v.State)
+	}
+}
+
+func TestCapturedItemsAreBacklog(t *testing.T) {
+	m, _ := setup(t)
+	p1 := must[*model.Phase](t)(m.PhaseAdd("general", "Phase 1", "", nil))
+	p2 := must[*model.Phase](t)(m.PhaseAdd("general", "Phase 2", "", []string{p1.ID}))
+	x := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "general", Phase: p1.ID, Title: "x"}))
+	bug := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "general", Phase: p1.ID, Title: "a bug for later"}))
+	y := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "general", Phase: p2.ID, Title: "y"}))
+	markCaptured(t, m, bug.ID)
+	must[StartResult](t)(m.Start(x.ID))
+	markInReview(t, m, x.ID)
+	must[AcceptResult](t)(m.Accept([]string{x.ID}, "", SettleOpts{OnRequest: true}))
+
+	err := m.view(func(s *state) error {
+		ev := s.phaseView(s.phases[p1.ID])
+		want := Progress{Total: 1, Captured: 1, Done: 1}
+		if ev.Progress != want || !ev.Complete {
+			t.Errorf("phase 1 = %+v complete=%v, want %+v complete", ev.Progress, ev.Complete, want)
+		}
+		if got := progressText(ev.Progress); got != "1/1 done · 1 captured" {
+			t.Errorf("progress text = %q", got)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !item(t, m, y.ID).Ready {
+		t.Fatal("a captured item tagged to phase 1 should not hold phase 2 back")
+	}
+	// A phase with only captured items has no committed work, so it isn't complete.
+	markCaptured(t, m, y.ID)
+	err = m.view(func(s *state) error {
+		if s.phaseComplete(p2.ID) {
+			t.Error("a phase with only captured items should not be complete")
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestListByStage(t *testing.T) {
+	m, _ := setup(t)
+	a := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "general", Title: "A"}))
+	must[ItemView](t)(m.ItemAdd(NewItem{Plan: "general", Title: "B"}))
+	markCaptured(t, m, a.ID)
+	got := must[[]ItemView](t)(m.ItemList(ItemFilter{State: model.StateCaptured}))
+	if len(got) != 1 || got[0].ID != a.ID {
+		t.Fatalf("captured = %+v", got)
+	}
+	_, err := m.ItemList(ItemFilter{State: "open"})
+	wantCode(t, err, CodeInvalid)
 }
 
 func TestCyclesRefused(t *testing.T) {
@@ -368,14 +460,14 @@ func TestReviewAcceptGuardAndFollowUp(t *testing.T) {
 	}
 	a := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "general", Title: "A"}))
 	must[StartResult](t)(worker.Start(a.ID))
-	markDone(t, worker, a.ID)
+	markInReview(t, worker, a.ID)
 
 	_, err = worker.Accept([]string{a.ID}, "", SettleOpts{})
 	wantErr(t, err, "cannot accept its own work")
 
 	// A supervisor in another worktree may accept, with a follow-up.
 	res := must[AcceptResult](t)(m.Accept([]string{a.ID}, "Tighten the empty-state copy", SettleOpts{}))
-	if res.Items[0].State != model.StateAccepted || len(res.Entries) != 1 || res.FollowUp == nil {
+	if res.Items[0].State != model.StateDone || len(res.Entries) != 1 || res.FollowUp == nil {
 		t.Fatalf("accept = %+v", res)
 	}
 	if n := len(must[[]*model.Entry](t)(m.Inbox(InboxFilter{Kind: model.KindReview}))); n != 0 {
@@ -385,14 +477,14 @@ func TestReviewAcceptGuardAndFollowUp(t *testing.T) {
 		t.Fatalf("follow-up = %+v", res.FollowUp)
 	}
 	_, err = m.Drop([]string{a.ID}, "", SettleOpts{})
-	wantErr(t, err, "accepted and cannot be dropped")
+	wantErr(t, err, "done and cannot be dropped")
 }
 
 func TestWorkerMayAcceptOnRequest(t *testing.T) {
 	m, _ := setup(t)
 	a := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "general", Title: "A"}))
 	must[StartResult](t)(m.Start(a.ID))
-	markDone(t, m, a.ID)
+	markInReview(t, m, a.ID)
 	res := must[AcceptResult](t)(m.Accept([]string{a.ID}, "", SettleOpts{OnRequest: true}))
 	if !res.Entries[0].Settled.OnRequest {
 		t.Fatal("on-request not recorded")
@@ -403,12 +495,12 @@ func TestReviewSendBack(t *testing.T) {
 	m, _ := setup(t)
 	a := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "general", Title: "A"}))
 	must[StartResult](t)(m.Start(a.ID))
-	markDone(t, m, a.ID)
+	markInReview(t, m, a.ID)
 	review := must[[]*model.Entry](t)(m.Inbox(InboxFilter{Kind: model.KindReview}))[0]
 	_, err := m.Do(DoInput{ID: review.ID})
 	wantErr(t, err, "say why")
 	res := must[DoResult](t)(m.Do(DoInput{ID: review.ID, Reason: "The tour's step 2 shows the old page"}))
-	if res.Item.State != model.StateOpen || res.Item.Claim != nil || !strings.Contains(res.Item.Notes, "step 2") {
+	if res.Item.State != model.StateCommitted || res.Item.Claim != nil || !strings.Contains(res.Item.Notes, "step 2") {
 		t.Fatalf("sent-back item = %+v", res.Item)
 	}
 	_, err = m.Decide(review.ID, "x", SettleOpts{})

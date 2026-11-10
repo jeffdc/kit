@@ -3,6 +3,7 @@ package mull
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	"mull/internal/model"
 )
@@ -249,7 +250,7 @@ func (m *Mull) addItem(s *state, in NewItem) (*model.Item, error) {
 	}
 	now := m.now()
 	i := &model.Item{
-		ID: id, Plan: plan, Phase: in.Phase, Title: in.Title, State: model.StateOpen,
+		ID: id, Plan: plan, Phase: in.Phase, Title: in.Title, State: model.StateCommitted,
 		Needs: needs, Docs: dedupe(in.Docs), From: in.From, Created: now, Updated: now, Notes: in.Notes,
 	}
 	if err := s.putItem(i); err != nil {
@@ -267,6 +268,9 @@ type ItemFilter struct {
 // ItemList returns items matching f.
 func (m *Mull) ItemList(f ItemFilter) ([]ItemView, error) {
 	out := []ItemView{}
+	if f.State != "" && !slices.Contains(model.Stages, f.State) {
+		return out, errf(CodeInvalid, "no stage %q; stages are %s", f.State, strings.Join(model.Stages, ", "))
+	}
 	err := m.view(func(s *state) error {
 		if f.Plan != "" {
 			if _, err := s.plan(f.Plan); err != nil {
@@ -530,7 +534,7 @@ func (m *Mull) start(s *state, id string) (StartResult, error) {
 		return out, err
 	}
 	switch i.State {
-	case model.StateOpen:
+	case model.StateCaptured, model.StateCommitted: // from captured is the fast path: start commits it
 	case model.StateActive:
 		if i.Claim != nil && i.Claim.Worktree == wt {
 			out.Item = s.itemView(i)
@@ -558,7 +562,8 @@ func (m *Mull) start(s *state, id string) (StartResult, error) {
 	return out, nil
 }
 
-// Release gives back a claim: the item returns to open.
+// Release gives back a claim: the item returns to committed, even if it was
+// started straight from captured.
 func (m *Mull) Release(id string) (ItemView, error) {
 	var out ItemView
 	err := m.update("release "+id, func(s *state) error {
@@ -577,7 +582,7 @@ func (m *Mull) release(s *state, id string) (ItemView, error) {
 	if i.State != model.StateActive {
 		return ItemView{}, errf(CodeState, "item %s is %s, not active", id, i.State)
 	}
-	i.State, i.Claim, i.Updated = model.StateOpen, nil, m.now()
+	i.State, i.Claim, i.Updated = model.StateCommitted, nil, m.now()
 	if err := s.putItem(i); err != nil {
 		return ItemView{}, err
 	}

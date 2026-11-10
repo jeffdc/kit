@@ -58,7 +58,7 @@ func TestDoneHappyPathCacheAndTour(t *testing.T) {
 	if runs() != 1 {
 		t.Fatalf("the cached pass for the same tree was not reused: %d runs", runs())
 	}
-	if res.Item.State != model.StateDone || res.Review == "" || !res.Report.Passed || res.Report.N != 1 {
+	if res.Item.State != model.StateInReview || res.Review == "" || !res.Report.Passed || res.Report.N != 1 {
 		t.Fatalf("done = %+v", res)
 	}
 	layers := map[string]int{}
@@ -158,7 +158,7 @@ func TestDoneOverrideWithoutChecks(t *testing.T) {
 	m, dir := setup(t)
 	it := startWork(t, m, dir, "Docs tweak")
 	res := must[DoneResult](t)(m.Done(it.ID, DoneInput{Summary: "Docs only.", Override: "no checks in this repo yet"}))
-	if res.Item.State != model.StateDone || res.Report.Passed || res.Report.Override == "" {
+	if res.Item.State != model.StateInReview || res.Report.Passed || res.Report.Override == "" {
 		t.Fatalf("override done = %+v", res)
 	}
 	text, _, _ := m.ReportText(it.ID, 0)

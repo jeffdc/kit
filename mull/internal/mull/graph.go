@@ -7,11 +7,12 @@ import (
 )
 
 // A need is satisfied when its target is finished. Unreviewed work is
-// incomplete work, so an item counts only once accepted (or dropped), and an
-// phase only once every item in it does.
+// incomplete work, so an item counts only once done (reviewed) or dropped,
+// and a phase only once every item committed to it does. Captured items are
+// backlog: tagged to a phase, they neither count toward it nor hold it open.
 
 func finished(i *model.Item) bool {
-	return i.State == model.StateAccepted || i.State == model.StateDropped
+	return i.State == model.StateDone || i.State == model.StateDropped
 }
 
 func (s *state) phaseItems(phaseID string) []*model.Item {
@@ -25,16 +26,17 @@ func (s *state) phaseItems(phaseID string) []*model.Item {
 }
 
 func (s *state) phaseComplete(phaseID string) bool {
-	items := s.phaseItems(phaseID)
-	if len(items) == 0 {
-		return false
-	}
-	for _, i := range items {
+	committed := 0
+	for _, i := range s.phaseItems(phaseID) {
+		if i.State == model.StateCaptured {
+			continue
+		}
 		if !finished(i) {
 			return false
 		}
+		committed++
 	}
-	return true
+	return committed > 0
 }
 
 func (s *state) satisfied(id string) bool {
@@ -66,7 +68,9 @@ func (s *state) blockedBy(reqs []string) []string {
 	return out
 }
 
-// ItemView is an item with its derived readiness.
+// ItemView is an item with its derived readiness: committed, with its phase's
+// needs (and, for now, its own) done. Items with no phase wait only on their
+// own needs.
 type ItemView struct {
 	model.Item
 	Ready     bool     `json:"ready"`
@@ -75,40 +79,46 @@ type ItemView struct {
 
 func (s *state) itemView(i *model.Item) ItemView {
 	v := ItemView{Item: *i}
-	if i.State == model.StateOpen {
+	if i.State == model.StateCommitted {
 		v.BlockedBy = s.blockedBy(s.requirements(i))
 		v.Ready = len(v.BlockedBy) == 0
 	}
 	return v
 }
 
-// Progress counts a phase's or plan's items by state.
+// Progress counts a phase's or plan's items by stage. Total counts committed
+// work only; captured items are counted on their own.
 type Progress struct {
-	Total    int `json:"total"`
-	Open     int `json:"open"`
-	Active   int `json:"active"`
-	Done     int `json:"done_unreviewed"`
-	Accepted int `json:"accepted"`
-	Dropped  int `json:"dropped"`
-	Ready    int `json:"ready"`
+	Total     int `json:"total"`
+	Captured  int `json:"captured"`
+	Committed int `json:"committed"`
+	Active    int `json:"active"`
+	InReview  int `json:"in_review"`
+	Done      int `json:"done"`
+	Dropped   int `json:"dropped"`
+	Ready     int `json:"ready"`
 }
 
 func (s *state) progress(items []*model.Item) Progress {
 	var p Progress
 	for _, i := range items {
+		if i.State == model.StateCaptured {
+			p.Captured++
+			continue
+		}
 		p.Total++
 		switch i.State {
-		case model.StateOpen:
-			p.Open++
+		case model.StateCommitted:
+			p.Committed++
 			if s.itemView(i).Ready {
 				p.Ready++
 			}
 		case model.StateActive:
 			p.Active++
+		case model.StateInReview:
+			p.InReview++
 		case model.StateDone:
 			p.Done++
-		case model.StateAccepted:
-			p.Accepted++
 		case model.StateDropped:
 			p.Dropped++
 		}

@@ -60,8 +60,8 @@ func TestBoardFromGit(t *testing.T) {
 	gittest.Git(t, dir, "checkout", "-q", "main")
 
 	// Done states and a claim nobody works on.
-	markDone(t, m, b.ID)
-	markDone(t, m, d.ID)
+	markInReview(t, m, b.ID)
+	markInReview(t, m, d.ID)
 	must[StartResult](t)(m.Start(e.ID))
 
 	// Look at the board four days later.

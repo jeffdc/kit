@@ -204,14 +204,14 @@ func (s *state) board(p *model.Plan, g *gitState, now time.Time) PlanBoard {
 					Text: fmt.Sprintf("done attempt %d failed its checks (%s)", rep.N, model.ReportPath(i.ID, rep.N))})
 			}
 			b.InFlight = append(b.InFlight, f)
-		case model.StateOpen:
+		case model.StateCaptured, model.StateCommitted:
 			if ig.Unmerged > 0 && recent {
 				b.InFlight = append(b.InFlight, FlightLine{ID: i.ID, Title: i.Title, State: i.State,
 					Branches: ig.Branches, Commits: ig.Unmerged, LastActivity: ig.LastActivity})
 				b.Problems = append(b.Problems, Problem{Kind: "unclaimed-work", Item: i.ID,
 					Text: "has recent commits but nobody has claimed it"})
 			}
-		case model.StateDone, model.StateAccepted:
+		case model.StateInReview, model.StateDone:
 			if !ig.SeenInGit {
 				if up, ok := parseTime(i.Updated); ok && now.Sub(up) > notInGitAfter {
 					b.Problems = append(b.Problems, Problem{Kind: "done-not-in-git", Item: i.ID,
@@ -292,23 +292,26 @@ func bar(p Progress) string {
 		return "·"
 	}
 	width := min(p.Total, 10)
-	filled := (p.Accepted + p.Dropped) * width / p.Total
+	filled := (p.Done + p.Dropped) * width / p.Total
 	return strings.Repeat("▰", filled) + strings.Repeat("▱", width-filled)
 }
 
 func progressText(p Progress) string {
-	if p.Total == 0 {
+	if p.Total == 0 && p.Captured == 0 {
 		return "no items"
 	}
-	parts := []string{fmt.Sprintf("%d/%d accepted", p.Accepted, p.Total-p.Dropped)}
-	if p.Done > 0 {
-		parts = append(parts, fmt.Sprintf("%d unreviewed", p.Done))
+	parts := []string{fmt.Sprintf("%d/%d done", p.Done, p.Total-p.Dropped)}
+	if p.InReview > 0 {
+		parts = append(parts, fmt.Sprintf("%d in review", p.InReview))
 	}
 	if p.Active > 0 {
 		parts = append(parts, fmt.Sprintf("%d active", p.Active))
 	}
 	if p.Ready > 0 {
 		parts = append(parts, fmt.Sprintf("%d ready", p.Ready))
+	}
+	if p.Captured > 0 {
+		parts = append(parts, fmt.Sprintf("%d captured", p.Captured))
 	}
 	return strings.Join(parts, " · ")
 }

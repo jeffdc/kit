@@ -25,7 +25,7 @@ var (
 	phaseViewKeys = phaseKeys.plus(keys{[]string{"progress", "complete"}, []string{"blocked_by"}})
 	entryKeys     = keys{[]string{"id", "kind", "text", "plan", "by", "created"}, []string{"item", "source", "settled", "detail"}}
 	configKeys    = keys{[]string{"integration", "release", "remote", "done_checks", "layers"}, nil}
-	progressKeys  = keys{[]string{"total", "open", "active", "done_unreviewed", "accepted", "dropped", "ready"}, nil}
+	progressKeys  = keys{[]string{"total", "captured", "committed", "active", "in_review", "done", "dropped", "ready"}, nil}
 )
 
 func checkKeys(t *testing.T, what string, v any, k keys) {
