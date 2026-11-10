@@ -37,6 +37,8 @@ const (
 	CodeBusy               = "busy"                // too many concurrent writers; try again
 	CodeGit                = "git_error"           // git failed unexpectedly
 	CodeRetired            = "retired"             // the command or op was retired; the message names its replacement
+	CodeMigrationRequired  = "migration_required"  // the data is from before Model v2: writes wait for mull migrate
+	CodeUnsupportedFormat  = "unsupported_format"  // the data is in a newer format than this mull understands
 	CodeInternal           = "internal"            // anything else
 )
 

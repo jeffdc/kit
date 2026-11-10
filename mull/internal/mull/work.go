@@ -566,7 +566,7 @@ type SetResult struct {
 //	plan: title, summary
 //	phase: title, summary
 //	item: title, notes, category, phase ("" to unfile), doc (adds a path), and for a
-//	captured item plan ("none" to untag; a phase in another plan retags it)
+//	captured item plan ("none" to untag; a phase in another plan retags it) and kind (bug or idea)
 func (m *Mull) Set(ref, field, value string) (SetResult, error) {
 	var out SetResult
 	err := m.update(fmt.Sprintf("set %s %s", ref, field), func(s *state) error {
@@ -617,6 +617,14 @@ func (m *Mull) set(s *state, ref, field, value string) (SetResult, error) {
 			i.Notes = value
 		case "category":
 			i.Category = value
+		case "kind":
+			if i.State != model.StateCaptured {
+				return SetResult{}, errf(CodeState, "item %s is %s; only a captured item's kind can be changed", i.ID, i.State)
+			}
+			if value != model.ItemBug && value != model.ItemIdea {
+				return SetResult{}, errf(CodeInvalid, "a captured item is a bug or an idea, not %q", value)
+			}
+			i.Kind = value
 		case "doc":
 			i.Docs = dedupe(append(i.Docs, value))
 		case "phase":
@@ -656,7 +664,7 @@ func (m *Mull) set(s *state, ref, field, value string) (SetResult, error) {
 			}
 			i.Plan = plan
 		default:
-			return SetResult{}, errf(CodeInvalid, "an item's settable fields are title, notes, category, plan (captured only), phase and doc")
+			return SetResult{}, errf(CodeInvalid, "an item's settable fields are title, notes, category, plan and kind (captured only), phase and doc")
 		}
 		i.Updated = now
 		if err := s.putItem(i); err != nil {

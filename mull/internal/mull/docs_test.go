@@ -47,7 +47,7 @@ func TestPlanAndPhaseDocs(t *testing.T) {
 	must[*model.Plan](t)(m.PlanAgree("launch", true))
 	ph := must[*model.Phase](t)(m.PhaseAdd("launch", "Billing", "Stripe first.", nil))
 	must[DocResult](t)(m.SetPhaseDoc(ph.ID, "Design: webhooks.\nDone when: invoices go out."))
-	if file := gittest.Git(t, dir, "show", store.Ref+":docs/epics/"+ph.ID+".md"); file != "Design: webhooks.\nDone when: invoices go out." {
+	if file := gittest.Git(t, dir, "show", store.Ref+":docs/phases/"+ph.ID+".md"); file != "Design: webhooks.\nDone when: invoices go out." {
 		t.Fatalf("phase doc file = %q", file)
 	}
 	it := must[ItemView](t)(m.ItemAdd(NewItem{Phase: ph.ID, Title: "Webhook"}))

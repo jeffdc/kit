@@ -33,6 +33,10 @@ type View struct {
 	Legacy           *Legacy     `json:"legacy,omitempty"`
 	Untriaged        int         `json:"untriaged"`             // the whole project's untriaged captured items, with --plan too
 	LastTriage       string      `json:"last_triage,omitempty"` // the latest triage stamp on any item
+	Format           int         `json:"format"`                // the data's storage format (see model.Format)
+	// MigrationRequired means writes are refused until mull migrate: the
+	// data, or some of its records, are from before Model v2.
+	MigrationRequired bool `json:"migration_required,omitempty"`
 }
 
 // Legacy counts open entries of the retired kinds, kept until the Model v2
@@ -112,6 +116,7 @@ func (m *Mull) Board(plan string) (View, error) {
 			Generated: now.Format(time.RFC3339), Integration: g.Integration, IntegrationFound: g.IntegrationFound,
 			Release: s.config.Release, AheadOfRelease: g.AheadOfRelease,
 			UnlinkedCount: len(g.Unlinked), Plans: []PlanBoard{},
+			Format: s.config.Format, MigrationRequired: s.writable() != nil,
 		}
 		if n := len(g.Unlinked); n > 0 {
 			v.UnlinkedRecent = g.Unlinked[:min(n, unlinkedListSize)]
@@ -372,6 +377,9 @@ func (v View) Text(now time.Time) string {
 		header += fmt.Sprintf(" · %d ahead of %s", v.AheadOfRelease, v.Release)
 	}
 	fmt.Fprintf(&b, "%s · %s\n", header, now.Format("2006-01-02"))
+	if v.MigrationRequired {
+		b.WriteString("\nMIGRATE  this data is from before Model v2, so writes are refused: the human runs mull migrate --dry-run, then mull migrate --on-request\n")
+	}
 	if len(v.Plans) == 0 && v.Unplanned == nil {
 		b.WriteString("\nNo open plans with work.\n")
 	}

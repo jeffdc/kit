@@ -26,7 +26,7 @@ On failure, mull prints nothing to stdout, prints this to stderr, and exits 1:
 | `invalid_state` | the record is in the wrong state (e.g. accepting an item that isn't done) |
 | `claimed` | the item is claimed by another worktree |
 | `already_settled` | the inbox entry is already settled |
-| `not_allowed` | not allowed (kind rules; a worker accepting its own work; promoting an idea, committing a captured item, triaging, creating a plan or agreeing one without `--on-request`; needs on an item, or a phase needing an item) |
+| `not_allowed` | not allowed (kind rules; a worker accepting its own work; promoting an idea, committing a captured item, triaging, creating a plan, agreeing one or migrating without `--on-request`; needs on an item, or a phase needing an item) |
 | `dependency_cycle` | the needs would form a cycle |
 | `scope_required` | say which plan or item: `--plan` or `--item` (or `--phase`, or `--plan none` for unplanned work, for `add`) |
 | `tour_required` | UI files changed and no `--tour` was given |
@@ -42,6 +42,8 @@ On failure, mull prints nothing to stdout, prints this to stderr, and exits 1:
 | `busy` | too many concurrent writers; try again |
 | `git_error` | git failed unexpectedly |
 | `retired` | a retired command or batch op (`loose`, `ideas`); the message names its replacement |
+| `migration_required` | a write to data from before Model v2 (format 1), or to data holding records still in format 1 (merged in by `sync` from an older mull): the human runs `mull migrate --dry-run`, then `mull migrate --on-request`. Reads still work |
+| `unsupported_format` | the data is in a newer format than this mull understands: update mull. Reads fail too |
 | `internal` | anything else |
 
 A `batch_invalid` error also lists every failed line:
@@ -54,23 +56,23 @@ A `batch_invalid` error also lists every failed line:
 ## Records
 
 - **Plan:** `{slug, title, state ("shaping"|"active"|"done"), created, updated, summary?, doc?}`. A new plan is `shaping`; `plan agree` (the human) makes it `active`, and `plan close` makes it `done`. A shaping plan takes captures and inbox entries but refuses phases and committed items (`invalid_state`) until it is agreed.
-- **Phase:** `{id, plan, title, needs?, from?, created, updated, summary?, doc?}`. `from` is the inbox entry (e.g. an idea) it was promoted from. `needs` are the phases it waits for: needs exist between phases only. (A need on an item, from before Model v2, still counts until `mull migrate` converts it.)
+- **Phase:** `{id, plan, title, needs?, from?, created, updated, summary?, doc?}`. `from` is the inbox entry (e.g. an idea) it was promoted from. `needs` are the phases it waits for: needs exist between phases only. (A need on an item, from before Model v2, still counts until `mull migrate` makes it a need on that item's phase.)
 - **Docs:** `doc` is a plan's or phase's doc, in markdown: a plan's picture, done-when and why the order; a phase's design and done-when. Docs hold intent only, never status: status comes from the records. A doc is kept apart from its record, so changing the record (`summary` included) never makes a new version of the doc. `plan doc` and `phase doc` print it, replace it (`-`) and list its versions (`--log`).
 - **Item:** `{id, plan?, phase?, title, state ("captured"|"committed"|"active"|"in-review"|"done"|"dropped"), kind?, category?, source?, needs?, docs?, claim?, from?, triaged?, created, updated, notes?}`. `from` is the inbox entry (idea, question or loose end) it was made from.
   - **No `plan`** means unplanned work, or (captured) backlog not tagged to a plan.
   - **Captured items** (`mull bug`, `mull idea`) carry `kind` (`"bug"`|`"idea"`), and `category` and `source` when given; `notes` holds the `--detail`. They keep them once committed.
   - **triaged** is when the item was last triaged with the human (`mull triage`). A captured item with no `triaged` is untriaged.
   - **claim:** `{worktree, branch, at, base?}`
-  - **Items have no needs;** items inside a phase are unordered. An item's `needs`, from before Model v2, is kept and shown until `mull migrate` converts it, but no longer affects readiness.
+  - **Items have no needs;** items inside a phase are unordered. An item's `needs`, from before Model v2, is kept and shown until `mull migrate` drops it, but no longer affects readiness.
 - **ItemView:** Item plus `{ready, blocked_by?}`. Ready means committed, in a phase whose needs are done (or in no phase), in a plan that isn't shaping; `blocked_by` lists the phase's needs that aren't done.
 - **PhaseView:** Phase plus `{progress, complete, blocked_by?}`.
 - **Progress:** `{total, captured, untriaged, committed, active, in_review, done, dropped, ready}`. `total` counts committed work (every stage but captured); captured items tagged to the phase or plan are counted only in `captured`, and `untriaged` counts those of them not triaged yet.
 - **Entry** (inbox): `{id, kind ("decision"|"question"|"review"|"loose-end"|"idea"), text, plan, item?, source?, by, created, settled?, decisions?, detail?}`. `plan` is `""` for an entry about the whole project or an unplanned item.
   - **settled:** `{action ("accept"|"decide"|"do"|"drop"|"park"), note?, item?, phase?, by, on_request?, at}`. `item` or `phase` is what `do` made.
   - **decisions** (reviews only): the IDs of the decision entries the review carries: every unsettled, unparked decision on its item when `mull done` filed it. Accepting the review ratifies those still unsettled (settled note `with review <id>`). Decide one differently first with `decide <id>`; sending the review back leaves them open, and the next `done` carries them again.
-  - **Loose ends and inbox ideas** (`kind: "loose-end"`, `"idea"`) are retired: captured items replaced them, and nothing files them any more. Existing ones are kept until `mull migrate` converts them: listed only by `inbox --kind loose-end|idea`, counted in the view's `legacy`, never in `needs_you`, and settled as before (an idea's `text` is its title and `detail` its note).
+  - **Loose ends and inbox ideas** (`kind: "loose-end"`, `"idea"`) are retired: captured items replaced them, and nothing files them any more. Existing ones are kept until `mull migrate` turns them into captured ideas: listed only by `inbox --kind loose-end|idea`, counted in the view's `legacy`, never in `needs_you`, and settled as before (an idea's `text` is its title and `detail` its note).
 - **Report** (done report): `{item, n, passed, override?, commit, base?, at, by, summary, tour?, checks (as `check` prints it, without `cached`), changes?: [{layer, files: [{status, path, added, removed}]}], design?, decisions?: [{id, text, detail?}]}`. What was built (`summary`, `tour`, `checks`) and how (`design`, `decisions`, `changes`). `design` is the design notes, present on every report since `done` required them; `decisions` are the decisions the review carries, as they were when `done` ran.
-- **Config:** `{integration, release, remote, done_checks: [], layers: {name: [globs]}}`
+- **Config:** `{format, integration, release, remote, done_checks: [], layers: {name: [globs]}}`. `format` is the data's storage format: `2` (Model v2) once migrated, and in every repository `mull init` made since; `1` for data from before Model v2, which mull reads but won't write until `mull migrate`.
 
 Times are RFC 3339 in UTC. IDs are 4 hex characters; plans use their slug.
 
@@ -90,7 +92,7 @@ Times are RFC 3339 in UTC. IDs are 4 hex characters; plans use their slug.
 | `triage` | `{items: [ItemView]}`: the captured items stamped `triaged`. Needs `--on-request`; given IDs must be captured items |
 | `show` | `{type: "plan"\|"phase"\|"item"\|"entry", <type>: …}`. A plan is shown as in `plan show`, a phase as PhaseView + `{items}`, an item as ItemView, an entry as Entry |
 | `list`, `ready` | `{items: [ItemView]}`. `list --plan none` selects items with no plan; `--kind bug\|idea` selects captured kinds; `--untriaged` selects captured items not triaged yet |
-| `set` | `{type: "plan"\|"phase"\|"item", plan?: Plan, phase?: PhaseView, item?: ItemView}`. Item fields: `title`, `notes`, `category`, `phase`, `doc`, and for a captured item `plan` (`none` untags it; a new plan leaves the old phase behind). A captured item set to a phase in another plan moves to that plan; `plan` on any other item fails with `invalid_state` |
+| `set` | `{type: "plan"\|"phase"\|"item", plan?: Plan, phase?: PhaseView, item?: ItemView}`. Item fields: `title`, `notes`, `category`, `phase`, `doc`, and for a captured item `plan` (`none` untags it; a new plan leaves the old phase behind) and `kind` (`bug` or `idea`). A captured item set to a phase in another plan moves to that plan; `plan` or `kind` on any other item fails with `invalid_state` |
 | `need`, `unneed` | `{type: "phase", phase: PhaseView}`. Only a phase has needs, and only on phases; on an item they fail with `not_allowed` |
 | `start` | `{item: ItemView, warnings: []}`. Starting a blocked item is allowed with a warning. A captured item tagged to a shaping plan can't be started (`invalid_state`), since starting commits it |
 | `decided`, `ask` | Entry |
@@ -102,11 +104,12 @@ Times are RFC 3339 in UTC. IDs are 4 hex characters; plans use their slug.
 | `drop` | `{entries: [Entry], items: [ItemView]}` |
 | `decisions` | `{decisions: [{id, plan, item?, kind, context, decision, by, on_request?, at}]}`, newest first |
 | `config`, `config set\|checks\|layer` | Config |
-| `view` | `{generated, integration, integration_found, release, ahead_of_release, plans: [Board], untriaged, last_triage?, unlinked_commits_this_week, unlinked_recent?, unplanned?: Board, legacy?: {loose_ends, ideas}}`. `unplanned` is a Board (slug `""`, title `"Unplanned"`, no `state`) for items with no plan and entries with no plan, present when there are any. `untriaged` counts the whole project's untriaged captured items (with `--plan` too), and `last_triage` is the latest `triaged` stamp on any item; each Board's `progress` counts its own. `legacy` counts open loose ends and inbox ideas until `mull migrate`. `plans` holds the active plans, then the shaping ones; a done plan only with `--plan`. Board: `{slug, title, state?, progress, phases: [{id, title, progress, complete, blocked_by?}], unfiled: Progress, problems: [{kind, item, text}], in_flight: [{id, title, state, worktree?, branches?, commits, last_activity?}], needs_you: {reviews, decisions, questions, older_than_a_week, parked}}`. Problem kinds: `idle-claim`, `unclaimed-work`, `done-not-in-git`, `failed-done` |
-| `context` | `{worktree, branch, protocol: [], item?: …, my_claims: [], plans: [], ready: [], active: [], decisions: []}`. `plans` are the shaping and active plans: `{slug, title, state, phases?}`. `item` is the ItemView plus `phase_title?`, `phase_summary?`, `phase_doc?` (its phase's doc), `open_questions?`, `item_decisions?`, `last_report?`, `last_report_passed?` |
+| `view` | `{generated, integration, integration_found, release, ahead_of_release, plans: [Board], untriaged, last_triage?, unlinked_commits_this_week, unlinked_recent?, unplanned?: Board, legacy?: {loose_ends, ideas}, format, migration_required?}`. `format` is the data's storage format (as in Config); `migration_required` is `true` while writes are refused until `mull migrate`. `unplanned` is a Board (slug `""`, title `"Unplanned"`, no `state`) for items with no plan and entries with no plan, present when there are any. `untriaged` counts the whole project's untriaged captured items (with `--plan` too), and `last_triage` is the latest `triaged` stamp on any item; each Board's `progress` counts its own. `legacy` counts open loose ends and inbox ideas until `mull migrate`. `plans` holds the active plans, then the shaping ones; a done plan only with `--plan`. Board: `{slug, title, state?, progress, phases: [{id, title, progress, complete, blocked_by?}], unfiled: Progress, problems: [{kind, item, text}], in_flight: [{id, title, state, worktree?, branches?, commits, last_activity?}], needs_you: {reviews, decisions, questions, older_than_a_week, parked}}`. Problem kinds: `idle-claim`, `unclaimed-work`, `done-not-in-git`, `failed-done` |
+| `context` | `{worktree, branch, protocol: [], item?: …, my_claims: [], plans: [], ready: [], active: [], decisions: []}`. While writes wait for `mull migrate`, `protocol` starts with a line saying so. `plans` are the shaping and active plans: `{slug, title, state, phases?}`. `item` is the ItemView plus `phase_title?`, `phase_summary?`, `phase_doc?` (its phase's doc), `open_questions?`, `item_decisions?`, `last_report?`, `last_report_passed?` |
 | `check` | `{tree, commit, at, by, passed, results: [{command, exit, duration_ms, tail?}], cached}` |
 | `done` | `{report: Report, report_path, item: ItemView, review_entry?, reminder?}`. `--design` is required; only one of `--summary`, `--tour` and `--design` can be `-` (stdin) |
 | `report` | `{report: Report, text}`. `text` is the markdown rendering |
+| `migrate` | `{dry_run, format_before, format, changed, commit?, counts: {plans, phases, items, entries, docs, captured, needs}, records: [{type, id, path, from?, changes: []}], captured: [{item, kind, title, plan?, entry, entry_kind, was}], needs: [{type, id, need, action, to?, reason}], warnings: []}`. See "Migrating to Model v2" below. `records` are the existing records it changes (`type` `"config"`\|`"plan"`\|`"phase"`\|`"item"`\|`"entry"`; `path` where it's stored after, `from` where it was when it moves), with each change as a line of text; `captured` are the loose ends and inbox ideas it makes captured items (`kind` `"idea"`, `was` `"open"`\|`"parked"`); `needs` are the needs it converts (`action` `"converted"`, `to` the phase needed now) or drops (`"dropped"`). `changed` is `false` when there is nothing to do; `commit` is the mull branch after a real run that wrote. `--text` renders it for the human |
 | `sync` | `{remote, action ("up-to-date"\|"pushed"\|"pulled"\|"merged"\|"cloned"), local, remote_before?, pushed_commits, dry_run?, commands?}` |
 | `guide` | `{guide, text}` |
 | `batch` | `[{line, op, ref?, id?, result}]`, one per input line in order. `result` is exactly what that op's command prints, and `id` is what `@ref` names |
@@ -150,4 +153,15 @@ Times are RFC 3339 in UTC. IDs are 4 hex characters; plans use their slug.
 | `config checks` | `commands` |
 | `config layer` | `name`, `globs` |
 
-`init`, `sync`, `check` and `done` are not batch ops: they reach outside the mull branch.
+`init`, `sync`, `check` and `done` are not batch ops: they reach outside the mull branch. Nor is `migrate`, which reaches across every record.
+
+## Migrating to Model v2
+
+Data from before Model v2 is **format 1** (`config` shows `format: 1`). mull reads it correctly, but refuses every write with `migration_required` until it is migrated. `mull migrate --dry-run` (add `--text` to show the human) prints exactly what would change and writes nothing. The real run is the human's call: `mull migrate --on-request`, which fails with `not_allowed` without the flag. It writes one commit, and run again it changes nothing. It:
+
+- **rewrites the format:** phases move from `epics/` to `phases/` (their docs from `docs/epics/` to `docs/phases/`, keeping their `--log` history), items store their stage and phase under Model v2 names, a done plan is stored as `done`, and config records `format: 2`;
+- **captures loose ends and inbox ideas:** each open or parked one becomes a captured item of kind `idea` (title, `detail` as notes, `source`, its plan, `from` the entry), and the entry is settled `do`, pointing at it. Re-kind the bugs among them with `mull set <id> kind bug`. Settled ones stay as they are;
+- **converts needs:** a phase's need on an item becomes a need on that item's phase, or is dropped when the item is done or dropped, has no phase, is in the same phase, or the need would make a cycle. Items' needs are dropped, and an unfinished item keeps them in its notes;
+- **on the first migration only:** retires the standing `general` plan (it becomes `done`, its items unplanned and its entries project-wide; a `general` plan with phases stays as it is, with a warning), and gives each plan and phase with a `summary` and no doc a doc stub holding the summary (the summary stays).
+
+Records in format 1 that reach migrated data later, merged in by `sync` from a machine still on an older mull, block writes again with `migration_required`; `mull migrate` converts them.

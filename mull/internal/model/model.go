@@ -34,21 +34,48 @@ const NoPlan = "none"
 // Stages lists every item stage, in order.
 var Stages = []string{StateCaptured, StateCommitted, StateActive, StateInReview, StateDone, StateDropped}
 
-// Item stages are stored under their pre-Model v2 names until the Model v2
-// migration rewrites them, so the file format is unchanged. Stored "done"
-// means in review, so the two vocabularies must never be mixed on disk.
-var (
-	storedState = map[string]string{
-		StateCommitted: "open",
-		StateInReview:  "done",
-		StateDone:      "accepted",
+// Format is the storage format this mull writes, recorded as format in
+// config.yml. Format 1 (a config with no format) is the layout from before
+// Model v2: phases under epics/ and an item's phase under epic:, item stages
+// under state: with the old names (open, done, accepted for committed, in
+// review, done), and a done plan stored as closed. Format 2 is Model v2's:
+// phases under phases/, an item's phase under phase: and its stage under
+// stage:, and a done plan stored as done. mull migrate converts a repository
+// from 1 to 2.
+//
+// Every record shows its own format (a format 1 item has a state: key, a
+// format 2 item a stage: key), so a stored "done" is never ambiguous.
+// Format 1 records are still read correctly, and marked Legacy, but mull
+// writes only format 2.
+const Format = 2
+
+// legacyState maps a format 1 item stage to its Model v2 name.
+var legacyState = map[string]string{
+	"open":     StateCommitted,
+	"done":     StateInReview,
+	"accepted": StateDone,
+}
+
+// LegacyStage returns the Model v2 name of an item stage stored in format 1.
+func LegacyStage(stored string) string {
+	if st, ok := legacyState[stored]; ok {
+		return st
 	}
-	loadedState = map[string]string{
-		"open":     StateCommitted,
-		"done":     StateInReview,
-		"accepted": StateDone,
+	return stored
+}
+
+// hasKey reports whether a YAML mapping node has key.
+func hasKey(node *yaml.Node, key string) bool {
+	if node.Kind != yaml.MappingNode {
+		return false
 	}
-)
+	for k := 0; k+1 < len(node.Content); k += 2 {
+		if node.Content[k].Value == key {
+			return true
+		}
+	}
+	return false
+}
 
 // Plan states: shaping → active → done. A new plan is shaping until the
 // human agrees it; agreeing makes it active, and closing it makes it done.
@@ -58,12 +85,8 @@ const (
 	PlanDone    = "done"
 )
 
-// A done plan is stored as "closed", its pre-Model v2 name, until the Model
-// v2 migration rewrites it; shaping and active are stored as they are.
-var (
-	storedPlanState = map[string]string{PlanDone: "closed"}
-	loadedPlanState = map[string]string{"closed": PlanDone}
-)
+// PlanClosed is how format 1 stored a done plan.
+const PlanClosed = "closed"
 
 // Inbox entry kinds.
 const (
@@ -72,7 +95,7 @@ const (
 	KindReview   = "review"
 	// Loose ends and inbox ideas are retired: captured items (bug, idea)
 	// replaced them. Existing ones are still read, listed with inbox --kind
-	// and settled, until the Model v2 migration converts them.
+	// and settled, until mull migrate converts them.
 	KindLoose = "loose-end"
 	KindIdea  = "idea"
 )
@@ -110,27 +133,19 @@ type Plan struct {
 	// intent only, never status. It is its own file (PlanDocPath), not part
 	// of the record.
 	Doc string `yaml:"-" json:"doc,omitempty"`
+	// Legacy means the record was read in format 1 (see Format).
+	Legacy bool `yaml:"-" json:"-"`
 }
 
-// MarshalYAML stores the plan's state under its stored name.
-func (p Plan) MarshalYAML() (any, error) {
-	type plain Plan
-	q := plain(p)
-	if st, ok := storedPlanState[q.State]; ok {
-		q.State = st
-	}
-	return q, nil
-}
-
-// UnmarshalYAML reads a stored plan state back into its Model v2 name.
+// UnmarshalYAML reads a plan in either format: format 1's "closed" is done.
 func (p *Plan) UnmarshalYAML(node *yaml.Node) error {
 	type plain Plan
 	var q plain
 	if err := node.Decode(&q); err != nil {
 		return err
 	}
-	if st, ok := loadedPlanState[q.State]; ok {
-		q.State = st
+	if q.State == PlanClosed {
+		q.State, q.Legacy = PlanDone, true
 	}
 	*p = Plan(q)
 	return nil
@@ -149,6 +164,8 @@ type Phase struct {
 	// Doc is the phase's doc: its design and done-when; intent only, never
 	// status. It is its own file (PhaseDocPath), not part of the record.
 	Doc string `yaml:"-" json:"doc,omitempty"`
+	// Legacy means the record was read in format 1, from epics/ (see Format).
+	Legacy bool `yaml:"-" json:"-"`
 }
 
 // Claim records which worktree is working on an item.
@@ -166,13 +183,14 @@ type Claim struct {
 // carry a kind (bug or idea), and may carry a free-text category and a
 // source; they keep them once committed. Triaged is when the item was last
 // triaged with the human (mull triage); a captured item without it is
-// untriaged.
+// untriaged. Needs are from before Model v2 only (items have no needs):
+// they are read and shown, and mull migrate removes them.
 type Item struct {
 	ID       string   `yaml:"-" json:"id"`
 	Plan     string   `yaml:"plan,omitempty" json:"plan,omitempty"`
-	Phase    string   `yaml:"epic,omitempty" json:"phase,omitempty"`
+	Phase    string   `yaml:"phase,omitempty" json:"phase,omitempty"`
 	Title    string   `yaml:"title" json:"title"`
-	State    string   `yaml:"state" json:"state"`
+	State    string   `yaml:"stage" json:"state"`
 	Kind     string   `yaml:"kind,omitempty" json:"kind,omitempty"`
 	Category string   `yaml:"category,omitempty" json:"category,omitempty"`
 	Source   string   `yaml:"source,omitempty" json:"source,omitempty"`
@@ -184,27 +202,33 @@ type Item struct {
 	Created  string   `yaml:"created" json:"created"`
 	Updated  string   `yaml:"updated" json:"updated"`
 	Notes    string   `yaml:"-" json:"notes,omitempty"`
+	// Legacy means the record was read in format 1 (see Format).
+	Legacy bool `yaml:"-" json:"-"`
 }
 
-// MarshalYAML stores the item's stage under its stored name.
-func (i Item) MarshalYAML() (any, error) {
-	type plain Item
-	p := plain(i)
-	if st, ok := storedState[p.State]; ok {
-		p.State = st
-	}
-	return p, nil
-}
-
-// UnmarshalYAML reads a stored stage back into its Model v2 name.
+// UnmarshalYAML reads an item in either format. A format 1 item keeps its
+// stage under state: with the old names, and its phase under epic:.
 func (i *Item) UnmarshalYAML(node *yaml.Node) error {
 	type plain Item
 	var p plain
 	if err := node.Decode(&p); err != nil {
 		return err
 	}
-	if st, ok := loadedState[p.State]; ok {
-		p.State = st
+	if hasKey(node, "state") || hasKey(node, "epic") {
+		var old struct {
+			State string `yaml:"state"`
+			Epic  string `yaml:"epic"`
+		}
+		if err := node.Decode(&old); err != nil {
+			return err
+		}
+		if !hasKey(node, "stage") {
+			p.State = LegacyStage(old.State)
+		}
+		if p.Phase == "" {
+			p.Phase = old.Epic
+		}
+		p.Legacy = true
 	}
 	*i = Item(p)
 	return nil
@@ -214,11 +238,36 @@ func (i *Item) UnmarshalYAML(node *yaml.Node) error {
 type Settlement struct {
 	Action    string `yaml:"action" json:"action"`
 	Note      string `yaml:"note,omitempty" json:"note,omitempty"`
-	Item      string `yaml:"item,omitempty" json:"item,omitempty"`  // the item created by "do"
-	Phase     string `yaml:"epic,omitempty" json:"phase,omitempty"` // the phase created by "do --as phase"
+	Item      string `yaml:"item,omitempty" json:"item,omitempty"`   // the item created by "do"
+	Phase     string `yaml:"phase,omitempty" json:"phase,omitempty"` // the phase created by "do --as phase"
 	By        string `yaml:"by" json:"by"`
 	OnRequest bool   `yaml:"on_request,omitempty" json:"on_request,omitempty"`
 	At        string `yaml:"at" json:"at"`
+	// Legacy means it was read in format 1, with its phase under epic:.
+	Legacy bool `yaml:"-" json:"-"`
+}
+
+// UnmarshalYAML reads a settlement in either format.
+func (st *Settlement) UnmarshalYAML(node *yaml.Node) error {
+	type plain Settlement
+	var p plain
+	if err := node.Decode(&p); err != nil {
+		return err
+	}
+	if hasKey(node, "epic") {
+		var old struct {
+			Epic string `yaml:"epic"`
+		}
+		if err := node.Decode(&old); err != nil {
+			return err
+		}
+		if p.Phase == "" {
+			p.Phase = old.Epic
+		}
+		p.Legacy = true
+	}
+	*st = Settlement(p)
+	return nil
 }
 
 // Entry is an inbox entry: something that needs the human.
@@ -241,6 +290,9 @@ type Entry struct {
 
 // Config is per-repository configuration.
 type Config struct {
+	// Format is the storage format (see Format). A config without one is
+	// format 1; mull reports it as 1.
+	Format      int                 `yaml:"format,omitempty" json:"format"`
 	Integration string              `yaml:"integration" json:"integration"`
 	Release     string              `yaml:"release" json:"release"`
 	Remote      string              `yaml:"remote" json:"remote"`
@@ -312,13 +364,18 @@ type Report struct {
 
 // Paths of records on the mull branch.
 func PlanPath(slug string) string { return "plans/" + slug + ".md" }
-func PhasePath(id string) string  { return "epics/" + id + ".md" }
+func PhasePath(id string) string  { return "phases/" + id + ".md" }
 func ItemPath(id string) string   { return "items/" + id + ".md" }
 func EntryPath(id string) string  { return "inbox/" + id + ".md" }
 func ReportPath(item string, n int) string {
 	return fmt.Sprintf("reports/%s-%d.md", item, n)
 }
 func CheckPath(tree string) string { return "checks/" + tree + ".json" }
+
+// LegacyPhasePath is where format 1 kept a phase, and LegacyPhaseDocPath its
+// doc.
+func LegacyPhasePath(id string) string    { return "epics/" + id + ".md" }
+func LegacyPhaseDocPath(id string) string { return "docs/" + LegacyPhasePath(id) }
 
 // Docs are plain markdown files, one per plan or phase, kept apart from the
 // records so a doc's history holds only its own versions. A doc's path is
@@ -328,11 +385,13 @@ func PhaseDocPath(id string) string  { return "docs/" + PhasePath(id) }
 
 const ConfigPath = "config.yml"
 
+// dataPaths are the paths records may occupy, in either format: a migrated
+// branch's history still holds format 1's epics/ and docs/epics/.
 var dataPaths = []*regexp.Regexp{
 	regexp.MustCompile(`^config\.yml$`),
 	regexp.MustCompile(`^(docs/)?plans/[a-z][a-z0-9]*(-[a-z0-9]+)*\.md$`),
-	regexp.MustCompile(`^(epics|items|inbox)/[0-9a-f]{4}\.md$`),
-	regexp.MustCompile(`^docs/epics/[0-9a-f]{4}\.md$`),
+	regexp.MustCompile(`^(phases|epics|items|inbox)/[0-9a-f]{4}\.md$`),
+	regexp.MustCompile(`^docs/(phases|epics)/[0-9a-f]{4}\.md$`),
 	regexp.MustCompile(`^reports/[0-9a-f]{4}-[0-9]+\.md$`),
 	regexp.MustCompile(`^checks/[0-9a-f]{40}([0-9a-f]{24})?\.json$`),
 }
