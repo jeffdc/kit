@@ -1,0 +1,29 @@
+/* The placeholder page. The real UI (drawing-set direction, self-hosted
+   Archivo and Red Hat Mono) replaces this. */
+:root {
+  color-scheme: light dark;
+  --ground: #fff;
+  --ink: #1b1f24;
+  --muted: #5d6670;
+  --rule: #1b1f24;
+  --minor: #b8cbe0;
+  --red: #c8102e;
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --ground: #1c2026; --ink: #e6e9ed; --muted: #9aa4af; --rule: #e6e9ed; --minor: #3a4a5e; --red: #ff6b6b; }
+}
+body { margin: 0; background: var(--ground); color: var(--ink); }
+.title { border-bottom: 1.5px solid var(--rule); padding: 16px 24px 12px; }
+h1 { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -0.01em; }
+main { padding: 16px 24px; }
+.lab { margin: 4px 0 0; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
+.wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; border: 1.5px solid var(--rule); }
+th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--minor); }
+th { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); border-bottom: 1px solid var(--rule); }
+.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.meta { display: block; color: var(--muted); font-size: 12px; }
+code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; }
+.mut { color: var(--muted); }
+tr.bad td { color: var(--red); }

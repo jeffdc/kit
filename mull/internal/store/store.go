@@ -254,6 +254,9 @@ func (t *Tx) List(prefix string) []string {
 	return out
 }
 
+// Commit is the mull branch commit this transaction read.
+func (t *Tx) Commit() string { return t.snap.Commit }
+
 func (t *Tx) changed() bool { return len(t.puts) > 0 || len(t.dels) > 0 }
 
 // View runs fn against the current snapshot without writing.

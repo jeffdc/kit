@@ -100,6 +100,25 @@ func (m *Mull) logCommits(args ...string) ([]commitInfo, error) {
 	return commits, nil
 }
 
+// aheadOfRelease counts the commits on the integration branch (at integ)
+// that the release branch doesn't have; 0 when they are the same branch or
+// the release branch is missing.
+func (m *Mull) aheadOfRelease(s *state, integration, integ string) int {
+	rel := s.config.Release
+	if rel == "" || rel == integration {
+		return 0
+	}
+	relSha, _ := m.repo.RefCommit("refs/heads/" + rel)
+	if relSha == "" {
+		return 0
+	}
+	n, err := m.repo.Output(nil, nil, "rev-list", "--count", integ, "--not", relSha)
+	if err != nil {
+		return 0
+	}
+	return atoi(n)
+}
+
 // readGit derives git links for the items in s. A missing integration branch
 // is reported, not fatal: the view still works from mull's own records.
 func (m *Mull) readGit(s *state) (*gitState, error) {
@@ -155,14 +174,7 @@ func (m *Mull) readGit(s *state) (*gitState, error) {
 			}
 			sha = c.parents[0]
 		}
-		if rel := s.config.Release; rel != "" && rel != g.Integration {
-			if relSha, _ := m.repo.RefCommit("refs/heads/" + rel); relSha != "" {
-				n, err := m.repo.Output(nil, nil, "rev-list", "--count", integ, "--not", relSha)
-				if err == nil {
-					g.AheadOfRelease = atoi(n)
-				}
-			}
-		}
+		g.AheadOfRelease = m.aheadOfRelease(s, g.Integration, integ)
 	}
 
 	// Unmerged work on other local branches.

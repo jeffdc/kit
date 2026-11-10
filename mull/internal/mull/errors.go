@@ -39,6 +39,7 @@ const (
 	CodeRetired            = "retired"             // the command or op was retired; the message names its replacement
 	CodeMigrationRequired  = "migration_required"  // the data is from before Model v2: writes wait for mull migrate
 	CodeUnsupportedFormat  = "unsupported_format"  // the data is in a newer format than this mull understands
+	CodePortInUse          = "port_in_use"         // mull serve's port is taken (another mull serve?)
 	CodeInternal           = "internal"            // anything else
 )
 

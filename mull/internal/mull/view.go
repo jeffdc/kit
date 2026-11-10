@@ -263,28 +263,34 @@ func (s *state) board(p *model.Plan, g *gitState, now time.Time) PlanBoard {
 		if e.Plan != p.Slug {
 			continue
 		}
-		if retiredKind(e.Kind) {
-			continue // counted in the view's legacy
-		}
-		if e.Settled != nil {
-			if e.Settled.Action == model.ActPark {
-				b.NeedsYou.Parked++
-			}
-			continue
-		}
-		switch e.Kind {
-		case model.KindReview:
-			b.NeedsYou.Reviews++
-		case model.KindDecision:
-			b.NeedsYou.Decisions++
-		case model.KindQuestion:
-			b.NeedsYou.Questions++
-		}
-		if c, ok := parseTime(e.Created); ok && now.Sub(c) > olderInboxAfter {
-			b.NeedsYou.Older++
-		}
+		b.NeedsYou.add(e, now)
 	}
 	return b
+}
+
+// add counts e if it needs the human, or is parked. Retired kinds are
+// counted only in the view's legacy.
+func (n *NeedsYou) add(e *model.Entry, now time.Time) {
+	if retiredKind(e.Kind) {
+		return
+	}
+	if e.Settled != nil {
+		if e.Settled.Action == model.ActPark {
+			n.Parked++
+		}
+		return
+	}
+	switch e.Kind {
+	case model.KindReview:
+		n.Reviews++
+	case model.KindDecision:
+		n.Decisions++
+	case model.KindQuestion:
+		n.Questions++
+	}
+	if c, ok := parseTime(e.Created); ok && now.Sub(c) > olderInboxAfter {
+		n.Older++
+	}
 }
 
 // latestReport returns the item's highest-numbered done report, if any.

@@ -127,3 +127,14 @@ func (r *Repo) Worktree() string {
 	}
 	return r.Dir
 }
+
+// MainWorktree returns the repository's main working tree: the same path from
+// any of its linked worktrees. A bare repository has none, so it falls back
+// to this working tree.
+func (r *Repo) MainWorktree() string {
+	common, err := r.Output(nil, nil, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	if err != nil || filepath.Base(common) != ".git" {
+		return r.Worktree()
+	}
+	return filepath.Dir(common)
+}

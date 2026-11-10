@@ -11,8 +11,11 @@ import (
 )
 
 // Isolate points git at no global or system config and sets a fixed identity.
+// It also gives mull a fresh config directory, so the repo registry
+// (internal/registry) never sees the user's own.
 func Isolate(t *testing.T) {
 	t.Helper()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
 	t.Setenv("GIT_CONFIG_SYSTEM", os.DevNull)
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")

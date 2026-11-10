@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"mull/internal/mull"
+	"mull/internal/registry"
 )
 
 // Version is set at build time.
@@ -69,7 +70,11 @@ func Execute(args []string, dir string, stdin io.Reader, stdout, stderr io.Write
 	root.SetArgs(args)
 	root.SetOut(stdout)
 	root.SetErr(stderr)
-	if err := root.Execute(); err != nil {
+	err := root.Execute()
+	// Every command registers its repository for mull serve (after running,
+	// so init counts). It is best effort and never fails the command.
+	_ = registry.Register(dir)
+	if err != nil {
 		b, _ := json.Marshal(classify(err))
 		fmt.Fprintln(stderr, string(b))
 		return 1
@@ -113,7 +118,7 @@ Shapes and error codes: mull guide json. Many writes at once: mull batch.`,
 		retiredCmd("loose", `capture it as an item with mull bug "..." or mull idea "..." (--source says where it came from)`),
 		retiredCmd("ideas", "captured ideas are items (mull list --kind idea); older inbox ideas: mull inbox --kind idea"),
 		inboxCmd(a), acceptCmd(a), decideCmd(a), doCmd(a), parkCmd(a),
-		decisionsCmd(a),
+		decisionsCmd(a), serveCmd(a),
 	)
 	return root
 }
