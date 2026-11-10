@@ -232,7 +232,7 @@ func phaseCmd(a *app) *cobra.Command {
 	}
 	add.Flags().StringVar(&in.Plan, "plan", "", "plan slug")
 	add.Flags().StringVar(&in.Summary, "summary", "", "summary (- reads stdin)")
-	add.Flags().StringSliceVar(&needs, "needs", nil, "items or phases this phase needs")
+	add.Flags().StringSliceVar(&needs, "needs", nil, "phases this phase needs")
 
 	var listPlan string
 	list := &cobra.Command{
@@ -269,9 +269,10 @@ func addCmd(a *app) *cobra.Command {
 	}
 	c.Flags().StringVar(&in.Plan, "plan", "", "plan slug (not needed with --phase; none: unplanned work)")
 	c.Flags().StringVar(&in.Phase, "phase", "", "phase ID")
-	c.Flags().StringSliceVar(&needs, "needs", nil, "items or phases this item needs")
+	c.Flags().StringSliceVar(&needs, "needs", nil, "refused: items have no needs; phases need phases")
 	c.Flags().StringVar(&in.Notes, "notes", "", "short notes (- reads stdin)")
 	c.Flags().StringArrayVar(&docs, "doc", nil, "path of a related document (repeatable)")
+	_ = c.Flags().MarkHidden("needs") // kept only to refuse it with a clear message
 	return c
 }
 
@@ -305,7 +306,7 @@ func listCmd(a *app) *cobra.Command {
 func readyCmd(a *app) *cobra.Command {
 	var f mull.ItemFilter
 	c := &cobra.Command{
-		Use: "ready", Short: "List items ready to start (committed, with every need finished)", Args: noArgs,
+		Use: "ready", Short: "List items ready to start (committed, in a phase whose needs are done)", Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f.ReadyOnly = true
 			return a.read(func(m *mull.Mull) (any, error) {
@@ -334,9 +335,9 @@ func setCmd(a *app) *cobra.Command {
 }
 
 func needCmd(a *app, add bool) *cobra.Command {
-	use, short, op := "need <id> <needs...>", "Record that an item or phase needs other items or phases", "need"
+	use, short, op := "need <phase> <phases...>", "Record that a phase needs other phases (items have no needs)", "need"
 	if !add {
-		use, short, op = "unneed <id> <needs...>", "Remove needs", "unneed"
+		use, short, op = "unneed <phase> <phases...>", "Remove a phase's needs", "unneed"
 	}
 	return &cobra.Command{
 		Use: use, Short: short, Args: atLeast(2),

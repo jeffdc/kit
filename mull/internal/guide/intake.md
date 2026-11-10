@@ -4,7 +4,7 @@ You're setting this project up in mull, **together with the human**. The human m
 
 Use the mull CLI for everything you record. Read old material directly: old `.mull/matters/*.md` files, docs, and git history are plain files you may read.
 
-**Record with `mull batch`, not shell loops.** Write the approved records as JSON Lines, and check them with `mull batch --dry-run < file.jsonl`. Then run `mull batch < file.jsonl`. A batch is all or nothing: if any line fails, nothing is written and every failed line is reported, so fix those and run it again. Field names are the command's flag names, and `mull guide json` lists every op's fields. Give a line a `"ref"`, and later lines can use `"@ref"` for its ID. That's how phases, items that need other new items, and inbox entries about new items go in one batch.
+**Record with `mull batch`, not shell loops.** Write the approved records as JSON Lines, and check them with `mull batch --dry-run < file.jsonl`. Then run `mull batch < file.jsonl`. A batch is all or nothing: if any line fails, nothing is written and every failed line is reported, so fix those and run it again. Field names are the command's flag names, and `mull guide json` lists every op's fields. Give a line a `"ref"`, and later lines can use `"@ref"` for its ID. That's how phases that need other new phases, items in new phases, and inbox entries about new items go in one batch.
 
 ## 1. Look around (read only)
 - **Old mull data:** read `.mull/matters/*.md` (YAML frontmatter plus a body), `.mull/docket.yml`, and `.mull/archive/` if present. Note each matter's status, epic, links (`parent`, `needs`, `blocks`, `relates`) and size.
@@ -30,12 +30,12 @@ Then run `mull init --integration <branch> --release <branch>`. Config can go in
 
 ## 3. Plans and phases (propose, then record)
 - **Plans.** Propose one plan per large effort (from the hub documents), using a plain-English slug. Small, unrelated work is unplanned (`--plan none`).
-- **Phases.** For each plan, propose phases: big pieces, in roughly the order they must happen. Add `--needs` between phases only where one truly must finish first.
+- **Phases.** For each plan, propose phases: big pieces, in roughly the order they must happen. Add `--needs` between phases only where one truly must finish first. Needs exist between phases only: items inside a phase are unordered, so work that must wait for other work goes in a later phase.
 - **Show the human the whole outline** (plans, then phases, with needs) and adjust until they approve. Then record it in a batch (see the example below).
 
 ## 4. Items for work in flight or ready
 - **What gets an item.** Only work that's in flight, ready, or clearly next. Each item must be something **one agent can finish in one session**; split anything bigger.
-- **Fields.** Give each item a clear title, `--phase`, `--needs` where there's a real dependency, and `--doc` for any design document an agent must read.
+- **Fields.** Give each item a clear title, `--phase`, and `--doc` for any design document an agent must read. Items have no needs; an old matter's `needs` on another matter becomes phase order (or a note) when the two can't run side by side.
 - **Notes.** Notes are short. Don't copy long prose; link the document instead.
 - **Source.** Each item's notes must cite where it came from, e.g. "From matter 9449, 'Order to release' step 3".
 - **Status from the old data is a claim.** Where old notes say something is done, check git before treating it as done. If you can't confirm it, file it as a question.
@@ -57,7 +57,7 @@ Plan, phases, items and inbox entries in one go. `@` refs point at records creat
 {"op": "phase add", "ref": "billing", "plan": "@p", "title": "Billing", "summary": "Stripe first."}
 {"op": "phase add", "ref": "onboard", "plan": "@p", "title": "Onboarding", "needs": ["@billing"]}
 {"op": "add", "ref": "hook", "phase": "@billing", "title": "Stripe webhook handler", "notes": "From matter 9449, 'Order to release' step 3.", "doc": ["docs/billing.md"]}
-{"op": "add", "ref": "inv", "phase": "@billing", "title": "Invoices page", "needs": ["@hook"]}
+{"op": "add", "ref": "welcome", "phase": "@onboard", "title": "Welcome flow for paid accounts"}
 {"op": "decided", "item": "@hook", "text": "Store raw webhook payloads", "detail": "Replay after outages", "source": "matter 50ff, For review"}
 {"op": "ask", "plan": "@p", "text": "Monthly or annual plans first?", "source": "matter 50ff, Open"}
 {"op": "bug", "plan": "@p", "text": "Branch quercus-leafminer-key: 2 commits ahead, last touched 2026-09-08", "source": "git"}

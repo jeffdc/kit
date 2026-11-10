@@ -101,7 +101,7 @@ func TestOutputShapes(t *testing.T) {
 	checkKeys(t, "phase list[0]", first(t, "phases", el["phases"]), phaseViewKeys)
 
 	a := shape(itemViewKeys, "add", "Webhook", "--phase", id(phase), "--doc", "docs/a.md")
-	b := shape(itemViewKeys, "add", "Invoices", "--phase", id(phase), "--needs", id(a))
+	b := shape(itemViewKeys, "add", "Invoices", "--phase", id(phase))
 	ps := shape(planKeys.plus(keys{[]string{"progress", "phases", "items"}, nil}), "plan", "show", "launch")
 	checkKeys(t, "plan show.progress", ps["progress"], progressKeys)
 	checkKeys(t, "plan show.phases[0]", first(t, "phases", ps["phases"]), phaseViewKeys)
@@ -129,10 +129,11 @@ func TestOutputShapes(t *testing.T) {
 	checkKeys(t, "set.phase", set["phase"], phaseViewKeys)
 
 	c := shape(itemViewKeys, "add", "Copy", "--plan", "launch")
-	nd := shape(keys{[]string{"type"}, []string{"item", "phase"}}, "need", id(c), id(a))
-	checkKeys(t, "need.item", nd["item"], itemViewKeys)
-	nd = shape(keys{[]string{"type"}, []string{"item", "phase"}}, "unneed", id(c), id(a))
-	checkKeys(t, "unneed.item", nd["item"], itemViewKeys)
+	golive := shape(phaseKeys, "phase", "add", "Go live", "--plan", "launch")
+	nd := shape(keys{[]string{"type", "phase"}, nil}, "need", id(golive), id(phase))
+	checkKeys(t, "need.phase", nd["phase"], phaseViewKeys)
+	nd = shape(keys{[]string{"type", "phase"}, nil}, "unneed", id(golive), id(phase))
+	checkKeys(t, "unneed.phase", nd["phase"], phaseViewKeys)
 
 	st := shape(keys{[]string{"item", "warnings"}, nil}, "start", id(b))
 	checkKeys(t, "start.item", st["item"], itemViewKeys)

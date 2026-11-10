@@ -6,7 +6,7 @@ The record of a program run by you and your agents: its plans, where they stand,
 
 ## What it does
 
-- **Plans → phases → items.** An item is a unit of work one agent completes in one session. Items and phases can *need* each other, and mull works out what's ready and what's blocked.
+- **Plans → phases → items.** An item is a unit of work one agent completes in one session. A phase can *need* other phases (the only ordering; items inside a phase are unordered), and mull works out what's ready and what's blocked.
 - **Claims.** `mull start <id>` claims an item for the current worktree. It's atomic, so two agents can't take the same item.
 - **A backlog of captured items.** `mull bug` and `mull idea` capture an item that isn't committed work: never ready, kept out of a phase's progress. Only the human commits one (`mull commit`), optionally into a plan or phase; work with no plan is unplanned. Older loose ends and inbox ideas stay listed by kind (`mull inbox --kind loose-end|idea`) until `mull migrate` converts them.
 - **One inbox for what needs you:** decisions agents made, questions and reviews. You settle each with one action: accept, decide, do, drop or park. Settled decisions form a log agents read before deciding anything.

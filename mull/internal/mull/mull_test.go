@@ -166,10 +166,12 @@ func TestPlansPhasesItems(t *testing.T) {
 
 func TestReadinessAndUnreviewedIsIncomplete(t *testing.T) {
 	m, _ := setup(t)
-	a := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "general", Title: "A"}))
-	b := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "general", Title: "B", Needs: []string{a.ID}}))
-	if b.Ready || len(b.BlockedBy) != 1 || b.BlockedBy[0] != a.ID {
-		t.Fatalf("B should be blocked by A: %+v", b)
+	p1 := must[*model.Phase](t)(m.PhaseAdd("general", "Phase 1", "", nil))
+	p2 := must[*model.Phase](t)(m.PhaseAdd("general", "Phase 2", "", []string{p1.ID}))
+	a := must[ItemView](t)(m.ItemAdd(NewItem{Phase: p1.ID, Title: "A"}))
+	b := must[ItemView](t)(m.ItemAdd(NewItem{Phase: p2.ID, Title: "B"}))
+	if b.Ready || len(b.BlockedBy) != 1 || b.BlockedBy[0] != p1.ID {
+		t.Fatalf("B should be blocked by phase 1: %+v", b)
 	}
 	ready := must[[]ItemView](t)(m.ItemList(ItemFilter{ReadyOnly: true}))
 	if len(ready) != 1 || ready[0].ID != a.ID {
@@ -202,9 +204,76 @@ func TestPhaseNeeds(t *testing.T) {
 	}
 	// An empty phase is never complete.
 	empty := must[*model.Phase](t)(m.PhaseAdd("general", "Empty", "", nil))
-	z := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "general", Title: "z", Needs: []string{empty.ID}}))
+	p3 := must[*model.Phase](t)(m.PhaseAdd("general", "Phase 3", "", []string{empty.ID}))
+	z := must[ItemView](t)(m.ItemAdd(NewItem{Phase: p3.ID, Title: "z"}))
 	if z.Ready {
 		t.Fatal("needing an empty phase should block")
+	}
+}
+
+func TestNeedsBetweenPhasesOnly(t *testing.T) {
+	m, _ := setup(t)
+	p1 := must[*model.Phase](t)(m.PhaseAdd("general", "Phase 1", "", nil))
+	p2 := must[*model.Phase](t)(m.PhaseAdd("general", "Phase 2", "", nil))
+	a := must[ItemView](t)(m.ItemAdd(NewItem{Phase: p1.ID, Title: "A"}))
+	b := must[ItemView](t)(m.ItemAdd(NewItem{Phase: p1.ID, Title: "B"}))
+
+	// Items have no needs: need and unneed on an item, and add with needs, are refused.
+	_, err := m.Need(b.ID, []string{a.ID})
+	wantCode(t, err, CodeNotAllowed)
+	_, err = m.Unneed(b.ID, []string{a.ID})
+	wantCode(t, err, CodeNotAllowed)
+	_, err = m.Exec("add", &AddIn{Title: "C", Phase: p1.ID, Needs: IDList{a.ID}})
+	wantCode(t, err, CodeNotAllowed)
+	// A phase needs phases, not items.
+	_, err = m.Need(p2.ID, []string{a.ID})
+	wantCode(t, err, CodeNotAllowed)
+	_, err = m.PhaseAdd("general", "Phase 3", "", []string{a.ID})
+	wantCode(t, err, CodeNotAllowed)
+	_, err = m.Need(p2.ID, []string{"ffff"})
+	wantErr(t, err, `no phase "ffff"`)
+	_, err = m.Need("ffff", []string{p1.ID})
+	wantErr(t, err, `no phase "ffff"`)
+	res := must[NeedResult](t)(m.Need(p2.ID, []string{p1.ID}))
+	if res.Type != "phase" || res.Phase == nil || len(res.Phase.BlockedBy) != 1 {
+		t.Fatalf("need = %+v", res)
+	}
+
+	// Items inside a phase are unordered: an item's needs left from before
+	// Model v2 are kept and shown, but no longer hold it back.
+	err = m.update("legacy item need", func(s *state) error {
+		i, err := s.item(b.ID)
+		if err != nil {
+			return err
+		}
+		i.Needs = []string{a.ID}
+		return s.putItem(i)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v := item(t, m, b.ID); !v.Ready || len(v.Needs) != 1 {
+		t.Fatalf("a legacy item need should be kept but not block: %+v", v)
+	}
+	// A phase's needs on an item, also from before, still count, and unneed can clear them.
+	err = m.update("legacy phase need", func(s *state) error {
+		e, err := s.phase(p2.ID)
+		if err != nil {
+			return err
+		}
+		e.Needs = []string{a.ID}
+		return s.putPhase(e)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := must[ItemView](t)(m.ItemAdd(NewItem{Phase: p2.ID, Title: "C"}))
+	if c.Ready || len(c.BlockedBy) != 1 || c.BlockedBy[0] != a.ID {
+		t.Fatalf("C should wait for its phase's legacy need: %+v", c)
+	}
+	must[NeedResult](t)(m.Unneed(p2.ID, []string{a.ID}))
+	if !item(t, m, c.ID).Ready {
+		t.Fatal("unneed did not clear the phase's legacy need")
 	}
 }
 
@@ -302,22 +371,20 @@ func TestListByStage(t *testing.T) {
 
 func TestCyclesRefused(t *testing.T) {
 	m, _ := setup(t)
-	a := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "general", Title: "A"}))
-	b := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "general", Title: "B", Needs: []string{a.ID}}))
-	_, err := m.Need(a.ID, []string{b.ID})
+	p1 := must[*model.Phase](t)(m.PhaseAdd("general", "Phase 1", "", nil))
+	p2 := must[*model.Phase](t)(m.PhaseAdd("general", "Phase 2", "", []string{p1.ID}))
+	p3 := must[*model.Phase](t)(m.PhaseAdd("general", "Phase 3", "", []string{p2.ID}))
+	must[ItemView](t)(m.ItemAdd(NewItem{Phase: p1.ID, Title: "A"}))
+	b := must[ItemView](t)(m.ItemAdd(NewItem{Phase: p2.ID, Title: "B"}))
+	_, err := m.Need(p1.ID, []string{p3.ID})
 	wantErr(t, err, "dependency cycle")
-	_, err = m.Need(a.ID, []string{a.ID})
+	_, err = m.Need(p1.ID, []string{p1.ID})
 	wantErr(t, err, "cannot need itself")
-	// An item that needs its own phase is a cycle too.
-	e := must[*model.Phase](t)(m.PhaseAdd("general", "E", "", nil))
-	c := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "general", Phase: e.ID, Title: "C"}))
-	_, err = m.Need(c.ID, []string{e.ID})
-	wantErr(t, err, "dependency cycle")
 	// A refused change writes nothing.
-	if len(item(t, m, a.ID).Needs) != 0 {
-		t.Fatal("refused need was saved")
+	if ps := must[[]PhaseView](t)(m.PhaseList("general")); len(ps[0].Needs)+len(ps[1].Needs)+len(ps[2].Needs) != 2 {
+		t.Fatalf("refused need was saved: %+v", ps)
 	}
-	must[NeedResult](t)(m.Unneed(b.ID, []string{a.ID}))
+	must[NeedResult](t)(m.Unneed(p2.ID, []string{p1.ID}))
 	if !item(t, m, b.ID).Ready {
 		t.Fatal("unneed did not unblock")
 	}
@@ -340,9 +407,6 @@ func TestClaimsAcrossWorktrees(t *testing.T) {
 	wantErr(t, err, "already claimed by "+wt)
 	must[ItemView](t)(m.Release(a.ID)) // a supervisor may release
 	must[StartResult](t)(m.Start(a.ID))
-
-	_, err = m.ItemAdd(NewItem{Plan: "general", Title: "B", Needs: []string{"ffff"}})
-	wantErr(t, err, `no item or phase "ffff"`)
 }
 
 func TestStartRaceOneWinner(t *testing.T) {
@@ -384,10 +448,12 @@ func TestStartRaceOneWinner(t *testing.T) {
 
 func TestStartBlockedWarns(t *testing.T) {
 	m, _ := setup(t)
-	a := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "general", Title: "A"}))
-	b := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "general", Title: "B", Needs: []string{a.ID}}))
+	p1 := must[*model.Phase](t)(m.PhaseAdd("general", "Phase 1", "", nil))
+	p2 := must[*model.Phase](t)(m.PhaseAdd("general", "Phase 2", "", []string{p1.ID}))
+	must[ItemView](t)(m.ItemAdd(NewItem{Phase: p1.ID, Title: "A"}))
+	b := must[ItemView](t)(m.ItemAdd(NewItem{Phase: p2.ID, Title: "B"}))
 	res := must[StartResult](t)(m.Start(b.ID))
-	if len(res.Warnings) != 1 || !strings.Contains(res.Warnings[0], a.ID) {
+	if len(res.Warnings) != 1 || !strings.Contains(res.Warnings[0], p1.ID) {
 		t.Fatalf("warnings = %v", res.Warnings)
 	}
 }

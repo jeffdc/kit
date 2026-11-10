@@ -40,9 +40,9 @@ func batchErr(t *testing.T, err error) *Error {
 	return e
 }
 
-// TestBatchIntakeSized is the worked example: a plan, 3 phases with needs, 10
-// items with needs (some on items made earlier in the batch) and 20 inbox
-// entries of mixed kinds, as one batch, one commit, every ID returned.
+// TestBatchIntakeSized is the worked example: a plan, 3 phases with needs
+// between them, 10 items in those phases and 20 inbox entries of mixed kinds,
+// as one batch, one commit, every ID returned.
 func TestBatchIntakeSized(t *testing.T) {
 	m, dir := setup(t)
 	var lines []map[string]any
@@ -62,9 +62,6 @@ func TestBatchIntakeSized(t *testing.T) {
 		}
 		l := map[string]any{"op": "add", "ref": fmt.Sprintf("i%d", k), "phase": fmt.Sprintf("@e%d", phase),
 			"title": fmt.Sprintf("Item %d", k), "notes": fmt.Sprintf("From matter 50ff, step %d.", k)}
-		if k > 1 && k%2 == 0 {
-			l["needs"] = []string{fmt.Sprintf("@i%d", k-1)} // needs an item made earlier in this batch
-		}
 		lines = append(lines, l)
 	}
 	kinds := []string{"decided", "ask", "bug"}
@@ -126,12 +123,12 @@ func TestBatchIntakeSized(t *testing.T) {
 		t.Errorf("phase 2 = %+v", e2.Phase)
 	}
 	i4 := item(t, m, created["i4"])
-	if i4.Plan != "taxogall" || len(i4.Needs) != 1 || i4.Needs[0] != created["i3"] || i4.Phase != created["e1"] {
-		t.Errorf("item 4 = %+v", i4.Item)
+	if i4.Plan != "taxogall" || i4.Phase != created["e1"] || !i4.Ready {
+		t.Errorf("item 4 = %+v", i4)
 	}
-	// An item in phase 3 needing one in phase 2, both made in this batch.
-	if i8 := item(t, m, created["i8"]); i8.Phase != created["e3"] || i8.Needs[0] != created["i7"] {
-		t.Errorf("item 8 = %+v", i8.Item)
+	// An item in phase 3 waits for phase 2, both made in this batch.
+	if i8 := item(t, m, created["i8"]); i8.Phase != created["e3"] || i8.Ready || i8.BlockedBy[0] != created["e2"] {
+		t.Errorf("item 8 = %+v", i8)
 	}
 	if n := len(must[[]*model.Entry](t)(m.Inbox(InboxFilter{Plan: "taxogall"}))); n != 13 {
 		t.Errorf("inbox has %d entries for the plan, want 13", n)
@@ -152,7 +149,7 @@ func TestBatchAllOrNothing(t *testing.T) {
 		`{"op": "add", "ref": "a", "phase": "ffff", "title": "bad phase"}`,
 		``,
 		`{"op": "add", "ref": "b", "plan": "@p", "title": "fine"}`,
-		`{"op": "add", "plan": "@p", "title": "needs a failed line", "needs": ["@a"]}`,
+		`{"op": "ask", "item": "@a", "text": "about a failed line"}`,
 		`{"op": "ask", "plan": "@p", "text": "unknown ref", "item": "@nope"}`,
 		`not json`,
 		`{"title": "no op"}`,
@@ -202,13 +199,13 @@ func TestBatchDryRun(t *testing.T) {
 	m, dir := setup(t)
 	before := mullHead(t, dir)
 	input := `{"op": "plan new", "ref": "p", "slug": "launch", "title": "Launch"}
-{"op": "add", "ref": "a", "plan": "@p", "title": "A"}
-{"op": "add", "plan": "@p", "title": "B", "needs": "@a"}`
+{"op": "phase add", "ref": "e", "plan": "@p", "title": "E"}
+{"op": "add", "phase": "@e", "title": "B"}`
 	results, err := m.Batch(strings.NewReader(input), true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(results) != 3 || results[2].Result.(ItemView).Needs[0] != results[1].ID {
+	if len(results) != 3 || results[2].Result.(ItemView).Phase != results[1].ID {
 		t.Fatalf("dry-run results = %+v", results)
 	}
 	if mullHead(t, dir) != before {
