@@ -93,7 +93,7 @@ func TestOutputShapes(t *testing.T) {
 	shape(configKeys, "config", "checks", "true")
 	shape(configKeys, "config", "layer", "ui", "web/**")
 
-	shape(planKeys, "plan", "new", "launch", "Launch", "--summary", "Ship it.")
+	shape(planKeys, "plan", "new", "launch", "Launch", "--on-request", "--summary", "Ship it.")
 	shape(planKeys, "plan", "agree", "launch", "--on-request")
 	pl := shape(keys{[]string{"plans"}, nil}, "plan", "list")
 	checkKeys(t, "plan list[0]", first(t, "plans", pl["plans"]), planKeys.plus(keys{[]string{"progress"}, nil}))

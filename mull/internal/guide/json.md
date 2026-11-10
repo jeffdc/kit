@@ -26,7 +26,7 @@ On failure, mull prints nothing to stdout, prints this to stderr, and exits 1:
 | `invalid_state` | the record is in the wrong state (e.g. accepting an item that isn't done) |
 | `claimed` | the item is claimed by another worktree |
 | `already_settled` | the inbox entry is already settled |
-| `not_allowed` | not allowed (kind rules; a worker accepting its own work; promoting an idea, committing a captured item, triaging or agreeing a plan without `--on-request`; needs on an item, or a phase needing an item) |
+| `not_allowed` | not allowed (kind rules; a worker accepting its own work; promoting an idea, committing a captured item, triaging, creating a plan or agreeing one without `--on-request`; needs on an item, or a phase needing an item) |
 | `dependency_cycle` | the needs would form a cycle |
 | `scope_required` | say which plan or item: `--plan` or `--item` (or `--phase`, or `--plan none` for unplanned work, for `add`) |
 | `tour_required` | UI files changed and no `--tour` was given |
@@ -126,7 +126,7 @@ Times are RFC 3339 in UTC. IDs are 4 hex characters; plans use their slug.
 
 | op | fields |
 |---|---|
-| `plan new` | `slug`, `title`, `summary` |
+| `plan new` | `slug`, `title`, `summary`, `on-request` (required: only the human creates a plan) |
 | `plan agree` | `slug`, `on-request` (required: only the human agrees a plan) |
 | `plan close` | `slug` |
 | `plan doc` | `slug`, `doc` (required: the whole new doc; `""` removes it) |

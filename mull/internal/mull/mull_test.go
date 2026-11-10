@@ -22,7 +22,7 @@ func setup(t *testing.T) (*Mull, string) {
 		t.Fatal(err)
 	}
 	// Init creates no plans; most tests want an agreed one to put work in.
-	if _, err := m.PlanNew("general", "General", ""); err != nil {
+	if _, err := m.PlanNew("general", "General", "", true); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := m.PlanAgree("general", true); err != nil {
@@ -35,7 +35,7 @@ func setup(t *testing.T) (*Mull, string) {
 // work, as most tests want.
 func agreedPlan(t *testing.T, m *Mull, slug, title, summary string) *model.Plan {
 	t.Helper()
-	must[*model.Plan](t)(m.PlanNew(slug, title, summary))
+	must[*model.Plan](t)(m.PlanNew(slug, title, summary, true))
 	return must[*model.Plan](t)(m.PlanAgree(slug, true))
 }
 
@@ -140,12 +140,12 @@ func TestNotInitialized(t *testing.T) {
 
 func TestPlansPhasesItems(t *testing.T) {
 	m, _ := setup(t)
-	_, err := m.PlanNew("Bad Slug", "x", "")
+	_, err := m.PlanNew("Bad Slug", "x", "", true)
 	wantErr(t, err, "invalid plan slug")
-	_, err = m.PlanNew("beef", "x", "")
+	_, err = m.PlanNew("beef", "x", "", true)
 	wantErr(t, err, "invalid plan slug")
 	agreedPlan(t, m, "taxogall", "Taxogall", "Galls as catalog entries.")
-	_, err = m.PlanNew("taxogall", "again", "")
+	_, err = m.PlanNew("taxogall", "again", "", true)
 	wantErr(t, err, "already exists")
 
 	phase := must[*model.Phase](t)(m.PhaseAdd("taxogall", "Phase 2", "", nil))

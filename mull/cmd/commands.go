@@ -178,7 +178,7 @@ func planCmd(a *app) *cobra.Command {
 	var in mull.PlanNewIn
 	newC := &cobra.Command{
 		Use:   "new <slug> <title>",
-		Short: "Create a plan, shaping until the human agrees it (slug: lowercase words joined by hyphens)",
+		Short: "Create a plan, shaping until the human agrees it (slug: lowercase words joined by hyphens). Only the human creates a plan",
 		Args:  exact(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			in.Slug, in.Title = args[0], args[1]
@@ -190,6 +190,7 @@ func planCmd(a *app) *cobra.Command {
 		},
 	}
 	newC.Flags().StringVar(&in.Summary, "summary", "", "high-level summary (- reads stdin)")
+	newC.Flags().BoolVar(&in.OnRequest, "on-request", false, "an agent creating it on the human's explicit instruction")
 	list := &cobra.Command{
 		Use: "list", Short: "List plans with progress", Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {

@@ -8,7 +8,7 @@ Everything mull prints is JSON (see `mull guide json`).
 - **The human decides every outcome.** You read, group and propose. They choose.
 - **Writes carry `--on-request`.** Committing, dropping and stamping are the human's, so pass `--on-request` only after the human has said so in the conversation. Retag (`mull set`) only on their word too.
 - **Don't do the work during triage.** At most, note what should start now (see below).
-- **Don't invent plans or phases.** If something needs a new plan or phase, create it only when the human asks (`mull plan new`, `mull phase add`). A shaping plan can hold tagged captures, but committed work goes into a plan only once the human has agreed it.
+- **Don't invent plans or phases.** If something needs a new plan or phase, create it only when the human asks (`mull plan new ... --on-request`, `mull phase add`). A shaping plan can hold tagged captures, but committed work goes into a plan only once the human has agreed it.
 
 ## 1. See what's waiting
 - `mull view --text`: the BACKLOG line gives the untriaged count and the last triage date, and each board counts its captured items.

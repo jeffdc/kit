@@ -32,6 +32,7 @@ Then run `mull init --integration <branch> --release <branch>`. Config can go in
 - **Plans.** Propose one plan per large effort (from the hub documents), using a plain-English slug. Small, unrelated work is unplanned (`--plan none`).
 - **Phases.** For each plan, propose phases: big pieces, in roughly the order they must happen. Add `--needs` between phases only where one truly must finish first. Needs exist between phases only: items inside a phase are unordered, so work that must wait for other work goes in a later phase.
 - **Show the human the whole outline** (plans, then phases, with needs) and adjust until they approve. Then record it in a batch (see the example below).
+- **Creating.** Only the human creates a plan: once they've approved the outline, each `plan new` line carries `"on-request": true`.
 - **Agreeing.** A new plan starts `shaping`: it takes captures and questions, but no phases or committed items until the human agrees it. When they've agreed a plan, add a `plan agree` line with `"on-request": true` right after its `plan new`, before its phases and items. Leave a plan they're still shaping with only its captures and questions.
 
 ## 4. Items for work in flight or ready
@@ -54,7 +55,7 @@ File what needs the human in a batch, citing sources with `source`:
 ## An example batch
 Plan, phases, items and inbox entries in one go. `@` refs point at records created earlier in the same batch:
 ```
-{"op": "plan new", "ref": "p", "slug": "launch", "title": "Public launch", "summary": "Billing and onboarding, then the switch."}
+{"op": "plan new", "ref": "p", "slug": "launch", "title": "Public launch", "summary": "Billing and onboarding, then the switch.", "on-request": true}
 {"op": "plan agree", "slug": "@p", "on-request": true}
 {"op": "phase add", "ref": "billing", "plan": "@p", "title": "Billing", "summary": "Stripe first."}
 {"op": "phase add", "ref": "onboard", "plan": "@p", "title": "Onboarding", "needs": ["@billing"]}

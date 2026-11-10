@@ -24,7 +24,7 @@ To write many records at once, use `mull batch`. It reads JSON Lines, is all or 
 ```bash
 make build
 ./mull init --integration main
-./mull plan new launch "Public launch"   # shaping until the human agrees it
+./mull plan new launch "Public launch" --on-request   # the human's call; shaping until they agree it
 ./mull plan agree launch --on-request   # the human's call: its work can now start
 ./mull phase add "Billing" --plan launch
 ./mull add "Stripe webhook handler" --phase <phase-id>

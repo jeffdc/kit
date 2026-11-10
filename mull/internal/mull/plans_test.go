@@ -9,14 +9,17 @@ import (
 
 func TestPlanStates(t *testing.T) {
 	m, _ := setup(t) // setup's general plan is agreed
-	p := must[*model.Plan](t)(m.PlanNew("launch", "Public launch", "Billing, then the switch."))
+	// Only the human creates a plan.
+	_, err := m.PlanNew("launch", "Public launch", "", false)
+	wantCode(t, err, CodeNotAllowed)
+	p := must[*model.Plan](t)(m.PlanNew("launch", "Public launch", "Billing, then the switch.", true))
 	if p.State != model.PlanShaping {
 		t.Fatalf("a new plan is %q, want shaping", p.State)
 	}
 
 	// A shaping plan holds a doc, questions and captures; it refuses phases
 	// and committed work until the human agrees it.
-	_, err := m.PhaseAdd("launch", "Billing", "", nil)
+	_, err = m.PhaseAdd("launch", "Billing", "", nil)
 	wantCode(t, err, CodeState)
 	wantErr(t, err, "plan agree launch")
 	_, err = m.ItemAdd(NewItem{Plan: "launch", Title: "Webhook"})
@@ -89,7 +92,7 @@ func TestPlanStates(t *testing.T) {
 	if v := must[View](t)(m.Board("launch")); len(v.Plans) != 1 || v.Plans[0].State != model.PlanDone {
 		t.Fatalf("view --plan launch = %+v", v.Plans)
 	}
-	must[*model.Plan](t)(m.PlanNew("someday", "Someday", ""))
+	must[*model.Plan](t)(m.PlanNew("someday", "Someday", "", true))
 	if p := must[*model.Plan](t)(m.PlanClose("someday")); p.State != model.PlanDone {
 		t.Fatalf("closed shaping plan = %+v", p)
 	}
@@ -104,7 +107,7 @@ func TestPlanStates(t *testing.T) {
 func TestPlanAgreeInBatch(t *testing.T) {
 	m, _ := setup(t)
 	input := strings.Join([]string{
-		`{"op": "plan new", "ref": "p", "slug": "launch", "title": "Launch"}`,
+		`{"op": "plan new", "ref": "p", "slug": "launch", "title": "Launch", "on-request": true}`,
 		`{"op": "plan agree", "slug": "@p", "on-request": true}`,
 		`{"op": "add", "ref": "a", "plan": "@p", "title": "Webhook"}`,
 	}, "\n")
@@ -118,7 +121,7 @@ func TestPlanAgreeInBatch(t *testing.T) {
 	if !item(t, m, results[2].ID).Ready {
 		t.Fatal("work in an agreed plan should be ready")
 	}
-	must[*model.Plan](t)(m.PlanNew("later", "Later", ""))
+	must[*model.Plan](t)(m.PlanNew("later", "Later", "", true))
 	_, err = m.Batch(strings.NewReader(`{"op": "plan agree", "slug": "later"}`), false)
 	if e := batchErr(t, err); e.Lines[0].Code != CodeNotAllowed {
 		t.Fatalf("lines = %+v", e.Lines)

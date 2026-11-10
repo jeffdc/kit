@@ -14,18 +14,19 @@ import (
 
 // ---- Plans ----
 
-// PlanNew creates a plan.
-func (m *Mull) PlanNew(slug, title, summary string) (*model.Plan, error) {
+// PlanNew creates a plan, shaping. Plans are the human's: creating one is
+// their explicit ask, so onRequest must record that they asked.
+func (m *Mull) PlanNew(slug, title, summary string, onRequest bool) (*model.Plan, error) {
 	var out *model.Plan
 	err := m.update("plan new "+slug, func(s *state) error {
 		var err error
-		out, err = m.planNew(s, slug, title, summary)
+		out, err = m.planNew(s, slug, title, summary, onRequest)
 		return err
 	})
 	return out, err
 }
 
-func (m *Mull) planNew(s *state, slug, title, summary string) (*model.Plan, error) {
+func (m *Mull) planNew(s *state, slug, title, summary string, onRequest bool) (*model.Plan, error) {
 	if !model.ValidSlug(slug) {
 		return nil, errf(CodeInvalid, "invalid plan slug %q: use lowercase words joined by hyphens, e.g. taxogall or phase-two", slug)
 	}
@@ -34,6 +35,9 @@ func (m *Mull) planNew(s *state, slug, title, summary string) (*model.Plan, erro
 	}
 	if s.plans[slug] != nil {
 		return nil, errf(CodeExists, "plan %q already exists", slug)
+	}
+	if !onRequest {
+		return nil, errf(CodeNotAllowed, "only the human creates a plan: pass --on-request when the human has asked for plan %q (to suggest one, mull ask)", slug)
 	}
 	now := m.now()
 	p := &model.Plan{Slug: slug, Title: title, State: model.PlanShaping, Created: now, Updated: now, Summary: summary}
