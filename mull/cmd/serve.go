@@ -29,7 +29,9 @@ func serveCmd(a *app) *cobra.Command {
 Listens on 127.0.0.1 only (default port ` + strconv.Itoa(serve.DefaultPort) + `) and runs until interrupted.
 It prints {url, registry, repos} once it is listening. Repositories are found
 with no configuration: every mull command registers its repository in the
-registry file. mull serve only reads; it never writes mull data.`,
+registry file. The page updates live: mull serve watches each repository's
+mull branch, and the registry, and tells the page what changed. mull serve
+only reads; it never writes mull data.`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			addr := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
@@ -49,6 +51,11 @@ registry file. mull serve only reads; it never writes mull data.`,
 			if err != nil {
 				return err
 			}
+			watcher, err := serve.Watch(registry.Repos, file)
+			if err != nil {
+				return err
+			}
+			defer watcher.Close()
 			bound := ln.Addr().(*net.TCPAddr).Port
 			err = a.json(map[string]any{"url": fmt.Sprintf("http://localhost:%d/", bound), "registry": file, "repos": repos})
 			if err != nil {
@@ -57,7 +64,8 @@ registry file. mull serve only reads; it never writes mull data.`,
 
 			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
-			srv := &http.Server{Handler: serve.Handler(registry.Repos), ReadHeaderTimeout: 10 * time.Second}
+			srv := &http.Server{Handler: serve.Handler(registry.Repos, serve.WithEvents(watcher)), ReadHeaderTimeout: 10 * time.Second}
+			srv.RegisterOnShutdown(watcher.Close) // ends the event streams, which Shutdown would otherwise wait out
 			done := make(chan error, 1)
 			go func() { done <- srv.Serve(ln) }()
 			select {
