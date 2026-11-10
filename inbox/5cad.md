@@ -6,6 +6,11 @@ item: a412
 source: reports/a412-1.md
 by: /Users/jeff/dev/kit/.claude/worktrees/agent-a67438b6794fa231d
 created: "2026-11-10T21:56:15Z"
+settled:
+  action: accept
+  by: /Users/jeff/dev/kit
+  on_request: true
+  at: "2026-11-10T22:21:30Z"
 decisions:
   - 33a6
   - 248a
