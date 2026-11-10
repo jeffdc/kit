@@ -95,8 +95,8 @@ func (m *Mull) newEntry(s *state, kind, text, item, plan, source, detail string)
 		}
 		plan = i.Plan
 	}
-	if plan == "" && kind != model.KindIdea {
-		plan = model.GeneralPlan
+	if plan == "" && item == "" && kind != model.KindIdea {
+		plan = model.GeneralPlan // an entry about an unplanned item has no plan either
 	}
 	if plan != "" {
 		if _, err := s.plan(plan); err != nil {
@@ -270,7 +270,11 @@ func (m *Mull) accept(s *state, refs []string, followUp string, o SettleOpts) (A
 			return out, errf(CodeInvalid, "follow-up applies when accepting exactly one reviewed item")
 		}
 		src := s.items[out.Items[0].ID]
-		i, err := m.addItem(s, NewItem{Plan: src.Plan, Phase: src.Phase, Title: followUp,
+		plan := src.Plan
+		if plan == "" {
+			plan = model.NoPlan
+		}
+		i, err := m.addItem(s, NewItem{Plan: plan, Phase: src.Phase, Title: followUp,
 			Notes: fmt.Sprintf("Follow-up from the review of %s.", src.ID)})
 		if err != nil {
 			return out, err
@@ -397,7 +401,7 @@ func (m *Mull) do(s *state, in DoInput) (DoResult, error) {
 		plan = e.Plan
 	}
 	if plan == "" && in.Phase == "" {
-		return DoResult{}, errf(CodeScope, "%s %s has no plan: give --plan (or --phase)", e.Kind, e.ID)
+		return DoResult{}, errf(CodeScope, "%s %s has no plan: give --plan (or --phase), or --plan none for unplanned work", e.Kind, e.ID)
 	}
 	notes := fmt.Sprintf("From inbox %s (%s).", e.ID, e.Kind)
 	if e.Detail != "" {

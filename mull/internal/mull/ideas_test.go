@@ -137,38 +137,35 @@ func TestIdeasParkAndDrop(t *testing.T) {
 
 func TestIdeasInBatch(t *testing.T) {
 	m, dir := setup(t)
+	// Inbox ideas are no longer filed (mull idea captures an item now), but
+	// existing ones are still promoted, in batch as on the command line.
+	must[*model.Plan](t)(m.PlanNew("alpha", "Alpha", ""))
+	i1 := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindIdea, Text: "Mobile ID tool"}))
+	i2 := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindIdea, Plan: "alpha", Text: "iNaturalist integration"}))
 	input := strings.Join([]string{
-		`{"op": "plan new", "ref": "p", "slug": "alpha", "title": "Alpha"}`,
-		`{"op": "idea", "ref": "i1", "text": "Mobile ID tool", "detail": "Phones in the field.", "source": "conversation"}`,
-		`{"op": "idea", "ref": "i2", "plan": "@p", "text": "iNaturalist integration"}`,
-		`{"op": "do", "ref": "e", "id": "@i2", "as": "phase", "on-request": true}`,
+		`{"op": "do", "ref": "e", "id": "` + i2.ID + `", "as": "phase", "on-request": true}`,
 		`{"op": "add", "phase": "@e", "title": "Pull observations"}`,
 	}, "\n")
 	results, err := m.Batch(strings.NewReader(input), false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	phase := results[3].Result.(DoResult).Phase
-	if phase == nil || results[3].ID != phase.ID || results[4].Result.(ItemView).Phase != phase.ID {
+	phase := results[0].Result.(DoResult).Phase
+	if phase == nil || results[0].ID != phase.ID || results[1].Result.(ItemView).Phase != phase.ID {
 		t.Fatalf("results = %+v", results)
 	}
-	if ideas := must[[]*model.Entry](t)(m.Ideas(IdeaFilter{})); len(ideas) != 1 || ideas[0].Text != "Mobile ID tool" {
+	if ideas := must[[]*model.Entry](t)(m.Ideas(IdeaFilter{})); len(ideas) != 1 || ideas[0].ID != i1.ID {
 		t.Fatalf("open ideas = %+v", ideas)
 	}
 
 	// Promoting without the human's say-so fails the whole batch.
 	before := mullHead(t, dir)
-	_, err = m.Batch(strings.NewReader(`{"op": "idea", "ref": "x", "plan": "alpha", "text": "x"}
-{"op": "do", "id": "@x"}`), false)
+	_, err = m.Batch(strings.NewReader(`{"op": "add", "plan": "alpha", "title": "x"}
+{"op": "do", "id": "`+i1.ID+`", "plan": "alpha"}`), false)
 	if e := batchErr(t, err); len(e.Lines) != 1 || e.Lines[0].Line != 2 || e.Lines[0].Code != CodeNotAllowed {
 		t.Fatalf("lines = %+v", e.Lines)
 	}
 	if mullHead(t, dir) != before {
 		t.Fatal("failed batch wrote")
-	}
-	// Ideas take no item, in batch as on the command line.
-	_, err = m.Batch(strings.NewReader(`{"op": "idea", "text": "x", "item": "abcd"}`), true)
-	if e := batchErr(t, err); e.Lines[0].Code != CodeInvalid {
-		t.Fatalf("lines = %+v", e.Lines)
 	}
 }

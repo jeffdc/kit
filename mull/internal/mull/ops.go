@@ -86,7 +86,9 @@ var ops = map[string]opDef{
 	"decided":       {func() Input { return &CaptureIn{kind: model.KindDecision} }, "text, item, plan, source, detail"},
 	"ask":           {func() Input { return &CaptureIn{kind: model.KindQuestion} }, "text, item, plan, source, detail"},
 	"loose":         {func() Input { return &CaptureIn{kind: model.KindLoose} }, "text, item, plan, source, detail"},
-	"idea":          {func() Input { return &CaptureIn{kind: model.KindIdea} }, "text, plan, source, detail"},
+	"bug":           {func() Input { return &CaptureItemIn{kind: model.ItemBug} }, "text, plan, phase, category, source, detail"},
+	"idea":          {func() Input { return &CaptureItemIn{kind: model.ItemIdea} }, "text, plan, phase, category, source, detail"},
+	"commit":        {func() Input { return &CommitIn{} }, "id, plan, phase, on-request"},
 	"start":         {func() Input { return &StartIn{} }, "id"},
 	"release":       {func() Input { return &ReleaseIn{} }, "id"},
 	"accept":        {func() Input { return &AcceptIn{} }, "ids, follow-up, on-request"},
@@ -239,6 +241,45 @@ func (in *CaptureIn) run(m *Mull, s *state) (any, string, error) {
 		return nil, "", err
 	}
 	return e, e.ID, nil
+}
+
+// CaptureItemIn captures a bug or idea. Text is the title, as for the other
+// captures, and detail becomes its notes.
+type CaptureItemIn struct {
+	Text     string `json:"text"`
+	Plan     string `json:"plan"`
+	Phase    string `json:"phase"`
+	Category string `json:"category"`
+	Source   string `json:"source"`
+	Detail   string `json:"detail"`
+	kind     string
+}
+
+func (in *CaptureItemIn) refFields() ([]*string, []*IDList) {
+	return []*string{&in.Plan, &in.Phase}, nil
+}
+func (in *CaptureItemIn) run(m *Mull, s *state) (any, string, error) {
+	i, err := m.captureItem(s, NewCapture{Kind: in.kind, Title: in.Text, Plan: in.Plan, Phase: in.Phase,
+		Category: in.Category, Source: in.Source, Detail: in.Detail})
+	if err != nil {
+		return nil, "", err
+	}
+	return s.itemView(i), i.ID, nil
+}
+
+type CommitIn struct {
+	ID        string `json:"id"`
+	Plan      string `json:"plan"`
+	Phase     string `json:"phase"`
+	OnRequest bool   `json:"on-request"`
+}
+
+func (in *CommitIn) refFields() ([]*string, []*IDList) {
+	return []*string{&in.ID, &in.Plan, &in.Phase}, nil
+}
+func (in *CommitIn) run(m *Mull, s *state) (any, string, error) {
+	r, err := m.commit(s, CommitInput{ID: in.ID, Plan: in.Plan, Phase: in.Phase, OnRequest: in.OnRequest})
+	return r, in.ID, err
 }
 
 type StartIn struct {

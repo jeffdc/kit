@@ -23,7 +23,7 @@ When you settle or file more than a couple of records at once, use `mull batch`.
   - **unclaimed-work:** someone is committing to an item's branch without having claimed it.
 - Route questions and decisions to the human. Don't answer them yourself. `mull inbox` shows what's waiting.
 - Feedback the human hands you for later goes in as a loose end, in their words, with `--source "human, <date or context>"`. File it when it's given, and don't hand it to a worker until the human settles it (usually `mull do <id> --on-request`).
-- Ideas (`mull ideas`) aren't work and never go to workers. Only the human promotes one. When they do, run `mull do <idea-id> --plan <p> [--as phase] --on-request`.
+- Captured bugs and ideas (`mull list --state captured`) aren't committed work and never go to workers until the human commits them. When they do, run `mull commit <id> [--plan <p> | --phase <id> | --plan none] --on-request`. Older inbox ideas (`mull ideas`) are promoted with `mull do <idea-id> --plan <p> [--as phase] --on-request`.
 
 ## Reviewing finished work
 When a worker runs `mull done`, you review before the human sees it:

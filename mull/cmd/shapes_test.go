@@ -20,7 +20,7 @@ func (k keys) plus(o keys) keys {
 var (
 	planKeys      = keys{[]string{"slug", "title", "state", "created", "updated"}, []string{"summary"}}
 	phaseKeys     = keys{[]string{"id", "plan", "title", "created", "updated"}, []string{"needs", "from", "summary"}}
-	itemKeys      = keys{[]string{"id", "plan", "title", "state", "created", "updated"}, []string{"phase", "needs", "docs", "claim", "from", "notes"}}
+	itemKeys      = keys{[]string{"id", "title", "state", "created", "updated"}, []string{"plan", "phase", "kind", "category", "source", "needs", "docs", "claim", "from", "notes"}}
 	itemViewKeys  = itemKeys.plus(keys{[]string{"ready"}, []string{"blocked_by"}})
 	phaseViewKeys = phaseKeys.plus(keys{[]string{"progress", "complete"}, []string{"blocked_by"}})
 	entryKeys     = keys{[]string{"id", "kind", "text", "plan", "by", "created"}, []string{"item", "source", "settled", "detail"}}
@@ -152,12 +152,14 @@ func TestOutputShapes(t *testing.T) {
 	checkKeys(t, "do.entry", do["entry"], entryKeys)
 	checkKeys(t, "do.item", do["item"], itemViewKeys)
 
-	// Ideas: filed, listed apart from the inbox, promoted to a phase on request.
-	idea := shape(entryKeys, "idea", "Mobile ID tool", "--plan", "launch", "--detail", "Phones in the field.", "--source", "conversation")
-	shape(entryKeys, "idea", "Phenology explorer")
-	ideas := shape(keys{[]string{"ideas"}, nil}, "ideas")
-	checkKeys(t, "ideas[0]", first(t, "ideas", ideas["ideas"]), entryKeys)
-	promo := shape(keys{[]string{"entry"}, []string{"item", "phase"}}, "do", id(idea), "--as", "phase", "--on-request")
+	// Captures: bugs and ideas are captured items; only the human commits them.
+	shape(itemViewKeys, "idea", "Mobile ID tool", "--plan", "launch", "--detail", "Phones in the field.", "--source", "conversation")
+	bug := shape(itemViewKeys, "bug", "Flaky login test", "--category", "tests")
+	shape(itemViewKeys, "bug", "Two h1s on home", "--phase", id(phase))
+	shape(itemViewKeys, "commit", id(bug), "--on-request")
+	shape(keys{[]string{"ideas"}, nil}, "ideas")
+	lo3 := shape(entryKeys, "loose", "Pricing page", "--plan", "launch")
+	promo := shape(keys{[]string{"entry"}, []string{"item", "phase"}}, "do", id(lo3), "--as", "phase")
 	checkKeys(t, "do --as phase .phase", promo["phase"], phaseViewKeys)
 	shape(entryKeys, "park", id(lo2), "after launch")
 	drop := shape(keys{[]string{"entries", "items"}, nil}, "drop", id(c))
@@ -176,12 +178,14 @@ func TestOutputShapes(t *testing.T) {
 	shape(keys{[]string{"report", "text"}, nil}, "report", id(a))
 
 	v := shape(keys{[]string{"generated", "integration", "integration_found", "release", "ahead_of_release", "plans", "unlinked_commits_this_week"},
-		[]string{"unlinked_recent", "ideas_without_plan"}}, "view")
+		[]string{"unlinked_recent", "ideas_without_plan", "unplanned"}}, "view")
 	if _, ok := v["ideas_without_plan"]; !ok {
 		t.Error("view: missing ideas_without_plan")
 	}
 	board := first(t, "view.plans", v["plans"])
-	checkKeys(t, "view.plans[0]", board, keys{[]string{"slug", "title", "progress", "phases", "unfiled", "problems", "in_flight", "needs_you", "ideas"}, nil})
+	boardKeys := keys{[]string{"slug", "title", "progress", "phases", "unfiled", "problems", "in_flight", "needs_you", "ideas"}, nil}
+	checkKeys(t, "view.plans[0]", board, boardKeys)
+	checkKeys(t, "view.unplanned", v["unplanned"], boardKeys)
 	checkKeys(t, "view.needs_you", board.(map[string]any)["needs_you"],
 		keys{[]string{"reviews", "decisions", "questions", "loose_ends", "older_than_a_week", "parked"}, nil})
 	shape(keys{[]string{"worktree", "branch", "protocol", "my_claims", "plans", "ready", "active", "decisions"}, []string{"item"}}, "context")

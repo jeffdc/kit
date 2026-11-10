@@ -189,11 +189,15 @@ func (m *Mull) PhaseList(plan string) ([]PhaseView, error) {
 // ---- Items ----
 
 // NewItem holds the fields for creating an item. Plan may be left empty
-// when Phase is given: the phase's plan is used.
+// when Phase is given: the phase's plan is used. Plan "none" (model.NoPlan)
+// makes it unplanned work.
 type NewItem struct {
 	Plan, Phase, Title, Notes string
 	Needs, Docs               []string
 	From                      string // the inbox entry it was made from
+
+	// A captured item's kind, category and source; stage is set by capture.
+	kind, category, source, stage string
 }
 
 // ItemAdd creates an item.
@@ -211,8 +215,15 @@ func (m *Mull) ItemAdd(in NewItem) (ItemView, error) {
 }
 
 // resolvePlan works out an item's plan from plan and phase: the phase implies
-// its plan, and the two must agree when both are given.
+// its plan, and the two must agree when both are given. Plan "none" means no
+// plan, and resolves to "".
 func (s *state) resolvePlan(plan, phase string) (string, error) {
+	if plan == model.NoPlan {
+		if phase != "" {
+			return "", errf(CodeInvalid, "a phase belongs to a plan; give --phase or --plan none, not both")
+		}
+		return "", nil
+	}
 	if phase != "" {
 		e, err := s.phase(phase)
 		if err != nil {
@@ -224,7 +235,7 @@ func (s *state) resolvePlan(plan, phase string) (string, error) {
 		return e.Plan, nil
 	}
 	if plan == "" {
-		return "", errf(CodeScope, "say which plan the item belongs to: give --plan or --phase")
+		return "", errf(CodeScope, "say which plan the item belongs to: give --plan or --phase, or --plan none for unplanned work")
 	}
 	return plan, nil
 }
@@ -237,8 +248,14 @@ func (m *Mull) addItem(s *state, in NewItem) (*model.Item, error) {
 	if err != nil {
 		return nil, err
 	}
-	if _, err := s.activePlan(plan); err != nil {
-		return nil, err
+	if plan != "" {
+		if _, err := s.activePlan(plan); err != nil {
+			return nil, err
+		}
+	}
+	stage := in.stage
+	if stage == "" {
+		stage = model.StateCommitted
 	}
 	id, err := s.newID()
 	if err != nil {
@@ -250,8 +267,8 @@ func (m *Mull) addItem(s *state, in NewItem) (*model.Item, error) {
 	}
 	now := m.now()
 	i := &model.Item{
-		ID: id, Plan: plan, Phase: in.Phase, Title: in.Title, State: model.StateCommitted,
-		Needs: needs, Docs: dedupe(in.Docs), From: in.From, Created: now, Updated: now, Notes: in.Notes,
+		ID: id, Plan: plan, Phase: in.Phase, Title: in.Title, State: stage,
+		Kind: in.kind, Category: in.category, Source: in.source, Needs: needs, Docs: dedupe(in.Docs), From: in.From, Created: now, Updated: now, Notes: in.Notes,
 	}
 	if err := s.putItem(i); err != nil {
 		return nil, err
@@ -259,10 +276,11 @@ func (m *Mull) addItem(s *state, in NewItem) (*model.Item, error) {
 	return i, s.checkCycles()
 }
 
-// ItemFilter selects items; empty fields match everything.
+// ItemFilter selects items; empty fields match everything. Plan "none"
+// selects items with no plan.
 type ItemFilter struct {
-	Plan, Phase, State string
-	ReadyOnly          bool
+	Plan, Phase, State, Kind string
+	ReadyOnly                bool
 }
 
 // ItemList returns items matching f.
@@ -272,14 +290,18 @@ func (m *Mull) ItemList(f ItemFilter) ([]ItemView, error) {
 		return out, errf(CodeInvalid, "no stage %q; stages are %s", f.State, strings.Join(model.Stages, ", "))
 	}
 	err := m.view(func(s *state) error {
-		if f.Plan != "" {
-			if _, err := s.plan(f.Plan); err != nil {
+		plan := f.Plan
+		if plan == model.NoPlan {
+			plan = ""
+		} else if plan != "" {
+			if _, err := s.plan(plan); err != nil {
 				return err
 			}
 		}
 		for _, id := range sortedKeys(s.items) {
 			i := s.items[id]
-			if (f.Plan != "" && i.Plan != f.Plan) || (f.Phase != "" && i.Phase != f.Phase) || (f.State != "" && i.State != f.State) {
+			if (f.Plan != "" && i.Plan != plan) || (f.Phase != "" && i.Phase != f.Phase) ||
+				(f.State != "" && i.State != f.State) || (f.Kind != "" && i.Kind != f.Kind) {
 				continue
 			}
 			v := s.itemView(i)
@@ -291,6 +313,93 @@ func (m *Mull) ItemList(f ItemFilter) ([]ItemView, error) {
 		return nil
 	})
 	return out, err
+}
+
+// NewCapture is a bug or idea captured into the backlog. Plan and Phase are
+// optional tags; anyone may capture.
+type NewCapture struct {
+	Kind, Title, Plan, Phase, Category, Source, Detail string
+}
+
+// CaptureItem captures a bug or idea as a captured item.
+func (m *Mull) CaptureItem(in NewCapture) (ItemView, error) {
+	var out ItemView
+	err := m.update(in.Kind+": "+in.Title, func(s *state) error {
+		i, err := m.captureItem(s, in)
+		if err != nil {
+			return err
+		}
+		out = s.itemView(i)
+		return nil
+	})
+	return out, err
+}
+
+func (m *Mull) captureItem(s *state, in NewCapture) (*model.Item, error) {
+	if in.Kind != model.ItemBug && in.Kind != model.ItemIdea {
+		return nil, errf(CodeInvalid, "a captured item is a bug or an idea, not %q", in.Kind)
+	}
+	plan := in.Plan
+	if plan == "" && in.Phase == "" {
+		plan = model.NoPlan // backlog needn't be tagged
+	}
+	return m.addItem(s, NewItem{Plan: plan, Phase: in.Phase, Title: in.Title, Notes: in.Detail,
+		kind: in.Kind, category: in.Category, source: in.Source, stage: model.StateCaptured})
+}
+
+// CommitInput commits a captured item, optionally retagging its plan or
+// phase (Plan "none" makes it unplanned work).
+type CommitInput struct {
+	ID, Plan, Phase string
+	// OnRequest records that the human asked: only the human commits work.
+	OnRequest bool
+}
+
+// Commit moves a captured item into committed work.
+func (m *Mull) Commit(in CommitInput) (ItemView, error) {
+	var out ItemView
+	err := m.update("commit "+in.ID, func(s *state) error {
+		var err error
+		out, err = m.commit(s, in)
+		return err
+	})
+	return out, err
+}
+
+func (m *Mull) commit(s *state, in CommitInput) (ItemView, error) {
+	i, err := s.item(in.ID)
+	if err != nil {
+		return ItemView{}, err
+	}
+	if i.State != model.StateCaptured {
+		return ItemView{}, errf(CodeState, "item %s is %s; only captured items can be committed", i.ID, i.State)
+	}
+	if !in.OnRequest {
+		return ItemView{}, errf(CodeNotAllowed, "only the human commits work: pass --on-request when the human has asked for %s to be committed", i.ID)
+	}
+	if in.Plan != "" || in.Phase != "" {
+		plan, err := s.resolvePlan(in.Plan, in.Phase)
+		if err != nil {
+			return ItemView{}, err
+		}
+		if plan != "" {
+			if _, err := s.activePlan(plan); err != nil {
+				return ItemView{}, err
+			}
+		}
+		if in.Phase != "" || plan != i.Plan {
+			i.Phase = in.Phase // a new plan leaves the old phase behind
+		}
+		i.Plan = plan
+	}
+	i.State, i.Updated = model.StateCommitted, m.now()
+	if err := s.putItem(i); err != nil {
+		return ItemView{}, err
+	}
+	if err := s.checkCycles(); err != nil {
+		return ItemView{}, err
+	}
+	return s.itemView(i), nil
 }
 
 // Shown is any record returned by show, tagged with its type.
