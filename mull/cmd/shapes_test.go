@@ -18,8 +18,8 @@ func (k keys) plus(o keys) keys {
 }
 
 var (
-	planKeys      = keys{[]string{"slug", "title", "state", "created", "updated"}, []string{"summary"}}
-	phaseKeys     = keys{[]string{"id", "plan", "title", "created", "updated"}, []string{"needs", "from", "summary"}}
+	planKeys      = keys{[]string{"slug", "title", "state", "created", "updated"}, []string{"summary", "doc"}}
+	phaseKeys     = keys{[]string{"id", "plan", "title", "created", "updated"}, []string{"needs", "from", "summary", "doc"}}
 	itemKeys      = keys{[]string{"id", "title", "state", "created", "updated"}, []string{"plan", "phase", "kind", "category", "source", "needs", "docs", "claim", "from", "notes"}}
 	itemViewKeys  = itemKeys.plus(keys{[]string{"ready"}, []string{"blocked_by"}})
 	phaseViewKeys = phaseKeys.plus(keys{[]string{"progress", "complete"}, []string{"blocked_by"}})
@@ -101,6 +101,15 @@ func TestOutputShapes(t *testing.T) {
 	phase := shape(phaseKeys, "phase", "add", "Billing", "--plan", "launch")
 	el := shape(keys{[]string{"phases"}, nil}, "phase", "list")
 	checkKeys(t, "phase list[0]", first(t, "phases", el["phases"]), phaseViewKeys)
+
+	docKeys := keys{[]string{"type", "id", "doc"}, nil}
+	shapeIn("The picture.\n", docKeys, "plan", "doc", "launch", "-")
+	shape(docKeys, "plan", "doc", "launch")
+	shapeIn("Its design.\n", docKeys, "phase", "doc", id(phase), "-")
+	shape(docKeys, "phase", "doc", id(phase))
+	dl := shape(keys{[]string{"type", "id", "versions"}, nil}, "phase", "doc", id(phase), "--log")
+	checkKeys(t, "phase doc --log versions[0]", first(t, "versions", dl["versions"]), keys{[]string{"commit", "at", "doc"}, nil})
+	shape(keys{[]string{"type", "id", "versions"}, nil}, "plan", "doc", "launch", "--log")
 
 	a := shape(itemViewKeys, "add", "Webhook", "--phase", id(phase), "--doc", "docs/a.md")
 	b := shape(itemViewKeys, "add", "Invoices", "--phase", id(phase))

@@ -79,7 +79,9 @@ var ops = map[string]opDef{
 	"plan new":      {func() Input { return &PlanNewIn{} }, "slug, title, summary"},
 	"plan agree":    {func() Input { return &PlanAgreeIn{} }, "slug, on-request"},
 	"plan close":    {func() Input { return &PlanCloseIn{} }, "slug"},
+	"plan doc":      {func() Input { return &PlanDocIn{} }, "slug, doc"},
 	"phase add":     {func() Input { return &PhaseAddIn{} }, "title, plan, summary, needs"},
+	"phase doc":     {func() Input { return &PhaseDocIn{} }, "id, doc"},
 	"add":           {func() Input { return &AddIn{} }, "title, plan, phase, notes, doc"},
 	"set":           {func() Input { return &SetIn{} }, "id, field, value"},
 	"need":          {func() Input { return &NeedIn{add: true} }, "id, needs"},
@@ -192,6 +194,37 @@ func (in *PhaseAddIn) run(m *Mull, s *state) (any, string, error) {
 		return nil, "", err
 	}
 	return e, e.ID, nil
+}
+
+// PlanDocIn replaces a plan's doc. Doc is required ("" removes the doc), so
+// a batch line can't clear a doc by leaving the field out.
+type PlanDocIn struct {
+	Slug string  `json:"slug"`
+	Doc  *string `json:"doc"`
+}
+
+func (in *PlanDocIn) refFields() ([]*string, []*IDList) { return []*string{&in.Slug}, nil }
+func (in *PlanDocIn) run(m *Mull, s *state) (any, string, error) {
+	if in.Doc == nil {
+		return nil, "", errf(CodeInvalid, `plan doc needs "doc": the new doc ("" removes it)`)
+	}
+	r, err := m.setPlanDoc(s, in.Slug, *in.Doc)
+	return r, in.Slug, err
+}
+
+// PhaseDocIn replaces a phase's doc, as PlanDocIn does a plan's.
+type PhaseDocIn struct {
+	ID  string  `json:"id"`
+	Doc *string `json:"doc"`
+}
+
+func (in *PhaseDocIn) refFields() ([]*string, []*IDList) { return []*string{&in.ID}, nil }
+func (in *PhaseDocIn) run(m *Mull, s *state) (any, string, error) {
+	if in.Doc == nil {
+		return nil, "", errf(CodeInvalid, `phase doc needs "doc": the new doc ("" removes it)`)
+	}
+	r, err := m.setPhaseDoc(s, in.ID, *in.Doc)
+	return r, in.ID, err
 }
 
 type AddIn struct {

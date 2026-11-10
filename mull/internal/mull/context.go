@@ -25,6 +25,7 @@ type ContextItem struct {
 	ItemView
 	PhaseTitle     string        `json:"phase_title,omitempty"`
 	PhaseSummary   string        `json:"phase_summary,omitempty"`
+	PhaseDoc       string        `json:"phase_doc,omitempty"`
 	OpenQuestions  []BriefEntry  `json:"open_questions,omitempty"`
 	ItemDecisions  []BriefDecide `json:"item_decisions,omitempty"`
 	LastReport     string        `json:"last_report,omitempty"`
@@ -134,7 +135,7 @@ func (m *Mull) Context(itemID string) (Context, error) {
 			}
 			ci := &ContextItem{ItemView: s.itemView(i)}
 			if e := s.phases[i.Phase]; e != nil {
-				ci.PhaseTitle, ci.PhaseSummary = e.Title, e.Summary
+				ci.PhaseTitle, ci.PhaseSummary, ci.PhaseDoc = e.Title, e.Summary, e.Doc
 			}
 			for _, id := range sortedKeys(s.entries) {
 				e := s.entries[id]

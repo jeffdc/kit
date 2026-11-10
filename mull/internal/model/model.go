@@ -106,6 +106,10 @@ type Plan struct {
 	Created string `yaml:"created" json:"created"`
 	Updated string `yaml:"updated" json:"updated"`
 	Summary string `yaml:"-" json:"summary,omitempty"`
+	// Doc is the plan's doc: the picture, done-when and why the order;
+	// intent only, never status. It is its own file (PlanDocPath), not part
+	// of the record.
+	Doc string `yaml:"-" json:"doc,omitempty"`
 }
 
 // MarshalYAML stores the plan's state under its stored name.
@@ -142,6 +146,9 @@ type Phase struct {
 	Created string   `yaml:"created" json:"created"`
 	Updated string   `yaml:"updated" json:"updated"`
 	Summary string   `yaml:"-" json:"summary,omitempty"`
+	// Doc is the phase's doc: its design and done-when; intent only, never
+	// status. It is its own file (PhaseDocPath), not part of the record.
+	Doc string `yaml:"-" json:"doc,omitempty"`
 }
 
 // Claim records which worktree is working on an item.
@@ -310,12 +317,19 @@ func ReportPath(item string, n int) string {
 }
 func CheckPath(tree string) string { return "checks/" + tree + ".json" }
 
+// Docs are plain markdown files, one per plan or phase, kept apart from the
+// records so a doc's history holds only its own versions. A doc's path is
+// "docs/" plus its record's path.
+func PlanDocPath(slug string) string { return "docs/" + PlanPath(slug) }
+func PhaseDocPath(id string) string  { return "docs/" + PhasePath(id) }
+
 const ConfigPath = "config.yml"
 
 var dataPaths = []*regexp.Regexp{
 	regexp.MustCompile(`^config\.yml$`),
-	regexp.MustCompile(`^plans/[a-z][a-z0-9]*(-[a-z0-9]+)*\.md$`),
+	regexp.MustCompile(`^(docs/)?plans/[a-z][a-z0-9]*(-[a-z0-9]+)*\.md$`),
 	regexp.MustCompile(`^(epics|items|inbox)/[0-9a-f]{4}\.md$`),
+	regexp.MustCompile(`^docs/epics/[0-9a-f]{4}\.md$`),
 	regexp.MustCompile(`^reports/[0-9a-f]{4}-[0-9]+\.md$`),
 	regexp.MustCompile(`^checks/[0-9a-f]{40}([0-9a-f]{24})?\.json$`),
 }

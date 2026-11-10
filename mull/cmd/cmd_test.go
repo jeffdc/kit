@@ -227,6 +227,33 @@ func TestUsageErrorsHaveACode(t *testing.T) {
 	r.ok("decided", "x", "--detail", "because")
 }
 
+func TestDocCommands(t *testing.T) {
+	r := run{t: t, dir: gittest.NewRepo(t)}
+	r.ok("init")
+	r.ok("plan", "new", "launch", "Launch") // shaping: a doc and questions
+	if d := r.okIn("# Launch\n\nDone when: it ships.\n", "plan", "doc", "launch", "-"); d["doc"] != "# Launch\n\nDone when: it ships." {
+		t.Fatalf("plan doc - = %v", d)
+	}
+	if out, _, code := r.mull("", "plan", "doc", "launch", "--text"); code != 0 || out != "# Launch\n\nDone when: it ships.\n" {
+		t.Fatalf("plan doc --text = %q", out)
+	}
+	if p := r.ok("show", "launch"); p["plan"].(map[string]any)["doc"] != "# Launch\n\nDone when: it ships." {
+		t.Fatalf("show = %v", p)
+	}
+	r.fails("usage", "plan", "doc", "launch", "inline text")
+	r.fails("usage", "plan", "doc", "launch", "-", "--log")
+	r.fails("usage", "plan", "doc", "launch", "--log", "--text")
+	r.fails("not_found", "plan", "doc", "nope")
+	r.fails("not_found", "phase", "doc", "ffff")
+	// Empty stdin removes the doc.
+	if d := r.okIn("", "plan", "doc", "launch", "-"); d["doc"] != "" {
+		t.Fatalf("emptied doc = %v", d)
+	}
+	if l := r.ok("plan", "doc", "launch", "--log"); len(l["versions"].([]any)) != 2 {
+		t.Fatalf("log = %v", l)
+	}
+}
+
 func TestScopeRules(t *testing.T) {
 	r := run{t: t, dir: gittest.NewRepo(t)}
 	r.ok("init")
