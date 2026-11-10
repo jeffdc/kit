@@ -6,7 +6,11 @@ This is a monorepo of small, independent CLI tools ("kit"). Each tool lives in i
 
 - **watchmen/** - Time tracking and invoice generation (Go)
 - **canal/** - Inter-agent messaging system (Elixir/Phoenix)
-- **mull/** - Idea and feature tracking for solo projects (Go)
+- **mull/** - The record of a program run with agents: plans, epics, items, and an inbox of what needs the human (Go)
+
+## Tracking work
+
+kit's work is tracked with mull. Follow AGENTS.md (the mull protocol) for every task: start from `mull context`, claim one item per session, and finish with `mull done`.
 
 ## Working in this repo
 

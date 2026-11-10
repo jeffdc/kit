@@ -6,7 +6,7 @@ This file provides guidance to Claude Code when working with code in this reposi
 
 A personal book library: a Go server (`forage-server`) that serves a PWA and its API. The PWA is the only interface; it's used mostly from an iPhone and works offline. There is no CLI, TUI or Claude skill (removed November 2026; recreate from git history if ever needed).
 
-The current rework plan lives in mull matter `e140` (`.mull/matters/e140-*.md`).
+The rework is tracked in mull as plan `forage-rework` (`mull view --text --plan forage-rework`). The original plan document, with its decisions and phase history, is still `.mull/matters/e140-*.md`.
 
 ## Build Commands
 
