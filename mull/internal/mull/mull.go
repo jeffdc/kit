@@ -61,18 +61,7 @@ func (m *Mull) Init(integration, release string) (*model.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	now := m.now()
-	general := model.Plan{
-		Title: "General", State: model.PlanActive, Created: now, Updated: now,
-	}
-	planData, err := model.Encode(general, "Work outside any big effort.")
-	if err != nil {
-		return nil, err
-	}
-	err = m.store.Init("mull: init", map[string][]byte{
-		model.ConfigPath:                  cfgData,
-		model.PlanPath(model.GeneralPlan): planData,
-	})
+	err = m.store.Init("mull: init", map[string][]byte{model.ConfigPath: cfgData})
 	if err != nil {
 		return nil, err
 	}

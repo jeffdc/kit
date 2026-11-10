@@ -29,8 +29,15 @@ type View struct {
 	Plans            []PlanBoard `json:"plans"`
 	Unplanned        *PlanBoard  `json:"unplanned,omitempty"` // items with no plan, and what needs you about them
 	UnlinkedCount    int         `json:"unlinked_commits_this_week"`
-	IdeasUnplanned   int         `json:"ideas_without_plan"` // open ideas with no plan (mull ideas --plan none)
 	UnlinkedRecent   []string    `json:"unlinked_recent,omitempty"`
+	Legacy           *Legacy     `json:"legacy,omitempty"`
+}
+
+// Legacy counts open entries of the retired kinds, kept until the Model v2
+// migration converts them to captured items. They are not in needs_you.
+type Legacy struct {
+	LooseEnds int `json:"loose_ends"`
+	Ideas     int `json:"ideas"`
 }
 
 // PlanBoard is one plan's block in the view.
@@ -43,7 +50,6 @@ type PlanBoard struct {
 	Problems []Problem    `json:"problems"`
 	InFlight []FlightLine `json:"in_flight"`
 	NeedsYou NeedsYou     `json:"needs_you"`
-	Ideas    int          `json:"ideas"` // open ideas in this plan; not work, not in needs_you (mull ideas)
 }
 
 // PhaseLine is a phase's progress line.
@@ -73,17 +79,16 @@ type Problem struct {
 	Text string `json:"text"`
 }
 
-// NeedsYou counts the plan's open inbox.
+// NeedsYou counts the plan's open inbox: questions, decisions and reviews.
 type NeedsYou struct {
 	Reviews   int `json:"reviews"`
 	Decisions int `json:"decisions"`
 	Questions int `json:"questions"`
-	Loose     int `json:"loose_ends"`
 	Older     int `json:"older_than_a_week"`
 	Parked    int `json:"parked"`
 }
 
-func (n NeedsYou) total() int { return n.Reviews + n.Decisions + n.Questions + n.Loose }
+func (n NeedsYou) total() int { return n.Reviews + n.Decisions + n.Questions }
 
 // Board computes the view, for one plan or every active plan.
 func (m *Mull) Board(plan string) (View, error) {
@@ -107,16 +112,22 @@ func (m *Mull) Board(plan string) (View, error) {
 		if n := len(g.Unlinked); n > 0 {
 			v.UnlinkedRecent = g.Unlinked[:min(n, unlinkedListSize)]
 		}
+		var legacy Legacy
 		for _, e := range s.entries {
-			if e.Kind == model.KindIdea && e.Plan == "" && e.Settled == nil {
-				v.IdeasUnplanned++
+			if e.Settled != nil {
+				continue
+			}
+			switch e.Kind {
+			case model.KindLoose:
+				legacy.LooseEnds++
+			case model.KindIdea:
+				legacy.Ideas++
 			}
 		}
-		slugs := sortedKeys(s.plans)
-		sort.SliceStable(slugs, func(a, c int) bool {
-			return slugs[a] != model.GeneralPlan && slugs[c] == model.GeneralPlan
-		})
-		for _, slug := range slugs {
+		if legacy != (Legacy{}) {
+			v.Legacy = &legacy
+		}
+		for _, slug := range sortedKeys(s.plans) {
 			p := s.plans[slug]
 			if plan != "" && slug != plan {
 				continue
@@ -124,15 +135,10 @@ func (m *Mull) Board(plan string) (View, error) {
 			if plan == "" && p.State != model.PlanActive {
 				continue
 			}
-			b := s.board(p, g, now)
-			if plan == "" && slug == model.GeneralPlan && b.Progress.Total == 0 && b.NeedsYou.total() == 0 && b.Ideas == 0 {
-				continue // an empty general plan is noise
-			}
-			v.Plans = append(v.Plans, b)
+			v.Plans = append(v.Plans, s.board(p, g, now))
 		}
 		if plan == "" {
 			b := s.board(&model.Plan{Title: "Unplanned"}, g, now)
-			b.Ideas = 0 // counted in ideas_without_plan
 			if b.Progress.Total+b.Progress.Captured > 0 || b.NeedsYou.total() > 0 {
 				v.Unplanned = &b
 			}
@@ -234,11 +240,8 @@ func (s *state) board(p *model.Plan, g *gitState, now time.Time) PlanBoard {
 		if e.Plan != p.Slug {
 			continue
 		}
-		if e.Kind == model.KindIdea {
-			if e.Settled == nil {
-				b.Ideas++
-			}
-			continue
+		if retiredKind(e.Kind) {
+			continue // counted in the view's legacy
 		}
 		if e.Settled != nil {
 			if e.Settled.Action == model.ActPark {
@@ -253,8 +256,6 @@ func (s *state) board(p *model.Plan, g *gitState, now time.Time) PlanBoard {
 			b.NeedsYou.Decisions++
 		case model.KindQuestion:
 			b.NeedsYou.Questions++
-		case model.KindLoose:
-			b.NeedsYou.Loose++
 		}
 		if c, ok := parseTime(e.Created); ok && now.Sub(c) > olderInboxAfter {
 			b.NeedsYou.Older++
@@ -360,8 +361,15 @@ func (v View) Text(now time.Time) string {
 		b.WriteString("\nUNPLANNED\n")
 		writeBoard(&b, *v.Unplanned, now)
 	}
-	if v.IdeasUnplanned > 0 {
-		fmt.Fprintf(&b, "\nIDEAS  %s with no plan (mull ideas --plan none)\n", plural(v.IdeasUnplanned, "idea"))
+	if l := v.Legacy; l != nil {
+		var parts []string
+		if l.LooseEnds > 0 {
+			parts = append(parts, plural(l.LooseEnds, "loose end")+" (mull inbox --kind loose-end)")
+		}
+		if l.Ideas > 0 {
+			parts = append(parts, plural(l.Ideas, "inbox idea")+" (mull inbox --kind idea)")
+		}
+		fmt.Fprintf(&b, "\nLEGACY  %s, kept until mull migrate turns them into captured items\n", strings.Join(parts, " · "))
 	}
 	if v.UnlinkedCount > 0 {
 		verb := "carry"
@@ -418,16 +426,13 @@ func writeBoard(b *strings.Builder, p PlanBoard, now time.Time) {
 			fmt.Fprintf(b, "    %s  %-36s %s\n", f.ID, truncate(f.Title, 36), strings.Join(bits, " · "))
 		}
 	}
-	if p.Ideas > 0 {
-		fmt.Fprintf(b, "  IDEAS  %s (mull ideas --plan %s)\n", plural(p.Ideas, "idea"), p.Slug)
-	}
 	n := p.NeedsYou
 	if n.total() > 0 {
 		var parts []string
 		for _, c := range []struct {
 			n    int
 			noun string
-		}{{n.Reviews, "review"}, {n.Decisions, "decision"}, {n.Questions, "question"}, {n.Loose, "loose end"}} {
+		}{{n.Reviews, "review"}, {n.Decisions, "decision"}, {n.Questions, "question"}} {
 			if c.n > 0 {
 				parts = append(parts, plural(c.n, c.noun))
 			}

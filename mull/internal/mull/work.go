@@ -111,9 +111,6 @@ func (m *Mull) PlanClose(slug string) (*model.Plan, error) {
 }
 
 func (m *Mull) planClose(s *state, slug string) (*model.Plan, error) {
-	if slug == model.GeneralPlan {
-		return nil, errf(CodeNotAllowed, "the %s plan cannot be closed", model.GeneralPlan)
-	}
 	p, err := s.plan(slug)
 	if err != nil {
 		return nil, err

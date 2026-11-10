@@ -140,8 +140,8 @@ func TestOutputShapes(t *testing.T) {
 
 	dec := shape(entryKeys, "decided", "Store raw payloads", "--item", id(a), "--detail", "replay")
 	q := shape(entryKeys, "ask", "Annual plans?", "--plan", "launch")
-	lo := shape(entryKeys, "loose", "Footer links old pricing", "--plan", "launch")
-	lo2 := shape(entryKeys, "loose", "Two h1s", "--plan", "launch")
+	lo := shape(entryKeys, "ask", "Fix the footer's old pricing links?", "--plan", "launch")
+	lo2 := shape(entryKeys, "ask", "Two h1s: which one stays?", "--plan", "launch")
 	inb := shape(keys{[]string{"entries"}, nil}, "inbox")
 	checkKeys(t, "inbox[0]", first(t, "entries", inb["entries"]), entryKeys)
 
@@ -157,8 +157,7 @@ func TestOutputShapes(t *testing.T) {
 	bug := shape(itemViewKeys, "bug", "Flaky login test", "--category", "tests")
 	shape(itemViewKeys, "bug", "Two h1s on home", "--phase", id(phase))
 	shape(itemViewKeys, "commit", id(bug), "--on-request")
-	shape(keys{[]string{"ideas"}, nil}, "ideas")
-	lo3 := shape(entryKeys, "loose", "Pricing page", "--plan", "launch")
+	lo3 := shape(entryKeys, "ask", "A pricing page?", "--plan", "launch")
 	promo := shape(keys{[]string{"entry"}, []string{"item", "phase"}}, "do", id(lo3), "--as", "phase")
 	checkKeys(t, "do --as phase .phase", promo["phase"], phaseViewKeys)
 	shape(entryKeys, "park", id(lo2), "after launch")
@@ -172,22 +171,19 @@ func TestOutputShapes(t *testing.T) {
 	r.ok("start", id(a))
 	ck := shape(keys{[]string{"tree", "commit", "at", "by", "passed", "results", "cached"}, nil}, "check")
 	checkKeys(t, "check.results[0]", first(t, "results", ck["results"]), keys{[]string{"command", "exit", "duration_ms"}, []string{"tail"}})
-	dn := shapeIn("none\n", keys{[]string{"report", "report_path", "item", "loose_ends_filed"}, []string{"review_entry", "reminder"}},
+	dn := shapeIn("none\n", keys{[]string{"report", "report_path", "item"}, []string{"review_entry", "reminder"}},
 		"done", id(a), "--summary", "Webhook handler.", "--tour", "-")
 	checkKeys(t, "done.item", dn["item"], itemViewKeys)
 	shape(keys{[]string{"report", "text"}, nil}, "report", id(a))
 
 	v := shape(keys{[]string{"generated", "integration", "integration_found", "release", "ahead_of_release", "plans", "unlinked_commits_this_week"},
-		[]string{"unlinked_recent", "ideas_without_plan", "unplanned"}}, "view")
-	if _, ok := v["ideas_without_plan"]; !ok {
-		t.Error("view: missing ideas_without_plan")
-	}
+		[]string{"unlinked_recent", "unplanned", "legacy"}}, "view")
 	board := first(t, "view.plans", v["plans"])
-	boardKeys := keys{[]string{"slug", "title", "progress", "phases", "unfiled", "problems", "in_flight", "needs_you", "ideas"}, nil}
+	boardKeys := keys{[]string{"slug", "title", "progress", "phases", "unfiled", "problems", "in_flight", "needs_you"}, nil}
 	checkKeys(t, "view.plans[0]", board, boardKeys)
 	checkKeys(t, "view.unplanned", v["unplanned"], boardKeys)
 	checkKeys(t, "view.needs_you", board.(map[string]any)["needs_you"],
-		keys{[]string{"reviews", "decisions", "questions", "loose_ends", "older_than_a_week", "parked"}, nil})
+		keys{[]string{"reviews", "decisions", "questions", "older_than_a_week", "parked"}, nil})
 	shape(keys{[]string{"worktree", "branch", "protocol", "my_claims", "plans", "ready", "active", "decisions"}, []string{"item"}}, "context")
 	shape(keys{[]string{"guide", "text"}, nil}, "guide", "json")
 
@@ -197,7 +193,7 @@ func TestOutputShapes(t *testing.T) {
 	shape(keys{[]string{"remote", "action", "local", "pushed_commits"}, []string{"remote_before", "dry_run", "commands"}}, "sync", "--dry-run")
 
 	// batch prints an array, one result per line.
-	out, errOut, code := r.mull(`{"op": "loose", "plan": "launch", "text": "x", "ref": "x"}`+"\n", "batch")
+	out, errOut, code := r.mull(`{"op": "ask", "plan": "launch", "text": "x", "ref": "x"}`+"\n", "batch")
 	if code != 0 {
 		t.Fatal(errOut)
 	}

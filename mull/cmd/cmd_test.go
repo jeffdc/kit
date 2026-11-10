@@ -101,19 +101,25 @@ func TestCLIEndToEnd(t *testing.T) {
 
 	r.ok("decided", "Any admin can undo anyone's decision", "--item", item, "--detail", "Simplest rule")
 	q := id(r.ok("ask", "Did split undos run on preview?", "--item", item))
-	loose := id(r.ok("loose", "Canonical URL emitted as meta", "--plan", "general", "--source", "2c8c"))
+	later := id(r.ok("ask", "Should the canonical URL be a link header?", "--plan", "taxogall", "--source", "2c8c"))
+	// Loose ends and inbox ideas are retired; the old commands point at captures.
+	if e := r.fails("retired", "loose", "Canonical URL emitted as meta", "--plan", "taxogall"); !strings.Contains(e["error"].(string), "mull bug") {
+		t.Fatalf("loose = %v", e)
+	}
+	r.fails("retired", "ideas")
+	r.ok("bug", "Canonical URL emitted as meta", "--plan", "taxogall", "--source", "2c8c")
 
 	// inbox is JSON by default; --text renders it.
 	if n := len(r.ok("inbox")["entries"].([]any)); n != 3 {
 		t.Fatalf("inbox has %d entries", n)
 	}
 	text, _, code := r.mull("", "inbox", "--text")
-	if code != 0 || !strings.Contains(text, "DECISIONS (1)") || !strings.Contains(text, "LOOSE ENDS (1)") {
+	if code != 0 || !strings.Contains(text, "DECISIONS (1)") || !strings.Contains(text, "QUESTIONS (2)") {
 		t.Fatalf("inbox --text:\n%s", text)
 	}
 
 	r.ok("decide", q, "No compatibility path needed", "--on-request")
-	r.ok("park", loose, "after release")
+	r.ok("park", later, "after release")
 	if n := len(r.ok("decisions")["decisions"].([]any)); n != 1 {
 		t.Fatalf("decision log has %d entries", n)
 	}
@@ -139,7 +145,6 @@ func TestCLIEndToEnd(t *testing.T) {
 
 	// view is JSON by default; --text renders it.
 	v := r.ok("view")
-	// general holds only a parked entry, so the board leaves it out.
 	if plans := v["plans"].([]any); len(plans) != 1 {
 		t.Fatalf("view plans = %v", plans)
 	}
@@ -197,16 +202,16 @@ func TestUsageErrorsHaveACode(t *testing.T) {
 func TestScopeRules(t *testing.T) {
 	r := run{t: t, dir: gittest.NewRepo(t)}
 	r.ok("init")
-	// With only the general plan, an entry without scope lands there.
-	if e := r.ok("loose", "only one plan"); e["plan"] != "general" {
+	// With no plan, an entry without scope is about the whole project.
+	if e := r.ok("ask", "no plans yet"); e["plan"] != "" {
 		t.Fatalf("entry = %v", e)
 	}
 	r.ok("plan", "new", "alpha", "Alpha")
 	r.ok("plan", "new", "beta", "Beta")
-	for _, verb := range []string{"decided", "ask", "loose"} {
+	for _, verb := range []string{"decided", "ask"} {
 		r.fails("scope_required", verb, "about something")
 	}
-	if e := r.ok("loose", "about beta", "--plan", "beta"); e["plan"] != "beta" {
+	if e := r.ok("ask", "about beta", "--plan", "beta"); e["plan"] != "beta" {
 		t.Fatalf("entry = %v", e)
 	}
 	phase := id(r.ok("phase", "add", "E", "--plan", "alpha"))
@@ -219,4 +224,9 @@ func TestScopeRules(t *testing.T) {
 	}
 	r.fails("invalid_argument", "add", "y", "--phase", phase, "--plan", "beta")
 	r.fails("scope_required", "add", "z")
+	if it := r.ok("add", "z", "--plan", "none"); it["plan"] != nil {
+		t.Fatalf("unplanned item = %v", it)
+	}
+	// Captures need no scope.
+	r.ok("bug", "untagged")
 }

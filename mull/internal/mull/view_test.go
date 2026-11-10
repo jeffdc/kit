@@ -68,10 +68,10 @@ func TestBoardFromGit(t *testing.T) {
 	later := time.Now().Add(4 * 24 * time.Hour)
 	m.Now = func() time.Time { return later }
 	v := must[View](t)(m.Board(""))
-	if len(v.Plans) != 1 || v.Plans[0].Slug != "launch" {
+	if len(v.Plans) != 2 || v.Plans[1].Slug != "launch" { // general, empty, and launch
 		t.Fatalf("plans on board: %+v", v.Plans)
 	}
-	board := v.Plans[0]
+	board := v.Plans[1]
 
 	probs := problemsByItem(board)
 	want := map[string]string{d.ID: "done-not-in-git", e.ID: "idle-claim", f.ID: "unclaimed-work", a.ID: "idle-claim"}
@@ -119,7 +119,7 @@ func TestBoardFromGit(t *testing.T) {
 	}
 }
 
-func TestBoardSkipsEmptyGeneralAndHandlesMissingIntegration(t *testing.T) {
+func TestBoardWithNoPlansAndMissingIntegration(t *testing.T) {
 	dir := gittest.NewRepo(t)
 	m, err := Open(dir)
 	if err != nil {
@@ -135,10 +135,10 @@ func TestBoardSkipsEmptyGeneralAndHandlesMissingIntegration(t *testing.T) {
 	if !strings.Contains(v.Text(time.Now()), "branch not found") {
 		t.Error("missing integration branch not reported")
 	}
-	must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindLoose, Text: "x"}))
+	must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindQuestion, Text: "x"}))
 	v = must[View](t)(m.Board(""))
-	if len(v.Plans) != 1 || v.Plans[0].NeedsYou.Loose != 1 {
-		t.Fatalf("general with an entry should show: %+v", v.Plans)
+	if len(v.Plans) != 0 || v.Unplanned == nil || v.Unplanned.NeedsYou.Questions != 1 {
+		t.Fatalf("a project-wide question should show under unplanned: %+v %+v", v.Plans, v.Unplanned)
 	}
 	_, err = m.Board("nope")
 	wantErr(t, err, `no plan "nope"`)

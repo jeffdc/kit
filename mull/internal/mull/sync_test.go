@@ -41,7 +41,7 @@ func TestSyncFirstPushSendsOnlyTheMullBranch(t *testing.T) {
 	var pushed []string
 	m.pushHook = func(args []string) { pushed = args }
 	res := must[SyncResult](t)(m.Sync(false))
-	if res.Action != "pushed" || res.Pushed != 2 {
+	if res.Action != "pushed" || res.Pushed != 3 { // init, plan new, add
 		t.Fatalf("sync = %+v", res)
 	}
 	local := gittest.Git(t, dir, "rev-parse", store.Ref)
@@ -78,7 +78,7 @@ func TestSyncCloneAndMerge(t *testing.T) {
 
 	// Both write; B pushes first, A merges.
 	must[ItemView](t)(a.ItemAdd(NewItem{Plan: "general", Title: "A again"}))
-	must[*model.Entry](t)(b.Capture(CaptureInput{Kind: model.KindLoose, Text: "from B"}))
+	must[*model.Entry](t)(b.Capture(CaptureInput{Kind: model.KindQuestion, Text: "from B"}))
 	if res := must[SyncResult](t)(b.Sync(false)); res.Action != "pushed" {
 		t.Fatalf("B sync = %+v", res)
 	}
