@@ -311,6 +311,7 @@ func listCmd(a *app) *cobra.Command {
 	c.Flags().StringVar(&f.Phase, "phase", "", "only this phase")
 	c.Flags().StringVar(&f.State, "state", "", "only this stage (captured, committed, active, in-review, done, dropped)")
 	c.Flags().StringVar(&f.Kind, "kind", "", "only this kind of captured item (bug, idea)")
+	c.Flags().BoolVar(&f.Untriaged, "untriaged", false, "only captured items not triaged yet")
 	return c
 }
 
@@ -333,7 +334,7 @@ func readyCmd(a *app) *cobra.Command {
 func setCmd(a *app) *cobra.Command {
 	return &cobra.Command{
 		Use:   "set <slug|id> <field> <value>",
-		Short: "Change a field (plan/phase: title, summary; item: title, notes, phase, doc). Value - reads stdin",
+		Short: "Change a field (plan/phase: title, summary; item: title, notes, category, phase, doc; captured item: plan too, none untags). Value - reads stdin",
 		Args:  exact(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			val, err := a.text(args[2])
@@ -448,6 +449,22 @@ func commitCmd(a *app) *cobra.Command {
 	c.Flags().StringVar(&in.Plan, "plan", "", "move it to this plan (none: unplanned work)")
 	c.Flags().StringVar(&in.Phase, "phase", "", "move it to this phase (implies the plan)")
 	c.Flags().BoolVar(&in.OnRequest, "on-request", false, "an agent committing this on the human's explicit instruction")
+	return c
+}
+
+func triageCmd(a *app) *cobra.Command {
+	var in mull.TriageIn
+	c := &cobra.Command{
+		Use:   "triage [id...]",
+		Short: "Stamp captured items as triaged with the human (--all: the whole backlog, or one plan's with --plan). See mull guide triage",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			in.IDs = mull.SplitIDs(args)
+			return a.write("triage", &in)
+		},
+	}
+	c.Flags().BoolVar(&in.All, "all", false, "every captured item in the project, or in --plan")
+	c.Flags().StringVar(&in.Plan, "plan", "", "with --all: only this plan's backlog (none: captures tagged to no plan)")
+	c.Flags().BoolVar(&in.OnRequest, "on-request", false, "an agent stamping these after triaging them with the human")
 	return c
 }
 
@@ -676,7 +693,7 @@ func guideCmd(a *app) *cobra.Command {
 	var asText bool
 	c := &cobra.Command{
 		Use:   "guide <" + strings.Join(guide.Names(), "|") + ">",
-		Short: "A procedure or reference: agents (for AGENTS.md), supervisor, intake, json (output shapes)",
+		Short: "A procedure or reference: agents (for AGENTS.md), supervisor, intake, triage (the backlog, with the human), json (output shapes)",
 		Args:  exact(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			g, err := guide.Get(args[0])

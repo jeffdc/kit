@@ -31,6 +31,8 @@ type View struct {
 	UnlinkedCount    int         `json:"unlinked_commits_this_week"`
 	UnlinkedRecent   []string    `json:"unlinked_recent,omitempty"`
 	Legacy           *Legacy     `json:"legacy,omitempty"`
+	Untriaged        int         `json:"untriaged"`             // the whole project's untriaged captured items, with --plan too
+	LastTriage       string      `json:"last_triage,omitempty"` // the latest triage stamp on any item
 }
 
 // Legacy counts open entries of the retired kinds, kept until the Model v2
@@ -113,6 +115,14 @@ func (m *Mull) Board(plan string) (View, error) {
 		}
 		if n := len(g.Unlinked); n > 0 {
 			v.UnlinkedRecent = g.Unlinked[:min(n, unlinkedListSize)]
+		}
+		for _, i := range s.items {
+			if untriaged(i) {
+				v.Untriaged++
+			}
+			if i.Triaged > v.LastTriage {
+				v.LastTriage = i.Triaged
+			}
 		}
 		var legacy Legacy
 		for _, e := range s.entries {
@@ -328,7 +338,11 @@ func progressText(p Progress) string {
 		parts = append(parts, fmt.Sprintf("%d ready", p.Ready))
 	}
 	if p.Captured > 0 {
-		parts = append(parts, fmt.Sprintf("%d captured", p.Captured))
+		c := fmt.Sprintf("%d captured", p.Captured)
+		if p.Untriaged > 0 {
+			c += fmt.Sprintf(" (%d untriaged)", p.Untriaged)
+		}
+		parts = append(parts, c)
 	}
 	return strings.Join(parts, " · ")
 }
@@ -375,6 +389,13 @@ func (v View) Text(now time.Time) string {
 	if v.Unplanned != nil {
 		b.WriteString("\nUNPLANNED\n")
 		writeBoard(&b, *v.Unplanned, now)
+	}
+	if v.Untriaged > 0 {
+		line := plural(v.Untriaged, "captured item") + " untriaged (triage with the human: mull guide triage)"
+		if t, ok := parseTime(v.LastTriage); ok {
+			line += " · last triage " + t.Format("2006-01-02")
+		}
+		fmt.Fprintf(&b, "\nBACKLOG  %s\n", line)
 	}
 	if l := v.Legacy; l != nil {
 		var parts []string

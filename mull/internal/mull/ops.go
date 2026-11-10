@@ -90,6 +90,7 @@ var ops = map[string]opDef{
 	"bug":           {func() Input { return &CaptureItemIn{kind: model.ItemBug} }, "text, plan, phase, category, source, detail"},
 	"idea":          {func() Input { return &CaptureItemIn{kind: model.ItemIdea} }, "text, plan, phase, category, source, detail"},
 	"commit":        {func() Input { return &CommitIn{} }, "id, plan, phase, on-request"},
+	"triage":        {func() Input { return &TriageIn{} }, "ids, all, plan, on-request"},
 	"start":         {func() Input { return &StartIn{} }, "id"},
 	"release":       {func() Input { return &ReleaseIn{} }, "id"},
 	"accept":        {func() Input { return &AcceptIn{} }, "ids, follow-up, on-request"},
@@ -298,6 +299,22 @@ func (in *CommitIn) refFields() ([]*string, []*IDList) {
 func (in *CommitIn) run(m *Mull, s *state) (any, string, error) {
 	r, err := m.commit(s, CommitInput{ID: in.ID, Plan: in.Plan, Phase: in.Phase, OnRequest: in.OnRequest})
 	return r, in.ID, err
+}
+
+// TriageIn stamps captured items as triaged: ids, or all (in plan).
+type TriageIn struct {
+	IDs       IDList `json:"ids"`
+	All       bool   `json:"all"`
+	Plan      string `json:"plan"`
+	OnRequest bool   `json:"on-request"`
+}
+
+func (in *TriageIn) refFields() ([]*string, []*IDList) {
+	return []*string{&in.Plan}, []*IDList{&in.IDs}
+}
+func (in *TriageIn) run(m *Mull, s *state) (any, string, error) {
+	r, err := m.triage(s, TriageInput{IDs: in.IDs, All: in.All, Plan: in.Plan, OnRequest: in.OnRequest})
+	return r, "", err
 }
 
 type StartIn struct {

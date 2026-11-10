@@ -17,6 +17,9 @@ var supervisor string
 //go:embed intake.md
 var intake string
 
+//go:embed triage.md
+var triage string
+
 //go:embed json.md
 var jsonRef string
 
@@ -24,6 +27,7 @@ var guides = map[string]string{
 	"agents":     agents,
 	"supervisor": supervisor,
 	"intake":     intake,
+	"triage":     triage,
 	"json":       jsonRef,
 }
 

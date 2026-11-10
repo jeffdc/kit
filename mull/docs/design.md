@@ -67,6 +67,8 @@ New mull is the record of a program: its plans, where they stand, and everything
 - A phase is complete when it has committed items and all of them are done or dropped.
 - Until the Model v2 migration, stages are stored under their old names (`open`, `done`, `accepted` for committed, in-review and done).
 
+**Triage** (Model v2) is a process the human runs with an agent (`mull guide triage`), not a screen. Each captured item is committed, tagged to a plan or phase (`mull set <id> plan|phase`, captured items only, so tagging never commits), started, dropped or left. `mull triage <id…> --on-request` (or `--all [--plan <slug>|none]`) stamps an item's `triaged` time; a captured item with no stamp is untriaged. The view shows only the untriaged count: for the project, on each board, and in each progress line.
+
 ### Ordering: loose, with dependencies between phases
 
 There is no priority list and no ordering field. Order only where it matters (Model v2):
@@ -283,7 +285,7 @@ The ops are every write except `init`, `sync`, `check` and `done`.
 | Batch | `mull batch [--dry-run] < ops.jsonl` |
 | Settle (you, or an agent on your request) | `mull inbox` · `accept <id…>` · `decide <id> "text"` · `do <id> [--plan] [--epic]` · `drop <id…>` · `park <id> "reason"` |
 | Read (agents) | `mull context [--item <id>]` (compact JSON for the start of a session: the plan, its epics, ready items, the item's needs, recent decisions, open questions on the item, the protocol reminder) · `decisions [--plan]` |
-| Guides | `mull guide agents` · `mull guide intake` · `mull guide supervisor` |
+| Guides | `mull guide agents` · `mull guide intake` · `mull guide supervisor` · `mull guide triage` |
 
 ## The agent protocol (`mull guide agents`)
 

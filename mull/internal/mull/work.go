@@ -304,6 +304,7 @@ func (m *Mull) addItem(s *state, in NewItem) (*model.Item, error) {
 type ItemFilter struct {
 	Plan, Phase, State, Kind string
 	ReadyOnly                bool
+	Untriaged                bool // only captured items not triaged yet
 }
 
 // ItemList returns items matching f.
@@ -324,7 +325,8 @@ func (m *Mull) ItemList(f ItemFilter) ([]ItemView, error) {
 		for _, id := range sortedKeys(s.items) {
 			i := s.items[id]
 			if (f.Plan != "" && i.Plan != plan) || (f.Phase != "" && i.Phase != f.Phase) ||
-				(f.State != "" && i.State != f.State) || (f.Kind != "" && i.Kind != f.Kind) {
+				(f.State != "" && i.State != f.State) || (f.Kind != "" && i.Kind != f.Kind) ||
+				(f.Untriaged && !untriaged(i)) {
 				continue
 			}
 			v := s.itemView(i)
@@ -425,6 +427,87 @@ func (m *Mull) commit(s *state, in CommitInput) (ItemView, error) {
 	return s.itemView(i), nil
 }
 
+// TriageInput stamps captured items as triaged: the IDs given, or with All
+// every captured item in the project, or in Plan ("none": the backlog
+// tagged to no plan).
+type TriageInput struct {
+	IDs  []string
+	All  bool
+	Plan string
+	// OnRequest records that the human asked: triage is run with the human,
+	// and stamping hides items from their untriaged count.
+	OnRequest bool
+}
+
+// TriageResult is the items stamped.
+type TriageResult struct {
+	Items []ItemView `json:"items"`
+}
+
+// Triage stamps captured items as triaged now.
+func (m *Mull) Triage(in TriageInput) (TriageResult, error) {
+	var out TriageResult
+	err := m.update("triage", func(s *state) error {
+		var err error
+		out, err = m.triage(s, in)
+		return err
+	})
+	return out, err
+}
+
+func (m *Mull) triage(s *state, in TriageInput) (TriageResult, error) {
+	out := TriageResult{Items: []ItemView{}}
+	ids := dedupe(in.IDs)
+	switch {
+	case in.All && len(ids) > 0:
+		return out, errf(CodeInvalid, "give item IDs or --all, not both")
+	case !in.All && len(ids) == 0:
+		return out, errf(CodeInvalid, "give the captured items to stamp as triaged, or --all (with --plan for one plan's backlog)")
+	case !in.All && in.Plan != "":
+		return out, errf(CodeInvalid, "--plan goes with --all; with item IDs, the IDs say what was triaged")
+	}
+	if !in.OnRequest {
+		return out, errf(CodeNotAllowed, "triage is run with the human: pass --on-request when the human has triaged these items with you")
+	}
+	var items []*model.Item
+	if in.All {
+		plan := in.Plan
+		if plan == model.NoPlan {
+			plan = ""
+		} else if plan != "" {
+			if _, err := s.plan(plan); err != nil {
+				return out, err
+			}
+		}
+		for _, id := range sortedKeys(s.items) {
+			i := s.items[id]
+			if i.State == model.StateCaptured && (in.Plan == "" || i.Plan == plan) {
+				items = append(items, i)
+			}
+		}
+	} else {
+		for _, id := range ids {
+			i, err := s.item(id)
+			if err != nil {
+				return out, err
+			}
+			if i.State != model.StateCaptured {
+				return out, errf(CodeState, "item %s is %s; only captured items are triaged", i.ID, i.State)
+			}
+			items = append(items, i)
+		}
+	}
+	now := m.now()
+	for _, i := range items {
+		i.Triaged, i.Updated = now, now
+		if err := s.putItem(i); err != nil {
+			return out, err
+		}
+		out.Items = append(out.Items, s.itemView(i))
+	}
+	return out, nil
+}
+
 // Shown is any record returned by show, tagged with its type.
 type Shown struct {
 	Type  string       `json:"type"` // plan, phase, item, entry
@@ -474,7 +557,8 @@ type SetResult struct {
 //
 //	plan: title, summary
 //	phase: title, summary
-//	item: title, notes, phase ("" to unfile), doc (adds a path)
+//	item: title, notes, category, phase ("" to unfile), doc (adds a path), and for a
+//	captured item plan ("none" to untag; a phase in another plan retags it)
 func (m *Mull) Set(ref, field, value string) (SetResult, error) {
 	var out SetResult
 	err := m.update(fmt.Sprintf("set %s %s", ref, field), func(s *state) error {
@@ -523,6 +607,8 @@ func (m *Mull) set(s *state, ref, field, value string) (SetResult, error) {
 			i.Title = value
 		case "notes":
 			i.Notes = value
+		case "category":
+			i.Category = value
 		case "doc":
 			i.Docs = dedupe(append(i.Docs, value))
 		case "phase":
@@ -532,12 +618,37 @@ func (m *Mull) set(s *state, ref, field, value string) (SetResult, error) {
 					return SetResult{}, err
 				}
 				if e.Plan != i.Plan {
-					return SetResult{}, errf(CodeInvalid, "phase %s belongs to plan %q, not %q", e.ID, e.Plan, i.Plan)
+					// A captured item is only tagged, so a phase in another
+					// plan retags its plan too; committed work stays put.
+					if i.State != model.StateCaptured {
+						return SetResult{}, errf(CodeInvalid, "phase %s belongs to plan %q, not %q", e.ID, e.Plan, i.Plan)
+					}
+					if _, err := s.openPlan(e.Plan); err != nil {
+						return SetResult{}, err
+					}
+					i.Plan = e.Plan
 				}
 			}
 			i.Phase = value
+		case "plan":
+			if i.State != model.StateCaptured {
+				return SetResult{}, errf(CodeState, "item %s is %s; only a captured item's plan can be changed", i.ID, i.State)
+			}
+			plan, err := s.resolvePlan(value, "")
+			if err != nil {
+				return SetResult{}, errf(CodeInvalid, "give a plan slug, or none to untag it")
+			}
+			if plan != "" {
+				if _, err := s.openPlan(plan); err != nil {
+					return SetResult{}, err
+				}
+			}
+			if plan != i.Plan {
+				i.Phase = "" // a new plan leaves the old phase behind
+			}
+			i.Plan = plan
 		default:
-			return SetResult{}, errf(CodeInvalid, "an item's settable fields are title, notes, phase and doc")
+			return SetResult{}, errf(CodeInvalid, "an item's settable fields are title, notes, category, plan (captured only), phase and doc")
 		}
 		i.Updated = now
 		if err := s.putItem(i); err != nil {
