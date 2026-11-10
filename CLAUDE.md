@@ -6,7 +6,7 @@ This is a monorepo of small, independent CLI tools ("kit"). Each tool lives in i
 
 - **watchmen/** - Time tracking and invoice generation (Go)
 - **canal/** - Inter-agent messaging system (Elixir/Phoenix)
-- **mull/** - The record of a program run with agents: plans, epics, items, and an inbox of what needs the human (Go)
+- **mull/** - The record of a program run with agents: plans, phases, items, a backlog, and an inbox of what needs the human (Go)
 
 ## Tracking work
 

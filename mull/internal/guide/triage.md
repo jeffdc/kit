@@ -14,6 +14,7 @@ Everything mull prints is JSON (see `mull guide json`).
 - `mull view --text`: the BACKLOG line gives the untriaged count and the last triage date, and each board counts its captured items.
 - `mull list --untriaged`: every untriaged item. Narrow it with `--plan <slug>`, `--plan none` (tagged to no plan), `--phase <id>` or `--kind bug|idea`.
 - `mull list --state captured`: the whole backlog, if the human wants to revisit items triaged before.
+- Older loose ends and inbox ideas, from before captured items, aren't in the backlog: `mull inbox --kind loose-end` and `--kind idea` list them, and the view counts them as legacy. If there are any, suggest running `mull migrate --dry-run` with the human first; `mull migrate` turns them into captured items.
 
 ## 2. Show the human a short list
 Group the items by plan, then by category. For each, give one line: the ID, kind, category, title, source, and the plan or phase it's tagged to. Then add your proposal and a reason, in a few words. Read an item's notes (`mull show <id>`) before proposing anything.
@@ -23,7 +24,7 @@ Group the items by plan, then by category. For each, give one line: the ID, kind
 |---|---|---|
 | **Commit** | It's work worth doing | `mull commit <id> --on-request`, with `--plan <slug>`, `--phase <id>` or `--plan none` (unplanned) if it moves |
 | **Tag** | Not yet work, but it belongs to a plan or phase | `mull set <id> plan <slug>`, `mull set <id> phase <phase-id>` (implies its plan), or `mull set <id> plan none` to untag |
-| **Start** | A small fix the human wants done now | the agent that will do it runs `mull start <id>` in its own worktree (start commits it). If that's you, finish triage first: one item per session |
+| **Start** | A small fix the human wants done now | the agent that will do it runs `mull start <id>` in its own worktree (start commits it; not in a plan that's still shaping). If that's you, finish triage first: one item per session |
 | **Drop** | Not worth keeping, fixed already, or a duplicate | `mull drop <id> --reason "<why>" --on-request` |
 | **Leave** | Fine as it is in the backlog | nothing; it's stamped in step 4 |
 
