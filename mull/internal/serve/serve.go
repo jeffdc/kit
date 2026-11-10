@@ -1,7 +1,7 @@
 // Package serve is mull serve: the human's view of every repository on mull,
 // as a local web server. It listens on 127.0.0.1 only, serves the UI
-// embedded in the binary, and a read-only JSON API over internal/mull. It
-// never writes mull data.
+// embedded in the binary, and a JSON API over internal/mull. It never writes
+// mull data; its one write is the last-looked state (package seen).
 package serve
 
 import (
@@ -44,6 +44,7 @@ func Handler(repos Repos) http.Handler {
 		}
 		writeJSON(w, http.StatusOK, ProjectList{Projects: projects(paths)})
 	})
+	registerRevision(mux, repos)
 	mux.HandleFunc("GET /api/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, &mull.Error{Code: mull.CodeNotFound, Msg: "no API endpoint " + r.URL.Path})
 	})
@@ -87,6 +88,9 @@ type Project struct {
 	Path    string        `json:"path"`
 	Summary *mull.Summary `json:"summary,omitempty"`
 	Error   *mull.Error   `json:"error,omitempty"`
+	// Revision is the tip's revision number and what changed since the
+	// human last looked; with Summary only.
+	Revision *ProjectRevision `json:"revision,omitempty"`
 }
 
 // projects reads every repository's summary, concurrently, sorted by ID.
@@ -105,6 +109,7 @@ func projects(paths []string) []Project {
 				return
 			}
 			pr.Summary = &sum
+			pr.Revision = projectRevision(pr.Path)
 		}(&out[i])
 	}
 	wg.Wait()

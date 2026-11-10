@@ -268,6 +268,16 @@ func (s *Store) View(fn func(tx *Tx) error) error {
 	return fn(newTx(snap))
 }
 
+// ViewAt runs fn against the mull branch as it was at commit, without
+// writing. commit must be a commit in this repository.
+func (s *Store) ViewAt(commit string, fn func(tx *Tx) error) error {
+	snap, err := s.loadCommit(commit)
+	if err != nil {
+		return err
+	}
+	return fn(newTx(snap))
+}
+
 func newTx(snap *Snapshot) *Tx {
 	return &Tx{snap: snap, puts: map[string][]byte{}, dels: map[string]bool{}}
 }
