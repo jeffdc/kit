@@ -16,7 +16,7 @@ const (
 	CodeNotRepo            = "not_a_repo"          // not inside a git working tree
 	CodeNotInitialized     = "not_initialized"     // no mull branch (run mull init, or mull sync on a second machine)
 	CodeAlreadyInitialized = "already_initialized" // mull init where the branch exists
-	CodeNotFound           = "not_found"           // no plan, epic, item, entry, report or guide by that name
+	CodeNotFound           = "not_found"           // no plan, phase, item, entry, report or guide by that name
 	CodeExists             = "already_exists"      // a plan slug or batch ref already used
 	CodeState              = "invalid_state"       // the record is in the wrong state for this
 	CodeClaimed            = "claimed"             // the item is claimed by another worktree

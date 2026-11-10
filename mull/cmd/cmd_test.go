@@ -78,10 +78,10 @@ func TestCLIEndToEnd(t *testing.T) {
 
 	r.ok("init", "--integration", "taxogall")
 	r.ok("plan", "new", "taxogall", "Taxogall")
-	epic := id(r.ok("epic", "add", "Phase 2", "--plan", "taxogall"))
+	phase := id(r.ok("phase", "add", "Phase 2", "--plan", "taxogall"))
 
-	// --epic implies the plan.
-	it := r.okIn("Read 8567 §3 first.\n", "add", "Tree edits become Facts", "--epic", epic, "--notes", "-")
+	// --phase implies the plan.
+	it := r.okIn("Read 8567 §3 first.\n", "add", "Tree edits become Facts", "--phase", phase, "--notes", "-")
 	item := id(it)
 	if it["plan"] != "taxogall" || it["notes"] != "Read 8567 §3 first." || it["ready"] != true {
 		t.Fatalf("item = %v", it)
@@ -209,14 +209,14 @@ func TestScopeRules(t *testing.T) {
 	if e := r.ok("loose", "about beta", "--plan", "beta"); e["plan"] != "beta" {
 		t.Fatalf("entry = %v", e)
 	}
-	epic := id(r.ok("epic", "add", "E", "--plan", "alpha"))
-	it := r.ok("add", "x", "--epic", epic)
+	phase := id(r.ok("phase", "add", "E", "--plan", "alpha"))
+	it := r.ok("add", "x", "--phase", phase)
 	if it["plan"] != "alpha" {
-		t.Fatalf("plan not inferred from epic: %v", it)
+		t.Fatalf("plan not inferred from phase: %v", it)
 	}
 	if e := r.ok("ask", "about the item", "--item", id(it)); e["plan"] != "alpha" {
 		t.Fatalf("entry plan not inferred from item: %v", e)
 	}
-	r.fails("invalid_argument", "add", "y", "--epic", epic, "--plan", "beta")
+	r.fails("invalid_argument", "add", "y", "--phase", phase, "--plan", "beta")
 	r.fails("scope_required", "add", "z")
 }

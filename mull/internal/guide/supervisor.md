@@ -7,12 +7,12 @@ Everything mull prints is JSON (see `mull guide json`). Use `mull view --text` a
 When you settle or file more than a couple of records at once, use `mull batch`. For example, when the human works through the inbox with you, send one batch of `accept`, `decide`, `drop` and `park` lines with `"on-request": true`. It's all or nothing, and it's one commit.
 
 ## Before starting
-- Run `mull view` and `mull context`. Know the plan, the epics, what's blocked, and what's in flight.
+- Run `mull view` and `mull context`. Know the plan, the phases, what's blocked, and what's in flight.
 - Read `mull decisions`. Workers must not re-decide what's settled, and neither must you.
 
 ## Handing out work
 - Pick from `mull ready`. These items are open, with everything they need finished.
-- Prefer items in unblocked epics. Don't hand out two items likely to touch the same files at the same time.
+- Prefer items in unblocked phases. Don't hand out two items likely to touch the same files at the same time.
 - Give each worker exactly one item ID, its worktree, and this instruction: "Follow `mull guide agents`. Your item is `<id>`."
 - Don't create items yourself unless the human asked you to. If a piece of work is too big for one session, propose a split with `mull ask`.
 
@@ -23,7 +23,7 @@ When you settle or file more than a couple of records at once, use `mull batch`.
   - **unclaimed-work:** someone is committing to an item's branch without having claimed it.
 - Route questions and decisions to the human. Don't answer them yourself. `mull inbox` shows what's waiting.
 - Feedback the human hands you for later goes in as a loose end, in their words, with `--source "human, <date or context>"`. File it when it's given, and don't hand it to a worker until the human settles it (usually `mull do <id> --on-request`).
-- Ideas (`mull ideas`) aren't work and never go to workers. Only the human promotes one. When they do, run `mull do <idea-id> --plan <p> [--as epic] --on-request`.
+- Ideas (`mull ideas`) aren't work and never go to workers. Only the human promotes one. When they do, run `mull do <idea-id> --plan <p> [--as phase] --on-request`.
 
 ## Reviewing finished work
 When a worker runs `mull done`, you review before the human sees it:
@@ -37,4 +37,4 @@ Unreviewed work is incomplete work. Nothing counts as finished until it's accept
 
 ## End of session
 - Run `mull sync`.
-- Give the human a short status: the epics' progress, what landed, what's blocked, and the inbox count by kind.
+- Give the human a short status: the phases' progress, what landed, what's blocked, and the inbox count by kind.

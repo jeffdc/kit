@@ -8,7 +8,7 @@ import (
 
 func TestEncodeDecodeRoundTrip(t *testing.T) {
 	in := Item{
-		Plan: "taxogall", Epic: "1a2b", Title: "Tree edits: become Facts", State: StateActive,
+		Plan: "taxogall", Phase: "1a2b", Title: "Tree edits: become Facts", State: StateActive,
 		Needs: []string{"0001", "7877"}, Docs: []string{"docs/x.md"},
 		Claim:   &Claim{Worktree: "/w/a", Branch: "f923-x", At: "2026-11-09T10:00:00Z"},
 		Created: "2026-11-09T09:00:00Z", Updated: "2026-11-09T10:00:00Z",
@@ -31,7 +31,7 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 }
 
 func TestAllDigitIDsStayStrings(t *testing.T) {
-	data, err := Encode(Item{Needs: []string{"7877"}, Epic: "0123"}, "")
+	data, err := Encode(Item{Needs: []string{"7877"}, Phase: "0123"}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestAllDigitIDsStayStrings(t *testing.T) {
 	if _, err := Decode(data, &out); err != nil {
 		t.Fatal(err)
 	}
-	if out.Epic != "0123" || out.Needs[0] != "7877" {
+	if out.Phase != "0123" || out.Needs[0] != "7877" {
 		t.Errorf("digit IDs not preserved: %+v", out)
 	}
 }

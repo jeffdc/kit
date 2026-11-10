@@ -1,5 +1,5 @@
 // Package mull implements mull's operations on top of the store: plans,
-// epics, items, dependencies, claims and the inbox.
+// phases, items, dependencies, claims and the inbox.
 package mull
 
 import (
@@ -84,7 +84,7 @@ type state struct {
 	tx      *store.Tx
 	config  model.Config
 	plans   map[string]*model.Plan
-	epics   map[string]*model.Epic
+	phases  map[string]*model.Phase
 	items   map[string]*model.Item
 	entries map[string]*model.Entry
 }
@@ -93,7 +93,7 @@ func load(tx *store.Tx) (*state, error) {
 	s := &state{
 		tx:      tx,
 		plans:   map[string]*model.Plan{},
-		epics:   map[string]*model.Epic{},
+		phases:  map[string]*model.Phase{},
 		items:   map[string]*model.Item{},
 		entries: map[string]*model.Entry{},
 	}
@@ -112,13 +112,13 @@ func load(tx *store.Tx) (*state, error) {
 		s.plans[v.Slug] = &v
 	}
 	for _, p := range tx.List("epics/") {
-		var v model.Epic
+		var v model.Phase
 		body, err := decodeFile(tx, p, &v)
 		if err != nil {
 			return nil, err
 		}
 		v.ID, v.Summary = baseName(p), body
-		s.epics[v.ID] = &v
+		s.phases[v.ID] = &v
 	}
 	for _, p := range tx.List("items/") {
 		var v model.Item
@@ -165,13 +165,13 @@ func (s *state) putPlan(p *model.Plan) error {
 	return nil
 }
 
-func (s *state) putEpic(e *model.Epic) error {
+func (s *state) putPhase(e *model.Phase) error {
 	b, err := model.Encode(e, e.Summary)
 	if err != nil {
 		return err
 	}
-	s.tx.Put(model.EpicPath(e.ID), b)
-	s.epics[e.ID] = e
+	s.tx.Put(model.PhasePath(e.ID), b)
+	s.phases[e.ID] = e
 	return nil
 }
 
@@ -195,7 +195,7 @@ func (s *state) putEntry(e *model.Entry) error {
 	return nil
 }
 
-// newID returns an unused 4-hex ID across epics, items and inbox entries.
+// newID returns an unused 4-hex ID across phases, items and inbox entries.
 func (s *state) newID() (string, error) {
 	for i := 0; i < 1000; i++ {
 		var b [2]byte
@@ -203,7 +203,7 @@ func (s *state) newID() (string, error) {
 			return "", err
 		}
 		id := hex.EncodeToString(b[:])
-		if s.epics[id] == nil && s.items[id] == nil && s.entries[id] == nil {
+		if s.phases[id] == nil && s.items[id] == nil && s.entries[id] == nil {
 			return id, nil
 		}
 	}
@@ -229,10 +229,10 @@ func (s *state) activePlan(slug string) (*model.Plan, error) {
 	return p, nil
 }
 
-func (s *state) epic(id string) (*model.Epic, error) {
-	e := s.epics[id]
+func (s *state) phase(id string) (*model.Phase, error) {
+	e := s.phases[id]
 	if e == nil {
-		return nil, errf(CodeNotFound, "no epic %q", id)
+		return nil, errf(CodeNotFound, "no phase %q", id)
 	}
 	return e, nil
 }

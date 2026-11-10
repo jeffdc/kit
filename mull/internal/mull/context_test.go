@@ -9,9 +9,9 @@ import (
 func TestContextBriefing(t *testing.T) {
 	m, _ := setup(t)
 	must[*model.Plan](t)(m.PlanNew("launch", "Launch", ""))
-	e := must[*model.Epic](t)(m.EpicAdd("launch", "Billing", "Stripe first.", nil))
-	a := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "launch", Epic: e.ID, Title: "Webhook"}))
-	b := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "launch", Epic: e.ID, Title: "Invoices", Needs: []string{a.ID}}))
+	e := must[*model.Phase](t)(m.PhaseAdd("launch", "Billing", "Stripe first.", nil))
+	a := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "launch", Phase: e.ID, Title: "Webhook"}))
+	b := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "launch", Phase: e.ID, Title: "Invoices", Needs: []string{a.ID}}))
 	c := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "launch", Title: "Pricing copy"}))
 	must[StartResult](t)(m.Start(a.ID))
 
@@ -22,7 +22,7 @@ func TestContextBriefing(t *testing.T) {
 	must[*model.Entry](t)(m.Decide(d2.ID, "Monthly only for launch", SettleOpts{}))
 
 	ctx := must[Context](t)(m.Context(a.ID))
-	if ctx.Item == nil || ctx.Item.ID != a.ID || ctx.Item.EpicSummary != "Stripe first." {
+	if ctx.Item == nil || ctx.Item.ID != a.ID || ctx.Item.PhaseSummary != "Stripe first." {
 		t.Fatalf("item = %+v", ctx.Item)
 	}
 	if len(ctx.Item.OpenQuestions) != 1 || ctx.Item.OpenQuestions[0].ID != q.ID {

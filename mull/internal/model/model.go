@@ -53,7 +53,7 @@ var (
 	slugPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`)
 )
 
-// IsID reports whether s looks like an epic, item or inbox ID.
+// IsID reports whether s looks like a phase, item or inbox ID.
 func IsID(s string) bool { return idPattern.MatchString(s) }
 
 // ValidSlug reports whether s can name a plan. Slugs that look like IDs are
@@ -70,8 +70,8 @@ type Plan struct {
 	Summary string `yaml:"-" json:"summary,omitempty"`
 }
 
-// Epic is a big piece of a plan: a set of items.
-type Epic struct {
+// Phase is a big piece of a plan: a set of items.
+type Phase struct {
 	ID      string   `yaml:"-" json:"id"`
 	Plan    string   `yaml:"plan" json:"plan"`
 	Title   string   `yaml:"title" json:"title"`
@@ -96,7 +96,7 @@ type Claim struct {
 type Item struct {
 	ID      string   `yaml:"-" json:"id"`
 	Plan    string   `yaml:"plan" json:"plan"`
-	Epic    string   `yaml:"epic,omitempty" json:"epic,omitempty"`
+	Phase   string   `yaml:"epic,omitempty" json:"phase,omitempty"`
 	Title   string   `yaml:"title" json:"title"`
 	State   string   `yaml:"state" json:"state"`
 	Needs   []string `yaml:"needs,omitempty" json:"needs,omitempty"`
@@ -112,8 +112,8 @@ type Item struct {
 type Settlement struct {
 	Action    string `yaml:"action" json:"action"`
 	Note      string `yaml:"note,omitempty" json:"note,omitempty"`
-	Item      string `yaml:"item,omitempty" json:"item,omitempty"` // the item created by "do"
-	Epic      string `yaml:"epic,omitempty" json:"epic,omitempty"` // the epic created by "do --as epic"
+	Item      string `yaml:"item,omitempty" json:"item,omitempty"`  // the item created by "do"
+	Phase     string `yaml:"epic,omitempty" json:"phase,omitempty"` // the phase created by "do --as phase"
 	By        string `yaml:"by" json:"by"`
 	OnRequest bool   `yaml:"on_request,omitempty" json:"on_request,omitempty"`
 	At        string `yaml:"at" json:"at"`
@@ -192,7 +192,7 @@ type Report struct {
 
 // Paths of records on the mull branch.
 func PlanPath(slug string) string { return "plans/" + slug + ".md" }
-func EpicPath(id string) string   { return "epics/" + id + ".md" }
+func PhasePath(id string) string  { return "epics/" + id + ".md" }
 func ItemPath(id string) string   { return "items/" + id + ".md" }
 func EntryPath(id string) string  { return "inbox/" + id + ".md" }
 func ReportPath(item string, n int) string {

@@ -171,7 +171,7 @@ nothing is written and every failed line is reported. Ops: ` + strings.Join(mull
 	return c
 }
 
-// ---- Plans and epics ----
+// ---- Plans and phases ----
 
 func planCmd(a *app) *cobra.Command {
 	c := &cobra.Command{Use: "plan", Short: "Plans: the top level of the work"}
@@ -200,7 +200,7 @@ func planCmd(a *app) *cobra.Command {
 		},
 	}
 	show := &cobra.Command{
-		Use: "show <slug>", Short: "Show a plan with its epics and items", Args: exact(1),
+		Use: "show <slug>", Short: "Show a plan with its phases and items", Args: exact(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.read(func(m *mull.Mull) (any, error) { return m.PlanShow(args[0]) })
 		},
@@ -215,32 +215,32 @@ func planCmd(a *app) *cobra.Command {
 	return c
 }
 
-func epicCmd(a *app) *cobra.Command {
-	c := &cobra.Command{Use: "epic", Short: "Epics: big pieces of a plan"}
-	var in mull.EpicAddIn
+func phaseCmd(a *app) *cobra.Command {
+	c := &cobra.Command{Use: "phase", Short: "Phases: big pieces of a plan"}
+	var in mull.PhaseAddIn
 	var needs []string
 	add := &cobra.Command{
-		Use: "add <title>", Short: "Add an epic to a plan", Args: exact(1),
+		Use: "add <title>", Short: "Add a phase to a plan", Args: exact(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			in.Title, in.Needs = args[0], mull.SplitIDs(needs)
 			var err error
 			if in.Summary, err = a.text(in.Summary); err != nil {
 				return err
 			}
-			return a.write("epic add", &in)
+			return a.write("phase add", &in)
 		},
 	}
 	add.Flags().StringVar(&in.Plan, "plan", "", "plan slug")
 	add.Flags().StringVar(&in.Summary, "summary", "", "summary (- reads stdin)")
-	add.Flags().StringSliceVar(&needs, "needs", nil, "items or epics this epic needs")
+	add.Flags().StringSliceVar(&needs, "needs", nil, "items or phases this phase needs")
 
 	var listPlan string
 	list := &cobra.Command{
-		Use: "list", Short: "List epics with progress", Args: noArgs,
+		Use: "list", Short: "List phases with progress", Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.read(func(m *mull.Mull) (any, error) {
-				es, err := m.EpicList(listPlan)
-				return map[string]any{"epics": es}, err
+				es, err := m.PhaseList(listPlan)
+				return map[string]any{"phases": es}, err
 			})
 		},
 	}
@@ -256,7 +256,7 @@ func addCmd(a *app) *cobra.Command {
 	var needs, docs []string
 	c := &cobra.Command{
 		Use:   "add <title>",
-		Short: "Add an item: a unit of work one agent completes in one session (--epic implies its plan)",
+		Short: "Add an item: a unit of work one agent completes in one session (--phase implies its plan)",
 		Args:  exact(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			in.Title, in.Needs, in.Doc = args[0], mull.SplitIDs(needs), docs
@@ -267,9 +267,9 @@ func addCmd(a *app) *cobra.Command {
 			return a.write("add", &in)
 		},
 	}
-	c.Flags().StringVar(&in.Plan, "plan", "", "plan slug (not needed with --epic)")
-	c.Flags().StringVar(&in.Epic, "epic", "", "epic ID")
-	c.Flags().StringSliceVar(&needs, "needs", nil, "items or epics this item needs")
+	c.Flags().StringVar(&in.Plan, "plan", "", "plan slug (not needed with --phase)")
+	c.Flags().StringVar(&in.Phase, "phase", "", "phase ID")
+	c.Flags().StringSliceVar(&needs, "needs", nil, "items or phases this item needs")
 	c.Flags().StringVar(&in.Notes, "notes", "", "short notes (- reads stdin)")
 	c.Flags().StringArrayVar(&docs, "doc", nil, "path of a related document (repeatable)")
 	return c
@@ -277,7 +277,7 @@ func addCmd(a *app) *cobra.Command {
 
 func showCmd(a *app) *cobra.Command {
 	return &cobra.Command{
-		Use: "show <slug|id>", Short: "Show a plan, epic, item or inbox entry", Args: exact(1),
+		Use: "show <slug|id>", Short: "Show a plan, phase, item or inbox entry", Args: exact(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.read(func(m *mull.Mull) (any, error) { return m.Show(args[0]) })
 		},
@@ -296,7 +296,7 @@ func listCmd(a *app) *cobra.Command {
 		},
 	}
 	c.Flags().StringVar(&f.Plan, "plan", "", "only this plan")
-	c.Flags().StringVar(&f.Epic, "epic", "", "only this epic")
+	c.Flags().StringVar(&f.Phase, "phase", "", "only this phase")
 	c.Flags().StringVar(&f.State, "state", "", "only this state (open, active, done, accepted, dropped)")
 	return c
 }
@@ -320,7 +320,7 @@ func readyCmd(a *app) *cobra.Command {
 func setCmd(a *app) *cobra.Command {
 	return &cobra.Command{
 		Use:   "set <slug|id> <field> <value>",
-		Short: "Change a field (plan/epic: title, summary; item: title, notes, epic, doc). Value - reads stdin",
+		Short: "Change a field (plan/phase: title, summary; item: title, notes, phase, doc). Value - reads stdin",
 		Args:  exact(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			val, err := a.text(args[2])
@@ -333,7 +333,7 @@ func setCmd(a *app) *cobra.Command {
 }
 
 func needCmd(a *app, add bool) *cobra.Command {
-	use, short, op := "need <id> <needs...>", "Record that an item or epic needs other items or epics", "need"
+	use, short, op := "need <id> <needs...>", "Record that an item or phase needs other items or phases", "need"
 	if !add {
 		use, short, op = "unneed <id> <needs...>", "Remove needs", "unneed"
 	}
@@ -478,8 +478,8 @@ func printIdeas(a *app, es []*model.Entry) error {
 			if e.Settled.Item != "" {
 				status += " → item " + e.Settled.Item
 			}
-			if e.Settled.Epic != "" {
-				status += " → epic " + e.Settled.Epic
+			if e.Settled.Phase != "" {
+				status += " → phase " + e.Settled.Phase
 			}
 			status += "]"
 		}
@@ -568,16 +568,16 @@ func doCmd(a *app) *cobra.Command {
 	var in mull.DoIn
 	c := &cobra.Command{
 		Use:   "do <id>",
-		Short: "Turn a question, loose end or idea into an item (or --as epic), or send reviewed work back (--reason)",
+		Short: "Turn a question, loose end or idea into an item (or --as phase), or send reviewed work back (--reason)",
 		Args:  exact(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			in.ID = args[0]
 			return a.write("do", &in)
 		},
 	}
-	c.Flags().StringVar(&in.Plan, "plan", "", "plan for the new item (default: the epic's plan, else the entry's)")
-	c.Flags().StringVar(&in.Epic, "epic", "", "epic for the new item (implies its plan)")
-	c.Flags().StringVar(&in.As, "as", "item", "what it becomes: item or epic")
+	c.Flags().StringVar(&in.Plan, "plan", "", "plan for the new item (default: the phase's plan, else the entry's)")
+	c.Flags().StringVar(&in.Phase, "phase", "", "phase for the new item (implies its plan)")
+	c.Flags().StringVar(&in.As, "as", "item", "what it becomes: item or phase")
 	c.Flags().StringVar(&in.Reason, "reason", "", "why reviewed work is sent back")
 	onRequestFlag(c, &in.OnRequest)
 	return c
@@ -632,7 +632,7 @@ func viewCmd(a *app) *cobra.Command {
 	var asText bool
 	c := &cobra.Command{
 		Use:   "view",
-		Short: "The board: each plan's epics, problems, work in flight, and what needs you",
+		Short: "The board: each plan's phases, problems, work in flight, and what needs you",
 		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			m, err := a.open()

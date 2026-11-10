@@ -37,7 +37,7 @@ type PlanBoard struct {
 	Slug     string       `json:"slug"`
 	Title    string       `json:"title"`
 	Progress Progress     `json:"progress"`
-	Epics    []EpicLine   `json:"epics"`
+	Phases   []PhaseLine  `json:"phases"`
 	Unfiled  Progress     `json:"unfiled"`
 	Problems []Problem    `json:"problems"`
 	InFlight []FlightLine `json:"in_flight"`
@@ -45,8 +45,8 @@ type PlanBoard struct {
 	Ideas    int          `json:"ideas"` // open ideas in this plan; not work, not in needs_you (mull ideas)
 }
 
-// EpicLine is an epic's progress line.
-type EpicLine struct {
+// PhaseLine is a phase's progress line.
+type PhaseLine struct {
 	ID        string   `json:"id"`
 	Title     string   `json:"title"`
 	Progress  Progress `json:"progress"`
@@ -140,12 +140,12 @@ func parseTime(s string) (time.Time, bool) {
 }
 
 func (s *state) board(p *model.Plan, g *gitState, now time.Time) PlanBoard {
-	b := PlanBoard{Slug: p.Slug, Title: p.Title, Epics: []EpicLine{}, Problems: []Problem{}, InFlight: []FlightLine{}}
+	b := PlanBoard{Slug: p.Slug, Title: p.Title, Phases: []PhaseLine{}, Problems: []Problem{}, InFlight: []FlightLine{}}
 	var items, unfiled []*model.Item
 	for _, id := range sortedKeys(s.items) {
 		if i := s.items[id]; i.Plan == p.Slug {
 			items = append(items, i)
-			if i.Epic == "" {
+			if i.Phase == "" {
 				unfiled = append(unfiled, i)
 			}
 		}
@@ -153,31 +153,31 @@ func (s *state) board(p *model.Plan, g *gitState, now time.Time) PlanBoard {
 	b.Progress = s.progress(items)
 	b.Unfiled = s.progress(unfiled)
 
-	var epics []*model.Epic
-	for _, id := range sortedKeys(s.epics) {
-		if e := s.epics[id]; e.Plan == p.Slug {
-			epics = append(epics, e)
+	var phases []*model.Phase
+	for _, id := range sortedKeys(s.phases) {
+		if e := s.phases[id]; e.Plan == p.Slug {
+			phases = append(phases, e)
 		}
 	}
-	// Ready and in-progress epics first, then blocked, then complete; by age within.
-	rank := func(e *model.Epic) int {
+	// Ready and in-progress phases first, then blocked, then complete; by age within.
+	rank := func(e *model.Phase) int {
 		switch {
-		case s.epicComplete(e.ID):
+		case s.phaseComplete(e.ID):
 			return 2
 		case len(s.blockedBy(e.Needs)) > 0:
 			return 1
 		}
 		return 0
 	}
-	sort.SliceStable(epics, func(a, c int) bool {
-		if ra, rc := rank(epics[a]), rank(epics[c]); ra != rc {
+	sort.SliceStable(phases, func(a, c int) bool {
+		if ra, rc := rank(phases[a]), rank(phases[c]); ra != rc {
 			return ra < rc
 		}
-		return epics[a].Created < epics[c].Created
+		return phases[a].Created < phases[c].Created
 	})
-	for _, e := range epics {
-		ev := s.epicView(e)
-		b.Epics = append(b.Epics, EpicLine{ID: e.ID, Title: e.Title, Progress: ev.Progress, Complete: ev.Complete, BlockedBy: ev.BlockedBy})
+	for _, e := range phases {
+		ev := s.phaseView(e)
+		b.Phases = append(b.Phases, PhaseLine{ID: e.ID, Title: e.Title, Progress: ev.Progress, Complete: ev.Complete, BlockedBy: ev.BlockedBy})
 	}
 
 	for _, i := range items {
@@ -344,9 +344,9 @@ func (v View) Text(now time.Time) string {
 	for _, p := range v.Plans {
 		fmt.Fprintf(&b, "\n%s  %s\n", strings.ToUpper(p.Slug), p.Title)
 		fmt.Fprintf(&b, "  %s %s\n", bar(p.Progress), progressText(p.Progress))
-		if len(p.Epics) > 0 || p.Unfiled.Total > 0 {
-			b.WriteString("  EPICS\n")
-			for _, e := range p.Epics {
+		if len(p.Phases) > 0 || p.Unfiled.Total > 0 {
+			b.WriteString("  PHASES\n")
+			for _, e := range p.Phases {
 				status := progressText(e.Progress)
 				if e.Complete {
 					status = "complete"
@@ -356,7 +356,7 @@ func (v View) Text(now time.Time) string {
 				fmt.Fprintf(&b, "    %s  %-28s %-10s %s\n", e.ID, truncate(e.Title, 28), bar(e.Progress), status)
 			}
 			if p.Unfiled.Total > 0 {
-				fmt.Fprintf(&b, "    ----  %-28s %-10s %s\n", "(no epic)", bar(p.Unfiled), progressText(p.Unfiled))
+				fmt.Fprintf(&b, "    ----  %-28s %-10s %s\n", "(no phase)", bar(p.Unfiled), progressText(p.Unfiled))
 			}
 		}
 		if len(p.Problems) > 0 {

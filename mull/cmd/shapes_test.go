@@ -18,14 +18,14 @@ func (k keys) plus(o keys) keys {
 }
 
 var (
-	planKeys     = keys{[]string{"slug", "title", "state", "created", "updated"}, []string{"summary"}}
-	epicKeys     = keys{[]string{"id", "plan", "title", "created", "updated"}, []string{"needs", "from", "summary"}}
-	itemKeys     = keys{[]string{"id", "plan", "title", "state", "created", "updated"}, []string{"epic", "needs", "docs", "claim", "from", "notes"}}
-	itemViewKeys = itemKeys.plus(keys{[]string{"ready"}, []string{"blocked_by"}})
-	epicViewKeys = epicKeys.plus(keys{[]string{"progress", "complete"}, []string{"blocked_by"}})
-	entryKeys    = keys{[]string{"id", "kind", "text", "plan", "by", "created"}, []string{"item", "source", "settled", "detail"}}
-	configKeys   = keys{[]string{"integration", "release", "remote", "done_checks", "layers"}, nil}
-	progressKeys = keys{[]string{"total", "open", "active", "done_unreviewed", "accepted", "dropped", "ready"}, nil}
+	planKeys      = keys{[]string{"slug", "title", "state", "created", "updated"}, []string{"summary"}}
+	phaseKeys     = keys{[]string{"id", "plan", "title", "created", "updated"}, []string{"needs", "from", "summary"}}
+	itemKeys      = keys{[]string{"id", "plan", "title", "state", "created", "updated"}, []string{"phase", "needs", "docs", "claim", "from", "notes"}}
+	itemViewKeys  = itemKeys.plus(keys{[]string{"ready"}, []string{"blocked_by"}})
+	phaseViewKeys = phaseKeys.plus(keys{[]string{"progress", "complete"}, []string{"blocked_by"}})
+	entryKeys     = keys{[]string{"id", "kind", "text", "plan", "by", "created"}, []string{"item", "source", "settled", "detail"}}
+	configKeys    = keys{[]string{"integration", "release", "remote", "done_checks", "layers"}, nil}
+	progressKeys  = keys{[]string{"total", "open", "active", "done_unreviewed", "accepted", "dropped", "ready"}, nil}
 )
 
 func checkKeys(t *testing.T, what string, v any, k keys) {
@@ -96,23 +96,23 @@ func TestOutputShapes(t *testing.T) {
 	pl := shape(keys{[]string{"plans"}, nil}, "plan", "list")
 	checkKeys(t, "plan list[0]", first(t, "plans", pl["plans"]), planKeys.plus(keys{[]string{"progress"}, nil}))
 
-	epic := shape(epicKeys, "epic", "add", "Billing", "--plan", "launch")
-	el := shape(keys{[]string{"epics"}, nil}, "epic", "list")
-	checkKeys(t, "epic list[0]", first(t, "epics", el["epics"]), epicViewKeys)
+	phase := shape(phaseKeys, "phase", "add", "Billing", "--plan", "launch")
+	el := shape(keys{[]string{"phases"}, nil}, "phase", "list")
+	checkKeys(t, "phase list[0]", first(t, "phases", el["phases"]), phaseViewKeys)
 
-	a := shape(itemViewKeys, "add", "Webhook", "--epic", id(epic), "--doc", "docs/a.md")
-	b := shape(itemViewKeys, "add", "Invoices", "--epic", id(epic), "--needs", id(a))
-	ps := shape(planKeys.plus(keys{[]string{"progress", "epics", "items"}, nil}), "plan", "show", "launch")
+	a := shape(itemViewKeys, "add", "Webhook", "--phase", id(phase), "--doc", "docs/a.md")
+	b := shape(itemViewKeys, "add", "Invoices", "--phase", id(phase), "--needs", id(a))
+	ps := shape(planKeys.plus(keys{[]string{"progress", "phases", "items"}, nil}), "plan", "show", "launch")
 	checkKeys(t, "plan show.progress", ps["progress"], progressKeys)
-	checkKeys(t, "plan show.epics[0]", first(t, "epics", ps["epics"]), epicViewKeys)
+	checkKeys(t, "plan show.phases[0]", first(t, "phases", ps["phases"]), phaseViewKeys)
 	checkKeys(t, "plan show.items[0]", first(t, "items", ps["items"]), itemViewKeys)
 
-	for _, ref := range []string{"launch", id(epic), id(a)} {
-		v := shape(keys{[]string{"type"}, []string{"plan", "epic", "item", "entry"}}, "show", ref)
+	for _, ref := range []string{"launch", id(phase), id(a)} {
+		v := shape(keys{[]string{"type"}, []string{"plan", "phase", "item", "entry"}}, "show", ref)
 		inner := map[string]keys{
-			"plan": planKeys.plus(keys{[]string{"progress", "epics", "items"}, nil}),
-			"epic": epicViewKeys.plus(keys{[]string{"items"}, nil}),
-			"item": itemViewKeys,
+			"plan":  planKeys.plus(keys{[]string{"progress", "phases", "items"}, nil}),
+			"phase": phaseViewKeys.plus(keys{[]string{"items"}, nil}),
+			"item":  itemViewKeys,
 		}[v["type"].(string)]
 		checkKeys(t, "show "+ref, v[v["type"].(string)], inner)
 	}
@@ -121,17 +121,17 @@ func TestOutputShapes(t *testing.T) {
 	rd := shape(keys{[]string{"items"}, nil}, "ready")
 	checkKeys(t, "ready[0]", first(t, "items", rd["items"]), itemViewKeys)
 
-	set := shape(keys{[]string{"type"}, []string{"plan", "epic", "item"}}, "set", id(a), "title", "Stripe webhook")
+	set := shape(keys{[]string{"type"}, []string{"plan", "phase", "item"}}, "set", id(a), "title", "Stripe webhook")
 	checkKeys(t, "set.item", set["item"], itemViewKeys)
-	set = shape(keys{[]string{"type"}, []string{"plan", "epic", "item"}}, "set", "launch", "title", "Public launch")
+	set = shape(keys{[]string{"type"}, []string{"plan", "phase", "item"}}, "set", "launch", "title", "Public launch")
 	checkKeys(t, "set.plan", set["plan"], planKeys)
-	set = shape(keys{[]string{"type"}, []string{"plan", "epic", "item"}}, "set", id(epic), "summary", "Stripe first")
-	checkKeys(t, "set.epic", set["epic"], epicViewKeys)
+	set = shape(keys{[]string{"type"}, []string{"plan", "phase", "item"}}, "set", id(phase), "summary", "Stripe first")
+	checkKeys(t, "set.phase", set["phase"], phaseViewKeys)
 
 	c := shape(itemViewKeys, "add", "Copy", "--plan", "launch")
-	nd := shape(keys{[]string{"type"}, []string{"item", "epic"}}, "need", id(c), id(a))
+	nd := shape(keys{[]string{"type"}, []string{"item", "phase"}}, "need", id(c), id(a))
 	checkKeys(t, "need.item", nd["item"], itemViewKeys)
-	nd = shape(keys{[]string{"type"}, []string{"item", "epic"}}, "unneed", id(c), id(a))
+	nd = shape(keys{[]string{"type"}, []string{"item", "phase"}}, "unneed", id(c), id(a))
 	checkKeys(t, "unneed.item", nd["item"], itemViewKeys)
 
 	st := shape(keys{[]string{"item", "warnings"}, nil}, "start", id(b))
@@ -148,17 +148,17 @@ func TestOutputShapes(t *testing.T) {
 	acc := shape(keys{[]string{"entries", "items", "follow_up"}, nil}, "accept", id(dec))
 	checkKeys(t, "accept.entries[0]", first(t, "entries", acc["entries"]), entryKeys)
 	shape(entryKeys, "decide", id(q), "Monthly first")
-	do := shape(keys{[]string{"entry"}, []string{"item", "epic"}}, "do", id(lo))
+	do := shape(keys{[]string{"entry"}, []string{"item", "phase"}}, "do", id(lo))
 	checkKeys(t, "do.entry", do["entry"], entryKeys)
 	checkKeys(t, "do.item", do["item"], itemViewKeys)
 
-	// Ideas: filed, listed apart from the inbox, promoted to an epic on request.
+	// Ideas: filed, listed apart from the inbox, promoted to a phase on request.
 	idea := shape(entryKeys, "idea", "Mobile ID tool", "--plan", "launch", "--detail", "Phones in the field.", "--source", "conversation")
 	shape(entryKeys, "idea", "Phenology explorer")
 	ideas := shape(keys{[]string{"ideas"}, nil}, "ideas")
 	checkKeys(t, "ideas[0]", first(t, "ideas", ideas["ideas"]), entryKeys)
-	promo := shape(keys{[]string{"entry"}, []string{"item", "epic"}}, "do", id(idea), "--as", "epic", "--on-request")
-	checkKeys(t, "do --as epic .epic", promo["epic"], epicViewKeys)
+	promo := shape(keys{[]string{"entry"}, []string{"item", "phase"}}, "do", id(idea), "--as", "phase", "--on-request")
+	checkKeys(t, "do --as phase .phase", promo["phase"], phaseViewKeys)
 	shape(entryKeys, "park", id(lo2), "after launch")
 	drop := shape(keys{[]string{"entries", "items"}, nil}, "drop", id(c))
 	checkKeys(t, "drop.items[0]", first(t, "items", drop["items"]), itemViewKeys)
@@ -181,7 +181,7 @@ func TestOutputShapes(t *testing.T) {
 		t.Error("view: missing ideas_without_plan")
 	}
 	board := first(t, "view.plans", v["plans"])
-	checkKeys(t, "view.plans[0]", board, keys{[]string{"slug", "title", "progress", "epics", "unfiled", "problems", "in_flight", "needs_you", "ideas"}, nil})
+	checkKeys(t, "view.plans[0]", board, keys{[]string{"slug", "title", "progress", "phases", "unfiled", "problems", "in_flight", "needs_you", "ideas"}, nil})
 	checkKeys(t, "view.needs_you", board.(map[string]any)["needs_you"],
 		keys{[]string{"reviews", "decisions", "questions", "loose_ends", "older_than_a_week", "parked"}, nil})
 	shape(keys{[]string{"worktree", "branch", "protocol", "my_claims", "plans", "ready", "active", "decisions"}, []string{"item"}}, "context")

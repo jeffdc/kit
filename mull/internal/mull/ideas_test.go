@@ -64,7 +64,7 @@ func TestPromotingIdeas(t *testing.T) {
 	m, _ := setup(t)
 	must[*model.Plan](t)(m.PlanNew("alpha", "Alpha", ""))
 	asItem := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindIdea, Text: "Host-family filter", Plan: "alpha", Detail: "Browse by family.", Source: "matter 67c9"}))
-	asEpic := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindIdea, Text: "iNaturalist integration", Plan: "alpha"}))
+	asPhase := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindIdea, Text: "iNaturalist integration", Plan: "alpha"}))
 	noPlan := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindIdea, Text: "DNA barcodes"}))
 
 	// Only the human promotes ideas: an agent needs the human's say-so.
@@ -77,7 +77,7 @@ func TestPromotingIdeas(t *testing.T) {
 	wantCode(t, err, CodeNotAllowed)
 
 	res := must[DoResult](t)(m.Do(DoInput{ID: asItem.ID, SettleOpts: SettleOpts{OnRequest: true}}))
-	if res.Item == nil || res.Item.From != asItem.ID || res.Item.Plan != "alpha" || res.Epic != nil {
+	if res.Item == nil || res.Item.From != asItem.ID || res.Item.Plan != "alpha" || res.Phase != nil {
 		t.Fatalf("promoted item = %+v", res)
 	}
 	if !strings.Contains(res.Item.Notes, "Browse by family.") || !strings.Contains(res.Item.Notes, "matter 67c9") {
@@ -87,12 +87,12 @@ func TestPromotingIdeas(t *testing.T) {
 		t.Errorf("settlement = %+v", res.Entry.Settled)
 	}
 
-	res = must[DoResult](t)(m.Do(DoInput{ID: asEpic.ID, As: "epic", SettleOpts: SettleOpts{OnRequest: true}}))
-	if res.Epic == nil || res.Epic.From != asEpic.ID || res.Epic.Plan != "alpha" || res.Item != nil || res.Entry.Settled.Epic != res.Epic.ID {
-		t.Fatalf("promoted epic = %+v", res)
+	res = must[DoResult](t)(m.Do(DoInput{ID: asPhase.ID, As: "phase", SettleOpts: SettleOpts{OnRequest: true}}))
+	if res.Phase == nil || res.Phase.From != asPhase.ID || res.Phase.Plan != "alpha" || res.Item != nil || res.Entry.Settled.Phase != res.Phase.ID {
+		t.Fatalf("promoted phase = %+v", res)
 	}
-	// Items can then go in the epic.
-	must[ItemView](t)(m.ItemAdd(NewItem{Epic: res.Epic.ID, Title: "Pull observations"}))
+	// Items can then go in the phase.
+	must[ItemView](t)(m.ItemAdd(NewItem{Phase: res.Phase.ID, Title: "Pull observations"}))
 
 	// An idea with no plan needs one to become work.
 	_, err = m.Do(DoInput{ID: noPlan.ID, SettleOpts: SettleOpts{OnRequest: true}})
@@ -111,7 +111,7 @@ func TestPromotingIdeas(t *testing.T) {
 	}
 	_, err = m.Do(DoInput{ID: asItem.ID, SettleOpts: SettleOpts{OnRequest: true}})
 	wantCode(t, err, CodeSettled)
-	_, err = m.Do(DoInput{ID: asEpic.ID, As: "story", SettleOpts: SettleOpts{OnRequest: true}})
+	_, err = m.Do(DoInput{ID: asPhase.ID, As: "story", SettleOpts: SettleOpts{OnRequest: true}})
 	wantCode(t, err, CodeInvalid)
 }
 
@@ -141,15 +141,15 @@ func TestIdeasInBatch(t *testing.T) {
 		`{"op": "plan new", "ref": "p", "slug": "alpha", "title": "Alpha"}`,
 		`{"op": "idea", "ref": "i1", "text": "Mobile ID tool", "detail": "Phones in the field.", "source": "conversation"}`,
 		`{"op": "idea", "ref": "i2", "plan": "@p", "text": "iNaturalist integration"}`,
-		`{"op": "do", "ref": "e", "id": "@i2", "as": "epic", "on-request": true}`,
-		`{"op": "add", "epic": "@e", "title": "Pull observations"}`,
+		`{"op": "do", "ref": "e", "id": "@i2", "as": "phase", "on-request": true}`,
+		`{"op": "add", "phase": "@e", "title": "Pull observations"}`,
 	}, "\n")
 	results, err := m.Batch(strings.NewReader(input), false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	epic := results[3].Result.(DoResult).Epic
-	if epic == nil || results[3].ID != epic.ID || results[4].Result.(ItemView).Epic != epic.ID {
+	phase := results[3].Result.(DoResult).Phase
+	if phase == nil || results[3].ID != phase.ID || results[4].Result.(ItemView).Phase != phase.ID {
 		t.Fatalf("results = %+v", results)
 	}
 	if ideas := must[[]*model.Entry](t)(m.Ideas(IdeaFilter{})); len(ideas) != 1 || ideas[0].Text != "Mobile ID tool" {

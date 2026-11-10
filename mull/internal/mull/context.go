@@ -23,8 +23,8 @@ type Context struct {
 // ContextItem is the item a session works on, with what bears on it.
 type ContextItem struct {
 	ItemView
-	EpicTitle      string        `json:"epic_title,omitempty"`
-	EpicSummary    string        `json:"epic_summary,omitempty"`
+	PhaseTitle     string        `json:"phase_title,omitempty"`
+	PhaseSummary   string        `json:"phase_summary,omitempty"`
 	OpenQuestions  []BriefEntry  `json:"open_questions,omitempty"`
 	ItemDecisions  []BriefDecide `json:"item_decisions,omitempty"`
 	LastReport     string        `json:"last_report,omitempty"`
@@ -36,17 +36,17 @@ type BriefItem struct {
 	ID       string `json:"id"`
 	Title    string `json:"title"`
 	Plan     string `json:"plan"`
-	Epic     string `json:"epic,omitempty"`
+	Phase    string `json:"phase,omitempty"`
 	Worktree string `json:"worktree,omitempty"`
 }
 
 type BriefPlan struct {
-	Slug  string      `json:"slug"`
-	Title string      `json:"title"`
-	Epics []BriefEpic `json:"epics,omitempty"`
+	Slug   string       `json:"slug"`
+	Title  string       `json:"title"`
+	Phases []BriefPhase `json:"phases,omitempty"`
 }
 
-type BriefEpic struct {
+type BriefPhase struct {
 	ID        string   `json:"id"`
 	Title     string   `json:"title"`
 	Progress  string   `json:"progress"`
@@ -75,7 +75,7 @@ var protocol = []string{
 	"One item per session: mull start <id>; branch <id>-<name>; end each commit message with 'Mull: <id>'.",
 	"Read the decisions below before deciding anything they settle.",
 	"Capture as you go: mull decided / mull ask / mull loose, with --item <id>.",
-	"Don't change plans or epics or add items unless the human asks; propose with mull ask.",
+	"Don't change plans or phases or add items unless the human asks; propose with mull ask.",
 	"Finish only with mull done <id> --summary ... --tour -; it runs the hard checks. Never claim done in prose.",
 	"Settle inbox entries only on the human's explicit instruction, with --on-request. mull sync after done.",
 }
@@ -91,7 +91,7 @@ func (m *Mull) Context(itemID string) (Context, error) {
 	}
 	err = m.view(func(s *state) error {
 		brief := func(i *model.Item) BriefItem {
-			b := BriefItem{ID: i.ID, Title: i.Title, Plan: i.Plan, Epic: i.Epic}
+			b := BriefItem{ID: i.ID, Title: i.Title, Plan: i.Plan, Phase: i.Phase}
 			if i.Claim != nil {
 				b.Worktree = filepath.Base(i.Claim.Worktree)
 			}
@@ -103,10 +103,10 @@ func (m *Mull) Context(itemID string) (Context, error) {
 				continue
 			}
 			bp := BriefPlan{Slug: slug, Title: p.Title}
-			for _, id := range sortedKeys(s.epics) {
-				if e := s.epics[id]; e.Plan == slug {
-					ev := s.epicView(e)
-					bp.Epics = append(bp.Epics, BriefEpic{ID: id, Title: e.Title, Progress: progressText(ev.Progress), BlockedBy: ev.BlockedBy})
+			for _, id := range sortedKeys(s.phases) {
+				if e := s.phases[id]; e.Plan == slug {
+					ev := s.phaseView(e)
+					bp.Phases = append(bp.Phases, BriefPhase{ID: id, Title: e.Title, Progress: progressText(ev.Progress), BlockedBy: ev.BlockedBy})
 				}
 			}
 			c.Plans = append(c.Plans, bp)
@@ -132,8 +132,8 @@ func (m *Mull) Context(itemID string) (Context, error) {
 				return err
 			}
 			ci := &ContextItem{ItemView: s.itemView(i)}
-			if e := s.epics[i.Epic]; e != nil {
-				ci.EpicTitle, ci.EpicSummary = e.Title, e.Summary
+			if e := s.phases[i.Phase]; e != nil {
+				ci.PhaseTitle, ci.PhaseSummary = e.Title, e.Summary
 			}
 			for _, id := range sortedKeys(s.entries) {
 				e := s.entries[id]
