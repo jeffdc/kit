@@ -222,7 +222,11 @@ type Entry struct {
 	By      string      `yaml:"by" json:"by"`
 	Created string      `yaml:"created" json:"created"`
 	Settled *Settlement `yaml:"settled,omitempty" json:"settled,omitempty"`
-	Detail  string      `yaml:"-" json:"detail,omitempty"`
+	// Decisions, on a review, are the decision entries it carries: the
+	// item's open decisions when mull done filed it. Accepting the review
+	// ratifies those still unsettled.
+	Decisions []string `yaml:"decisions,omitempty" json:"decisions,omitempty"`
+	Detail    string   `yaml:"-" json:"detail,omitempty"`
 }
 
 // Config is per-repository configuration.
@@ -266,7 +270,17 @@ type LayerChanges struct {
 	Files []FileChange `yaml:"files" json:"files"`
 }
 
-// Report is a done report: the record of finishing (or failing to finish) an item.
+// ReportDecision is a decision made in the session, as the done report
+// records it.
+type ReportDecision struct {
+	ID     string `yaml:"id" json:"id"`
+	Text   string `yaml:"text" json:"text"`
+	Detail string `yaml:"detail,omitempty" json:"detail,omitempty"`
+}
+
+// Report is a done report: the record of finishing (or failing to finish) an
+// item. What was built: summary, tour, checks. How: design notes, the
+// decisions made in the session, changes by layer.
 type Report struct {
 	Item     string         `yaml:"item" json:"item"`
 	N        int            `yaml:"n" json:"n"`
@@ -280,6 +294,10 @@ type Report struct {
 	Tour     []string       `yaml:"tour,omitempty" json:"tour,omitempty"`
 	Checks   CheckRun       `yaml:"checks" json:"checks"`
 	Changes  []LayerChanges `yaml:"changes,omitempty" json:"changes,omitempty"`
+	// Design is how it was built and why. Reports made before mull done
+	// required it have none.
+	Design    string           `yaml:"design,omitempty" json:"design,omitempty"`
+	Decisions []ReportDecision `yaml:"decisions,omitempty" json:"decisions,omitempty"`
 }
 
 // Paths of records on the mull branch.

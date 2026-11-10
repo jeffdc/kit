@@ -30,6 +30,7 @@ On failure, mull prints nothing to stdout, prints this to stderr, and exits 1:
 | `dependency_cycle` | the needs would form a cycle |
 | `scope_required` | say which plan or item: `--plan` or `--item` (or `--phase`, or `--plan none` for unplanned work, for `add`) |
 | `tour_required` | UI files changed and no `--tour` was given |
+| `design_required` | `done` was given no design notes (`--design` missing, empty or "none") |
 | `no_checks` | no hard checks configured |
 | `dirty_tree` | uncommitted or untracked changes |
 | `checks_failed` | the hard checks failed |
@@ -62,9 +63,11 @@ A `batch_invalid` error also lists every failed line:
 - **ItemView:** Item plus `{ready, blocked_by?}`. Ready means committed, in a phase whose needs are done (or in no phase), in a plan that isn't shaping; `blocked_by` lists the phase's needs that aren't done.
 - **PhaseView:** Phase plus `{progress, complete, blocked_by?}`.
 - **Progress:** `{total, captured, committed, active, in_review, done, dropped, ready}`. `total` counts committed work (every stage but captured); captured items tagged to the phase or plan are counted only in `captured`.
-- **Entry** (inbox): `{id, kind ("decision"|"question"|"review"|"loose-end"|"idea"), text, plan, item?, source?, by, created, settled?, detail?}`. `plan` is `""` for an entry about the whole project or an unplanned item.
+- **Entry** (inbox): `{id, kind ("decision"|"question"|"review"|"loose-end"|"idea"), text, plan, item?, source?, by, created, settled?, decisions?, detail?}`. `plan` is `""` for an entry about the whole project or an unplanned item.
   - **settled:** `{action ("accept"|"decide"|"do"|"drop"|"park"), note?, item?, phase?, by, on_request?, at}`. `item` or `phase` is what `do` made.
+  - **decisions** (reviews only): the IDs of the decision entries the review carries: every unsettled, unparked decision on its item when `mull done` filed it. Accepting the review ratifies those still unsettled (settled note `with review <id>`). Decide one differently first with `decide <id>`; sending the review back leaves them open, and the next `done` carries them again.
   - **Loose ends and inbox ideas** (`kind: "loose-end"`, `"idea"`) are retired: captured items replaced them, and nothing files them any more. Existing ones are kept until `mull migrate` converts them: listed only by `inbox --kind loose-end|idea`, counted in the view's `legacy`, never in `needs_you`, and settled as before (an idea's `text` is its title and `detail` its note).
+- **Report** (done report): `{item, n, passed, override?, commit, base?, at, by, summary, tour?, checks (as `check` prints it, without `cached`), changes?: [{layer, files: [{status, path, added, removed}]}], design?, decisions?: [{id, text, detail?}]}`. What was built (`summary`, `tour`, `checks`) and how (`design`, `decisions`, `changes`). `design` is the design notes, present on every report since `done` required them; `decisions` are the decisions the review carries, as they were when `done` ran.
 - **Config:** `{integration, release, remote, done_checks: [], layers: {name: [globs]}}`
 
 Times are RFC 3339 in UTC. IDs are 4 hex characters; plans use their slug.
@@ -89,7 +92,7 @@ Times are RFC 3339 in UTC. IDs are 4 hex characters; plans use their slug.
 | `decided`, `ask` | Entry |
 | `inbox` | `{entries: [Entry]}`, oldest first: questions, decisions and reviews. Loose ends and ideas only with `--kind loose-end\|idea`. `--plan none` for entries with no plan |
 | `loose`, `ideas` | retired: fail with code `retired` |
-| `accept` | `{entries: [Entry], items: [ItemView], follow_up: ItemView\|null}` |
+| `accept` | `{entries: [Entry], items: [ItemView], follow_up: ItemView\|null}`. `entries` includes the decisions an accepted review carried and ratified |
 | `decide`, `park` | Entry |
 | `do` | `{entry: Entry, item?: ItemView, phase?: PhaseView}`: the new item (or phase, with `--as phase`), or the reopened item for a review |
 | `drop` | `{entries: [Entry], items: [ItemView]}` |
@@ -98,8 +101,8 @@ Times are RFC 3339 in UTC. IDs are 4 hex characters; plans use their slug.
 | `view` | `{generated, integration, integration_found, release, ahead_of_release, plans: [Board], unlinked_commits_this_week, unlinked_recent?, unplanned?: Board, legacy?: {loose_ends, ideas}}`. `unplanned` is a Board (slug `""`, title `"Unplanned"`, no `state`) for items with no plan and entries with no plan, present when there are any. `legacy` counts open loose ends and inbox ideas until `mull migrate`. `plans` holds the active plans, then the shaping ones; a done plan only with `--plan`. Board: `{slug, title, state?, progress, phases: [{id, title, progress, complete, blocked_by?}], unfiled: Progress, problems: [{kind, item, text}], in_flight: [{id, title, state, worktree?, branches?, commits, last_activity?}], needs_you: {reviews, decisions, questions, older_than_a_week, parked}}`. Problem kinds: `idle-claim`, `unclaimed-work`, `done-not-in-git`, `failed-done` |
 | `context` | `{worktree, branch, protocol: [], item?: …, my_claims: [], plans: [], ready: [], active: [], decisions: []}`. `plans` are the shaping and active plans: `{slug, title, state, phases?}` |
 | `check` | `{tree, commit, at, by, passed, results: [{command, exit, duration_ms, tail?}], cached}` |
-| `done` | `{report, report_path, item: ItemView, review_entry?, reminder?}` |
-| `report` | `{report, text}`. `text` is the markdown rendering |
+| `done` | `{report: Report, report_path, item: ItemView, review_entry?, reminder?}`. `--design` is required; only one of `--summary`, `--tour` and `--design` can be `-` (stdin) |
+| `report` | `{report: Report, text}`. `text` is the markdown rendering |
 | `sync` | `{remote, action ("up-to-date"\|"pushed"\|"pulled"\|"merged"\|"cloned"), local, remote_before?, pushed_commits, dry_run?, commands?}` |
 | `guide` | `{guide, text}` |
 | `batch` | `[{line, op, ref?, id?, result}]`, one per input line in order. `result` is exactly what that op's command prints, and `id` is what `@ref` names |

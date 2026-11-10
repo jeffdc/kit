@@ -38,13 +38,14 @@ This project's plans, work items and open questions live in **mull**: a CLI whos
    - Never commit a captured item (`mull commit <id>`) on your own. When the human tells you to, add `--on-request`, with `--plan`, `--phase` or `--plan none` if they say where it goes.
 5. **Finish only with `mull done`:**
    ```
-   mull done <id> --summary "<what changed and how it fits>" --tour -
+   mull done <id> --summary "<what changed and how it fits>" --tour "<steps, or none>" --design -
    ```
-   - Give the tour on stdin, one step per line: what to click and what the human should see. Write "none" if no UI changed.
+   - Give the design notes on stdin: how you built it and why (the approach, the shape of the code, what you rejected). They're required, and "none" isn't accepted.
+   - Give the tour inline, one step per line: what to click and what the human should see. Write "none" if no UI changed. Only one of `--summary`, `--tour` and `--design` can read stdin.
    - `done` runs the project's hard checks itself. If they fail, fix the problem and run `done` again, or run `mull release <id>` and say why.
    - Never say an item is done unless `mull done` succeeded.
 6. **Hand over:**
-   - Show the human (or the supervisor) the report from `mull report <id>`, and the tour.
-   - Run `mull accept <id> --on-request` only when the human tells you to.
+   - Show the human (or the supervisor) the report from `mull report <id>`, and the tour. The review carries the decisions you recorded with `--item`, and accepting it ratifies them.
+   - Run `mull accept <id> --on-request` only when the human tells you to. If they decide one of those decisions differently, run `mull decide <decision-id> "<their decision>" --on-request` first.
    - Settle any other inbox entry only on the human's explicit instruction, also with `--on-request`.
 7. **Run `mull sync`** after `done` and at the end of the session.

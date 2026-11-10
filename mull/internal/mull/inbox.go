@@ -186,6 +186,20 @@ func (s *state) openReview(itemID string) *model.Entry {
 	return nil
 }
 
+// openDecisions returns the item's unsettled decision entries, oldest first:
+// what a review filed now would carry. Parked decisions are left out.
+func (s *state) openDecisions(itemID string) []*model.Entry {
+	var out []*model.Entry
+	for _, id := range sortedKeys(s.entries) {
+		e := s.entries[id]
+		if e.Kind == model.KindDecision && e.Item == itemID && e.Settled == nil {
+			out = append(out, e)
+		}
+	}
+	sort.SliceStable(out, func(a, b int) bool { return out[a].Created < out[b].Created })
+	return out
+}
+
 // AcceptResult reports what accept did.
 type AcceptResult struct {
 	Entries  []*model.Entry `json:"entries"`
@@ -195,8 +209,9 @@ type AcceptResult struct {
 
 // Accept ratifies decisions and accepts reviewed work. refs may be decision
 // or review entries, or items in review (whose review is settled with them).
-// followUp, if set, creates a follow-up item for an accepted review; it
-// applies only when accepting a single review.
+// Accepting a review also ratifies the decisions it carries that are still
+// unsettled. followUp, if set, creates a follow-up item for an accepted
+// review; it applies only when accepting a single review.
 func (m *Mull) Accept(refs []string, followUp string, o SettleOpts) (AcceptResult, error) {
 	var out AcceptResult
 	err := m.update(fmt.Sprintf("accept %v", refs), func(s *state) error {
@@ -212,6 +227,10 @@ func (m *Mull) accept(s *state, refs []string, followUp string, o SettleOpts) (A
 	refs = dedupe(refs)
 	if len(refs) == 0 {
 		return out, errf(CodeInvalid, "give the entries or items to accept")
+	}
+	named := map[string]bool{}
+	for _, ref := range refs {
+		named[ref] = true
 	}
 	for _, ref := range refs {
 		var entry *model.Entry
@@ -242,6 +261,11 @@ func (m *Mull) accept(s *state, refs []string, followUp string, o SettleOpts) (A
 				return out, err
 			}
 			out.Entries = append(out.Entries, entry)
+			carried, err := m.acceptCarried(s, entry, named, o)
+			if err != nil {
+				return out, err
+			}
+			out.Entries = append(out.Entries, carried...)
 		}
 	}
 	if followUp != "" {
@@ -260,6 +284,24 @@ func (m *Mull) accept(s *state, refs []string, followUp string, o SettleOpts) (A
 		}
 		v := s.itemView(i)
 		out.FollowUp = &v
+	}
+	return out, nil
+}
+
+// acceptCarried ratifies the decisions an accepted review carries. Any
+// settled or parked since done are left as they are (a decide overrides one),
+// and so are any named in the same accept, which settle on their own.
+func (m *Mull) acceptCarried(s *state, review *model.Entry, named map[string]bool, o SettleOpts) ([]*model.Entry, error) {
+	var out []*model.Entry
+	for _, id := range review.Decisions {
+		d := s.entries[id]
+		if d == nil || d.Settled != nil || named[id] {
+			continue
+		}
+		if err := m.settle(s, d, model.ActAccept, "with review "+review.ID, "", o); err != nil {
+			return nil, err
+		}
+		out = append(out, d)
 	}
 	return out, nil
 }

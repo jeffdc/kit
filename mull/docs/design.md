@@ -38,7 +38,7 @@ New mull is the record of a program: its plans, where they stand, and everything
 | **Item** | A unit of work **one agent completes in one session.** | id (4-hex), plan (required), epic (optional), title, notes, docs (paths), state, claim (no needs: see "Ordering") | Agents and you |
 | **Inbox entry** | Something that needs you | id, kind (`decision`, `question`, `loose-end` or `review`), one-line text, detail, item/epic/plan, source, created; when settled: action, note, by, time | Agents capture; you settle |
 | **Idea** | Not work: something to keep until its time comes | an inbox entry of kind `idea`: title, short note (`detail`), source, optional plan | Agents file only ideas the human raises; only the human promotes |
-| **Done report** | The record of a finished item | item, commit SHA, tree hash, UI tour, summary, check results, system context | Agent plus mull |
+| **Done report** | The record of a finished item | item, commit SHA, tree hash, summary, UI tour, check results, design notes, decisions made in the session, system context | Agent plus mull |
 | **Config** | Per repo | integration branch, release branch, hard checks, layers, remote | You |
 
 **Structure rules:**
@@ -92,6 +92,10 @@ There is no priority list and no ordering field. Order only where it matters (Mo
 Most items are reviewed in the session that finished them, by you or by a supervising agent. The inbox is the safety net for any that slip through.
 
 - **Review entry.** `mull done` always files a `review` entry. Accepting it marks the item `accepted`, and `mull accept <item-id>` works directly on the item too.
+- **Review is what and how** (Model v2). The report holds what was built (summary, tour, checks) and how (design notes, the decisions made in the session, files by layer), and they're settled together:
+  - the review carries every open decision on its item when `mull done` files it (unsettled and not parked), listed on the entry as `decisions`;
+  - accepting the review ratifies those still unsettled. To decide one differently, `mull decide <decision-id> "…"` before accepting; `mull accept <decision-id>` alone still ratifies just that one;
+  - sending the review back leaves them open, and the next `mull done` carries them again. Decisions captured while the item is in review aren't added to that review.
 - **In session:** you or the supervisor accept right after reviewing the done report and the tour, so the entry never lingers.
 - **Who may accept:**
   - a supervising agent, working from another worktree;
@@ -191,7 +195,7 @@ Bare 4-hex mentions in commit prose are not counted, because they collide with h
 
 ## Done: deterministic, with mull as the only path
 
-The agent runs `mull done <id> --tour - --summary "…"` when it says it's finished. mull then works through these steps:
+The agent runs `mull done <id> --summary "…" --tour "…" --design -` when it says it's finished. mull then works through these steps:
 
 1. **Check that the tree is clean.** A dirty working tree is refused, because the results must belong to a commit. mull records the commit SHA and the tree hash.
 2. **Run the hard checks.** These are the commands in config. Typically there's one project target, such as `make done-checks` in gallformers, which can call `mix precommit`. mull runs them and records each command, its exit code and its output tail.
@@ -199,7 +203,7 @@ The agent runs `mull done <id> --tour - --summary "…"` when it says it's finis
 4. **If a check fails:** the item stays `active`. The failed attempt is saved and shown as a problem, and the command exits non-zero, so the agent knows it isn't done.
 5. **If all checks pass,** mull:
    - marks the item `done`;
-   - writes the done report: the agent's UI tour and summary, the check results, and system context from the diff (files added, changed and deleted, grouped by the layers in config, with test files and code files counted separately);
+   - writes the done report: the agent's summary, UI tour and design notes (required: how it was built and why), the decisions the review carries, the check results, and system context from the diff (files added, changed and deleted, grouped by the layers in config, with test files and code files counted separately);
    - files a **review** entry in your inbox.
 
 You then read the report and explore the tour. Settling the review is how an item becomes `accepted`:
@@ -274,7 +278,7 @@ The ops are every write except `init`, `sync`, `check` and `done`.
 | Epics | `mull epic add "title" --plan <slug> [--needs …]` · `epic show <id>` · `epic list [--plan]` |
 | Items | `mull add "title" (--plan <slug> \| --epic <id>) [--notes -] [--doc path]` · `show` · `list` · `set` · `drop` |
 | Dependencies | `mull need <phase> <phase…>` · `mull unneed <phase> <phase…>` · `mull ready [--plan]` |
-| Work (agents) | `mull start <id>` · `release <id>` · `check` (run the hard checks, cache the result) · `done <id> --tour - --summary "…"` |
+| Work (agents) | `mull start <id>` · `release <id>` · `check` (run the hard checks, cache the result) · `done <id> --summary "…" --tour "…" --design -` |
 | Capture (agents) | `mull decided "text"`, `ask "question"`, `loose "text"`, each with `--item <id>` or `--plan <slug>`, plus `[--detail -] [--source …]` |
 | Batch | `mull batch [--dry-run] < ops.jsonl` |
 | Settle (you, or an agent on your request) | `mull inbox` · `accept <id…>` · `decide <id> "text"` · `do <id> [--plan] [--epic]` · `drop <id…>` · `park <id> "reason"` |
