@@ -36,7 +36,34 @@ func (m *Mull) planNew(s *state, slug, title, summary string) (*model.Plan, erro
 		return nil, errf(CodeExists, "plan %q already exists", slug)
 	}
 	now := m.now()
-	p := &model.Plan{Slug: slug, Title: title, State: model.PlanActive, Created: now, Updated: now, Summary: summary}
+	p := &model.Plan{Slug: slug, Title: title, State: model.PlanShaping, Created: now, Updated: now, Summary: summary}
+	return p, s.putPlan(p)
+}
+
+// PlanAgree makes a shaping plan active. Only the human agrees a plan, so
+// onRequest must record that they asked.
+func (m *Mull) PlanAgree(slug string, onRequest bool) (*model.Plan, error) {
+	var out *model.Plan
+	err := m.update("plan agree "+slug, func(s *state) error {
+		var err error
+		out, err = m.planAgree(s, slug, onRequest)
+		return err
+	})
+	return out, err
+}
+
+func (m *Mull) planAgree(s *state, slug string, onRequest bool) (*model.Plan, error) {
+	p, err := s.plan(slug)
+	if err != nil {
+		return nil, err
+	}
+	if p.State != model.PlanShaping {
+		return nil, errf(CodeState, "plan %q is %s; only a shaping plan can be agreed", slug, p.State)
+	}
+	if !onRequest {
+		return nil, errf(CodeNotAllowed, "only the human agrees a plan: pass --on-request when the human has agreed %q", slug)
+	}
+	p.State, p.Updated = model.PlanActive, m.now()
 	return p, s.putPlan(p)
 }
 
@@ -99,7 +126,7 @@ func (m *Mull) PlanShow(slug string) (PlanView, error) {
 	return out, err
 }
 
-// PlanClose closes a plan.
+// PlanClose closes a plan: it becomes done, from shaping or active.
 func (m *Mull) PlanClose(slug string) (*model.Plan, error) {
 	var out *model.Plan
 	err := m.update("plan close "+slug, func(s *state) error {
@@ -115,7 +142,10 @@ func (m *Mull) planClose(s *state, slug string) (*model.Plan, error) {
 	if err != nil {
 		return nil, err
 	}
-	p.State, p.Updated = model.PlanClosed, m.now()
+	if p.State == model.PlanDone {
+		return nil, errf(CodeState, "plan %q is already done", slug)
+	}
+	p.State, p.Updated = model.PlanDone, m.now()
 	return p, s.putPlan(p)
 }
 
@@ -139,7 +169,7 @@ func (m *Mull) phaseAdd(s *state, plan, title, summary string, needs []string, f
 	if plan == "" {
 		return nil, errf(CodeInvalid, "a phase needs a plan")
 	}
-	if _, err := s.activePlan(plan); err != nil {
+	if _, err := s.openPlan(plan); err != nil {
 		return nil, err
 	}
 	id, err := s.newID()
@@ -246,7 +276,7 @@ func (m *Mull) addItem(s *state, in NewItem) (*model.Item, error) {
 		return nil, err
 	}
 	if plan != "" {
-		if _, err := s.activePlan(plan); err != nil {
+		if _, err := s.openPlan(plan); err != nil {
 			return nil, err
 		}
 	}
@@ -380,7 +410,7 @@ func (m *Mull) commit(s *state, in CommitInput) (ItemView, error) {
 			return ItemView{}, err
 		}
 		if plan != "" {
-			if _, err := s.activePlan(plan); err != nil {
+			if _, err := s.openPlan(plan); err != nil {
 				return ItemView{}, err
 			}
 		}
@@ -656,6 +686,9 @@ func (m *Mull) start(s *state, id string) (StartResult, error) {
 	}
 	if blocked := s.blockedBy(s.requirements(i)); len(blocked) > 0 {
 		out.Warnings = append(out.Warnings, fmt.Sprintf("started while blocked by %v", blocked))
+	}
+	if s.inShapingPlan(i) {
+		out.Warnings = append(out.Warnings, fmt.Sprintf("started while plan %q is shaping: the human hasn't agreed it", i.Plan))
 	}
 	base, _ := m.repo.RefCommit("HEAD")
 	now := m.now()

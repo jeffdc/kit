@@ -32,6 +32,7 @@ Then run `mull init --integration <branch> --release <branch>`. Config can go in
 - **Plans.** Propose one plan per large effort (from the hub documents), using a plain-English slug. Small, unrelated work is unplanned (`--plan none`).
 - **Phases.** For each plan, propose phases: big pieces, in roughly the order they must happen. Add `--needs` between phases only where one truly must finish first.
 - **Show the human the whole outline** (plans, then phases, with needs) and adjust until they approve. Then record it in a batch (see the example below).
+- **Agreeing.** A new plan starts `shaping`, and none of its work is ready until the human agrees it. When they've agreed a plan as it stands, add a `plan agree` line with `"on-request": true`. Leave a plan they're still shaping as it is.
 
 ## 4. Items for work in flight or ready
 - **What gets an item.** Only work that's in flight, ready, or clearly next. Each item must be something **one agent can finish in one session**; split anything bigger.
@@ -54,6 +55,7 @@ File what needs the human in a batch, citing sources with `source`:
 Plan, phases, items and inbox entries in one go. `@` refs point at records created earlier in the same batch:
 ```
 {"op": "plan new", "ref": "p", "slug": "launch", "title": "Public launch", "summary": "Billing and onboarding, then the switch."}
+{"op": "plan agree", "slug": "@p", "on-request": true}
 {"op": "phase add", "ref": "billing", "plan": "@p", "title": "Billing", "summary": "Stripe first."}
 {"op": "phase add", "ref": "onboard", "plan": "@p", "title": "Onboarding", "needs": ["@billing"]}
 {"op": "add", "ref": "hook", "phase": "@billing", "title": "Stripe webhook handler", "notes": "From matter 9449, 'Order to release' step 3.", "doc": ["docs/billing.md"]}

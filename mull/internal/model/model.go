@@ -50,10 +50,19 @@ var (
 	}
 )
 
-// Plan states.
+// Plan states: shaping → active → done. A new plan is shaping until the
+// human agrees it; agreeing makes it active, and closing it makes it done.
 const (
-	PlanActive = "active"
-	PlanClosed = "closed"
+	PlanShaping = "shaping" // being worked out with the human; not agreed yet
+	PlanActive  = "active"  // agreed by the human
+	PlanDone    = "done"
+)
+
+// A done plan is stored as "closed", its pre-Model v2 name, until the Model
+// v2 migration rewrites it; shaping and active are stored as they are.
+var (
+	storedPlanState = map[string]string{PlanDone: "closed"}
+	loadedPlanState = map[string]string{"closed": PlanDone}
 )
 
 // Inbox entry kinds.
@@ -97,6 +106,30 @@ type Plan struct {
 	Created string `yaml:"created" json:"created"`
 	Updated string `yaml:"updated" json:"updated"`
 	Summary string `yaml:"-" json:"summary,omitempty"`
+}
+
+// MarshalYAML stores the plan's state under its stored name.
+func (p Plan) MarshalYAML() (any, error) {
+	type plain Plan
+	q := plain(p)
+	if st, ok := storedPlanState[q.State]; ok {
+		q.State = st
+	}
+	return q, nil
+}
+
+// UnmarshalYAML reads a stored plan state back into its Model v2 name.
+func (p *Plan) UnmarshalYAML(node *yaml.Node) error {
+	type plain Plan
+	var q plain
+	if err := node.Decode(&q); err != nil {
+		return err
+	}
+	if st, ok := loadedPlanState[q.State]; ok {
+		q.State = st
+	}
+	*p = Plan(q)
+	return nil
 }
 
 // Phase is a big piece of a plan: a set of items.

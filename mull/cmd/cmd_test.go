@@ -77,14 +77,26 @@ func TestCLIEndToEnd(t *testing.T) {
 	}
 
 	r.ok("init", "--integration", "taxogall")
-	r.ok("plan", "new", "taxogall", "Taxogall")
+	if p := r.ok("plan", "new", "taxogall", "Taxogall"); p["state"] != "shaping" {
+		t.Fatalf("new plan = %v", p)
+	}
 	phase := id(r.ok("phase", "add", "Phase 2", "--plan", "taxogall"))
 
-	// --phase implies the plan.
+	// --phase implies the plan. Nothing in a shaping plan is ready.
 	it := r.okIn("Read 8567 §3 first.\n", "add", "Tree edits become Facts", "--phase", phase, "--notes", "-")
 	item := id(it)
-	if it["plan"] != "taxogall" || it["notes"] != "Read 8567 §3 first." || it["ready"] != true {
+	if it["plan"] != "taxogall" || it["notes"] != "Read 8567 §3 first." || it["ready"] != false {
 		t.Fatalf("item = %v", it)
+	}
+
+	// Only the human agrees a plan; agreeing makes it active and its work ready.
+	r.fails("not_allowed", "plan", "agree", "taxogall")
+	if p := r.ok("plan", "agree", "taxogall", "--on-request"); p["state"] != "active" {
+		t.Fatalf("agreed plan = %v", p)
+	}
+	r.fails("invalid_state", "plan", "agree", "taxogall", "--on-request")
+	if shown := r.ok("show", item); shown["item"].(map[string]any)["ready"] != true {
+		t.Fatalf("show = %v", shown)
 	}
 
 	second := id(r.ok("add", "Admin writes through Curation", "--plan", "taxogall", "--needs", item))

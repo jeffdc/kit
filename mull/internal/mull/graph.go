@@ -83,7 +83,16 @@ func (s *state) itemView(i *model.Item) ItemView {
 		v.BlockedBy = s.blockedBy(s.requirements(i))
 		v.Ready = len(v.BlockedBy) == 0
 	}
+	if s.inShapingPlan(i) {
+		v.Ready = false // nothing can start until the human agrees the plan
+	}
 	return v
+}
+
+// inShapingPlan reports whether the item's plan is still shaping.
+func (s *state) inShapingPlan(i *model.Item) bool {
+	p := s.plans[i.Plan]
+	return p != nil && p.State == model.PlanShaping
 }
 
 // Progress counts a phase's or plan's items by stage. Total counts committed

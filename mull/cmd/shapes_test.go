@@ -93,6 +93,7 @@ func TestOutputShapes(t *testing.T) {
 	shape(configKeys, "config", "layer", "ui", "web/**")
 
 	shape(planKeys, "plan", "new", "launch", "Launch", "--summary", "Ship it.")
+	shape(planKeys, "plan", "agree", "launch", "--on-request")
 	pl := shape(keys{[]string{"plans"}, nil}, "plan", "list")
 	checkKeys(t, "plan list[0]", first(t, "plans", pl["plans"]), planKeys.plus(keys{[]string{"progress"}, nil}))
 
@@ -179,7 +180,7 @@ func TestOutputShapes(t *testing.T) {
 	v := shape(keys{[]string{"generated", "integration", "integration_found", "release", "ahead_of_release", "plans", "unlinked_commits_this_week"},
 		[]string{"unlinked_recent", "unplanned", "legacy"}}, "view")
 	board := first(t, "view.plans", v["plans"])
-	boardKeys := keys{[]string{"slug", "title", "progress", "phases", "unfiled", "problems", "in_flight", "needs_you"}, nil}
+	boardKeys := keys{[]string{"slug", "title", "progress", "phases", "unfiled", "problems", "in_flight", "needs_you"}, []string{"state"}}
 	checkKeys(t, "view.plans[0]", board, boardKeys)
 	checkKeys(t, "view.unplanned", v["unplanned"], boardKeys)
 	checkKeys(t, "view.needs_you", board.(map[string]any)["needs_you"],

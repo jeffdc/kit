@@ -26,7 +26,7 @@ On failure, mull prints nothing to stdout, prints this to stderr, and exits 1:
 | `invalid_state` | the record is in the wrong state (e.g. accepting an item that isn't done) |
 | `claimed` | the item is claimed by another worktree |
 | `already_settled` | the inbox entry is already settled |
-| `not_allowed` | not allowed (kind rules; a worker accepting its own work; promoting an idea or committing a captured item without `--on-request`) |
+| `not_allowed` | not allowed (kind rules; a worker accepting its own work; promoting an idea, committing a captured item or agreeing a plan without `--on-request`) |
 | `dependency_cycle` | the needs would form a cycle |
 | `scope_required` | say which plan or item: `--plan` or `--item` (or `--phase`, or `--plan none` for unplanned work, for `add`) |
 | `tour_required` | UI files changed and no `--tour` was given |
@@ -52,13 +52,13 @@ A `batch_invalid` error also lists every failed line:
 
 ## Records
 
-- **Plan:** `{slug, title, state ("active"|"closed"), created, updated, summary?}`
+- **Plan:** `{slug, title, state ("shaping"|"active"|"done"), created, updated, summary?}`. A new plan is `shaping`; `plan agree` (the human) makes it `active`, and `plan close` makes it `done`. A shaping plan takes phases, items, captures and inbox entries, but none of its items is ready until it is agreed.
 - **Phase:** `{id, plan, title, needs?, from?, created, updated, summary?}`. `from` is the inbox entry (e.g. an idea) it was promoted from.
 - **Item:** `{id, plan?, phase?, title, state ("captured"|"committed"|"active"|"in-review"|"done"|"dropped"), kind?, category?, source?, needs?, docs?, claim?, from?, created, updated, notes?}`. `from` is the inbox entry (idea, question or loose end) it was made from.
   - **No `plan`** means unplanned work, or (captured) backlog not tagged to a plan.
   - **Captured items** (`mull bug`, `mull idea`) carry `kind` (`"bug"`|`"idea"`), and `category` and `source` when given; `notes` holds the `--detail`. They keep them once committed.
   - **claim:** `{worktree, branch, at, base?}`
-- **ItemView:** Item plus `{ready, blocked_by?}`.
+- **ItemView:** Item plus `{ready, blocked_by?}`. `ready` is false for every item in a shaping plan.
 - **PhaseView:** Phase plus `{progress, complete, blocked_by?}`.
 - **Progress:** `{total, captured, committed, active, in_review, done, dropped, ready}`. `total` counts committed work (every stage but captured); captured items tagged to the phase or plan are counted only in `captured`.
 - **Entry** (inbox): `{id, kind ("decision"|"question"|"review"|"loose-end"|"idea"), text, plan, item?, source?, by, created, settled?, detail?}`. `plan` is `""` for an entry about the whole project or an unplanned item.
@@ -74,7 +74,7 @@ Times are RFC 3339 in UTC. IDs are 4 hex characters; plans use their slug.
 |---|---|
 | `init` | `{initialized, branch, config: Config}` |
 | `version` | `{version}` |
-| `plan new`, `plan close` | Plan |
+| `plan new`, `plan agree`, `plan close` | Plan |
 | `plan list` | `{plans: [Plan + {progress}]}` |
 | `plan show` | Plan + `{progress, phases: [PhaseView], items: [ItemView]}` |
 | `phase add` | Phase |
@@ -84,7 +84,7 @@ Times are RFC 3339 in UTC. IDs are 4 hex characters; plans use their slug.
 | `list`, `ready` | `{items: [ItemView]}`. `list --plan none` selects items with no plan; `--kind bug\|idea` selects captured kinds |
 | `set` | `{type: "plan"\|"phase"\|"item", plan?: Plan, phase?: PhaseView, item?: ItemView}` |
 | `need`, `unneed` | `{type: "item"\|"phase", item?: ItemView, phase?: PhaseView}` |
-| `start` | `{item: ItemView, warnings: []}` |
+| `start` | `{item: ItemView, warnings: []}`. Starting a blocked item, or one in a shaping plan, is allowed with a warning |
 | `decided`, `ask` | Entry |
 | `inbox` | `{entries: [Entry]}`, oldest first: questions, decisions and reviews. Loose ends and ideas only with `--kind loose-end\|idea`. `--plan none` for entries with no plan |
 | `loose`, `ideas` | retired: fail with code `retired` |
@@ -94,8 +94,8 @@ Times are RFC 3339 in UTC. IDs are 4 hex characters; plans use their slug.
 | `drop` | `{entries: [Entry], items: [ItemView]}` |
 | `decisions` | `{decisions: [{id, plan, item?, kind, context, decision, by, on_request?, at}]}`, newest first |
 | `config`, `config set\|checks\|layer` | Config |
-| `view` | `{generated, integration, integration_found, release, ahead_of_release, plans: [Board], unlinked_commits_this_week, unlinked_recent?, unplanned?: Board, legacy?: {loose_ends, ideas}}`. `unplanned` is a Board (slug `""`, title `"Unplanned"`) for items with no plan and entries with no plan, present when there are any. `legacy` counts open loose ends and inbox ideas until `mull migrate`. Board: `{slug, title, progress, phases: [{id, title, progress, complete, blocked_by?}], unfiled: Progress, problems: [{kind, item, text}], in_flight: [{id, title, state, worktree?, branches?, commits, last_activity?}], needs_you: {reviews, decisions, questions, older_than_a_week, parked}}`. Problem kinds: `idle-claim`, `unclaimed-work`, `done-not-in-git`, `failed-done` |
-| `context` | `{worktree, branch, protocol: [], item?: …, my_claims: [], plans: [], ready: [], active: [], decisions: []}` |
+| `view` | `{generated, integration, integration_found, release, ahead_of_release, plans: [Board], unlinked_commits_this_week, unlinked_recent?, unplanned?: Board, legacy?: {loose_ends, ideas}}`. `unplanned` is a Board (slug `""`, title `"Unplanned"`, no `state`) for items with no plan and entries with no plan, present when there are any. `legacy` counts open loose ends and inbox ideas until `mull migrate`. `plans` holds the active plans, then the shaping ones; a done plan only with `--plan`. Board: `{slug, title, state?, progress, phases: [{id, title, progress, complete, blocked_by?}], unfiled: Progress, problems: [{kind, item, text}], in_flight: [{id, title, state, worktree?, branches?, commits, last_activity?}], needs_you: {reviews, decisions, questions, older_than_a_week, parked}}`. Problem kinds: `idle-claim`, `unclaimed-work`, `done-not-in-git`, `failed-done` |
+| `context` | `{worktree, branch, protocol: [], item?: …, my_claims: [], plans: [], ready: [], active: [], decisions: []}`. `plans` are the shaping and active plans: `{slug, title, state, phases?}` |
 | `check` | `{tree, commit, at, by, passed, results: [{command, exit, duration_ms, tail?}], cached}` |
 | `done` | `{report, report_path, item: ItemView, review_entry?, reminder?}` |
 | `report` | `{report, text}`. `text` is the markdown rendering |
@@ -119,6 +119,7 @@ Times are RFC 3339 in UTC. IDs are 4 hex characters; plans use their slug.
 | op | fields |
 |---|---|
 | `plan new` | `slug`, `title`, `summary` |
+| `plan agree` | `slug`, `on-request` (required: only the human agrees a plan) |
 | `plan close` | `slug` |
 | `phase add` | `title`, `plan`, `summary`, `needs` |
 | `add` | `title`, `plan` (optional with `phase`; `none` for unplanned work), `phase`, `needs`, `notes`, `doc` |

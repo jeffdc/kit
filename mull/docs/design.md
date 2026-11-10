@@ -33,7 +33,7 @@ New mull is the record of a program: its plans, where they stand, and everything
 
 | Record | What it is | Fields | Who writes it |
 |---|---|---|---|
-| **Plan** | A large effort, such as `taxogall`. High-level only. | id (plain-English slug, e.g. `taxogall`, `general`), title, summary, state `active` or `closed` | You |
+| **Plan** | A large effort, such as `taxogall`. High-level only. | id (plain-English slug, e.g. `taxogall`, `general`), title, summary, state `shaping`, `active` or `done` | You |
 | **Epic** | A big piece of a plan; a set of items. | id (4-hex), plan (required), title, summary, needs | You, or agents on your instruction |
 | **Item** | A unit of work **one agent completes in one session.** | id (4-hex), plan (required), epic (optional), title, notes, docs (paths), needs, state, claim | Agents and you |
 | **Inbox entry** | Something that needs you | id, kind (`decision`, `question`, `loose-end` or `review`), one-line text, detail, item/epic/plan, source, created; when settled: action, note, by, time | Agents capture; you settle |
@@ -45,6 +45,12 @@ New mull is the record of a program: its plans, where they stand, and everything
 - Every epic and every item belongs to a plan. An item may sit directly under its plan with no epic. The view shows those as "unfiled" in that plan.
 - `mull init` creates one standing plan, `general`, for work outside any big effort, so the rule never forces a plan to be invented.
 - No docket, no sessions, no free-floating epics.
+
+**Plan states** (Model v2): `shaping → active → done`.
+- `mull plan new` creates a plan `shaping`: its doc and questions are being worked out with you. It may already hold phases, items, captures and inbox entries, but none of its items is ready, and starting one is warned about.
+- `mull plan agree <slug>` makes it `active`. Agreeing is yours: an agent must pass `--on-request`, and mull refuses otherwise.
+- `mull plan close <slug>` makes it `done`, from either state. A done plan takes no new work and leaves the view (`view --plan` still shows it).
+- Until the Model v2 migration, a done plan is stored as `closed`.
 
 **Item stages** (Model v2, see `serve/README.md`): `captured → committed → active → in-review → done`, plus `dropped` from any stage before done.
 
@@ -262,7 +268,7 @@ The ops are every write except `init`, `sync`, `check` and `done`.
 | Group | Commands |
 |---|---|
 | Setup | `mull init` · `mull sync [--dry-run]` |
-| Plans (you) | `mull plan new <slug> "title" [--summary -]` · `plan list` · `plan show <slug>` · `plan close <slug>` |
+| Plans (you) | `mull plan new <slug> "title" [--summary -]` · `plan agree <slug>` · `plan list` · `plan show <slug>` · `plan close <slug>` |
 | Epics | `mull epic add "title" --plan <slug> [--needs …]` · `epic show <id>` · `epic list [--plan]` |
 | Items | `mull add "title" (--plan <slug> \| --epic <id>) [--needs …] [--notes -] [--doc path]` · `show` · `list` · `set` · `drop` |
 | Dependencies | `mull need <id> <id…>` · `mull unneed <id> <id…>` · `mull ready [--plan]` |

@@ -44,6 +44,7 @@ type Legacy struct {
 type PlanBoard struct {
 	Slug     string       `json:"slug"`
 	Title    string       `json:"title"`
+	State    string       `json:"state,omitempty"` // the plan's state; none for the unplanned board
 	Progress Progress     `json:"progress"`
 	Phases   []PhaseLine  `json:"phases"`
 	Unfiled  Progress     `json:"unfiled"`
@@ -90,7 +91,8 @@ type NeedsYou struct {
 
 func (n NeedsYou) total() int { return n.Reviews + n.Decisions + n.Questions }
 
-// Board computes the view, for one plan or every active plan.
+// Board computes the view, for one plan or every plan not done: active
+// plans first, then shaping ones.
 func (m *Mull) Board(plan string) (View, error) {
 	var v View
 	err := m.view(func(s *state) error {
@@ -127,16 +129,22 @@ func (m *Mull) Board(plan string) (View, error) {
 		if legacy != (Legacy{}) {
 			v.Legacy = &legacy
 		}
+		var shaping []PlanBoard
 		for _, slug := range sortedKeys(s.plans) {
 			p := s.plans[slug]
 			if plan != "" && slug != plan {
 				continue
 			}
-			if plan == "" && p.State != model.PlanActive {
+			if plan == "" && p.State == model.PlanDone {
 				continue
 			}
-			v.Plans = append(v.Plans, s.board(p, g, now))
+			if b := s.board(p, g, now); p.State == model.PlanShaping {
+				shaping = append(shaping, b)
+			} else {
+				v.Plans = append(v.Plans, b)
+			}
 		}
+		v.Plans = append(v.Plans, shaping...)
 		if plan == "" {
 			b := s.board(&model.Plan{Title: "Unplanned"}, g, now)
 			if b.Progress.Total+b.Progress.Captured > 0 || b.NeedsYou.total() > 0 {
@@ -154,7 +162,7 @@ func parseTime(s string) (time.Time, bool) {
 }
 
 func (s *state) board(p *model.Plan, g *gitState, now time.Time) PlanBoard {
-	b := PlanBoard{Slug: p.Slug, Title: p.Title, Phases: []PhaseLine{}, Problems: []Problem{}, InFlight: []FlightLine{}}
+	b := PlanBoard{Slug: p.Slug, Title: p.Title, State: p.State, Phases: []PhaseLine{}, Problems: []Problem{}, InFlight: []FlightLine{}}
 	var items, unfiled []*model.Item
 	for _, id := range sortedKeys(s.items) {
 		if i := s.items[id]; i.Plan == p.Slug {
@@ -351,10 +359,17 @@ func (v View) Text(now time.Time) string {
 	}
 	fmt.Fprintf(&b, "%s · %s\n", header, now.Format("2006-01-02"))
 	if len(v.Plans) == 0 && v.Unplanned == nil {
-		b.WriteString("\nNo active plans with work.\n")
+		b.WriteString("\nNo open plans with work.\n")
 	}
 	for _, p := range v.Plans {
-		fmt.Fprintf(&b, "\n%s  %s\n", strings.ToUpper(p.Slug), p.Title)
+		state := ""
+		switch p.State {
+		case model.PlanShaping:
+			state = "  (shaping: not agreed yet)"
+		case model.PlanDone:
+			state = "  (done)"
+		}
+		fmt.Fprintf(&b, "\n%s  %s%s\n", strings.ToUpper(p.Slug), p.Title, state)
 		writeBoard(&b, p, now)
 	}
 	if v.Unplanned != nil {

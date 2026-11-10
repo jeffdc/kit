@@ -178,7 +178,7 @@ func planCmd(a *app) *cobra.Command {
 	var in mull.PlanNewIn
 	newC := &cobra.Command{
 		Use:   "new <slug> <title>",
-		Short: "Create a plan (slug: lowercase words joined by hyphens)",
+		Short: "Create a plan, shaping until the human agrees it (slug: lowercase words joined by hyphens)",
 		Args:  exact(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			in.Slug, in.Title = args[0], args[1]
@@ -205,13 +205,24 @@ func planCmd(a *app) *cobra.Command {
 			return a.read(func(m *mull.Mull) (any, error) { return m.PlanShow(args[0]) })
 		},
 	}
+	var agreeIn mull.PlanAgreeIn
+	agree := &cobra.Command{
+		Use:   "agree <slug>",
+		Short: "Agree a shaping plan, making it active so its work can start. Only the human agrees a plan",
+		Args:  exact(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			agreeIn.Slug = args[0]
+			return a.write("plan agree", &agreeIn)
+		},
+	}
+	agree.Flags().BoolVar(&agreeIn.OnRequest, "on-request", false, "an agent agreeing this on the human's explicit instruction")
 	closeC := &cobra.Command{
-		Use: "close <slug>", Short: "Close a plan", Args: exact(1),
+		Use: "close <slug>", Short: "Close a plan: it becomes done", Args: exact(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.write("plan close", &mull.PlanCloseIn{Slug: args[0]})
 		},
 	}
-	c.AddCommand(newC, list, show, closeC)
+	c.AddCommand(newC, agree, list, show, closeC)
 	return c
 }
 
@@ -638,7 +649,7 @@ func viewCmd(a *app) *cobra.Command {
 			return a.json(v)
 		},
 	}
-	c.Flags().StringVar(&plan, "plan", "", "only this plan (closed plans too)")
+	c.Flags().StringVar(&plan, "plan", "", "only this plan (done plans too)")
 	c.Flags().BoolVar(&asText, "text", false, "render for a human instead of JSON")
 	return c
 }
