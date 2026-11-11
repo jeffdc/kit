@@ -5,6 +5,12 @@ plan: mull-serve
 item: e3f5
 by: /Users/jeff/dev/kit
 created: "2026-11-11T00:20:09Z"
+settled:
+  action: accept
+  note: with review decd
+  by: /Users/jeff/dev/kit
+  on_request: true
+  at: "2026-11-11T00:42:24Z"
 ---
 
 The prototype's 'Built before mull' group, generalised: done phases rarely need a glance and would push the live ones down
