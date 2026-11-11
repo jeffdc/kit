@@ -5,6 +5,12 @@ plan: mull-data
 item: dafa
 by: /Users/jeff/dev/kit
 created: "2026-11-11T14:42:39Z"
+settled:
+  action: accept
+  note: with review 0cb6
+  by: jeffdc
+  human: true
+  at: "2026-11-11T23:19:08Z"
 ---
 
 The real branch is the baseline the human feels; nothing is written to it, and seen/registry go to a disposable XDG_CONFIG_HOME.
