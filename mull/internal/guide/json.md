@@ -45,6 +45,7 @@ On failure, mull prints nothing to stdout, prints this to stderr, and exits 1:
 | `migration_required` | a write to data from before Model v2 (format 1), or to data holding records still in format 1 (merged in by `sync` from an older mull): the human runs `mull migrate --dry-run`, then `mull migrate --on-request`. Reads still work |
 | `unsupported_format` | the data is in a newer format than this mull understands: update mull. Reads fail too |
 | `port_in_use` | `mull serve`'s port is taken, most likely by another `mull serve`: pass `--port` to use another |
+| `launchd_error` | `mull serve --install` couldn't load the LaunchAgent: the message carries launchctl's output |
 | `internal` | anything else |
 
 A `batch_invalid` error also lists every failed line:
@@ -113,12 +114,12 @@ Times are RFC 3339 in UTC. IDs are 4 hex characters; plans use their slug.
 | `migrate` | `{dry_run, format_before, format, changed, commit?, counts: {plans, phases, items, entries, docs, captured, needs}, records: [{type, id, path, from?, changes: []}], captured: [{item, kind, title, plan?, entry, entry_kind, was}], needs: [{type, id, need, action, to?, reason}], warnings: []}`. See "Migrating to Model v2" below. `records` are the existing records it changes (`type` `"config"`\|`"plan"`\|`"phase"`\|`"item"`\|`"entry"`; `path` where it's stored after, `from` where it was when it moves), with each change as a line of text; `captured` are the loose ends and inbox ideas it makes captured items (`kind` `"idea"`, `was` `"open"`\|`"parked"`); `needs` are the needs it converts (`action` `"converted"`, `to` the phase needed now) or drops (`"dropped"`). `changed` is `false` when there is nothing to do; `commit` is the mull branch after a real run that wrote. `--text` renders it for the human |
 | `sync` | `{remote, action ("up-to-date"\|"pushed"\|"pulled"\|"merged"\|"cloned"), local, remote_before?, pushed_commits, dry_run?, commands?}` |
 | `guide` | `{guide, text}` |
-| `serve` | `{url, registry, repos: []}` once it is listening, then serves until interrupted: `registry` is the registry file and `repos` the paths in it. See "mull serve" below |
+| `serve` | `{url, registry, repos: []}` once it is listening, then serves until interrupted: `registry` is the registry file and `repos` the paths in it. With `--install` (macOS): `{label, plist, log, url, program: [], warnings: []}` once the LaunchAgent is written and loaded (`program` is the command it runs; a warning says the port is already in use). With `--uninstall`: `{label, plist, removed}`. See "mull serve" below |
 | `batch` | `[{line, op, ref?, id?, result}]`, one per input line in order. `result` is exactly what that op's command prints, and `id` is what `@ref` names |
 
 ## mull serve
 
-`mull serve` is the human's view: a web UI of every repository on mull, on `127.0.0.1` only (port 6855 unless `--port`). It never writes mull data; the only thing it writes is its own last-looked state.
+`mull serve` is the human's view: a web UI of every repository on mull, on `127.0.0.1` only (port 6855 unless `--port`). It never writes mull data; the only thing it writes is its own last-looked state. On macOS, `mull serve --install` runs it at login as a LaunchAgent (`~/Library/LaunchAgents/mull.serve.plist`, logging to `~/Library/Logs/mull-serve.log`), restarted if it stops, with the PATH and XDG_CONFIG_HOME it was installed with; run it again after upgrading mull, and `--uninstall` to remove it.
 
 Repositories are found with no configuration. After every command, mull adds the repository it ran in to the registry, if it has a mull branch: `~/.config/mull/repos` (or `$XDG_CONFIG_HOME/mull/repos`), one main-worktree path per line, kept per machine and never on the mull branch. Lines can be removed by hand; blank lines and lines starting with `#` are skipped.
 
