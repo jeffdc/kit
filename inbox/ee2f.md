@@ -5,6 +5,12 @@ plan: mull-serve
 item: f31c
 by: /Users/jeff/dev/kit
 created: "2026-11-11T00:50:37Z"
+settled:
+  action: accept
+  note: with review 7733
+  by: /Users/jeff/dev/kit
+  on_request: true
+  at: "2026-11-11T00:57:24Z"
 ---
 
 Docs are written by agents and the page can POST to mull serve; nothing in a doc should run or navigate somewhere unexpected
