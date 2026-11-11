@@ -3,6 +3,7 @@ package mull
 import (
 	"regexp"
 	"sort"
+	"time"
 
 	"mull/internal/model"
 )
@@ -44,19 +45,53 @@ func (s *state) itemRow(i *model.Item) ItemRow {
 	if ph := s.phases[i.Phase]; ph != nil {
 		r.PhaseTitle = ph.Title
 	}
-	for _, e := range s.entries {
-		if e.Settled == nil && e.Kind == model.KindQuestion && e.Item == i.ID {
+	for _, e := range s.itemEntries(i.ID) {
+		if e.Settled == nil && e.Kind == model.KindQuestion {
 			r.Questions++
 		}
 	}
 	return r
 }
 
+// doneShownFor is how long done and dropped work stays on the lists that
+// grow with it (the sheet index, Unplanned) after it last changed. Older
+// done work ages out of them: it's still in the record, on its phase's
+// sheet and its own.
+const doneShownFor = 14 * 24 * time.Hour
+
+// agedOut reports whether item i has aged out of those lists: done or
+// dropped, last changed more than doneShownFor before now, and with nothing
+// open on it (an open entry keeps it listed where the entry is counted).
+func (s *state) agedOut(i *model.Item, now time.Time) bool {
+	if i.State != model.StateDone && i.State != model.StateDropped {
+		return false
+	}
+	up, ok := parseTime(i.Updated)
+	if !ok || now.Sub(up) <= doneShownFor {
+		return false
+	}
+	for _, e := range s.itemEntries(i.ID) {
+		if e.Settled == nil || e.Settled.Action == model.ActPark {
+			return false
+		}
+	}
+	return true
+}
+
 // itemRows lists the items keep selects, by stage, then oldest first.
 func (s *state) itemRows(keep func(*model.Item) bool) []ItemRow {
-	var items []*model.Item
+	all := make([]*model.Item, 0, len(s.items))
 	for _, id := range sortedKeys(s.items) {
-		if i := s.items[id]; keep(i) {
+		all = append(all, s.items[id])
+	}
+	return s.rowsOf(all, keep)
+}
+
+// rowsOf is itemRows over candidates (in ID order) rather than every item.
+func (s *state) rowsOf(candidates []*model.Item, keep func(*model.Item) bool) []ItemRow {
+	var items []*model.Item
+	for _, i := range candidates {
+		if keep(i) {
 			items = append(items, i)
 		}
 	}
@@ -91,17 +126,20 @@ func unplanned(i *model.Item) bool { return i.Plan == "" && i.State != model.Sta
 
 // Counts are the project's tab counts.
 type Counts struct {
-	Unplanned  int    `json:"unplanned"` // committed items with no plan, any stage after captured
+	Unplanned  int    `json:"unplanned"` // committed items with no plan, any stage after captured, less done work aged out (as Unplanned lists them)
 	Backlog    int    `json:"backlog"`   // captured items
 	Untriaged  int    `json:"untriaged"`
 	LastTriage string `json:"last_triage,omitempty"`
 }
 
-func (s *state) counts() Counts {
+func (s *state) counts(now time.Time) Counts {
 	var c Counts
 	for _, i := range s.items {
 		switch {
 		case unplanned(i):
+			if s.agedOut(i, now) {
+				break
+			}
 			c.Unplanned++
 		case i.State == model.StateCaptured:
 			c.Backlog++
@@ -138,7 +176,7 @@ func (m *Mull) Overview() (Overview, error) {
 		if err != nil {
 			return err
 		}
-		out = Overview{Summary: sum, Counts: s.counts(), NeedsYou: s.needsYou(nil), Plans: []PlanStatus{}, Agents: []AgentRow{}}
+		out = Overview{Summary: sum, Counts: s.counts(m.Now()), NeedsYou: s.needsYou(nil), Plans: []PlanStatus{}, Agents: []AgentRow{}}
 		for _, p := range s.notDonePlans() {
 			out.Plans = append(out.Plans, s.planStatus(p, g))
 		}
@@ -397,20 +435,39 @@ func (s *state) review(i *model.Item) (*Review, []ReportRef) {
 }
 
 // Unplanned is the project's unplanned work: committed items with no plan,
-// by stage, and what needs you about them.
+// by stage, and what needs you about them. Done work that has aged out is
+// left out unless asked for, and counted.
 type Unplanned struct {
 	Items    []ItemRow     `json:"items"`
 	NeedsYou NeedsYouTiers `json:"needs_you"`
+	AgedOut  int           `json:"aged_out"`        // done or dropped items left out
+	DoneDays int           `json:"done_shown_days"` // how long done work stays listed
 }
 
-// UnplannedPage reads the project's unplanned work.
-func (m *Mull) UnplannedPage() (Unplanned, error) {
+// UnplannedPage reads the project's unplanned work; with all, done work
+// that has aged out too.
+func (m *Mull) UnplannedPage(all bool) (Unplanned, error) {
 	var out Unplanned
+	now := m.Now()
 	err := m.view(func(s *state) error {
-		out = Unplanned{Items: s.itemRows(unplanned), NeedsYou: s.needsYou(func(e *model.Entry) bool {
+		aged := 0
+		keep := func(i *model.Item) bool {
+			if !unplanned(i) {
+				return false
+			}
+			if s.agedOut(i, now) {
+				aged++
+				return all
+			}
+			return true
+		}
+		out = Unplanned{Items: s.itemRows(keep), DoneDays: int(doneShownFor / (24 * time.Hour)), NeedsYou: s.needsYou(func(e *model.Entry) bool {
 			i := s.items[e.Item]
 			return i != nil && unplanned(i)
 		})}
+		if !all {
+			out.AgedOut = aged
+		}
 		return nil
 	})
 	return out, err
@@ -489,8 +546,8 @@ func (m *Mull) BacklogPage(plan string) (Backlog, error) {
 }
 
 // Tree is the project's sheet index: every plan not done, its phases in
-// schedule order and their committed items, then unplanned work and the
-// backlog, counted.
+// schedule order and their committed items (less done work that has aged
+// out: see agedOut), then unplanned work and the backlog, counted.
 type Tree struct {
 	Plans    []TreePlan `json:"plans"`
 	Counts   Counts     `json:"counts"`
@@ -543,7 +600,9 @@ type TreeItem struct {
 // TreePage reads the project's sheet index.
 func (m *Mull) TreePage() (Tree, error) {
 	var out Tree
+	now := m.Now()
 	err := m.view(func(s *state) error {
+		listable := func(i *model.Item) bool { return i.State != model.StateCaptured && !s.agedOut(i, now) }
 		// Where each open entry shows: on its item when the tree lists it,
 		// else on its plan, on Unplanned, or on the project.
 		byItem := map[string]Attention{}
@@ -556,7 +615,7 @@ func (m *Mull) TreePage() (Tree, error) {
 				a.Blocking++
 			}
 		}
-		out = Tree{Plans: []TreePlan{}, Counts: s.counts(), Blocking: s.countBlocking(nil), NeedsYou: len(open)}
+		out = Tree{Plans: []TreePlan{}, Counts: s.counts(now), Blocking: s.countBlocking(nil), NeedsYou: len(open)}
 		row := func(ir ItemRow) TreeItem {
 			listed[ir.ID] = true
 			return TreeItem{ID: ir.ID, Title: ir.Title, State: ir.State, Ready: ir.Ready}
@@ -566,13 +625,13 @@ func (m *Mull) TreePage() (Tree, error) {
 			for _, g := range s.schedule(p.Slug) {
 				for _, r := range g.Phases {
 					ph := TreePhase{PhaseRow: r, Items: []TreeItem{}}
-					for _, ir := range s.itemRows(func(i *model.Item) bool { return i.Phase == r.ID && i.State != model.StateCaptured }) {
+					for _, ir := range s.rowsOf(s.phaseItems(r.ID), listable) {
 						ph.Items = append(ph.Items, row(ir))
 					}
 					tp.Phases = append(tp.Phases, ph)
 				}
 			}
-			for _, ir := range s.itemRows(func(i *model.Item) bool { return i.Plan == p.Slug && i.Phase == "" && i.State != model.StateCaptured }) {
+			for _, ir := range s.itemRows(func(i *model.Item) bool { return i.Plan == p.Slug && i.Phase == "" && listable(i) }) {
 				tp.Unfiled = append(tp.Unfiled, row(ir))
 			}
 			out.Plans = append(out.Plans, tp)

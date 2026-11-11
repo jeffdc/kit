@@ -61,7 +61,7 @@ func TestReadsDontChangeTheCachedState(t *testing.T) {
 		"Overview":      func() error { _, err := m.Overview(); return err },
 		"TreePage":      func() error { _, err := m.TreePage(); return err },
 		"BacklogPage":   func() error { _, err := m.BacklogPage(""); return err },
-		"UnplannedPage": func() error { _, err := m.UnplannedPage(); return err },
+		"UnplannedPage": func() error { _, err := m.UnplannedPage(false); return err },
 		"Board":         func() error { _, err := m.Board(""); return err },
 		"Summary":       func() error { _, err := m.Summary(); return err },
 		"Decisions":     func() error { _, err := m.Decisions(""); return err },

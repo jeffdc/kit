@@ -105,7 +105,8 @@ type state struct {
 
 	// Lookups built once for a read-only state (see index); nil in a state
 	// being written, whose records may change under them.
-	byPhase map[string][]*model.Item // items by phase, in ID order
+	byPhase map[string][]*model.Item  // items by phase, in ID order
+	byItem  map[string][]*model.Entry // entries by item, in ID order
 }
 
 func load(tx *store.Tx) (*state, error) { return loadFrom(tx, nil) }

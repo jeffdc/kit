@@ -2,7 +2,7 @@
 // sheets, and a plan's backlog. Whole rows are links; the title stays the
 // keyboard target. Changed items are clouded.
 
-import { esc, href, tag, itemStage, shortTitle, day, base, ago } from "./html.js";
+import { esc, href, tag, itemStage, shortTitle, day, base, ago, plural } from "./html.js";
 import { within } from "./revision.js";
 import { schedule } from "./needs.js";
 
@@ -40,9 +40,15 @@ export function itemTable(pid, items, cols, { changes, empty = "None." } = {}) {
   return `<div class="tbl-wrap"><table class="t"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
-export function unplannedBody(pid, page, changes) {
+// unplannedBody: the unplanned work. Done work ages out of it after
+// page.done_shown_days (it's still on each item's sheet); all shows it too.
+export function unplannedBody(pid, page, changes, all = false) {
+  const days = page.done_shown_days;
   const table = itemTable(pid, page.items, [col.id(), col.title(pid), col.kind(), col.stage(), col.category()],
-    { changes, empty: "Nothing unplanned is committed." });
+    { changes, empty: page.aged_out ? "Nothing unplanned is open or recently done." : "Nothing unplanned is committed." }) +
+    (page.aged_out
+      ? `<p class="empty">${plural(page.aged_out, "done or dropped item")} more than ${days} days old ${page.aged_out === 1 ? "is" : "are"} left out. <a href="${esc(href.unplanned(pid, true))}">Show all</a></p>`
+      : all ? `<p class="empty">Showing done work of every age. <a href="${esc(href.unplanned(pid))}">Only the last ${days} days</a></p>` : "");
   const ny = page.needs_you.tiers.length
     ? `<section id="needs"><div class="hd"><h2>Needs you</h2><span class="lab">On unplanned work</span></div>${schedule(page.needs_you, { pid, changes, noPlan: true })}</section>`
     : "";

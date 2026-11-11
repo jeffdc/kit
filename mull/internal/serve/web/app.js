@@ -121,7 +121,8 @@ function page(r) {
   const pr = state.projects.find(p => p.id === r.pid);
   if (!pr) return pageNotFound(`No project “${r.pid}” is registered with mull serve.`);
   if (pr.error) return pageUnreadable(pr);
-  if (!KINDS.has(r.kind) || (r.kind !== "" && r.kind !== "unplanned" && r.kind !== "backlog" && !r.id)) return pageNotFound("That isn't a sheet in this set.");
+  if (!KINDS.has(r.kind) || (r.kind !== "" && r.kind !== "unplanned" && r.kind !== "backlog" && !r.id) ||
+    (r.kind === "unplanned" && r.id && r.id !== "all")) return pageNotFound("That isn't a sheet in this set.");
   return projectSheet(state, pr, r);
 }
 

@@ -265,7 +265,7 @@ func plan(repo string, back []int) (Shape, []target, error) {
 		page("overview", "/api/projects/{id}", func() error { _, err := m.Overview(); return err }),
 		page("tree", "/api/projects/{id}/tree", func() error { _, err := m.TreePage(); return err }),
 		page("backlog", "/api/projects/{id}/backlog", func() error { _, err := m.BacklogPage(""); return err }),
-		page("unplanned", "/api/projects/{id}/unplanned", func() error { _, err := m.UnplannedPage(); return err }),
+		page("unplanned", "/api/projects/{id}/unplanned", func() error { _, err := m.UnplannedPage(false); return err }),
 		{name: "board (mull view)", call: func() error { _, err := m.Board(""); return err }},
 	}
 	// The open plan with the most items, and the done plan with the most.

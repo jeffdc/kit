@@ -18,7 +18,8 @@ export const href = {
   plan: (pid, slug) => `#/${seg(pid)}/plans/${seg(slug)}`,
   phase: (pid, id) => `#/${seg(pid)}/phases/${seg(id)}`,
   item: (pid, id) => `#/${seg(pid)}/items/${seg(id)}`,
-  unplanned: pid => `#/${seg(pid)}/unplanned`,
+  // all: with done work of every age, not only what hasn't aged out.
+  unplanned: (pid, all = false) => `#/${seg(pid)}/unplanned${all ? "/all" : ""}`,
   backlog: pid => `#/${seg(pid)}/backlog`,
 };
 
