@@ -235,7 +235,7 @@ Both families are self-hosted woff2 under `/fonts/`: Archivo variable (wdth 62â€
 
 ## Layout
 
-**Shell.** A two-column grid: a 312px sheet-index rail and the main sheet. The rail is sticky and full height on blueline paper, with a 1.5px ink rule on its right. It holds the brand row (56px, with the Live/Offline indicator), the scrolling tree, and a footer listing repos that aren't on mull yet.
+**Shell.** A two-column grid: a 312px sheet-index rail and the main sheet. The rail is sticky and full height on blueline paper, with a 1.5px ink rule on its right. It holds the brand row (56px, with the Live/Offline indicator), the scrolling tree, and a footer: repos beside the registered ones that aren't on mull ("Needs converting" for old `.mull/` data, "Not on mull yet" for recent repos with no mull branch, from `GET /api/unmulled`), registered repos that can't be read, and the link to the model. All projects lists the same repos as grouped rows under its table, each saying what to do.
 
 **Sheet.** Each main sheet stacks the same way: title block, then the tabs row (project and plan sheets), then the page. The page has horizontal padding of `page-x`, 22px top and 64px bottom padding, and a 34px gap between sections.
 

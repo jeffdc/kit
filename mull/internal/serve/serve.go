@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"sync"
+	"time"
 
 	"mull/internal/mull"
 )
@@ -46,6 +47,7 @@ func Handler(repos Repos, opts ...Option) http.Handler {
 	})
 	registerAPI(mux, repos)
 	registerRevision(mux, repos)
+	registerUnmulled(mux, repos, &scanner{now: time.Now})
 	for _, opt := range opts {
 		opt(mux)
 	}

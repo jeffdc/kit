@@ -25,6 +25,9 @@ const p = id => `/api/projects/${encodeURIComponent(id)}`;
 
 export const api = {
   projects: () => call("/api/projects"),
+  // unmulled: the repositories beside the registered ones that aren't on
+  // mull (old mull data, or worked on recently).
+  unmulled: () => call("/api/unmulled"),
   // page is one of a project's pages: sub is the path under the project
   // ("plans/<slug>", "items/<id>", "backlog?plan=<slug>"…), or "" for its
   // overview.
