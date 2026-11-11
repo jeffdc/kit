@@ -14,4 +14,4 @@ created: "2026-11-11T13:27:44Z"
 updated: "2026-11-11T13:32:52Z"
 ---
 
-The human's words: wider cap for sure. 120ch is my normal. Notes (76ch), docs (68ch), the lede and the model sheet (72ch) and the note box (90ch) all go to 120ch.
+The human's words: wider cap for sure. 120ch is my normal. Then: another formatting issue are the titles, they often wrap for no apparent reason. Notes (76ch), docs (68ch), the lede and the model sheet (72ch) and the note box (90ch) go to 120ch; on .wide title blocks the fields fit their values (up to 260px) and the name takes the rest.
