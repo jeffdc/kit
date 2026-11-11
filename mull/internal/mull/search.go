@@ -18,7 +18,7 @@ type Hit struct {
 	State string `json:"state,omitempty"`
 	Rank  int    `json:"rank"` // lower is better: 0 the ID, 1 starts the ID, 2 starts words of the title, 3 inside it
 	// Archived means it's in the archive: a closed plan, or a record in one.
-	Archived bool `json:"archived,omitempty"`
+	Archived bool   `json:"archived,omitempty"`
 	at       string // last change, newest first among equal ranks
 }
 
