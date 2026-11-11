@@ -196,6 +196,26 @@ tr.cl.cl-cont.cl-open > td::after { background-size: 12px 0, 12px 0, 7px 12px; }
 
 /* main and the title block */
 main { min-width: 0; display: flex; flex-direction: column; }
+#main { display: contents; }
+
+/* Find: a band at the top of the sheet, in place, never floating */
+.brand #find { margin-left: 0; }
+.search { border-bottom: 1.5px solid var(--ink); background: var(--panel); padding: 12px clamp(16px, 2.4vw, 32px); }
+.search .find { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.search input { flex: 1 1 280px; min-width: 0; padding: 7px 9px; border: 1px solid var(--ink); border-radius: 0; background: var(--ground); color: var(--ink); font: 500 15px/1.3 var(--font); }
+.search input::placeholder { color: var(--faint); }
+.search .hint { font-size: 12px; color: var(--mut); }
+.search .hits { list-style: none; margin: 10px 0 0; padding: 0; max-height: min(60vh, 520px); overflow-y: auto; background: var(--ground); }
+.search .hits:empty { display: none; }
+.search .hits li { border: 1px solid var(--line); border-top: 0; }
+.search .hits li:first-child { border-top: 1px solid var(--line); }
+.search .hits a { display: grid; grid-template-columns: 84px minmax(0, 1fr) auto; gap: 12px; align-items: baseline; padding: 8px 10px; color: var(--ink); }
+.search .hits a:hover { background: var(--panel); text-decoration: none; }
+.search .hits li.on a { background: var(--sel); }
+.search .hits .id { font: 500 12px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.search .hits .txt b { font-weight: 550; display: block; }
+.search .hits .txt small { display: block; color: var(--mut); font-size: 12px; margin-top: 2px; }
+.search .hits .none { padding: 10px; color: var(--mut); border: 1px solid var(--line); }
 .tb { display: grid; grid-template-columns: minmax(280px, 1.5fr) repeat(3, minmax(0, 1fr)); border-bottom: 1.5px solid var(--ink); }
 .tb > .f { padding: 9px 18px 10px; border-left: 1px solid var(--line); min-width: 0; }
 .tb > .f:nth-child(n+5) { border-top: 1px solid var(--line); }

@@ -12,6 +12,7 @@ import { pageHome, projectSheet, subsFor, pageNotFound, pageUnreadable, notOnMul
 import { filterOf, clearFilter } from "./lists.js";
 import { pageModel } from "./model.js";
 import { writeState, setWrite, disarm, toggleMore } from "./write.js";
+import { openSearch } from "./search.js";
 
 const state = {
   projects: null,    // GET /api/projects, once loaded
@@ -390,6 +391,7 @@ document.addEventListener("click", ev => {
   if (fc) { disarm(); render(); return; }
   if (t.closest("form[data-form]")) return; // typing in a form, or its Save
   if (disarm()) render(); // a click anywhere else cancels an armed write or closes a form
+  if (t.closest("#find")) { openSearch(); return; }
   if (t.closest("#idx")) {
     const open = document.querySelector(".rail").classList.toggle("open");
     $("idx").setAttribute("aria-expanded", open);
