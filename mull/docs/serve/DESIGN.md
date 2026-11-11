@@ -278,6 +278,7 @@ Square corners throughout (`rounded.none`), and `select` resets its radius to 0.
 ### Stage tags and stamps
 - **Tag:** status face in a 1px currentColor box, square. Colour follows the One Mark, One Job Rule: ready and now are blue, active is a solid blue fill, done is green, passed is a solid green fill, and committed and captured are muted.
 - **Stamp:** a yellow box with a 1px ink outline that carries a blocking count ("2 BLOCKING", or just "2" in tight rows). It's for blocking only.
+- **Ask:** the same face in a 1px ink box with no fill: how much needs the human (open questions, reviews and decisions, parked ones aside). It follows the stamp only when there's more than what blocks ("1 BLOCKING" then "3 FOR YOU" on a project row, bare counts with a title on plan and phase rows), so every row holding something for the human is marked, blocking or not. `marks()` in `html.js` draws both. A closed Needs you tier boxes its count the same way.
 
 ### Segmented filter, select, checkbox
 - **Segmented control:** buttons joined in a 1px ink box. The pressed one (`aria-pressed`) is filled with ink.
@@ -293,7 +294,7 @@ Square corners throughout (`rounded.none`), and `select` resets its radius to 0.
 - 44px links in muted 550 type. The active tab is ink, bold, with a 2px ink underline that overlaps the row's 1px ink base. Counts follow in condensed tabular figures. Actions sit at the right end of the row (they take their own row at ≤1180px).
 
 ### Title block
-- The name box holds breadcrumbs and the display-size name. Each field box has a label over a value. Project sheets show integration branch, ahead count, status (Live / Reconnecting), last change, agents working, and revision ("Rev 9" plus a muted "9 changes since 07:16 PM").
+- The name box holds breadcrumbs and the display-size name. Each field box has a label over a value. Project sheets show integration branch, ahead count, status (Live / Reconnecting), last change, Needs you (the ask box, a blocking stamp if any, and "2 questions · 1 decision"), and revision ("Rev 9" plus a muted "9 changes since 07:16 PM"). Agents are in the Plans column.
 
 ### Needs you schedule (signature)
 - Numbered tiers 01–06 in a `details` list, ranked by what answering unblocks. The ranking comes from the API.
@@ -347,6 +348,7 @@ Square corners throughout (`rounded.none`), and `select` resets its radius to 0.
 - **Do** make every new action copy a mull command or agent prompt and confirm in the toast until writes exist.
 - **Do** mark a table's wide-only columns `.w` and give the last always-visible cell `.nl` when `.w` columns follow it. The final visible column must not be `.w`.
 - **Do** let any element that can hold a change take the cloud class from `Changes.cls(...)` rather than inventing its own marker.
+- **Do** mark anything that holds something for the human with `marks()`: the stamp for blocking, the ask box for the rest. A row that needs the human must never look like one that doesn't.
 
 ### Don't:
 - **Don't** use red for anything except revision clouds. That includes errors, destructive buttons and warnings.

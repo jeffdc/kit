@@ -403,6 +403,17 @@ func TestOverviewTreeAndLists(t *testing.T) {
 	if tree.Plans[1].Blocking != 2 || tree.Counts != ov.Counts {
 		t.Errorf("tree plan blocking = %d, counts = %+v", tree.Plans[1].Blocking, tree.Counts)
 	}
+	// What needs the human, not only what blocks: the same count each sheet's
+	// Needs you shows.
+	launch := must[PlanPage](t)(m.PlanPage("launch"))
+	firstPage := must[PhasePage](t)(m.PhasePage(f.first.ID))
+	if tree.NeedsYou != ov.NeedsYou.Open || tree.Plans[1].NeedsYou != launch.NeedsYou.Open || first.NeedsYou != firstPage.NeedsYou.Open {
+		t.Errorf("tree needs you = %d / plan %d / phase %d, want %d / %d / %d", tree.NeedsYou, tree.Plans[1].NeedsYou, first.NeedsYou,
+			ov.NeedsYou.Open, launch.NeedsYou.Open, firstPage.NeedsYou.Open)
+	}
+	if tree.Plans[1].NeedsYou <= tree.Plans[1].Blocking {
+		t.Errorf("plan needs you = %d, want more than its %d blocking (it has other open entries)", tree.Plans[1].NeedsYou, tree.Plans[1].Blocking)
+	}
 
 	un := must[Unplanned](t)(m.UnplannedPage())
 	if len(un.Items) != 1 || un.Items[0].ID != f.unplannedReady.ID || un.Items[0].Questions != 1 || un.NeedsYou.Open != 1 {

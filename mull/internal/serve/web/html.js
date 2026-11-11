@@ -37,6 +37,22 @@ export const shortTitle = t => String(t || "").split(":")[0];
 
 export const plural = (n, one, many = one + "s") => `${n} ${n === 1 ? one : many}`;
 
+// needsTotal is everything Needs you lists for a project summary: open
+// questions, reviews and decisions (parked ones aside).
+export const needsTotal = ny => (ny?.questions || 0) + (ny?.reviews || 0) + (ny?.decisions || 0);
+export const needsBreakdown = ny => [[ny?.questions, "question"], [ny?.reviews, "review"], [ny?.decisions, "decision"]]
+  .filter(([n]) => n).map(([n, w]) => plural(n, w)).join(" · ");
+
+// marks: what a row holds for the human. The yellow stamp is blocking work
+// only; the ink box counts everything else that needs them, shown only when
+// there's more than what blocks. long spells them out ("2 blocking", "3 for
+// you"), for project rows; otherwise they're bare counts with a title.
+export function marks(blocking, total, long = false) {
+  const b = blocking ? `<span class="stamp" title="${plural(blocking, "question")} blocking committed work">${long ? `${blocking} blocking` : blocking}</span>` : "";
+  const rest = total > blocking ? `<span class="ask" title="${total} need${total === 1 ? "s" : ""} you">${long ? `${total} for you` : total}</span>` : "";
+  return b + rest;
+}
+
 // cells draws a phase's or plan's progress as one cell per item: done,
 // in review (hatched), active (blue), then the rest. Dropped items don't
 // count.

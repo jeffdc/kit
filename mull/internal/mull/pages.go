@@ -495,6 +495,7 @@ type Tree struct {
 	Plans    []TreePlan `json:"plans"`
 	Counts   Counts     `json:"counts"`
 	Blocking int        `json:"blocking"`
+	NeedsYou int        `json:"needs_you"` // open entries, parked ones aside: everything Needs you lists
 }
 
 // TreePlan is a plan in the tree.
@@ -503,13 +504,15 @@ type TreePlan struct {
 	Title    string      `json:"title"`
 	State    string      `json:"state"`
 	Blocking int         `json:"blocking"`
+	NeedsYou int         `json:"needs_you"` // open entries about the plan or anything in it
 	Phases   []TreePhase `json:"phases"`
 }
 
 // TreePhase is a phase in the tree.
 type TreePhase struct {
 	PhaseRow
-	Items []TreeItem `json:"items"`
+	NeedsYou int        `json:"needs_you"` // open entries on its items
+	Items    []TreeItem `json:"items"`
 }
 
 // TreeItem is an item in the tree.
@@ -524,13 +527,19 @@ type TreeItem struct {
 func (m *Mull) TreePage() (Tree, error) {
 	var out Tree
 	err := m.view(func(s *state) error {
-		out = Tree{Plans: []TreePlan{}, Counts: s.counts(), Blocking: s.countBlocking(nil)}
+		count := func(keep func(*model.Entry) bool) int {
+			open, _ := s.openEntries(keep)
+			return len(open)
+		}
+		out = Tree{Plans: []TreePlan{}, Counts: s.counts(), Blocking: s.countBlocking(nil), NeedsYou: count(nil)}
 		for _, p := range s.notDonePlans() {
+			inPlan := func(e *model.Entry) bool { return e.Plan == p.Slug }
 			tp := TreePlan{Slug: p.Slug, Title: p.Title, State: p.State, Phases: []TreePhase{},
-				Blocking: s.countBlocking(func(e *model.Entry) bool { return e.Plan == p.Slug })}
+				Blocking: s.countBlocking(inPlan), NeedsYou: count(inPlan)}
 			for _, g := range s.schedule(p.Slug) {
 				for _, r := range g.Phases {
-					ph := TreePhase{PhaseRow: r, Items: []TreeItem{}}
+					ph := TreePhase{PhaseRow: r, Items: []TreeItem{},
+						NeedsYou: count(func(e *model.Entry) bool { return s.entryPhase(e) == r.ID })}
 					for _, ir := range s.itemRows(func(i *model.Item) bool { return i.Phase == r.ID && i.State != model.StateCaptured }) {
 						ph.Items = append(ph.Items, TreeItem{ID: ir.ID, Title: ir.Title, State: ir.State, Ready: ir.Ready})
 					}

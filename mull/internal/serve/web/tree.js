@@ -4,7 +4,7 @@
 // of its open children shows the change. Consecutive clouded rows share
 // one cloud, as a drafter clouds a region.
 
-import { esc, href, CHEVRON, itemStage, stageLabel, plural } from "./html.js";
+import { esc, href, CHEVRON, itemStage, stageLabel, plural, marks, needsTotal } from "./html.js";
 import { within } from "./revision.js";
 
 const STORE = "mull.tree.v1";
@@ -21,7 +21,6 @@ export function toggle(key) {
 }
 
 const em = s => `<em>${esc(s)}</em>`;
-const stamp = s => `<span class="stamp">${esc(s)}</span>`;
 
 // nodes builds one project's subtree. match picks the changes inside a
 // node; a node with children but no data yet (the tree is loading) has none.
@@ -42,17 +41,16 @@ function projectNode(pr, data) {
       plKids.push(...live.map(ph => phaseNode(pid, ph)));
       kids.push({
         key: `pl:${pid}:${pl.slug}`, label: pl.title, href: href.plan(pid, pl.slug), match: within.plan(pl.slug), kids: plKids,
-        meta: (pl.blocking ? stamp(pl.blocking) : "") + (pl.state === "shaping" ? `<span class="tag s-shaping">shaping</span>` : ""),
+        meta: marks(pl.blocking, pl.needs_you) + (pl.state === "shaping" ? `<span class="tag s-shaping">shaping</span>` : ""),
       });
     }
     const c = tree.counts;
     kids.push({ key: `un:${pid}`, label: "Unplanned", href: href.unplanned(pid), match: within.unplanned(), meta: em(c.unplanned) });
     kids.push({ key: `bl:${pid}`, label: "Backlog", href: href.backlog(pid), match: within.backlog(), meta: em(`${c.backlog}${c.untriaged ? ` · ${c.untriaged} new` : ""}`) });
   }
-  const blocking = pr.summary?.blocking || 0;
   return {
     key: `p:${pid}`, label: pid, href: href.project(pid), top: true, match: within.all(), kids, expandable: true,
-    meta: blocking ? stamp(`${blocking} blocking`) : "",
+    meta: marks(pr.summary?.blocking || 0, needsTotal(pr.summary?.needs_you), true),
   };
 }
 
@@ -61,7 +59,7 @@ function phaseNode(pid, ph) {
   const progress = ph.state === "done" ? "done" : ph.state === "waits" ? "waits" : total ? `${p.done}/${total}` : "now";
   return {
     key: `ph:${pid}:${ph.id}`, label: ph.title, href: href.phase(pid, ph.id), match: within.phase(ph.id), waits: ph.state !== "now",
-    meta: (ph.blocking ? stamp(ph.blocking) : "") + (ph.go_live ? `<span class="tag">Go live</span>` : "") + em(progress),
+    meta: marks(ph.blocking, ph.needs_you) + (ph.go_live ? `<span class="tag">Go live</span>` : "") + em(progress),
     kids: ph.items.map(it => ({
       key: `it:${pid}:${it.id}`, label: it.title, code: it.id, href: href.item(pid, it.id), match: within.item(it.id),
       waits: it.state === "done" || it.state === "dropped", meta: em(stageLabel(itemStage(it))),
