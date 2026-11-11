@@ -1,12 +1,66 @@
-// The sheets: all projects, a project's overview, and the sheets still to
-// be drawn (plan, phase, item, Unplanned, Backlog), which for now show
-// their title block only.
+// The sheets: all projects, and within a project its Overview, Unplanned
+// and Backlog tabs, and the plan, phase and item sheets. Each project sheet
+// reads one or two API pages (subsFor), which app.js loads into the
+// project's data.pages.
 
-import { esc, href, agoSpan, shortTitle } from "./html.js";
+import { esc, href, agoSpan } from "./html.js";
 import { titleBlock, projectHead, liveField } from "./title.js";
 import { schedule } from "./needs.js";
 import { plansColumn } from "./plans.js";
 import { revisionSchedule } from "./revision.js";
+import { unplannedBody, backlogBody } from "./lists.js";
+import { planSubs, planSheet, planStatus, planDoc, planBacklog } from "./plan.js";
+import { phaseSheet } from "./phase.js";
+import { itemSheet } from "./item.js";
+
+const enc = encodeURIComponent;
+
+// subsFor: the API pages (paths under /api/projects/{id}) a route reads.
+export function subsFor(r) {
+  switch (r.kind) {
+    case "": return [""];
+    case "unplanned": case "backlog": return [r.kind];
+    case "plans": return planSubs({ ...r, id: enc(r.id) });
+    case "phases": case "items": return [`${r.kind}/${enc(r.id)}`];
+  }
+  return [];
+}
+
+const WHAT = { plans: "plan", phases: "phase", items: "item" };
+
+// need draws an API page once it's loaded, or says it's loading or failed.
+// A whole sheet (sheet: true) that isn't found is a Not found sheet.
+function need(data, sub, draw, sheet = false) {
+  const got = data?.pages?.get(sub);
+  if (got?.value) return draw(got.value);
+  if (got?.error) {
+    if (sheet && got.error.status === 404) return pageNotFound(`${got.error.message}.`);
+    const msg = failed(got.error);
+    return sheet ? `<div class="page">${msg}</div>` : msg;
+  }
+  return sheet ? `<div class="page"><p class="empty">Loading…</p></div>` : `<p class="empty">Loading…</p>`;
+}
+
+// projectSheet: the sheet a route shows within a readable project.
+export function projectSheet(state, pr, r) {
+  const data = state.data.get(pr.id), pid = pr.id, ch = data?.changes;
+  const [sub, sub2] = subsFor(r);
+  switch (r.kind) {
+    case "": return pageProject(state, pr);
+    case "unplanned":
+      return projectHead(pr, data, "unplanned", state.live) + `<div class="page">${need(data, sub, p => unplannedBody(pid, p, ch))}</div>`;
+    case "backlog":
+      return projectHead(pr, data, "backlog", state.live) + `<div class="page">${need(data, sub, p => backlogBody(pid, p, ch, { key: `project:${pid}` }))}</div>`;
+    case "plans":
+      return need(data, sub, page => planSheet(pr, r, data, page, tab =>
+        tab === "doc" ? planDoc(pid, page)
+          : tab === "backlog" ? need(data, sub2, bl => planBacklog(pid, r.id, bl, ch))
+            : planStatus(pid, page, ch)), true);
+    case "phases": return need(data, sub, page => phaseSheet(pr, data, page), true);
+    case "items": return need(data, sub, page => itemSheet(pr, data, page), true);
+  }
+  return pageNotFound(`There's no ${WHAT[r.kind] || "sheet"} here.`);
+}
 
 const crumbHome = `<a href="${href.home()}">All projects</a>`;
 
@@ -59,8 +113,9 @@ function errorRow(pr) {
 export function pageProject(state, pr) {
   const data = state.data.get(pr.id);
   const head = projectHead(pr, data, "overview", state.live);
-  const ov = data?.overview;
-  if (!ov) return head + `<div class="page">${data?.overviewError ? failed(data.overviewError) : `<p class="empty">Loading…</p>`}</div>`;
+  const got = data?.pages?.get("");
+  const ov = got?.value;
+  if (!ov) return head + `<div class="page">${got?.error ? failed(got.error) : `<p class="empty">Loading…</p>`}</div>`;
   const ch = data.changes;
   const ny = ov.needs_you;
   const rows = new Map();
@@ -79,34 +134,6 @@ export function pageProject(state, pr) {
     <aside>${plansColumn(pr.id, ov, ch)}</aside>
   </div></div>`;
 }
-
-// pageUndrawn: a sheet that isn't built yet, with its place in the set.
-export function pageUndrawn(state, pr, route) {
-  const data = state.data.get(pr.id), pid = pr.id;
-  if (route.kind === "unplanned" || route.kind === "backlog") {
-    return projectHead(pr, data, route.kind, state.live) + `<div class="page">${undrawn()}</div>`;
-  }
-  const crumbs = [crumbHome, `<a href="${esc(href.project(pid))}">${esc(pid)}</a>`];
-  let title = route.id;
-  const tree = data?.tree;
-  for (const pl of tree?.plans || []) {
-    if (route.kind === "plans" && pl.slug === route.id) title = pl.title;
-    for (const ph of pl.phases) {
-      if (route.kind === "phases" && ph.id === route.id) {
-        title = ph.title;
-        crumbs.push(`<a href="${esc(href.plan(pid, pl.slug))}">${esc(shortTitle(pl.title))}</a>`);
-      }
-      const it = route.kind === "items" && ph.items.find(i => i.id === route.id);
-      if (it) {
-        title = it.title;
-        crumbs.push(`<a href="${esc(href.plan(pid, pl.slug))}">${esc(shortTitle(pl.title))}</a>`, `<a href="${esc(href.phase(pid, ph.id))}">${esc(ph.title)}</a>`);
-      }
-    }
-  }
-  return titleBlock({ title, crumbs, long: true }) + `<div class="page">${undrawn()}</div>`;
-}
-
-const undrawn = () => `<p class="empty">This sheet isn't drawn yet: plan, phase, item and review sheets, Unplanned and Backlog come with mull item f31c. Until then, <code>mull view --text</code> and <code>mull report &lt;id&gt; --text</code> show them in a terminal.</p>`;
 
 export function pageNotFound(what) {
   return titleBlock({ title: "Not found", crumbs: [crumbHome] }) +

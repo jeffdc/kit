@@ -25,7 +25,10 @@ const p = id => `/api/projects/${encodeURIComponent(id)}`;
 
 export const api = {
   projects: () => call("/api/projects"),
-  overview: id => call(p(id)),
+  // page is one of a project's pages: sub is the path under the project
+  // ("plans/<slug>", "items/<id>", "backlog?plan=<slug>"…), or "" for its
+  // overview.
+  page: (id, sub) => call(sub ? `${p(id)}/${sub}` : p(id)),
   tree: id => call(`${p(id)}/tree`),
   revision: id => call(`${p(id)}/revision`),
   // seen marks the revision the page showed as seen; changes after it stay

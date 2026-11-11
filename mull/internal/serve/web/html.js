@@ -63,6 +63,15 @@ export function ago(iso) {
 }
 export const agoSpan = iso => `<span data-ago="${esc(iso)}">${esc(ago(iso))}</span>`;
 
+// day is a date without the time.
+export function day(iso) {
+  const d = new Date(iso);
+  return isNaN(d) ? "" : d.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+// base is the last element of a path (a worktree's directory name).
+export const base = path => String(path || "").split("/").filter(Boolean).pop() || "";
+
 // clock is a time of day, with the date when it isn't today.
 export function clock(iso) {
   const d = new Date(iso);
