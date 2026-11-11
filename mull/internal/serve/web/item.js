@@ -34,12 +34,12 @@ export function itemSheet(pr, data, page) {
     ? `<div class="acts-row"><button class="btn p" data-cmd="mull start ${esc(it.id)}">Start it now</button><button class="btn" data-cmd="mull commit ${esc(it.id)} --plan …">Commit to a plan</button><button class="btn" data-cmd="mull drop ${esc(it.id)} --reason &quot;…&quot;">Drop</button><span class="sub">Starting it skips planning; it keeps this ID through review and done.</span></div>`
     : "";
   const ny = page.needs_you.tiers.length
-    ? `<section><div class="hd"><h2>Needs you</h2><span class="lab">On this item</span></div>${schedule(page.needs_you, { pid, changes: ch, noPlan: true, noPhase: true })}</section>`
+    ? `<section id="needs"><div class="hd"><h2>Needs you</h2><span class="lab">On this item</span></div>${schedule(page.needs_you, { pid, changes: ch, noPlan: true, noPhase: true })}</section>`
     : "";
   const docs = it.docs?.length ? `<p class="sub">Docs: ${it.docs.map(d => `<code>${esc(d)}</code>`).join(", ")}</p>` : "";
   const notes = `<section><div class="hd"><h2>Notes</h2><span class="lab">The brief an agent works from</span></div>
     <div class="prose notes">${it.notes ? markdown(it.notes, pid) : `<p class="ph-empty">${it.state === "captured" ? "One line is enough to capture. The agent who starts it writes what it needs here." : "No notes."}</p>`}</div>${docs}</section>`;
-  return head + `<div class="page">${acts}${page.review ? review(pid, it, page) : ""}${ny}${notes}</div>`;
+  return head + `<div class="page">${acts}${ny}${page.review ? review(pid, it, page) : ""}${notes}</div>`;
 }
 
 function gitField(g) {

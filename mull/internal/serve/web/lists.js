@@ -44,7 +44,7 @@ export function unplannedBody(pid, page, changes) {
   const table = itemTable(pid, page.items, [col.id(), col.title(pid), col.kind(), col.stage(), col.category()],
     { changes, empty: "Nothing unplanned is committed." });
   const ny = page.needs_you.tiers.length
-    ? `<section><div class="hd"><h2>Needs you</h2><span class="lab">On unplanned work</span></div>${schedule(page.needs_you, { pid, changes, noPlan: true })}</section>`
+    ? `<section id="needs"><div class="hd"><h2>Needs you</h2><span class="lab">On unplanned work</span></div>${schedule(page.needs_you, { pid, changes, noPlan: true })}</section>`
     : "";
   return `<section><div class="hd"><h2>Unplanned work</h2><span class="lab">Committed, no plan · a bug or idea started straight from the backlog lands here</span></div>${table}</section>${ny}`;
 }
