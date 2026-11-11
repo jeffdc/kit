@@ -6,6 +6,11 @@ item: "4192"
 source: reports/4192-1.md
 by: /Users/jeff/dev/kit
 created: "2026-11-11T23:29:41Z"
+settled:
+  action: accept
+  by: jeffdc
+  human: true
+  at: "2026-11-11T23:31:32Z"
 decisions:
   - 0d1b
 ---
