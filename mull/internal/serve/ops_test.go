@@ -149,3 +149,36 @@ func TestOpsAcknowledge(t *testing.T) {
 		t.Errorf("acks kept after marking seen: %+v", l.Acked)
 	}
 }
+
+// The page answers questions and decides decisions differently with decide.
+func TestOpsDecide(t *testing.T) {
+	dir := onMull(t)
+	gittest.Git(t, dir, "config", "user.name", "Jeff")
+	m, _ := mull.Open(dir)
+	q, err := m.Capture(mull.CaptureInput{Kind: model.KindQuestion, Text: "Which queue?"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := decision(t, dir, "use sqlite")
+	h := Handler(func() ([]string, error) { return []string{dir}, nil })
+	rec := post(t, h, "/api/projects/"+filepath.Base(dir)+"/ops", opsBody(t, tipOf(t, dir),
+		map[string]any{"op": "decide", "id": q.ID, "decision": "The jobs table"},
+		map[string]any{"op": "decide", "id": d, "decision": "use postgres"}), nil)
+	if rec.Code != 200 {
+		t.Fatalf("POST ops: %d %s", rec.Code, rec.Body)
+	}
+	log, err := m.Decisions("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]mull.Decision{}
+	for _, e := range log {
+		got[e.ID] = e
+	}
+	if a := got[q.ID]; a.Decision != "The jobs table" || a.By != "Jeff" || !a.Human {
+		t.Errorf("answer = %+v", a)
+	}
+	if b := got[d]; b.Decision != "use postgres" || b.Context != "use sqlite" || !b.Human {
+		t.Errorf("decided differently = %+v", b)
+	}
+}

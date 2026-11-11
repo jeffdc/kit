@@ -20,7 +20,7 @@ const TIERS = [
 // What the human runs. Agents add --on-request when they run these for you.
 const COMMANDS = [
   ["mull accept <id…>", "Accept reviewed work (an item or its review), or approve decisions (Approve, in Needs you, does this for you)."],
-  ["mull decide <id> \"…\"", "Settle a decision differently, or answer a question; it joins the decision log."],
+  ["mull decide <id> \"…\"", "Settle a decision differently, or answer a question; it joins the decision log (Answer and Decide differently do this for you)."],
   ["mull do <id> --reason \"…\"", "Send reviewed work back; or turn a question or idea into an item."],
   ["mull commit <id>", "Make a captured bug or idea into committed work (--plan, --phase, or --plan none)."],
   ["mull plan agree <slug>", "Agree a shaping plan, so it can have phases and work."],
@@ -72,7 +72,7 @@ export function pageModel() {
     <dt>Revisions</dt><dd>Whatever changed since you last looked is clouded in red. What you do from a page isn't clouded. Mark revision seen clears the clouds; the last look is kept on this machine, never on the mull branch.</dd>
   </dl></section>
 
-  <section><div class="hd"><h2>What you run</h2><span class="lab">Most buttons copy these; Approve saves as you</span></div><dl class="rules cmds">
+  <section><div class="hd"><h2>What you run</h2><span class="lab">Most buttons copy these; Approve, Answer and Decide differently save as you</span></div><dl class="rules cmds">
     ${COMMANDS.map(([cmd, what]) => `<dt><code>${esc(cmd)}</code></dt><dd>${esc(what)}</dd>`).join("")}
   </dl><p class="sub measure">The rest is in <code>mull guide</code>: <code>agents</code>, <code>supervisor</code>, <code>intake</code>, <code>triage</code> and <code>json</code>.</p></section>
 </div>`;

@@ -136,7 +136,7 @@ function focusKey() {
   const el = document.activeElement;
   if (!el || el === document.body) return null;
   if (el.tagName === "SUMMARY" && el.parentElement.dataset.open) return `[data-open="${CSS.escape(el.parentElement.dataset.open)}"] > summary`;
-  for (const attr of ["data-tg", "data-seen", "data-write", "data-copy", "data-cmd", "href"]) {
+  for (const attr of ["data-tg", "data-seen", "data-write", "data-draft", "data-form-open", "data-copy", "data-cmd", "href"]) {
     const v = el.getAttribute(attr);
     if (v !== null) return `[${attr}="${CSS.escape(v)}"]`;
   }
@@ -146,6 +146,7 @@ function focusKey() {
 function render() {
   const r = route();
   const focus = focusKey(), inTree = treeEl.contains(document.activeElement);
+  const caret = document.activeElement?.matches?.("textarea") ? [document.activeElement.selectionStart, document.activeElement.selectionEnd] : null;
   main.innerHTML = page(r);
   document.title = title(r);
   for (const el of main.querySelectorAll("[data-open]")) {
@@ -157,7 +158,11 @@ function render() {
   renderFoot(r);
   renderLive();
   for (const d of state.data.values()) d.changes?.settle();
-  if (focus) (inTree ? treeEl : main).querySelector(focus)?.focus({ preventScroll: true });
+  if (focus) {
+    const el = (inTree ? treeEl : main).querySelector(focus);
+    el?.focus({ preventScroll: true });
+    if (caret && el?.matches("textarea")) el.setSelectionRange(...caret); // typing survives a live re-render
+  }
   if (state.focusNeeds === location.hash) showNeeds();
 }
 
@@ -266,29 +271,69 @@ async function write(btn) {
     disarmTimer = setTimeout(() => { if (disarm()) render(); }, 4000);
     return;
   }
+  await save(key, pid, JSON.parse(btn.dataset.ops), btn.dataset.done, {});
+}
+
+// save sends a write's ops from the revision the page shows. keep is what
+// stays of its state while it runs and if it fails (a form's draft).
+async function save(key, pid, ops, done, keep) {
   const commit = state.data.get(pid)?.revision?.tip.commit;
   if (!commit) {
-    setWrite(key, { error: "the page hasn't loaded this project's revision yet; try again in a moment" });
+    setWrite(key, { ...keep, error: "the page hasn't loaded this project's revision yet; try again in a moment" });
     render();
     return;
   }
-  setWrite(key, { pending: true });
+  setWrite(key, { ...keep, pending: true });
   render();
   try {
-    const rep = await api.ops(pid, commit, JSON.parse(btn.dataset.ops));
+    const rep = await api.ops(pid, commit, ops);
     setWrite(key, null);
-    toast(rep.ack_error ? `${esc(btn.dataset.done)} It may still be clouded: ${esc(rep.ack_error.error)}` : esc(btn.dataset.done));
+    toast(rep.ack_error ? `${esc(done)} It may still be clouded: ${esc(rep.ack_error.error)}` : esc(done));
   } catch (err) {
     if (err.code === "conflict") {
-      setWrite(key, null);
+      setWrite(key, keep.open ? { ...keep } : null);
       toast("Nothing was saved: this changed since the page was drawn. It's redrawn now, so look again.");
     } else {
-      setWrite(key, { error: err.message });
+      setWrite(key, { ...keep, error: err.message });
     }
   }
   await loadProject(pid);
   render();
 }
+
+// A write that takes text: its button opens the form in place (closing any
+// other), Save sends the text as the ops' field, Cancel or Esc closes it
+// and keeps the draft.
+function openForm(key) {
+  disarm(key);
+  setWrite(key, { ...writeState(key), open: true, error: "" });
+  render();
+  const ta = main.querySelector(`textarea[data-draft="${CSS.escape(key)}"]`);
+  ta?.focus();
+  ta?.setSelectionRange(ta.value.length, ta.value.length);
+}
+
+function submitForm(form) {
+  const key = form.dataset.form, s = writeState(key);
+  const text = form.querySelector("textarea").value.trim();
+  if (s.pending || !text) return;
+  const ops = JSON.parse(form.dataset.ops).map(op => ({ ...op, [form.dataset.field]: text }));
+  save(key, form.dataset.pid, ops, form.dataset.done, { open: true, draft: text });
+}
+
+document.addEventListener("submit", ev => {
+  const form = ev.target.closest("form[data-form]");
+  if (form) { ev.preventDefault(); submitForm(form); }
+});
+
+document.addEventListener("input", ev => {
+  const ta = ev.target.closest("textarea[data-draft]");
+  if (!ta) return;
+  const s = writeState(ta.dataset.draft);
+  setWrite(ta.dataset.draft, { ...s, draft: ta.value });
+  const btn = ta.form?.querySelector('button[type="submit"]');
+  if (btn && !s.pending) btn.disabled = !ta.value.trim();
+});
 
 // showRows shows or hides the table rows a group's <details> folds.
 function showRows(det) {
@@ -315,7 +360,16 @@ document.addEventListener("click", ev => {
   const t = ev.target;
   const wb = t.closest("[data-write]");
   if (wb) { ev.preventDefault(); write(wb); return; }
-  if (disarm()) render(); // a click anywhere else cancels an armed write
+  const fo = t.closest("[data-form-open]");
+  if (fo) {
+    ev.preventDefault();
+    if (writeState(fo.dataset.formOpen).open) { disarm(); render(); } else openForm(fo.dataset.formOpen);
+    return;
+  }
+  const fc = t.closest("[data-form-close]");
+  if (fc) { disarm(); render(); return; }
+  if (t.closest("form[data-form]")) return; // typing in a form, or its Save
+  if (disarm()) render(); // a click anywhere else cancels an armed write or closes a form
   if (t.closest("#idx")) {
     const open = document.querySelector(".rail").classList.toggle("open");
     $("idx").setAttribute("aria-expanded", open);
@@ -363,6 +417,10 @@ document.addEventListener("click", ev => {
 
 document.addEventListener("keydown", ev => {
   if (ev.key === "Escape" && disarm()) render();
+  if (ev.key === "Enter" && (ev.metaKey || ev.ctrlKey) && ev.target.matches("textarea[data-draft]")) {
+    ev.preventDefault();
+    ev.target.form?.requestSubmit();
+  }
 });
 
 window.addEventListener("hashchange", () => {

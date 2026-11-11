@@ -1,10 +1,11 @@
 // An item's sheet: its title block, what to do with a captured one, what
 // needs you about it, the review packet when it has a done report, and its
-// notes. Read-first: actions copy the mull command.
+// notes. Deciding a decision differently writes (write.js); the other
+// actions copy the mull command.
 
 import { esc, href, tag, itemStage, shortTitle, plural, clock, ago, base } from "./html.js";
 import { titleBlock } from "./title.js";
-import { schedule } from "./needs.js";
+import { schedule, decideDifferently } from "./needs.js";
 import { markdown } from "./doc.js";
 
 const short = sha => esc(String(sha || "").slice(0, 7));
@@ -76,8 +77,9 @@ function review(pid, it, page) {
     : `<div><span class="lab">Try it</span><p class="sub" style="margin:6px 0 0">No UI tour: nothing visible changed.</p></div>`;
   const decs = decisions.length ? decisions.map(d => {
     const s = d.settled;
-    const act = s ? tag(s.action === "accept" ? "done" : "committed", s.action === "accept" ? "approved" : SETTLED[s.action] || s.action) : `<button class="btn s" data-cmd="mull decide ${esc(d.id)} &quot;…&quot;">Decide differently</button>`;
-    return `<div class="decn"><code>${esc(d.id)}</code><span>${esc(d.text)}</span>${act}${d.detail ? `<span class="why">${esc(d.detail)}</span>` : ""}${s?.note && s.action !== "accept" ? `<span class="why">${esc(s.note)}</span>` : ""}</div>`;
+    const dd = s ? null : decideDifferently(pid, d.id, "packet");
+    const act = s ? tag(s.action === "accept" ? "done" : "committed", s.action === "accept" ? "approved" : SETTLED[s.action] || s.action) : dd.button;
+    return `<div class="decn"><code>${esc(d.id)}</code><span>${esc(d.text)}</span>${act}${d.detail ? `<span class="why">${esc(d.detail)}</span>` : ""}${s?.note && s.action !== "accept" ? `<span class="why">${esc(s.note)}</span>` : ""}${dd ? dd.form : ""}</div>`;
   }).join("") : `<p class="sub" style="margin:6px 0 0">None.</p>`;
   const files = (r.changes || []).map(l => {
     const add = l.files.reduce((n, f) => n + f.added, 0), del = l.files.reduce((n, f) => n + f.removed, 0);
