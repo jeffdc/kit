@@ -11,7 +11,14 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 )
+
+// calls counts git processes started, for benchmarks.
+var calls atomic.Int64
+
+// Calls returns how many git processes this process has started.
+func Calls() int64 { return calls.Load() }
 
 // Repo is a git working tree: the directory commands run in.
 type Repo struct {
@@ -52,6 +59,7 @@ func Open(dir string) (*Repo, error) {
 // Run runs git with args and returns stdout as raw bytes. env entries
 // (KEY=value) are added to the inherited environment.
 func (r *Repo) Run(env []string, stdin io.Reader, args ...string) ([]byte, error) {
+	calls.Add(1)
 	cmd := exec.Command("git", args...)
 	cmd.Dir = r.Dir
 	cmd.Env = append(os.Environ(), env...)
@@ -68,6 +76,7 @@ func (r *Repo) Run(env []string, stdin io.Reader, args ...string) ([]byte, error
 // RunStatus runs git and returns stdout and the exit code. Only failures to
 // run git at all are returned as errors; a non-zero exit is not.
 func (r *Repo) RunStatus(env []string, stdin io.Reader, args ...string) ([]byte, int, error) {
+	calls.Add(1)
 	cmd := exec.Command("git", args...)
 	cmd.Dir = r.Dir
 	cmd.Env = append(os.Environ(), env...)

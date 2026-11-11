@@ -1,4 +1,4 @@
-.PHONY: all build test race fmt fmt-check vet install clean dev dev-stop dev-demo dev-reset
+.PHONY: all build test race fmt fmt-check vet install clean dev dev-stop dev-demo dev-reset bench
 
 VERSION := $(shell git describe --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -X mull/cmd.Version=$(VERSION)
@@ -58,3 +58,12 @@ dev-demo: build
 dev-reset: dev-stop
 	rm -rf $(DEV)
 	@$(MAKE) --no-print-directory dev
+
+# bench times every page mull serve shows, in-process and over HTTP, with git calls counted: on this repository's own mull branch (read only) and on a seeded one of BENCH_SIZE (small, medium or large), kept in .dev/bench/ and reused. BENCH_FLAGS passes flags through, e.g. BENCH_FLAGS="-url http://127.0.0.1:6855" to time the installed server too, or -json.
+BENCH_SIZE ?= large
+BENCH_REPOS ?= $(shell git rev-parse --show-toplevel)
+BENCH_FLAGS ?=
+
+bench:
+	@go run ./scripts/bench seed -size $(BENCH_SIZE) -dir $(DEV)/bench/$(BENCH_SIZE)
+	@go run ./scripts/bench run $(BENCH_FLAGS) $(BENCH_REPOS) $(DEV)/bench/$(BENCH_SIZE)
