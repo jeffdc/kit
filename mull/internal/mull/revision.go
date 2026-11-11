@@ -251,15 +251,7 @@ func (m *Mull) commitTime(commit string) (string, error) {
 func unixUTC(secs int64) string { return time.Unix(secs, 0).UTC().Format(time.RFC3339) }
 
 // stateAt loads every record as it was at commit.
-func (m *Mull) stateAt(commit string) (*state, error) {
-	var s *state
-	err := m.store.ViewAt(commit, func(tx *store.Tx) error {
-		var err error
-		s, err = load(tx)
-		return err
-	})
-	return s, err
-}
+func (m *Mull) stateAt(commit string) (*state, error) { return m.cachedState(commit) }
 
 // recordChanges lists the records that differ between the states at from and to,
 // newest first. Records are compared as read, so a change of storage format

@@ -12,9 +12,11 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"mull/internal/git"
@@ -44,10 +46,29 @@ type Store struct {
 // New returns a store for the repository r.
 func New(r *git.Repo) *Store { return &Store{git: r} }
 
-// Snapshot is the content of the mull branch at one commit.
+// Snapshot is the content of the mull branch at one commit. Once loaded it
+// isn't changed, so many readers can share it.
 type Snapshot struct {
 	Commit string
 	Files  map[string][]byte
+	// Blobs are the files' blob IDs, when the snapshot was read from git (a
+	// file's content is the same wherever its blob ID is).
+	Blobs map[string]string
+
+	sortOnce sync.Once
+	sorted   []string // the paths of Files, sorted; see paths
+}
+
+// paths returns the snapshot's paths, sorted.
+func (s *Snapshot) paths() []string {
+	s.sortOnce.Do(func() {
+		s.sorted = make([]string, 0, len(s.Files))
+		for p := range s.Files {
+			s.sorted = append(s.sorted, p)
+		}
+		sort.Strings(s.sorted)
+	})
+	return s.sorted
 }
 
 // Initialized reports whether the mull branch exists.
@@ -58,14 +79,44 @@ func (s *Store) Initialized() (bool, error) {
 
 // Load reads the whole mull branch.
 func (s *Store) Load() (*Snapshot, error) {
-	commit, err := s.git.RefCommit(Ref)
+	commit, err := s.Head()
 	if err != nil {
 		return nil, err
 	}
-	if commit == "" {
-		return nil, ErrNotInitialized
-	}
 	return s.loadCommit(commit)
+}
+
+// Head returns the commit the mull branch points at.
+func (s *Store) Head() (string, error) {
+	commit, err := s.git.RefCommit(Ref)
+	if err != nil {
+		return "", err
+	}
+	if commit == "" {
+		return "", ErrNotInitialized
+	}
+	return commit, nil
+}
+
+// ReadOnly loads the mull branch at commit into a transaction that refuses
+// writes, for readers that keep it (a cache shared between requests).
+// commit must be a commit in this repository. Given prev, another read-only
+// transaction of this repository, it reads only the files that differ from
+// prev's.
+func (s *Store) ReadOnly(commit string, prev *Tx) (*Tx, error) {
+	var snap *Snapshot
+	var err error
+	if prev != nil && prev.snap.Blobs != nil {
+		snap, err = s.loadFrom(prev.snap, commit)
+	} else {
+		snap, err = s.loadCommit(commit)
+	}
+	if err != nil {
+		return nil, err
+	}
+	tx := newTx(snap)
+	tx.frozen = true
+	return tx, nil
 }
 
 func (s *Store) loadCommit(commit string) (*Snapshot, error) {
@@ -90,13 +141,29 @@ func (s *Store) loadCommit(commit string) (*Snapshot, error) {
 		}
 		entries = append(entries, entry{sha: fields[2], path: path})
 	}
-	snap := &Snapshot{Commit: commit, Files: make(map[string][]byte, len(entries))}
-	if len(entries) == 0 {
-		return snap, nil
+	snap := &Snapshot{Commit: commit, Files: make(map[string][]byte, len(entries)), Blobs: make(map[string]string, len(entries))}
+	shas := make([]string, len(entries))
+	for i, e := range entries {
+		shas[i] = e.sha
+	}
+	blobs, err := s.readBlobs(shas)
+	if err != nil {
+		return nil, err
+	}
+	for i, e := range entries {
+		snap.Files[e.path], snap.Blobs[e.path] = blobs[i], e.sha
+	}
+	return snap, nil
+}
+
+// readBlobs reads blobs by ID, in one git call.
+func (s *Store) readBlobs(shas []string) ([][]byte, error) {
+	if len(shas) == 0 {
+		return nil, nil
 	}
 	var req bytes.Buffer
-	for _, e := range entries {
-		req.WriteString(e.sha)
+	for _, sha := range shas {
+		req.WriteString(sha)
 		req.WriteByte('\n')
 	}
 	out, err := s.git.Run(nil, &req, "cat-file", "--batch")
@@ -104,7 +171,8 @@ func (s *Store) loadCommit(commit string) (*Snapshot, error) {
 		return nil, err
 	}
 	rd := bufio.NewReader(bytes.NewReader(out))
-	for _, e := range entries {
+	blobs := make([][]byte, len(shas))
+	for i, sha := range shas {
 		header, err := rd.ReadString('\n')
 		if err != nil {
 			return nil, fmt.Errorf("reading cat-file output: %w", err)
@@ -117,14 +185,53 @@ func (s *Store) loadCommit(commit string) (*Snapshot, error) {
 		if err != nil {
 			return nil, fmt.Errorf("unexpected cat-file size %q", header)
 		}
-		data := make([]byte, size)
-		if _, err := io.ReadFull(rd, data); err != nil {
-			return nil, fmt.Errorf("reading blob %s: %w", e.sha, err)
+		blobs[i] = make([]byte, size)
+		if _, err := io.ReadFull(rd, blobs[i]); err != nil {
+			return nil, fmt.Errorf("reading blob %s: %w", sha, err)
 		}
 		if _, err := rd.ReadByte(); err != nil { // trailing newline
-			return nil, fmt.Errorf("reading blob %s: %w", e.sha, err)
+			return nil, fmt.Errorf("reading blob %s: %w", sha, err)
 		}
-		snap.Files[e.path] = data
+	}
+	return blobs, nil
+}
+
+// loadFrom reads the mull branch at commit starting from prev, a snapshot
+// read from git: only the files that differ between the two are read.
+func (s *Store) loadFrom(prev *Snapshot, commit string) (*Snapshot, error) {
+	out, err := s.git.Run(nil, nil, "diff-tree", "-r", "-z", "--no-renames", "--no-commit-id", prev.Commit, commit)
+	if err != nil {
+		return nil, err
+	}
+	snap := &Snapshot{Commit: commit, Files: make(map[string][]byte, len(prev.Files)), Blobs: make(map[string]string, len(prev.Blobs))}
+	for p, b := range prev.Files {
+		snap.Files[p], snap.Blobs[p] = b, prev.Blobs[p]
+	}
+	var paths, shas []string
+	recs := bytes.Split(out, []byte{0})
+	for i := 0; i+1 < len(recs); i += 2 {
+		// ":<old mode> <new mode> <old sha> <new sha> <status>" then the path
+		fields := strings.Fields(string(recs[i]))
+		if len(fields) != 5 {
+			return nil, fmt.Errorf("unexpected diff-tree record %q", recs[i])
+		}
+		path := string(recs[i+1])
+		if fields[4] == "D" {
+			delete(snap.Files, path)
+			delete(snap.Blobs, path)
+			continue
+		}
+		if strings.HasPrefix(fields[1], "04") || strings.HasPrefix(fields[1], "16") { // not a blob
+			continue
+		}
+		paths, shas = append(paths, path), append(shas, fields[3])
+	}
+	blobs, err := s.readBlobs(shas)
+	if err != nil {
+		return nil, err
+	}
+	for i, p := range paths {
+		snap.Files[p], snap.Blobs[p] = blobs[i], shas[i]
 	}
 	return snap, nil
 }
@@ -204,9 +311,10 @@ func (s *Store) History(path string) ([]Version, error) {
 
 // Tx is a set of changes against one snapshot.
 type Tx struct {
-	snap *Snapshot
-	puts map[string][]byte
-	dels map[string]bool
+	snap   *Snapshot
+	puts   map[string][]byte
+	dels   map[string]bool
+	frozen bool // ReadOnly: shared between readers, so writing is a bug
 }
 
 // Get returns a file's content as seen by this transaction.
@@ -223,18 +331,36 @@ func (t *Tx) Get(path string) ([]byte, bool) {
 
 // Put writes a file.
 func (t *Tx) Put(path string, data []byte) {
+	t.mustWrite()
 	delete(t.dels, path)
 	t.puts[path] = data
 }
 
 // Delete removes a file.
 func (t *Tx) Delete(path string) {
+	t.mustWrite()
 	delete(t.puts, path)
 	t.dels[path] = true
 }
 
+func (t *Tx) mustWrite() {
+	if t.frozen {
+		panic("store: write to a read-only transaction")
+	}
+}
+
 // List returns the sorted paths under prefix as seen by this transaction.
 func (t *Tx) List(prefix string) []string {
+	if len(t.puts) == 0 && len(t.dels) == 0 {
+		// Nothing written: the snapshot's sorted paths, by binary search.
+		paths := t.snap.paths()
+		lo := sort.SearchStrings(paths, prefix)
+		hi := lo
+		for hi < len(paths) && strings.HasPrefix(paths[hi], prefix) {
+			hi++
+		}
+		return slices.Clone(paths[lo:hi])
+	}
 	seen := map[string]bool{}
 	for p := range t.snap.Files {
 		if strings.HasPrefix(p, prefix) && !t.dels[p] {
@@ -253,6 +379,11 @@ func (t *Tx) List(prefix string) []string {
 	sort.Strings(out)
 	return out
 }
+
+// Blob returns the blob ID path had in the snapshot this transaction read,
+// or "" when it had none (or the snapshot wasn't read from git). It ignores
+// the transaction's own writes.
+func (t *Tx) Blob(path string) string { return t.snap.Blobs[path] }
 
 // Commit is the mull branch commit this transaction read.
 func (t *Tx) Commit() string { return t.snap.Commit }

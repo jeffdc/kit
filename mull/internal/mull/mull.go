@@ -102,9 +102,29 @@ type state struct {
 	phases  map[string]*model.Phase
 	items   map[string]*model.Item
 	entries map[string]*model.Entry
+
+	// Lookups built once for a read-only state (see index); nil in a state
+	// being written, whose records may change under them.
+	byPhase map[string][]*model.Item // items by phase, in ID order
 }
 
-func load(tx *store.Tx) (*state, error) {
+func load(tx *store.Tx) (*state, error) { return loadFrom(tx, nil) }
+
+// loadFrom is load, reusing prev's records wherever the files they were read
+// from are the same blobs: for read-only states only (see cachedState), whose
+// records are never changed, so two states can share them.
+func loadFrom(tx *store.Tx, prev *state) (*state, error) {
+	same := func(paths ...string) bool {
+		if prev == nil {
+			return false
+		}
+		for _, p := range paths {
+			if tx.Blob(p) != prev.tx.Blob(p) {
+				return false
+			}
+		}
+		return true
+	}
 	s := &state{
 		tx:      tx,
 		plans:   map[string]*model.Plan{},
@@ -124,6 +144,10 @@ func load(tx *store.Tx) (*state, error) {
 		return nil, errf(CodeUnsupportedFormat, "this repository's mull data is format %d, newer than this mull understands (%d): update mull", s.config.Format, model.Format)
 	}
 	for _, p := range tx.List("plans/") {
+		if slug := baseName(p); same(p, model.PlanDocPath(slug)) && prev.plans[slug] != nil {
+			s.plans[slug] = prev.plans[slug]
+			continue
+		}
 		var v model.Plan
 		body, err := decodeFile(tx, p, &v)
 		if err != nil {
@@ -137,6 +161,10 @@ func load(tx *store.Tx) (*state, error) {
 	// both (a format 1 straggler) is read from phases/.
 	for _, dir := range []string{"epics/", "phases/"} {
 		for _, p := range tx.List(dir) {
+			if old := prevPhase(prev, baseName(p), dir); old != nil && same(p, phaseDocPath(old)) {
+				s.phases[old.ID] = old
+				continue
+			}
 			var v model.Phase
 			body, err := decodeFile(tx, p, &v)
 			if err != nil {
@@ -148,6 +176,10 @@ func load(tx *store.Tx) (*state, error) {
 		}
 	}
 	for _, p := range tx.List("items/") {
+		if id := baseName(p); same(p) && prev.items[id] != nil {
+			s.items[id] = prev.items[id]
+			continue
+		}
 		var v model.Item
 		body, err := decodeFile(tx, p, &v)
 		if err != nil {
@@ -157,6 +189,10 @@ func load(tx *store.Tx) (*state, error) {
 		s.items[v.ID] = &v
 	}
 	for _, p := range tx.List("inbox/") {
+		if id := baseName(p); same(p) && prev.entries[id] != nil {
+			s.entries[id] = prev.entries[id]
+			continue
+		}
 		var v model.Entry
 		body, err := decodeFile(tx, p, &v)
 		if err != nil {
@@ -166,6 +202,18 @@ func load(tx *store.Tx) (*state, error) {
 		s.entries[v.ID] = &v
 	}
 	return s, nil
+}
+
+// prevPhase is prev's phase id when it was read from dir (phases/, or epics/
+// in format 1), or nil.
+func prevPhase(prev *state, id, dir string) *model.Phase {
+	if prev == nil {
+		return nil
+	}
+	if old := prev.phases[id]; old != nil && old.Legacy == (dir == "epics/") {
+		return old
+	}
+	return nil
 }
 
 func decodeFile(tx *store.Tx, path string, v any) (string, error) {
@@ -371,13 +419,11 @@ func (s *state) entry(id string) (*model.Entry, error) {
 
 // view runs fn on the current state without writing.
 func (m *Mull) view(fn func(s *state) error) error {
-	return m.store.View(func(tx *store.Tx) error {
-		s, err := load(tx)
-		if err != nil {
-			return err
-		}
-		return fn(s)
-	})
+	s, err := m.headState()
+	if err != nil {
+		return err
+	}
+	return fn(s)
 }
 
 // update runs fn on the latest state and commits its changes atomically.

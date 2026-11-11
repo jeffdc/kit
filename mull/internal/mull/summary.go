@@ -70,11 +70,14 @@ func (m *Mull) summary(s *state) (Summary, error) {
 		out.NeedsYou.add(e, now)
 	}
 	out.Blocking = s.countBlocking(nil)
-	unix, err := m.repo.Output(nil, nil, "log", "-1", "--format=%ct", out.Commit)
+	unix, err := gitCounts.get(m.repo.Dir+"\x00time "+out.Commit, func() (int, error) {
+		unix, err := m.repo.Output(nil, nil, "log", "-1", "--format=%ct", out.Commit)
+		return atoi(unix), err
+	})
 	if err != nil {
 		return out, err
 	}
-	out.LastChange = time.Unix(int64(atoi(unix)), 0).UTC().Format(time.RFC3339)
+	out.LastChange = time.Unix(int64(unix), 0).UTC().Format(time.RFC3339)
 	return out, m.summaryRefs(s, &out)
 }
 
@@ -85,11 +88,15 @@ func (m *Mull) summaryRefs(s *state, out *Summary) error {
 	if out.Integration == "" {
 		out.Integration = "main"
 	}
-	integ, err := m.repo.RefCommit("refs/heads/" + out.Integration)
-	if err != nil || integ == "" {
+	_, heads, err := m.branchHeads()
+	if err != nil {
 		return err
 	}
+	integ := heads[out.Integration]
+	if integ == "" {
+		return nil
+	}
 	out.IntegrationFound = true
-	out.AheadOfRelease = m.aheadOfRelease(s, out.Integration, integ)
+	out.AheadOfRelease = m.aheadOfRelease(s, out.Integration, integ, heads)
 	return nil
 }
