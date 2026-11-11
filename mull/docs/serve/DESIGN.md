@@ -230,7 +230,7 @@ Both families are self-hosted woff2 under `/fonts/`: Archivo variable (wdth 62â€
 - **Title** (700, 15px): plan names in the Plans column. Tier titles use 700 at 12.5px.
 - **Value** (550, 14.5px): the value in a title-block field.
 - **Body** (400, 13.5px, line-height 1.45): the app default. Row text in schedules is 550. Table text is 13px.
-- **Prose** (400, 16px, line-height 1.66, measure 68ch): rendered plan, phase and item docs. Doc h1 and h2 are 21px at 750, h3 is 16.5px. Notes and review packets use 15px.
+- **Prose** (400, 16px, line-height 1.66, measure 120ch, the human's choice on 2026-11-11: narrower read as hard-wrapped text on a wide window): rendered plan, phase and item docs, notes, ledes and the model sheet. Doc h1 and h2 are 21px at 750, h3 is 16.5px. Notes and review packets use 15px.
 - **Label** (650, 11px, letter-spacing 0.12em, width 75%, uppercase, muted): title-block field labels, table headers, the right-hand captions on section heads, and labels in the Plans definition list.
 - **Status** (650, 11px, letter-spacing 0.09em, width 72%, uppercase): stage tags. Stamps use the same face at 700 with 0.08em tracking.
 - **Mono** (500, 12px, tabular figures): IDs, branch names, clocks, counts and ratios. It's 11px in the tree and in tier numbers.
@@ -246,9 +246,9 @@ Both families are self-hosted woff2 under `/fonts/`: Archivo variable (wdth 62â€
 
 **Sheet.** Each main sheet stacks the same way: title block, then the tabs row (project and plan sheets), then the page. The page has horizontal padding of `page-x`, 22px top and 64px bottom padding, and a 34px gap between sections.
 
-**Title block.** A grid of boxed fields. The name box spans two rows on the left (minmax 280px, 1.5fr, or 3fr on `.wide` sheets for long titles), followed by three columns of fields in two rows of three. Fields are divided by 1px construction lines, and the whole block closes on a 1.5px ink rule.
+**Title block.** A grid of boxed fields. The name box spans two rows on the left (minmax 280px, 1.5fr), followed by three columns of fields in two rows of three. On `.wide` sheets (plans, phases and items, whose names are long) the fields take only what their values need, up to 260px each (`fit-content`), and the name box takes the rest, so a name doesn't wrap while the fields sit half empty (the human's complaint, 2026-11-11). Fields are divided by 1px construction lines, and the whole block closes on a 1.5px ink rule.
 
-**Project overview body.** Two columns: the Needs you schedule (fluid) and the Plans column (384px), 40px apart. Doc sheets use a 68ch prose column plus a status margin (200â€“270px), 44px apart. Review packets split into two equal columns 40px apart.
+**Project overview body.** Two columns: the Needs you schedule (fluid) and the Plans column (384px), 40px apart. Doc sheets use a prose column of up to 120ch plus a status margin (200â€“270px), 44px apart. Review packets split into two equal columns 40px apart.
 
 **Rhythm.** Rows are compact: tree rows are 29px, buttons 28px (24px small), tabs 44px, tier headers 32px minimum, and schedule rows have 10px vertical padding. Spacing steps in 4 / 8 / 12 / 22 / 34 / 40.
 
