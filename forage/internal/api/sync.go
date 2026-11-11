@@ -101,6 +101,7 @@ type createBookRequest struct {
 	FirstPublished int      `json:"first_published"`
 	Tags           []string `json:"tags"`
 	DateAdded      string   `json:"date_added"`
+	Owned          bool     `json:"owned"`
 }
 
 // handleCreateBook serves POST /api/books: create one book with a
@@ -126,6 +127,9 @@ func (h *handler) handleCreateBook(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.FirstPublished > 0 {
 		meta["first_published"] = strconv.Itoa(req.FirstPublished)
+	}
+	if req.Owned {
+		meta["owned"] = "true"
 	}
 
 	b, err := h.store.CreateBook(req.Title, req.Author, meta)

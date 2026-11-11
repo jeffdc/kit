@@ -3,8 +3,8 @@
 
 import * as ic from "./icons.js";
 import {
-  STATUS_LABEL, SORTS, formatDate, initial, wishlistBooks, readingBooks, historyGroups,
-  orderSellers, sellerURL, localToday,
+  STATUS_LABEL, SORTS, formatDate, initial, wishlistBooks, readingBooks, toReadBooks, historyGroups,
+  orderSellers, sellerURL, localToday, undatedReads,
 } from "./core.js";
 
 export const esc = (s) =>
@@ -27,17 +27,47 @@ const tag = (status) => `<span class="tag s-${status}">${STATUS_LABEL[status]}</
 
 // --- Rows ---
 
-function row(book, meta, pending) {
+const ownTag = '<span class="own-tag">Owned</span>';
+
+/**
+ * One book in a list. The meta column has two lines: tags (status, owned),
+ * then a date or year with the stars. On a wide screen the same cells line
+ * up as table columns (see .cols).
+ * opts: when (a year or a formatted date), status (show the status tag),
+ * rated (show the stars).
+ */
+function row(book, { when = "", status = false, rated = false } = {}, pending) {
+  const tags = (status ? tag(book.status) : "") + (book.owned ? ownTag : "");
+  const rating = rated ? stars(book.rating) : "";
+  const second = when || rating ? `<span class="meta-line">${when ? `<span class="c-when">${when}</span>` : ""}${rating}</span>` : "";
   return `<li><button class="row s-${book.status}" data-book="${esc(book.id)}">
     <span class="edge" aria-hidden="true"></span>
-    <span class="row-body"><span class="row-title">${esc(book.title)}</span><span class="row-author">${esc(book.author)}</span></span>
-    <span class="row-meta">${meta}${pending ? '<span class="unsynced">Not synced</span>' : ""}</span>
+    <span class="row-body"><span class="row-title">${esc(book.title)}</span><span class="sr">, </span><span class="row-author">${esc(book.author)}</span>${status ? "" : `<span class="sr">, ${STATUS_LABEL[book.status]}</span>`}</span>
+    <span class="row-meta">${tags ? `<span class="meta-line">${tags}</span>` : ""}${second}${pending ? '<span class="unsynced">Not synced</span>' : ""}</span>
   </button></li>`;
+}
+
+/**
+ * Column headings for the wide-screen table. Sortable ones are buttons;
+ * the select in the shelf heading stays the accessible sort control.
+ * cols: [label, sort key or ""] for title, author, when, rating.
+ */
+function colHead(tab, sort, cols, withStatus = false) {
+  const cells = ["c-title", "c-author", "c-when", "c-rating"].map((cls, i) => {
+    const [label, key] = cols[i] || ["", ""];
+    return key
+      ? `<button type="button" class="col ${cls}" tabindex="-1" data-sort-col="${tab}" data-key="${key}" aria-pressed="${sort === key}">${label}</button>`
+      : `<span class="col ${cls}">${label}</span>`;
+  });
+  if (withStatus) cells.push('<span class="col c-status">Status</span>');
+  cells.push('<span class="col c-own">Owned</span>');
+  return `<div class="cols${withStatus ? " has-status" : ""}" aria-hidden="true"><span></span>${cells.join("")}</div>`;
 }
 
 function sortSelect(tab, current, keys) {
   const opts = keys.map((k) => `<option value="${k}"${k === current ? " selected" : ""}>${k === "date" ? "Date read" : SORTS[k].label}</option>`).join("");
-  return `<label class="sort"><span class="sr">Sort ${tab} by</span><select data-sort="${tab}">${opts}</select></label>`;
+  const name = { to_read: "To Read" }[tab] || tab;
+  return `<label class="sort"><span class="sr">Sort ${name} by</span><select data-sort="${tab}">${opts}</select></label>`;
 }
 
 function shelfHead(tab, title, count, sortHTML) {
@@ -51,7 +81,7 @@ export function wishlistView(view, sort, pending) {
   const head = shelfHead("wishlist", "Wishlist", plural(books.length, "book"), sortSelect("wishlist", sort, ["author", "title", "added", "year"]));
   if (!books.length) return head + empty("Nothing on the wishlist.", "Add a book with the + button.");
   const lettered = sort === "author" || sort === "title";
-  let html = head + '<ul class="list">';
+  let html = head + colHead("wishlist", sort, [["Title", "title"], ["Author", "author"], ["Year", "year"], ["", ""]]) + '<ul class="list">';
   let letter = "";
   for (const b of books) {
     if (lettered) {
@@ -61,24 +91,33 @@ export function wishlistView(view, sort, pending) {
         html += `<li class="letter" aria-hidden="true">${l}</li>`;
       }
     }
-    const meta = b.first_published ? `<span>${b.first_published}</span>` : "";
-    html += row(b, meta, pending.has(b.id));
+    html += row(b, { when: b.first_published || "" }, pending.has(b.id));
   }
   return html + "</ul>";
 }
 
+export function toReadView(view, sort, pending) {
+  const books = toReadBooks(view, sort);
+  const head = shelfHead("to_read", "To Read", plural(books.length, "book"), sortSelect("to_read", sort, ["added", "author", "title", "year"]));
+  if (!books.length) return head + empty("Nothing waiting to be read.", "Tap Got it on a wishlist book, or add one as To Read.");
+  return head + colHead("to_read", sort, [["Title", "title"], ["Author", "author"], ["Year", "year"], ["", ""]]) +
+    '<ul class="list">' + books.map((b) => row(b, { when: b.first_published || "" }, pending.has(b.id))).join("") + "</ul>";
+}
+
 export function readingView(view, sort, pending) {
-  const { reading, paused, owned } = readingBooks(view, sort);
-  let html = shelfHead("reading", "Reading", plural(reading.length, "book"), sortSelect("reading", sort, ["title", "author", "added"]));
-  if (!reading.length && !paused.length && !owned.length) return html + empty("You're not reading anything.", "Open a book and tap Start reading.");
+  const { reading, paused } = readingBooks(view, sort);
+  const total = reading.length + paused.length;
+  let html = shelfHead("reading", "Reading", plural(total, "book"), sortSelect("reading", sort, ["title", "author", "added"]));
+  if (!total) return html + empty("You're not reading anything.", "Open a book and tap Start reading.");
+  html += colHead("reading", sort, [["Title", "title"], ["Author", "author"], ["", ""], ["Rating", ""]]);
   html += reading.length
-    ? '<ul class="list">' + reading.map((b) => row(b, "", pending.has(b.id))).join("") + "</ul>"
+    ? '<ul class="list">' + reading.map((b) => row(b, { rated: true }, pending.has(b.id))).join("") + "</ul>"
     : '<p class="hint">Nothing in progress.</p>';
   const section = (status, title, books) => books.length
     ? `<h2 class="sub-head s-${status}"><span class="swatch" aria-hidden="true"></span>${title} <span class="count">${books.length}</span></h2>` +
-      '<ul class="list">' + books.map((b) => row(b, "", pending.has(b.id))).join("") + "</ul>"
+      '<ul class="list">' + books.map((b) => row(b, { rated: true }, pending.has(b.id))).join("") + "</ul>"
     : "";
-  return html + section("paused", "Paused", paused) + section("owned", "On your shelf, not started", owned);
+  return html + section("paused", "Paused", paused);
 }
 
 export function historyView(view, sort, pending) {
@@ -86,22 +125,38 @@ export function historyView(view, sort, pending) {
   const total = groups.reduce((n, g) => n + g.count, 0);
   let html = shelfHead("read", "History", plural(total, sort === "date" ? "read" : "book"), sortSelect("history", sort, ["date", "author", "title", "rating"]));
   if (!total) return html + empty("No finished books yet.", "When you finish a book, open it and tap Finished.");
+  const undated = undatedReads(view).length;
+  if (undated) html += `<p class="hint hint-link"><button class="btn-quiet" data-act="undated">${plural(undated, "read")} need${undated === 1 ? "s" : ""} a finish date</button></p>`;
+  html += colHead("history", sort, [["Title", "title"], ["Author", "author"], ["Read", "date"], ["Rating", "rating"]]);
   const max = Math.max(...groups.filter((g) => g.key !== "undated").map((g) => g.count), 1);
   for (const g of groups) {
     html += '<section class="group">';
     if (g.label) {
       const bar = g.key === "undated" ? "" : `<span class="year-bar" style="--w:${(g.count / max) * 100}%" aria-hidden="true"></span>`;
       html += `<h2 class="year"><span class="year-label">${g.label}</span>${bar}<span class="count">${g.count}</span></h2>`;
-      if (g.key === "undated") html += `<p class="hint">Finish dates unknown. Open a book to add one.</p>`;
+      if (g.key === "undated") html += `<p class="hint hint-link"><button class="btn-quiet" data-act="undated">Fill in these dates</button></p>`;
     }
     html += '<ul class="list">';
     for (const { book, read } of g.entries) {
-      const d = read && read.date_finished ? `<span class="date">${formatDate(read.date_finished, sort !== "date")}</span>` : "";
-      html += row(book, d + stars(book.rating), pending.has(book.id));
+      const when = read && read.date_finished ? formatDate(read.date_finished, sort !== "date") : "";
+      html += row(book, { when, rated: true }, pending.has(book.id));
     }
     html += "</ul></section>";
   }
   return html;
+}
+
+/** Reads with no finish date, each with its own date field that saves on change. */
+export function undatedView(view, pending) {
+  const entries = undatedReads(view);
+  const head = shelfHead("read", "Needs a date", plural(entries.length, "read"), "");
+  if (!entries.length) return head + empty("Every read has a finish date.", "");
+  return head + '<p class="hint">Set the day you finished each one. Each date saves when you pick it, and the next one is ready.</p>' +
+    '<ul class="list undated-list">' + entries.map(({ book, read }) => `<li class="undated-row s-read">
+      <span class="edge" aria-hidden="true"></span>
+      <button class="ur-book" data-book="${esc(book.id)}"><span class="row-title">${esc(book.title)}</span><span class="row-author">${esc(book.author)}</span>${pending.has(book.id) ? '<span class="unsynced">Not synced</span>' : ""}</button>
+      <label class="ur-date"><span class="sr">Finished ${esc(book.title)} on</span><input type="date" data-read="${esc(read.id)}" min="1000-01-01" max="${localToday()}"></label>
+    </li>`).join("") + "</ul>";
 }
 
 export function searchView(results, query, pending) {
@@ -109,10 +164,9 @@ export function searchView(results, query, pending) {
   if (!results.length) {
     return head + empty(`Nothing in your library matches “${esc(query)}”.`, "", `<button class="btn" data-act="add-from-search">Look it up to add</button>`);
   }
-  return head + '<ul class="list">' + results.slice(0, 200).map((b) => {
-    const read = b.date_read ? `<span class="date">${formatDate(b.date_read)}</span>` : "";
-    return row(b, tag(b.status) + read + stars(b.rating), pending.has(b.id));
-  }).join("") + "</ul>";
+  return head + colHead("search", "", [["Title", ""], ["Author", ""], ["Read", ""], ["Rating", ""]], true) +
+    '<ul class="list has-status">' + results.slice(0, 200).map((b) =>
+      row(b, { when: b.date_read ? formatDate(b.date_read) : "", status: true, rated: true }, pending.has(b.id))).join("") + "</ul>";
 }
 
 function empty(title, body, action = "") {
@@ -121,14 +175,16 @@ function empty(title, body, action = "") {
 
 // --- Book detail: the cover ---
 
-function primaryActions(b) {
+function primaryActions(b, undated) {
   const btn = (act, label, kind = "") => `<button class="band-btn ${kind}" data-act="${act}">${label}</button>`;
   switch (b.status) {
-    case "wishlist": return btn("start", "Start reading", "primary") + btn("owned", "Got it");
-    case "owned": return btn("start", "Start reading", "primary") + btn("wishlist", "Back to wishlist");
+    case "wishlist": return btn("start", "Start reading", "primary") + btn("got-it", "Got it");
+    case "to_read": return btn("start", "Start reading", "primary") + btn("wishlist", "Back to wishlist");
     case "reading": return btn("finish", "Finished", "primary") + btn("pause", "Pause");
     case "paused": return btn("resume", "Resume", "primary") + btn("finish", "Finished");
-    case "read": return btn("reread", "Read again", "primary");
+    case "read": return undated
+      ? btn("set-date", "Set finish date", "primary") + btn("reread", "Read again")
+      : btn("reread", "Read again", "primary");
     case "dropped": return btn("undrop", "Back to wishlist", "primary");
     default: return "";
   }
@@ -159,17 +215,23 @@ export function detailView(b, reads, sellers, ui) {
   const readCount = reads.length;
   const topRight = readCount
     ? joinFacts([plural(readCount, "read"), b.date_read ? "last " + formatDate(b.date_read) : ""])
-    : b.status === "wishlist" || b.status === "owned" ? `Added ${formatDate(b.date_added)}` : "";
-  const bottom = ui.finishing ? finishPanel(b, b.rating || 0) : `<div class="band-actions">${primaryActions(b)}</div>`;
+    : b.status === "wishlist" || b.status === "to_read" ? `Added ${formatDate(b.date_added)}` : "";
+  const bottom = ui.finishing ? finishPanel(b, b.rating || 0) : `<div class="band-actions">${primaryActions(b, reads.some((r) => !r.date_finished))}</div>`;
 
   const readRows = reads.slice().reverse().map((r) => `<li class="read-row">
-      <label><span class="sr">Date finished</span><input type="date" data-read="${esc(r.id)}" value="${esc(r.date_finished)}" max="${localToday()}"></label>
+      <label><span class="sr">Date finished</span><input type="date" data-read="${esc(r.id)}" value="${esc(r.date_finished)}" min="1000-01-01" max="${localToday()}"></label>
       ${r.date_finished ? "" : '<span class="undated">Date unknown</span>'}
       <button class="icon-btn" data-act="delete-read" data-read="${esc(r.id)}" aria-label="Delete this read">${ic.trash()}</button>
     </li>`).join("");
 
-  const sellerRows = orderSellers(sellers).map((s) =>
-    `<li><a class="seller" href="${esc(sellerURL(s, b))}" target="_blank" rel="noopener">${esc(s.name)}${ic.external()}</a></li>`).join("");
+  // Three places to look first; the rest one tap away.
+  const sellerLink = (s) => `<li><a class="seller" href="${esc(sellerURL(s, b))}" target="_blank" rel="noopener">${esc(s.name)}${ic.external()}</a></li>`;
+  const ordered = orderSellers(sellers);
+  const more = ordered.slice(3);
+  const sellerSec = ordered.length ? `<section class="detail-sec"><h3>Find a copy</h3><ul class="sellers">${ordered.slice(0, 3).map(sellerLink).join("")}</ul>
+      ${more.length ? `<details class="more-sellers"><summary>More places (${more.length})</summary><ul class="sellers">${more.map(sellerLink).join("")}</ul></details>` : ""}</section>` : "";
+  // Not started yet: finding a copy comes before the (empty) reads, and there's nothing to rate.
+  const unstarted = b.status === "wishlist" || b.status === "to_read";
 
   return `<article class="detail" aria-labelledby="detail-title">
     <div class="detail-bar"><button class="icon-btn" data-act="close" aria-label="Close"><span class="when-phone">${ic.back()}</span><span class="when-drawer">${ic.close()}</span></button>
@@ -177,22 +239,25 @@ export function detailView(b, reads, sellers, ui) {
     <div class="cover s-${b.status}${ui.sweep ? " sweep" : ""}" style="${ui.sweep ? `--from: var(--band-${ui.sweep})` : ""}">
       <div class="band band-top"><span class="band-label">${STATUS_LABEL[b.status]}</span><span class="band-info">${topRight}</span></div>
       <div class="cover-mid">
-        <h2 id="detail-title" class="cover-title">${esc(b.title)}</h2>
+        <h2 id="detail-title" class="cover-title${b.title.length > 48 ? " long" : ""}">${esc(b.title)}</h2>
         <span class="cover-rule" aria-hidden="true"></span>
         <p class="cover-author">${esc(b.author)}</p>
         ${facts ? `<p class="cover-facts">${facts}</p>` : ""}
-        ${ui.finishing ? "" : ratingControl(b)}
+        ${ui.finishing || (unstarted && !b.rating) ? "" : ratingControl(b)}
+        ${ownToggle("toggle-owned", b.owned)}
         ${b.pending ? '<p class="unsynced">Not synced yet</p>' : ""}
       </div>
       <div class="band band-bottom">${bottom}</div>
     </div>
+
+    ${unstarted ? sellerSec : ""}
 
     <section class="detail-sec"><h3>Reads</h3>
       ${readCount ? `<ul class="reads">${readRows}</ul>` : '<p class="muted">Not read yet.</p>'}
       <button class="btn-quiet" data-act="add-read">${ic.plus()}Add an earlier read</button>
     </section>
 
-    ${sellerRows ? `<section class="detail-sec"><h3>Find a copy</h3><ul class="sellers">${sellerRows}</ul></section>` : ""}
+    ${unstarted ? "" : sellerSec}
 
     <section class="detail-sec"><h3>Details</h3>
       <dl class="facts">
@@ -210,14 +275,32 @@ export function detailView(b, reads, sellers, ui) {
   </article>`;
 }
 
+/** The owned switch: a square box, filled and checked when on. */
+function ownToggle(act, on, label = "I own a copy") {
+  return `<button type="button" class="own-toggle" data-act="${act}" aria-pressed="${!!on}"><span class="own-box" aria-hidden="true">${ic.check()}</span>${label}</button>`;
+}
+
+/** The wide-screen book pane before a book is picked; it teaches the keys. */
+export function paneEmpty() {
+  const keys = [
+    [["j", "k"], "Next or previous book"], [["/"], "Search"], [["f"], "Finished (reading or paused)"],
+    [["o"], "Owned on or off"], [["1", "5"], "Rate", "–"], [["e"], "Edit details"], [["n"], "Add a book"], [["Esc"], "Close or clear"],
+  ];
+  const rows = keys.map(([k, what, joiner = " "]) => `<dt>${k.map((x) => `<kbd>${x}</kbd>`).join(joiner)}</dt><dd>${what}</dd>`).join("");
+  return `<div class="pane-empty"><p class="empty-title">No book open</p><p>Pick one from the list.</p><dl class="keys">${rows}</dl></div>`;
+}
+
 // --- Sheets ---
 
+const ADD_STATUSES = ["wishlist", "to_read", "reading", "read"];
+
 export function addView(ui) {
-  const statuses = ["wishlist", "owned", "reading", "read"];
+  const statuses = ADD_STATUSES;
   const seg = statuses.map((s) => `<button type="button" class="seg-btn s-${s}" data-add-status="${s}" aria-pressed="${ui.status === s}">${STATUS_LABEL[s]}</button>`).join("");
   return `<div class="sheet-head"><h2 id="sheet-title">Add a book</h2><button class="icon-btn" data-act="close-sheet" aria-label="Close">${ic.close()}</button></div>
     <form class="resolve" data-form="resolve">
-      <label for="add-q" class="field-label">Link, ISBN, or title and author</label>
+      ${ui.offline ? '<p class="note">You\'re offline, so looking a book up won\'t work. Enter it by hand below; it syncs when you\'re back online.</p>' : ""}
+      <label for="add-q" class="field-label">Link, ISBN or title</label>
       <div class="resolve-row">
         <input id="add-q" name="q" type="text" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Paste a link or type a title" value="${esc(ui.q)}">
         <button type="button" class="icon-btn boxed" data-act="paste" aria-label="Paste">${ic.paste()}</button>
@@ -225,6 +308,7 @@ export function addView(ui) {
       <button class="btn primary wide" type="submit"${ui.loading ? " disabled" : ""}>${ui.loading ? "Looking it up…" : "Find"}</button>
     </form>
     <div class="seg" role="group" aria-label="Add as">${seg}</div>
+    <div class="add-own">${ownToggle("toggle-add-owned", ui.owned)}</div>
     <div id="add-results" aria-live="polite">${addResults(ui)}</div>
     <button class="btn-quiet" data-act="manual">${ic.pencil()}Enter it by hand</button>`;
 }
@@ -240,7 +324,7 @@ export function addResults(ui) {
     const facts = joinFacts([c.first_published, c.page_count ? `${c.page_count} pages` : ""]);
     const m = c.match;
     const inLib = m
-      ? `<span class="match s-${m.status}">${m.status === "read" ? `Read${m.date_read ? " " + formatDate(m.date_read) : ""}` : `In your ${STATUS_LABEL[m.status].toLowerCase()}`}${stars(m.rating)}</span>`
+      ? `<span class="match s-${m.status}">${m.status === "read" ? `Read${m.date_read ? " " + formatDate(m.date_read) : ""}` : m.status === "wishlist" ? "On your wishlist" : STATUS_LABEL[m.status]}${m.owned ? `${SEP}Owned` : ""}${stars(m.rating)}</span>`
       : "";
     const act = m
       ? `<button class="btn" data-act="open-match" data-book="${esc(m.book_id)}">Open</button>`
@@ -261,7 +345,8 @@ export function manualView(ui) {
       <div class="field-pair">${field("first_published", "Year published", f.first_published, 'inputmode="numeric" pattern="[0-9]*"')}${field("page_count", "Pages", f.page_count, 'inputmode="numeric" pattern="[0-9]*"')}</div>
       ${field("isbn", "ISBN", f.isbn, 'inputmode="numeric" autocomplete="off"')}
       <p class="field-label">Add as</p>
-      <div class="seg" role="group" aria-label="Add as">${["wishlist", "owned", "reading", "read"].map((s) => `<button type="button" class="seg-btn s-${s}" data-add-status="${s}" aria-pressed="${ui.status === s}">${STATUS_LABEL[s]}</button>`).join("")}</div>
+      <div class="seg" role="group" aria-label="Add as">${ADD_STATUSES.map((s) => `<button type="button" class="seg-btn s-${s}" data-add-status="${s}" aria-pressed="${ui.status === s}">${STATUS_LABEL[s]}</button>`).join("")}</div>
+      ${ownToggle("toggle-add-owned", ui.owned)}
       ${ui.status === "read" ? field("date_finished", "Finished on (leave empty if unknown)", localToday(), `type="date" max="${localToday()}"`) : ""}
       <button class="btn primary wide" type="submit">Add</button>
     </form>`;
@@ -313,8 +398,9 @@ export function settingsView(st, ui) {
       </form>
     </section>
     <section class="detail-sec"><h3>Library</h3>
-      <p class="muted">${joinFacts([plural(st.view.books.size, "book"), plural(undated, "undated read") + " (listed at the end of History)"])}</p>
-      ${dropped.length ? `<details class="dropped"><summary>Abandoned books (${dropped.length})</summary><ul class="list">${dropped.map((b) => row(b, "", false)).join("")}</ul></details>` : ""}
+      <p class="muted">${plural(st.view.books.size, "book")}</p>
+      ${undated ? `<button class="btn-quiet" data-act="undated">Fill in ${plural(undated, "missing finish date")}</button>` : ""}
+      ${dropped.length ? `<details class="dropped"><summary>Abandoned books (${dropped.length})</summary><ul class="list">${dropped.map((b) => row(b, {}, false)).join("")}</ul></details>` : ""}
     </section>
     <p class="build muted">Build ${esc(ui.build || "…")}</p>`;
 }

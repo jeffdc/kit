@@ -3,8 +3,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   newId, newOpId, localToday, formatDate, authorSortKey, overlay, sinceFor, planChanges,
-  settleResults, fold, search, wishlistBooks, readingBooks, historyGroups, initial,
-  orderSellers, sellerURL,
+  settleResults, fold, search, wishlistBooks, readingBooks, toReadBooks, historyGroups, initial,
+  orderSellers, sellerURL, shelfCounts, undatedReads, plausibleDate,
 } from "../assets/js/core.js";
 
 const book = (id, title, author, extra = {}) => ({
@@ -106,7 +106,9 @@ test("search", () => {
     book("3", "Cien años de soledad", "Gabriel García Márquez"),
     book("4", "Dune", "Frank Herbert", { isbn: "9780441172719" }),
     book("5", "Piranesi", "Susanna Clarke"),
+    book("6", "Thank You for Arguing", "Jay Heinrichs"),
   ];
+  assert.deepEqual(search(books, "guin").map((b) => b.id), ["1"], "words match from their start, not inside other words");
   assert.deepEqual(search(books, "dark").map((b) => b.id), ["2", "1"], "title prefix first, then word match");
   assert.deepEqual(search(books, "left hand").map((b) => b.id), ["1"]);
   assert.deepEqual(search(books, "marquez").map((b) => b.id), ["3"], "accents folded");
@@ -122,7 +124,7 @@ test("tab lists", () => {
   const s = server(
     [
       book("1", "Pastoral", "André Alexis"),
-      book("2", "Ring", "André Alexis", { status: "owned" }),
+      book("2", "Ring", "André Alexis", { status: "to_read", owned: true }),
       book("3", "The Genius of Birds", "Jennifer Ackerman"),
       book("4", "Dune", "Frank Herbert", { status: "reading" }),
       book("5", "Emma", "Jane Austen", { status: "paused" }),
@@ -132,11 +134,16 @@ test("tab lists", () => {
     [read("r1", "6", "2025-03-01"), read("r2", "6", "2022-01-01"), read("r3", "6", ""), read("r4", "4", "2019-01-01")],
   );
   const v = overlay(s, []);
-  assert.deepEqual(wishlistBooks(v).map((b) => b.id), ["3", "1"], "by surname; owned books are not on the wishlist");
+  assert.deepEqual(wishlistBooks(v).map((b) => b.id), ["3", "1"], "by surname; books to read are not on the wishlist");
   assert.deepEqual(wishlistBooks(v, "title").map((b) => b.id), ["3", "1"], "genius, pastoral");
   assert.equal(initial(v.books.get("3"), "title"), "G", "leading article ignored");
   const r = readingBooks(v);
-  assert.deepEqual([r.reading.map((b) => b.id), r.paused.map((b) => b.id), r.owned.map((b) => b.id)], [["4"], ["5"], ["2"]]);
+  assert.deepEqual([r.reading.map((b) => b.id), r.paused.map((b) => b.id)], [["4"], ["5"]]);
+  assert.deepEqual(toReadBooks(v).map((b) => b.id), ["2"]);
+  assert.deepEqual(shelfCounts(v), { wishlist: 2, to_read: 1, reading: 2, history: 1, undated: 1 }, "Reading counts paused books too");
+  assert.deepEqual(undatedReads(v).map((e) => e.read.id), ["r3"]);
+  assert.ok(plausibleDate("2025-11-09") && plausibleDate(""));
+  assert.ok(!plausibleDate("0202-11-09") && !plausibleDate("2025-11"), "a year still being typed isn't saved");
 
   // Undated reads list the most recently added book first.
   s.books.set("8", book("8", "Older", "A. Writer", { status: "read", date_added: "2020-01-01" }));

@@ -277,3 +277,48 @@ func TestFieldString(t *testing.T) {
 		}
 	}
 }
+
+func TestOwnedIsIndependentOfStatus(t *testing.T) {
+	s := testStore(t)
+	b, _ := s.CreateBook("Dune", "Frank Herbert", map[string]string{"status": "reading", "owned": "true"})
+	if !b.Owned {
+		t.Fatal("created without owned")
+	}
+	got, err := s.UpdateBook(b.ID, map[string]string{"status": "read"})
+	if err != nil || got.Status != "read" || !got.Owned {
+		t.Fatalf("after finishing: %+v, %v", got, err)
+	}
+	res, err := s.ApplyOp(model.Op{OpID: "o1", Type: "book.update", ID: b.ID, Fields: map[string]any{"owned": false}})
+	if err != nil || res.Status != "ok" {
+		t.Fatalf("owned=false op: %+v, %v", res, err)
+	}
+	if got, _ := s.GetBook(b.ID); got.Owned || got.Status != "read" {
+		t.Errorf("after owned=false: %+v", got)
+	}
+	if _, err := s.UpdateBook(b.ID, map[string]string{"owned": "maybe"}); !errors.Is(err, ErrInvalid) {
+		t.Errorf("owned=maybe: err = %v, want ErrInvalid", err)
+	}
+}
+
+// Clients from before the owned field send status "owned" (queued ops, the
+// old change log). It means "to_read", owned.
+func TestLegacyOwnedStatus(t *testing.T) {
+	s := testStore(t)
+	b, err := s.CreateBook("Dune", "Frank Herbert", map[string]string{"status": "owned"})
+	if err != nil || b.Status != "to_read" || !b.Owned {
+		t.Fatalf("create as owned: %+v, %v", b, err)
+	}
+	other, _ := s.CreateBook("Emma", "Jane Austen", nil)
+	res, err := s.ApplyOp(model.Op{OpID: "o1", Type: "book.update", ID: other.ID, Fields: map[string]any{"status": "owned"}})
+	if err != nil || res.Status != "ok" {
+		t.Fatalf("status=owned op: %+v, %v", res, err)
+	}
+	if got, _ := s.GetBook(other.ID); got.Status != "to_read" || !got.Owned {
+		t.Errorf("after status=owned: %+v", got)
+	}
+	res, _ = s.ApplyOp(model.Op{OpID: "o2", Type: "book.create",
+		Book: &model.Book{ID: "aaaabbbbcccc", Title: "Babel", Author: "R. F. Kuang", Status: "owned"}})
+	if got, _ := s.GetBook("aaaabbbbcccc"); res.Status != "ok" || got.Status != "to_read" || !got.Owned {
+		t.Errorf("create op as owned: %+v %+v", res, got)
+	}
+}

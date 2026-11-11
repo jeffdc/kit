@@ -50,6 +50,8 @@ For browser testing, `.claude/launch.json` defines `forage-local` (runs `make ru
 - `sw.js`: the server stamps `__FORAGE_BUILD__` with the build version, so each deploy installs a fresh cache, and the app reloads into it when idle. App files are served cache-first in production and network-first in dev (a `dev-` build).
 - Design: see PRODUCT.md and DESIGN.md. Statuses have band colours (`--band-*` in style.css). Gill Sans/Seravek are system faces on Apple devices.
 
+**Status and ownership**: status is the reading state (`wishlist`, `to_read`, `reading`, `paused`, `read`, `dropped`); `owned` is a separate boolean on the book. `to_read` was the `owned` status until migration 3. Writes that still send status `owned` (old queued ops, the legacy change log) are stored as `to_read` with `owned` set.
+
 **Book IDs**: new IDs are 12 hex characters (`storage.NewID`, `genId` in the PWA). Older books keep 4-character IDs. Reads use the same ID format.
 
 **Reads**: read history lives in the `reads` table (one row per reading, `date_finished` may be empty for unknown). A book's `date_read` in API responses is derived from its latest read. `books.date_read` is a legacy column, unused since migration 2.

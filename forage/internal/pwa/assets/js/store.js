@@ -183,6 +183,43 @@ export async function updateRead(id, fields) {
 }
 
 export const deleteRead = (id) => enqueue({ type: "read.delete", id });
+
+const FIELD_DEFAULTS = { rating: 0, owned: false, tags: [], first_published: 0, page_count: 0 };
+
+/**
+ * Runs a change and returns a function that undoes it, by queueing the
+ * inverse of each op it queued (newest first). Ops are usually sent within
+ * a second, so inverting is simpler than trying to pull them back out.
+ * A deleted read comes back with a new ID (the old one is a tombstone).
+ */
+export async function undoable(change) {
+  const before = { books: new Map(state.view.books), reads: new Map(state.view.reads) };
+  const lastSeq = state.ops.reduce((m, o) => Math.max(m, o.seq), 0);
+  const known = new Set(state.ops.map((o) => o.op_id));
+  await change();
+  const added = state.ops.filter((o) => !known.has(o.op_id) && o.seq > lastSeq);
+  const pick = (rec, keys) => Object.fromEntries(keys.map((k) => [k, rec[k] ?? FIELD_DEFAULTS[k] ?? ""]));
+  return async () => {
+    const inverse = [];
+    for (const op of [...added].reverse()) {
+      if (op.type === "book.update") {
+        const b = before.books.get(op.id);
+        if (b) inverse.push({ type: "book.update", id: op.id, fields: pick(b, Object.keys(op.fields)) });
+      } else if (op.type === "book.create") {
+        inverse.push({ type: "book.delete", id: op.book.id });
+      } else if (op.type === "read.create") {
+        inverse.push({ type: "read.delete", id: op.read.id });
+      } else if (op.type === "read.update") {
+        const r = before.reads.get(op.id);
+        if (r) inverse.push({ type: "read.update", id: op.id, fields: pick(r, Object.keys(op.fields)) });
+      } else if (op.type === "read.delete") {
+        const r = before.reads.get(op.id);
+        if (r) inverse.push({ type: "read.create", read: { id: newId(), book_id: r.book_id, date_finished: r.date_finished, date_started: r.date_started || "" } });
+      }
+    }
+    if (inverse.length) await enqueue(...inverse);
+  };
+}
 export const deleteBook = (id) => enqueue({ type: "book.delete", id });
 
 /** Pending op count per book, for the "not synced" marks. */
