@@ -98,6 +98,12 @@ func registerRevision(mux *http.ServeMux, repos Repos) {
 // repository no longer has), the tip is recorded as the baseline. Changes
 // to records the human acted on since are left out (see mull.Acknowledge).
 func revisionSince(path string) (mull.Revision, string, error) {
+	return revisionOf(path, (*mull.Mull).Revision)
+}
+
+// revisionOf is revisionSince, reading the revision with read: Revision,
+// or RevisionCount when only the number of changes is wanted.
+func revisionOf(path string, read func(*mull.Mull, string) (mull.Revision, error)) (mull.Revision, string, error) {
 	m, err := mull.Open(path)
 	if err != nil {
 		return mull.Revision{}, "", err
@@ -106,11 +112,11 @@ func revisionSince(path string) (mull.Revision, string, error) {
 	if err != nil {
 		return mull.Revision{}, "", err
 	}
-	rev, err := m.Revision(look.Commit)
+	rev, err := read(m, look.Commit)
 	if err == nil && rev.Baseline {
 		base := seen.Look{Commit: rev.Tip.Commit, At: time.Now().UTC().Format(time.RFC3339)}
 		if look, err = seen.Baseline(path, base, look.Commit); err == nil && look.Commit != base.Commit { // marked meanwhile
-			rev, err = m.Revision(look.Commit)
+			rev, err = read(m, look.Commit)
 		}
 	}
 	if err != nil {
@@ -126,7 +132,7 @@ func revisionSince(path string) (mull.Revision, string, error) {
 // projectRevision is the project list's revision column, or nil if it
 // can't be read (the summary carries the reason).
 func projectRevision(path string) *ProjectRevision {
-	rev, at, err := revisionSince(path)
+	rev, at, err := revisionOf(path, (*mull.Mull).RevisionCount)
 	if err != nil {
 		return nil
 	}
