@@ -325,6 +325,11 @@ Square corners throughout (`rounded.none`), and `select` resets its radius to 0.
 - **Table rows:** each cell draws its share of the cloud, so a clouded row's top and bottom edges run across all its cells while the first and last cells close the sides. Consecutive clouded rows share one cloud through `.cl-cont` and `.cl-open`.
 - **Motion:** a fresh cloud (one not present on the previous fetch) draws in left to right over 0.7s `cubic-bezier(.16, 1, .3, 1)` via clip-path, and stays fresh for 750ms. "Mark revision seen" fades clouds out over 0.35s ease-out, and the tree's clouds clear in step.
 
+### The model (help sheet)
+- `#/-/model` ("-" is reserved for sheets that belong to no project), linked from the sheet index's foot on every page as "The model: how mull works", marked current while open.
+- Static, in `model.js`: the hierarchy as a mono tree diagram (bold record names, muted asides; it scrolls sideways on a phone), the item stages as stage tags joined by arrows, the six Needs you tiers as a schedule table (rank, title and hint, what lands there), the rules and the commands the human runs as two-column definition lists (`.rules`; one column at ≤860px).
+- It holds no status and no live data. When the model or a tier's wording changes, change it here too (tier titles and hints match `internal/mull/needsyou.go`).
+
 ### Toast
 - An ink block with Bond text, fixed 18px from the bottom right (it respects the safe-area inset). It's at most 440px wide and lasts 5s. It's the only floating element.
 
@@ -355,6 +360,5 @@ Square corners throughout (`rounded.none`), and `select` resets its radius to 0.
 
 ## Known gaps
 
-- The model page (a help page explaining how mull works) is in `direction.md`'s scope but isn't built yet: it's item bfcf. Add its pattern here when it lands.
 - The FORM seed in `direction.md` couldn't be verified on this machine.
 - The finish review judged the build "ship after fixes" against `direction.md` and the prototype. Its fixes are applied: tabs at ≤1180px, the current row stays blue, no raw `not_initialized` code, and phone-width tables.

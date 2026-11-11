@@ -10,6 +10,10 @@ export const CHEVRON = `<svg class="ic" viewBox="0 0 10 10" aria-hidden="true"><
 const seg = encodeURIComponent;
 export const href = {
   home: () => "#/",
+  // "-" is reserved for sheets that aren't a project's. A project's ID is
+  // its directory's name, so only a repository in a directory named "-"
+  // would be shadowed.
+  model: () => "#/-/model",
   project: pid => `#/${seg(pid)}`,
   plan: (pid, slug) => `#/${seg(pid)}/plans/${seg(slug)}`,
   phase: (pid, id) => `#/${seg(pid)}/phases/${seg(id)}`,

@@ -5,11 +5,12 @@
 // fetched again.
 
 import { api, listen } from "./api.js";
-import { esc, ago } from "./html.js";
+import { esc, ago, href } from "./html.js";
 import { Changes } from "./revision.js";
 import { renderTree, expandFor, toggle, reveal } from "./tree.js";
 import { pageHome, projectSheet, subsFor, pageNotFound, pageUnreadable } from "./pages.js";
 import { filterOf, clearFilter } from "./lists.js";
+import { pageModel } from "./model.js";
 
 const state = {
   projects: null,    // GET /api/projects, once loaded
@@ -109,6 +110,7 @@ function loadAll() {
 
 function page(r) {
   if (!r.pid) return pageHome(state);
+  if (r.pid === "-") return r.kind === "model" && !r.id ? pageModel() : pageNotFound("That isn't a sheet in this set.");
   if (!state.projects) return state.listError ? pageNotFound(`Couldn't load the project list: ${state.listError.message}.`) : `<div class="page"><p class="empty">Loading…</p></div>`;
   const pr = state.projects.find(p => p.id === r.pid);
   if (!pr) return pageNotFound(`No project “${r.pid}” is registered with mull serve.`);
@@ -119,6 +121,7 @@ function page(r) {
 
 function title(r) {
   if (!r.pid) return "mull";
+  if (r.pid === "-") return "The model · mull";
   return r.kind ? `${r.id || r.kind} · ${r.pid} · mull` : `${r.pid} · mull`;
 }
 
@@ -146,7 +149,7 @@ function render() {
   }
   joinRowClouds(main);
   renderTree(treeEl, state, r);
-  renderFoot();
+  renderFoot(r);
   renderLive();
   for (const d of state.data.values()) d.changes?.settle();
   if (focus) (inTree ? treeEl : main).querySelector(focus)?.focus({ preventScroll: true });
@@ -160,15 +163,17 @@ function joinRowClouds(root) {
   }
 }
 
-function renderFoot() {
+function renderFoot(r) {
   const bad = (state.projects || []).filter(p => p.error);
   const foot = $("railfoot");
-  foot.hidden = !bad.length;
-  if (!bad.length) return;
+  foot.hidden = false;
+  const here = r.pid === "-" && r.kind === "model";
+  const model = `<div><a class="btn s${here ? " on" : ""}" href="${href.model()}"${here ? ' aria-current="page"' : ""}>The model: how mull works</a></div>`;
   const fresh = bad.filter(p => p.error.code === "not_initialized"), other = bad.filter(p => p.error.code !== "not_initialized");
   foot.innerHTML =
     (fresh.length ? `<div><span class="lab">Not on mull yet</span><p>${fresh.map(p => esc(p.name)).join(" · ")}</p></div>` : "") +
-    (other.length ? `<div><span class="lab">Can't read</span><p>${other.map(p => `<a href="#/${encodeURIComponent(p.id)}">${esc(p.name)}</a> ${esc(p.error.code)}`).join(" · ")}</p></div>` : "");
+    (other.length ? `<div><span class="lab">Can't read</span><p>${other.map(p => `<a href="#/${encodeURIComponent(p.id)}">${esc(p.name)}</a> ${esc(p.error.code)}`).join(" · ")}</p></div>` : "") +
+    model;
 }
 
 function renderLive() {
