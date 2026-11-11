@@ -5,6 +5,12 @@ plan: mull-data
 item: 4bf3
 by: /Users/jeff/dev/kit
 created: "2026-11-11T15:17:49Z"
+settled:
+  action: accept
+  note: with review 028a
+  by: jeffdc
+  human: true
+  at: "2026-11-11T23:30:56Z"
 ---
 
 A write then costs a walk of the new commits only. Taking the newest time matches the old first-in-log rule except under clock skew between commits.
