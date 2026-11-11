@@ -40,6 +40,10 @@ make build      # ./mull
 make test       # go test ./...
 make race       # with the race detector
 make fmt vet
+make dev        # build and (re)start a scratch mull serve on a seeded demo repo: http://localhost:6899/#/demo
+make dev-stop   # stop it; make dev-reset starts again from a fresh demo repo
 ```
+
+To try a UI change, use `make dev`, not a hand-started server: it serves this tree's build on port 6899 from `.dev/` (ignored), with its own config dir so the real registry and last-looked state are never touched, and it stops only the server it started (by its PID file). Don't start, kill or `pkill` servers at the prompt; the human's permissions ask on every kill.
 
 Tests always use temporary repositories (`gittest.NewRepo`). Never run tests against a real repository's `mull` branch.
