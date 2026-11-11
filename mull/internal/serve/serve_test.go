@@ -3,10 +3,12 @@ package serve
 import (
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -100,11 +102,15 @@ func TestProjectIDs(t *testing.T) {
 
 func TestStaticAndUnknown(t *testing.T) {
 	h := Handler(func() ([]string, error) { return []string{}, nil })
-	for path, want := range map[string]string{"/": "<title>mull</title>", "/app.js": "/api/projects", "/style.css": "--ground"} {
+	for path, want := range map[string]string{"/": "<title>mull</title>", "/app.js": "/api/events", "/style.css": "--ground"} {
 		rec := get(t, h, path)
 		if rec.Code != 200 || !strings.Contains(rec.Body.String(), want) {
 			t.Errorf("GET %s: %d, want a body with %q", path, rec.Code, want)
 		}
+	}
+	// Module scripts load only with a JavaScript content type.
+	if ct := get(t, h, "/app.js").Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/javascript") {
+		t.Errorf("GET /app.js: Content-Type %q, want text/javascript", ct)
 	}
 	rec := get(t, h, "/api/nope")
 	var e mull.Error
@@ -117,6 +123,27 @@ func TestStaticAndUnknown(t *testing.T) {
 	h.ServeHTTP(rec, req)
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Errorf("POST /api/projects: %d, want 405 (the API is read-only)", rec.Code)
+	}
+}
+
+// TestModuleImports checks that every relative import in the embedded UI
+// names an embedded file, since there's no build step to catch a typo.
+func TestModuleImports(t *testing.T) {
+	imp := regexp.MustCompile(`(?m)^import [^"]*"\./([^"]+)";$`)
+	files, err := fs.Glob(web, "web/*.js")
+	if err != nil || len(files) == 0 {
+		t.Fatalf("no embedded modules: %v", err)
+	}
+	for _, f := range files {
+		src, err := fs.ReadFile(web, f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, m := range imp.FindAllStringSubmatch(string(src), -1) {
+			if _, err := fs.Stat(web, "web/"+m[1]); err != nil {
+				t.Errorf("%s imports ./%s, which isn't embedded", f, m[1])
+			}
+		}
 	}
 }
 
