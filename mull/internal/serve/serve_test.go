@@ -174,3 +174,18 @@ func TestLocalOnly(t *testing.T) {
 		}
 	}
 }
+
+func TestBuild(t *testing.T) {
+	repos := func() ([]string, error) { return []string{}, nil }
+	if rec := get(t, Handler(repos), "/api/build"); rec.Code != 404 {
+		t.Errorf("GET /api/build without WithBuild: %d, want 404", rec.Code)
+	}
+	var b struct{ Build, Version string }
+	rec := get(t, Handler(repos, WithBuild("v1")), "/api/build")
+	if rec.Code != 200 || json.Unmarshal(rec.Body.Bytes(), &b) != nil || len(b.Build) != 12 || b.Version != "v1" {
+		t.Fatalf("GET /api/build: %d %s", rec.Code, rec.Body)
+	}
+	if buildID("v1") != b.Build || buildID("v2") == b.Build {
+		t.Errorf("build IDs: v1 %s (served %s), v2 %s: want the same version to give the same ID and another version another", buildID("v1"), b.Build, buildID("v2"))
+	}
+}

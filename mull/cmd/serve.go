@@ -42,9 +42,11 @@ each repository, beside the registry.
 
 On macOS, --install runs it at login instead, as a LaunchAgent
 (~/Library/LaunchAgents/mull.serve.plist, logging to
-~/Library/Logs/mull-serve.log), restarted if it stops; run --install again
-after upgrading mull, and --uninstall to remove it. It runs this mull binary
-with --port and with your PATH and XDG_CONFIG_HOME as they are now.`,
+~/Library/Logs/mull-serve.log), restarted if it stops; --uninstall removes
+it. It runs this mull binary with --port and with your PATH and
+XDG_CONFIG_HOME as they are now. After upgrading mull, run --install again
+(make install does it for you when the agent is installed); open pages
+reload themselves onto the new build when they reconnect.`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			switch {
@@ -83,7 +85,7 @@ with --port and with your PATH and XDG_CONFIG_HOME as they are now.`,
 
 			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
-			srv := &http.Server{Handler: serve.Handler(registry.Repos, serve.WithEvents(watcher)), ReadHeaderTimeout: 10 * time.Second}
+			srv := &http.Server{Handler: serve.Handler(registry.Repos, serve.WithEvents(watcher), serve.WithBuild(Version)), ReadHeaderTimeout: 10 * time.Second}
 			srv.RegisterOnShutdown(watcher.Close) // ends the event streams, which Shutdown would otherwise wait out
 			done := make(chan error, 1)
 			go func() { done <- srv.Serve(ln) }()
