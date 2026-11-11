@@ -36,7 +36,8 @@ export const api = {
   page: (id, sub) => call(sub ? `${p(id)}/${sub}` : p(id)),
   tree: id => call(`${p(id)}/tree`),
   // search finds records by ID or title in every project.
-  search: q => call(`/api/search?q=${encodeURIComponent(q)}`),
+  // archive: closed plans and their records too.
+  search: (q, archive = false) => call(`/api/search?q=${encodeURIComponent(q)}${archive ? "&archive=1" : ""}`),
   revision: id => call(`${p(id)}/revision`),
   // seen marks the revision the page showed as seen; changes after it stay
   // new.

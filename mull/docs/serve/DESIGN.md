@@ -167,7 +167,7 @@ The build in `mull/internal/serve/web/` is the source of truth (`style.css` hold
 
 A project is a set of drawings issued for review. The left rail is the sheet index, every page opens with a title block of boxed fields, lists are schedules (ruled tables and numbered tiers), and whatever changed since the human last looked is ringed by a red revision cloud. The look is white bond paper with ink linework (deep graphite with light linework in dark), pale blue construction lines for minor rules, square corners, and no elevation.
 
-It's dense in the way a drawing sheet is dense. Small type sits in a tight grid, every region is boxed or ruled, and colour is rare enough that each hue reads as a checker's mark with one job. Actions are of two kinds. Most copy a mull command or an agent prompt to the clipboard and say so in a toast. A few save to mull as the human (approving, answering, deciding, and accepting or sending back a review, so far), and those look different, ask once more, and show where they failed. A copy action must never look like it saves anything, and a write must never look like a copy.
+It's dense in the way a drawing sheet is dense. Small type sits in a tight grid, every region is boxed or ruled, and colour is rare enough that each hue reads as a checker's mark with one job. Actions are of two kinds. Most copy a mull command or an agent prompt to the clipboard and say so in a toast. A few save to mull as the human (approving, answering, deciding, accepting or sending back a review, and closing a plan, so far), and those look different, ask once more, and show where they failed. A copy action must never look like it saves anything, and a write must never look like a copy.
 
 Rejected outright by the contract: soft cards on grey, status pills everywhere, cream-and-serif "AI" styling, delta triangles and per-row change counts.
 
@@ -296,6 +296,7 @@ Square corners throughout (`rounded.none`), and `select` resets its radius to 0.
 
 ### Navigation: the sheet index
 - A tree drilling project → plan → phase → item, with Unplanned and Backlog under each project. Rows are 29px and indent 14px per level, with vertical blue construction-line guides.
+- **Archive:** closing a plan archives it. Closed plans leave the plan rows for an Archive row at the foot of each project (after Backlog), faint like Built and collapsed until opened, listing them newest first with "closed <date>" as meta. It opens by itself on an archived plan's sheet. A closed plan's sheet reads "Closed · in the Archive" in its State field, and active plans offer "Close and archive" (a write that asks "Close it?", or "Close with N phases not done?" when work remains).
 - A rotating 10px SVG chevron (0.15s ease-out) toggles a row, and leaf rows hide it. Meta sits right-aligned in condensed muted text: stage words, counts, stamps, Go live tags.
 - **Hover:** Rail Select fill. **Current:** Rail Select fill, bold blue text, and a 3px blue inset bar on the left. That bar comes from the approved prototype, and the human confirmed it (2026-11-11) because the tint alone is too faint: it's the one sanctioned left stripe, so don't add others. **Waiting:** faint text. Top-level project rows are bold.
 
@@ -348,7 +349,7 @@ Square corners throughout (`rounded.none`), and `select` resets its radius to 0.
 ### Find
 - `s` (anywhere but a text field) or the Find button in the brand row opens a command palette floating in the middle of the screen, about a seventh of the way down, over a scrim of ink at 28%. It's the one floating panel besides the toast, and it floats flat: a 1.5px ink box on the ground colour, no shadow, no radius, at most 680px wide. A click on the scrim or Esc closes it and gives focus back.
 - A Panel Grey head under a 1.5px ink rule holds a "Find" label and a search input in a square 1px ink box. Results list under it, divided by construction lines: mono ID (truncated past 84px), the title in 550 with a muted "project · kind · on <item>" line, and the record's stage tag (or, for a settled inbox entry, its settlement as a label). The selected row takes the Selected fill; hover is Panel Grey. A muted foot gives the keys.
-- It searches every project (`GET /api/search?q=`): an exact ID first, then IDs it starts, then titles whose words start with the query's, then titles containing them. Up and Down move, Enter or a click opens the record's sheet (an inbox entry opens its item's, or its plan's).
+- It searches every project's open records first (`GET /api/search?q=`), leaving out the Archive. When the Archive holds more matches, the foot offers "Search the archive too: N more" (a plain small button), and archived hits then say "archive" in their muted line. Ranking: an exact ID first, then IDs it starts, then titles whose words start with the query's, then titles containing them. Up and Down move, Enter or a click opens the record's sheet (an inbox entry opens its item's, or its plan's).
 
 ### Toast
 - An ink block with Bond text, fixed 18px from the bottom right (it respects the safe-area inset). It's at most 440px wide and lasts 5s. Besides the Find palette, it's the only floating element.

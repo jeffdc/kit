@@ -311,6 +311,7 @@ async function save(key, pid, ops, done, keep) {
     }
   }
   await loadProject(pid);
+  expandFor(route(), state); // a write can move the sheet's row (closing a plan archives it)
   render();
 }
 

@@ -559,6 +559,16 @@ type Tree struct {
 	NeedsYou  int       `json:"needs_you"`
 	Unplanned Attention `json:"unplanned"` // entries on unplanned work
 	Own       Attention `json:"own"`       // entries about the project, on no plan's or unplanned item
+	// Archive is the closed plans, most recently closed first: closing a
+	// plan archives it.
+	Archive []ArchivedPlan `json:"archive"`
+}
+
+// ArchivedPlan is a closed plan in the tree's Archive.
+type ArchivedPlan struct {
+	Slug   string `json:"slug"`
+	Title  string `json:"title"`
+	Closed string `json:"closed"` // when it was closed (its last change)
 }
 
 // Attention is how much needs the human somewhere, and how much of that
@@ -615,7 +625,13 @@ func (m *Mull) TreePage() (Tree, error) {
 				a.Blocking++
 			}
 		}
-		out = Tree{Plans: []TreePlan{}, Counts: s.counts(now), Blocking: s.countBlocking(nil), NeedsYou: len(open)}
+		out = Tree{Plans: []TreePlan{}, Counts: s.counts(now), Blocking: s.countBlocking(nil), NeedsYou: len(open), Archive: []ArchivedPlan{}}
+		for _, slug := range sortedKeys(s.plans) {
+			if p := s.plans[slug]; p.State == model.PlanDone {
+				out.Archive = append(out.Archive, ArchivedPlan{Slug: slug, Title: p.Title, Closed: p.Updated})
+			}
+		}
+		sort.SliceStable(out.Archive, func(a, b int) bool { return out.Archive[a].Closed > out.Archive[b].Closed })
 		row := func(ir ItemRow) TreeItem {
 			listed[ir.ID] = true
 			return TreeItem{ID: ir.ID, Title: ir.Title, State: ir.State, Ready: ir.Ready}

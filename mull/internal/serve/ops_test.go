@@ -100,7 +100,7 @@ func TestOpsRefused(t *testing.T) {
 	wantMullError(t, "no git user.name", post(t, h, url, opsBody(t, tip, accept), nil), http.StatusForbidden, mull.CodeNotAllowed)
 	gittest.Git(t, dir, "config", "user.name", "Jeff")
 
-	wantMullError(t, "an op the UI doesn't offer", post(t, h, url, opsBody(t, tip, map[string]any{"op": "plan close", "slug": "x"}), nil), http.StatusForbidden, mull.CodeNotAllowed)
+	wantMullError(t, "an op the UI doesn't offer", post(t, h, url, opsBody(t, tip, map[string]any{"op": "add", "title": "x", "plan": "none"}), nil), http.StatusForbidden, mull.CodeNotAllowed)
 	wantMullError(t, "on-request", post(t, h, url, opsBody(t, tip, map[string]any{"op": "accept", "ids": []string{d}, "on-request": true}), nil), 400, mull.CodeInvalid)
 	wantMullError(t, "no commit", post(t, h, url, opsBody(t, "", accept), nil), 400, mull.CodeInvalid)
 	wantMullError(t, "no ops", post(t, h, url, `{"commit": "`+tip+`", "ops": []}`, nil), 400, mull.CodeInvalid)
@@ -270,5 +270,37 @@ func TestOpsParkDrop(t *testing.T) {
 		if s := v.Entry.Settled; s == nil || s.Action != want || s.By != "Jeff" || !s.Human || s.Note == "" {
 			t.Errorf("%s settled = %+v, want %s by the human with the reason", id, s, want)
 		}
+	}
+}
+
+// Closing a plan from the UI archives it: it leaves the tree's plans for
+// its Archive.
+func TestOpsClosePlan(t *testing.T) {
+	dir := onMull(t)
+	gittest.Git(t, dir, "config", "user.name", "Jeff")
+	h := Handler(func() ([]string, error) { return []string{dir}, nil })
+	m, _ := mull.Open(dir)
+	if _, err := m.PlanNew("pilot", "Pilot", "", true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.PlanAgree("pilot", true); err != nil {
+		t.Fatal(err)
+	}
+	id := filepath.Base(dir)
+	rec := post(t, h, "/api/projects/"+id+"/ops", opsBody(t, tipOf(t, dir), map[string]any{"op": "plan close", "slug": "pilot"}), nil)
+	if rec.Code != 200 {
+		t.Fatalf("POST ops: %d %s", rec.Code, rec.Body)
+	}
+	var tree mull.Tree
+	if err := json.Unmarshal(get(t, h, "/api/projects/"+id+"/tree").Body.Bytes(), &tree); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range tree.Plans {
+		if p.Slug == "pilot" {
+			t.Errorf("the closed plan is still among the tree's plans")
+		}
+	}
+	if len(tree.Archive) != 1 || tree.Archive[0].Slug != "pilot" || tree.Archive[0].Closed == "" {
+		t.Errorf("archive = %+v", tree.Archive)
 	}
 }
