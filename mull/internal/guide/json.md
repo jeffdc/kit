@@ -1,6 +1,6 @@
 # mull output reference
 
-Every command prints one JSON value to stdout. Most print an object; `batch` prints an array. `view`, `inbox`, `report` and `guide` also have `--text` for a human rendering. Treat the JSON as the contract: the text form may change.
+Every command prints one JSON value to stdout. Most print an object; `batch` prints an array. `view`, `inbox`, `report`, `guide`, `migrate`, `plan doc` and `phase doc` also have `--text` for a human rendering. Treat the JSON as the contract: the text form may change.
 
 `field?` means the field is left out when it's empty. A list that's always present is written `[]`.
 

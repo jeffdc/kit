@@ -32,7 +32,7 @@ Project            a repo
 - **Anyone captures; the human commits.**
 - **What changed since you last looked is clouded in red.** No delta triangles or counts.
 
-**Needs you ranking:** blocking work (a question on committed or active work) → waiting for review → questions for the phases that can start now → questions for later phases → questions about the whole plan → decisions to approve, grouped by source.
+**Needs you ranking:** blocking work (a question on active work, or on committed work that's ready) → waiting for review → questions for the phases that can start now → questions for later phases → questions about the whole plan → decisions to approve, grouped by source.
 
 ## Decisions (2026-11-10)
 

@@ -8,7 +8,7 @@ web
 
 ## Stack
 
-`mull serve`: a local Go HTTP server inside the mull module (kit/mull), importing mull's own packages, with an embedded web UI and live updates pushed over Server-Sent Events. Served on `http://localhost:<fixed port>`, pinned in a browser tab. The current surface is a single-file HTML prototype; the production front-end stack is not decided yet.
+`mull serve`: a local Go HTTP server inside the mull module (kit/mull), importing mull's own packages, with an embedded web UI and live updates pushed over Server-Sent Events. Served on `http://localhost:<fixed port>`, pinned in a browser tab. The UI is plain JS modules, CSS and fonts embedded in the binary, with no build step; `prototype.html` was the approved comp.
 
 ## Users
 
@@ -36,7 +36,7 @@ Unlike session dashboards (agent views, worktree managers), mull models the prog
 ## Capabilities and Constraints
 
 The information model (settled 2026-11-10):
-- **Project** (a repo) → **Plan** (shaping → active → done; carries a shared doc of intent: the picture, done-when, why the order) → **Phase** (an epic; a sub-plan with its own doc and done-when; needs other phases only) → **Item** (one agent session; no ordering).
+- **Project** (a repo) → **Plan** (shaping → active → done; carries a shared doc of intent: the picture, done-when, why the order) → **Phase** (called an epic before Model v2; a sub-plan with its own doc and done-when; needs other phases only) → **Item** (one agent session; no ordering).
 - **Item stages:** captured → committed → active → in review → done, or dropped. Any item can be started from captured (the fast path); every item is reviewed before it's done.
 - **Backlog:** captured items of kind bug or idea, with a free-text category, optionally tagged to a plan or phase. Anyone captures; the human commits.
 - **Unplanned work:** committed items with no plan.
@@ -44,7 +44,7 @@ The information model (settled 2026-11-10):
 - **Review:** what was built (summary, tour, checks) and how (design notes, the session's decisions, files by layer), settled together.
 - **No status in prose:** docs hold intent; status renders as live references to records.
 - For now the priority is getting the flow and the data model right. The UI is read-first; actions will move into it later, so the design must leave room for them.
-- Undecided: "epic" or "phase" as the name; how answers get folded back into the plan doc; how mull serve discovers repos.
+- Undecided: how answers get folded back into the plan doc. ("Phase" won over "epic", and repos register themselves: both settled on 2026-11-10.)
 
 ## Evidence on Hand
 
