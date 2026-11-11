@@ -1,6 +1,7 @@
 // Package seen is mull serve's last-looked state: for each repository, the
-// mull branch commit the human last marked seen, and when. What changed
-// since then is clouded in the UI. It is per machine, kept in mull's config
+// mull branch commit the human last marked seen, and when, and the records
+// they have acted on since. What changed since then is clouded in the UI,
+// except what they acted on. It is per machine, kept in mull's config
 // directory beside the registry, and never on the mull branch.
 package seen
 
@@ -10,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 
 	"mull/internal/registry"
@@ -21,6 +23,17 @@ import (
 type Look struct {
 	Commit string `json:"commit"`
 	At     string `json:"at"`
+	// Acked are the records the human acted on since (from mull serve), each
+	// with the commit that acted, so their changes up to it aren't clouded.
+	Acked []Ack `json:"acked,omitempty"`
+}
+
+// Ack is one record the human acted on: its type and ID, as a revision's
+// change names it, and the commit that acted.
+type Ack struct {
+	Type   string `json:"type"`
+	ID     string `json:"id"`
+	Commit string `json:"commit"`
 }
 
 // file is the state file's content.
@@ -54,7 +67,8 @@ func Get(repo string) (l Look, ok bool, err error) {
 	return l, ok, nil
 }
 
-// Mark records l as repo's last look.
+// Mark records l as repo's last look. It replaces the look, acks and all:
+// marking seen acknowledges everything.
 func Mark(repo string, l Look) error {
 	mu.Lock()
 	defer mu.Unlock()
@@ -62,6 +76,31 @@ func Mark(repo string, l Look) error {
 	if err != nil {
 		return err
 	}
+	f.Repos[repo] = l
+	return write(f)
+}
+
+// Acknowledge adds acks to repo's last look, each replacing any earlier ack
+// of the same record. A repository with no look yet is left alone: its
+// baseline, when mull serve first reads it, takes in everything up to then.
+func Acknowledge(repo string, acks []Ack) error {
+	mu.Lock()
+	defer mu.Unlock()
+	f, err := read()
+	if err != nil {
+		return err
+	}
+	l, ok := f.Repos[repo]
+	if !ok || len(acks) == 0 {
+		return nil
+	}
+	merged := make([]Ack, 0, len(l.Acked)+len(acks))
+	for _, old := range l.Acked {
+		if !slices.ContainsFunc(acks, func(a Ack) bool { return a.Type == old.Type && a.ID == old.ID }) {
+			merged = append(merged, old)
+		}
+	}
+	l.Acked = append(merged, acks...)
 	f.Repos[repo] = l
 	return write(f)
 }

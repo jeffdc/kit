@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -190,7 +191,7 @@ func TestSeenRefusesCrossOrigin(t *testing.T) {
 		if e := decode[mull.Error](t, rec); rec.Code != c.status || e.Code != mull.CodeNotAllowed {
 			t.Errorf("%s: %d %s, want %d not_allowed", name, rec.Code, rec.Body, c.status)
 		}
-		if l, _, _ := seen.Get(dir); l != look {
+		if l, _, _ := seen.Get(dir); !reflect.DeepEqual(l, look) {
 			t.Fatalf("%s: the look changed to %+v", name, l)
 		}
 	}

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"mull/internal/mull"
+	"mull/internal/seen"
 )
 
 // uiOps are the ops the UI offers. Each step of editing from the UI adds the
@@ -18,10 +19,15 @@ var uiOps = map[string]bool{
 }
 
 // OpsReport is what POST …/ops returns: each op's result, as mull batch
-// prints it, and the mull branch commit written ("" if nothing changed).
+// prints it, the mull branch commit written ("" if nothing changed), and
+// the records it changed, which the human has now acted on and so aren't
+// clouded. AckError says why they couldn't be recorded as acted on: the
+// write stands, and they stay clouded.
 type OpsReport struct {
-	Results []mull.BatchResult `json:"results"`
-	Commit  string             `json:"commit"`
+	Results      []mull.BatchResult `json:"results"`
+	Commit       string             `json:"commit"`
+	Acknowledged []mull.RecordRef   `json:"acknowledged"`
+	AckError     *mull.Error        `json:"ack_error,omitempty"`
 }
 
 // maxOpsBody bounds a write from the page (decisions and reasons are short).
@@ -69,8 +75,28 @@ func registerOps(mux *http.ServeMux, repos Repos) {
 			writeMullError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, OpsReport{Results: results, Commit: commit})
+		rep := OpsReport{Results: results, Commit: commit, Acknowledged: []mull.RecordRef{}}
+		if commit != "" {
+			if rep.Acknowledged, err = acknowledge(m, path, commit); err != nil {
+				rep.Acknowledged, rep.AckError = []mull.RecordRef{}, mull.AsError(err)
+			}
+		}
+		writeJSON(w, http.StatusOK, rep)
 	})
+}
+
+// acknowledge records every record commit changed as acted on by the
+// human, so what they just did isn't clouded as news, and returns them.
+func acknowledge(m *mull.Mull, path, commit string) ([]mull.RecordRef, error) {
+	refs, err := m.Wrote(commit)
+	if err != nil {
+		return nil, err
+	}
+	acks := make([]seen.Ack, 0, len(refs))
+	for _, r := range refs {
+		acks = append(acks, seen.Ack{Type: r.Type, ID: r.ID, Commit: commit})
+	}
+	return refs, seen.Acknowledge(path, acks)
 }
 
 // offered refuses ops the UI doesn't offer, and on-request: a write from

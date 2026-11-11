@@ -10,6 +10,7 @@ import (
 	"mull/internal/gittest"
 	"mull/internal/model"
 	"mull/internal/mull"
+	"mull/internal/seen"
 )
 
 // decision files an open decision in the repository dir is in.
@@ -108,5 +109,43 @@ func TestOpsRefused(t *testing.T) {
 	wantMullError(t, "an unknown project", post(t, h, "/api/projects/nope/ops", opsBody(t, tip, accept), nil), 404, mull.CodeNotFound)
 	if tipOf(t, dir) != tip {
 		t.Fatal("a refused write wrote")
+	}
+}
+
+// What the human does from the page isn't clouded as news: the records the
+// write changed are acknowledged, and other changes stay clouded.
+func TestOpsAcknowledge(t *testing.T) {
+	dir := onMull(t)
+	gittest.Git(t, dir, "config", "user.name", "Jeff")
+	h := Handler(func() ([]string, error) { return []string{dir}, nil })
+	base := "/api/projects/" + filepath.Base(dir)
+	get(t, h, base+"/revision") // the baseline
+
+	d := decision(t, dir, "use sqlite")
+	other := capture(t, dir, "Footer")
+	if rev := decode[RevisionReport](t, get(t, h, base+"/revision")); len(rev.Changes) != 2 {
+		t.Fatalf("before: %+v", rev.Changes)
+	}
+	rec := post(t, h, base+"/ops", opsBody(t, tipOf(t, dir), map[string]any{"op": "accept", "ids": []string{d}}), nil)
+	rep := decode[OpsReport](t, rec)
+	if rec.Code != 200 || rep.AckError != nil || len(rep.Acknowledged) != 1 || rep.Acknowledged[0] != (mull.RecordRef{Type: mull.RecordEntry, ID: d}) {
+		t.Fatalf("POST ops: %d %s", rec.Code, rec.Body)
+	}
+	rev := decode[RevisionReport](t, get(t, h, base+"/revision"))
+	if len(rev.Changes) != 1 || rev.Changes[0].ID != other {
+		t.Errorf("after approving: %+v, want only %s clouded", rev.Changes, other)
+	}
+	list := decode[ProjectList](t, get(t, h, "/api/projects"))
+	if r := list.Projects[0].Revision; r == nil || r.Changes != 1 {
+		t.Errorf("project list revision = %+v", r)
+	}
+	if l, _, _ := seen.Get(dir); len(l.Acked) != 1 || l.Acked[0].Commit != rep.Commit {
+		t.Errorf("look = %+v", l)
+	}
+
+	// Marking seen acknowledges everything, and the list goes.
+	post(t, h, base+"/seen", "", nil)
+	if l, _, _ := seen.Get(dir); l.Acked != nil {
+		t.Errorf("acks kept after marking seen: %+v", l.Acked)
 	}
 }

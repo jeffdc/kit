@@ -74,6 +74,22 @@ type Change struct {
 	At     string        `json:"at"` // the latest commit since that touched it
 }
 
+// Ref names the record a change is about.
+func (c Change) Ref() RecordRef { return RecordRef{Type: c.Type, ID: c.ID} }
+
+// RecordRef names one record as a Change does: its type and ID.
+type RecordRef struct {
+	Type string `json:"type"`
+	ID   string `json:"id"`
+}
+
+// Ack is a record the human acted on, and the commit that acted: its
+// changes up to and including that commit are no longer news to them.
+type Ack struct {
+	RecordRef
+	Commit string `json:"commit"`
+}
+
 // FieldChange is one changed field of a record. From and To are given for
 // short fields (stage, title, plan, phase…), not for text (notes, summary,
 // detail, doc).
@@ -106,6 +122,65 @@ func (m *Mull) Revision(since string) (Revision, error) {
 	}
 	out.Changes, err = m.recordChanges(since, tip)
 	return out, err
+}
+
+// Acknowledge leaves out of rev the changes to records the human acted on
+// (acks), unless a record changed again after the commit that acted. An ack
+// naming a commit that isn't on the mull branch up to the tip is ignored.
+func (m *Mull) Acknowledge(rev *Revision, acks []Ack) error {
+	if len(rev.Changes) == 0 || len(acks) == 0 {
+		return nil
+	}
+	after := map[string]map[RecordRef]bool{} // an ack's commit -> the records changed after it; nil if not on the branch
+	acked := map[RecordRef]bool{}
+	for _, a := range acks {
+		later, ok := after[a.Commit]
+		if !ok {
+			if m.knownCommit(a.Commit) && m.isAncestor(a.Commit, rev.Tip.Commit) {
+				changes, err := m.recordChanges(a.Commit, rev.Tip.Commit)
+				if err != nil {
+					return err
+				}
+				later = map[RecordRef]bool{}
+				for _, c := range changes {
+					later[c.Ref()] = true
+				}
+			}
+			after[a.Commit] = later
+		}
+		if later != nil && !later[a.RecordRef] {
+			acked[a.RecordRef] = true
+		}
+	}
+	kept := []Change{}
+	for _, c := range rev.Changes {
+		if !acked[c.Ref()] {
+			kept = append(kept, c)
+		}
+	}
+	rev.Changes = kept
+	return nil
+}
+
+// Wrote lists the records commit changed from its first parent: what one
+// write did. The mull branch's first commit wrote none.
+func (m *Mull) Wrote(commit string) ([]RecordRef, error) {
+	if !m.knownCommit(commit) {
+		return nil, errf(CodeInvalid, "%q is not a commit in this repository", commit)
+	}
+	out := []RecordRef{}
+	parent, code, err := m.repo.RunStatus(nil, nil, "rev-parse", "--verify", "--quiet", commit+"^1")
+	if err != nil || code != 0 {
+		return out, err
+	}
+	changes, err := m.recordChanges(strings.TrimSpace(string(parent)), commit)
+	if err != nil {
+		return nil, err
+	}
+	for _, c := range changes {
+		out = append(out, c.Ref())
+	}
+	return out, nil
 }
 
 // RevisionAt returns the revision commit names, which must be the mull
