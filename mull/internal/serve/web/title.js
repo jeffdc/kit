@@ -44,7 +44,7 @@ export function projectFields(pr, live) {
 export function projectHead(pr, data, tab, live) {
   const pid = pr.id;
   const head = titleBlock({ title: pid, crumbs: [`<a href="${href.home()}">All projects</a>`], fields: projectFields(pr, live) });
-  const counts = data?.tree?.counts || data?.overview?.counts;
+  const counts = data?.tree?.counts;
   const ch = data?.changes;
   const t = (key, label, link, count, cloud = "") => {
     const on = tab === key;

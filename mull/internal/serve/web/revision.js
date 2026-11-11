@@ -2,7 +2,7 @@
 // lists it. Changes decides what every sheet clouds; the revision schedule
 // lists the changes themselves.
 
-import { esc, href, stageLabel, clock, plural, CHEVRON } from "./html.js";
+import { esc, href, stageLabel, clock, plural, base, CHEVRON } from "./html.js";
 
 const captured = c => c.type === "item" && c.state === "captured";
 const identity = c => `${c.type}:${c.id}:${c.at}:${c.change}`;
@@ -74,8 +74,6 @@ function target(pid, c, entryHref) {
   }
   return "";
 }
-
-const base = path => String(path || "").split("/").filter(Boolean).pop() || "";
 
 // describe says what happened to a record, in a few words.
 export function describe(c) {

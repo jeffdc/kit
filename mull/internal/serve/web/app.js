@@ -1,19 +1,20 @@
 // mull serve's page: state, loading, routing and actions. The project list
 // comes from GET /api/projects; each readable project's tree and revision
-// are loaded for the sheet index, and the current project's overview with
-// them. GET /api/events says which project moved, and only that one is
+// are loaded for the sheet index, and the API pages the current sheet reads
+// with them. GET /api/events says which project moved, and only that one is
 // fetched again.
 
 import { api, listen } from "./api.js";
 import { esc, ago } from "./html.js";
 import { Changes } from "./revision.js";
 import { renderTree, expandFor, toggle, reveal } from "./tree.js";
-import { pageHome, pageProject, pageUndrawn, pageNotFound, pageUnreadable } from "./pages.js";
+import { pageHome, projectSheet, subsFor, pageNotFound, pageUnreadable } from "./pages.js";
+import { filterOf, clearFilter } from "./lists.js";
 
 const state = {
   projects: null,    // GET /api/projects, once loaded
   listError: null,
-  data: new Map(),   // project ID → {tree, revision, changes, overview, stale, …}
+  data: new Map(),   // project ID → {tree, revision, changes, pages: Map(API sub-path → {value} | {error})}
   live: false,       // the event stream is open
 };
 // What the human opened or closed (tiers, groups, the revision schedule),
@@ -23,7 +24,7 @@ const opened = new Map();
 const $ = id => document.getElementById(id);
 const main = $("main"), treeEl = $("tree");
 
-// ---- routes: #/<project>[/<kind>[/<id>]], mirroring the API's paths
+// ---- routes: #/<project>[/<kind>[/<id>[/<tab>]]], mirroring the API's paths
 
 function route() {
   let parts;
@@ -32,8 +33,8 @@ function route() {
   } catch {
     parts = ["?"];
   }
-  const [pid = null, kind = "", id = ""] = parts;
-  return { pid, kind, id };
+  const [pid = null, kind = "", id = "", sub = ""] = parts;
+  return { pid, kind, id, sub };
 }
 const KINDS = new Set(["", "plans", "phases", "items", "unplanned", "backlog"]);
 
@@ -74,18 +75,17 @@ function loadProject(id) {
   return coalesce("p:" + id, async () => {
     const d = state.data.get(id) || {};
     state.data.set(id, d);
-    const current = route().pid === id;
-    const [tree, rev, ov] = await Promise.allSettled([api.tree(id), api.revision(id), current ? api.overview(id) : null]);
+    const r = route(), current = r.pid === id;
+    const subs = current ? subsFor(r) : [];
+    const [tree, rev, ...pages] = await Promise.allSettled([api.tree(id), api.revision(id), ...subs.map(s => api.page(id, s))]);
     if (!readable(id)) return;
     const first = !d.tree;
     if (tree.status === "fulfilled") { d.tree = tree.value; d.treeError = null; } else d.treeError = tree.reason;
     if (first && d.tree && current) expandFor(route(), state); // now the tree knows where the route's row is
     if (rev.status === "fulfilled") useRevision(id, rev.value);
-    if (current) {
-      if (ov.status === "fulfilled") { d.overview = ov.value; d.overviewError = null; d.stale = false; } else d.overviewError = ov.reason;
-    } else {
-      d.stale = true; // fetched again when the human opens it
-    }
+    // Only the pages just read are kept: any other is fetched again when
+    // the human opens it, so nothing stale is shown after a change.
+    d.pages = new Map(subs.map((s, i) => [s, pages[i].status === "fulfilled" ? { value: pages[i].value } : { error: pages[i].reason }]));
     render();
   });
 }
@@ -114,8 +114,7 @@ function page(r) {
   if (!pr) return pageNotFound(`No project “${r.pid}” is registered with mull serve.`);
   if (pr.error) return pageUnreadable(pr);
   if (!KINDS.has(r.kind) || (r.kind !== "" && r.kind !== "unplanned" && r.kind !== "backlog" && !r.id)) return pageNotFound("That isn't a sheet in this set.");
-  if (r.kind === "") return pageProject(state, pr);
-  return pageUndrawn(state, pr, r);
+  return projectSheet(state, pr, r);
 }
 
 function title(r) {
@@ -143,6 +142,7 @@ function render() {
   document.title = title(r);
   for (const el of main.querySelectorAll("[data-open]")) {
     if (opened.has(el.dataset.open)) el.open = opened.get(el.dataset.open);
+    if (el.dataset.rows) showRows(el);
   }
   joinRowClouds(main);
   renderTree(treeEl, state, r);
@@ -225,10 +225,26 @@ async function markSeen(pid, btn) {
   }
 }
 
+// showRows shows or hides the table rows a group's <details> folds.
+function showRows(det) {
+  for (const tr of main.querySelectorAll(`tr[data-group="${CSS.escape(det.dataset.rows)}"]`)) tr.hidden = !det.open;
+}
+
 document.addEventListener("toggle", ev => {
   const k = ev.target.dataset?.open;
   if (k) opened.set(k, ev.target.open);
+  if (ev.target.dataset?.rows) showRows(ev.target);
 }, true);
+
+// Backlog filters: the kind buttons, the checkbox and the selects.
+function setFilter(el) {
+  const f = filterOf(el.dataset.filter), k = el.dataset.k;
+  f[k] = el.type === "checkbox" ? el.checked : el.dataset.v ?? el.value;
+  render();
+}
+document.addEventListener("change", ev => {
+  if (ev.target.matches("select[data-filter], input[data-filter]")) setFilter(ev.target);
+});
 
 document.addEventListener("click", ev => {
   const t = ev.target;
@@ -244,6 +260,10 @@ document.addEventListener("click", ev => {
     treeEl.querySelector(`[data-tg="${CSS.escape(tg.dataset.tg)}"]`)?.focus();
     return;
   }
+  const fb = t.closest("button[data-filter]");
+  if (fb) { setFilter(fb); return; }
+  const clear = t.closest("[data-clear]");
+  if (clear) { clearFilter(clear.dataset.clear); render(); return; }
   const seen = t.closest("[data-seen]");
   if (seen) { markSeen(seen.dataset.seen, seen); return; }
   const cmd = t.closest("[data-cmd]");
@@ -273,7 +293,7 @@ window.addEventListener("hashchange", () => {
   const r = route();
   expandFor(r, state);
   const d = r.pid && state.data.get(r.pid);
-  if (d && (d.stale || !d.overview)) loadProject(r.pid);
+  if (d && subsFor(r).some(s => !d.pages?.has(s))) loadProject(r.pid);
   render();
   reveal(treeEl);
   window.scrollTo(0, 0);
