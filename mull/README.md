@@ -30,7 +30,7 @@ A local web page of every repository on mull, live as agents write. Repositories
 - **The backlog and unplanned work,** and the repositories beside yours that aren't on mull yet.
 - **What changed since you last looked** is clouded in red; Mark revision seen clears it. The last look is kept on this machine, never on the mull branch.
 
-It listens on 127.0.0.1 only, and writes mull data only as you, through the ops its pages offer. After `make install`, the LaunchAgent restarts on the new build, and open pages reload themselves when they reconnect to it. Most actions copy the mull command to run; approving, answering and deciding save from the page. `mull guide json` documents its API; [docs/serve/](docs/serve/) its design, and [docs/serve/DESIGN.md](docs/serve/DESIGN.md) its design system.
+It listens on 127.0.0.1 only, and writes mull data only as you, through the ops its pages offer. After `make install`, the LaunchAgent restarts on the new build, and open pages reload themselves when they reconnect to it. Most actions copy the mull command to run; approving, answering, deciding and settling reviews save from the page. `mull guide json` documents its API; [docs/serve/](docs/serve/) its design, and [docs/serve/DESIGN.md](docs/serve/DESIGN.md) its design system.
 
 ## Output
 

@@ -17,6 +17,7 @@ import (
 var uiOps = map[string]bool{
 	"accept": true, // approve decisions
 	"decide": true, // answer a question, or decide a decision differently
+	"do":     true, // send reviewed work back
 }
 
 // OpsReport is what POST …/ops returns: each op's result, as mull batch

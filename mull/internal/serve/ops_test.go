@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"mull/internal/gittest"
@@ -180,5 +181,66 @@ func TestOpsDecide(t *testing.T) {
 	}
 	if b := got[d]; b.Decision != "use postgres" || b.Context != "use sqlite" || !b.Human {
 		t.Errorf("decided differently = %+v", b)
+	}
+}
+
+// inReview puts a new unplanned item through mull done, carrying one open
+// decision, and returns the item's ID and its review entry's.
+func inReview(t *testing.T, dir string) (item, review, dec string) {
+	t.Helper()
+	m, err := mull.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Batch(strings.NewReader(`{"op": "config checks", "commands": ["true"]}`), false); err != nil {
+		t.Fatal(err)
+	}
+	it, err := m.ItemAdd(mull.NewItem{Plan: model.NoPlan, Title: "Digest job"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Start(it.ID); err != nil {
+		t.Fatal(err)
+	}
+	d, err := m.Capture(mull.CaptureInput{Kind: model.KindDecision, Text: "one digest a day", Item: it.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	done, err := m.Done(it.ID, mull.DoneInput{Summary: "built", Design: "simply"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return it.ID, done.Review, d.ID
+}
+
+// The page accepts a review (ratifying what it carries) or sends it back
+// with a reason, as the human, even for work done in the server's own
+// worktree.
+func TestOpsReview(t *testing.T) {
+	dir := onMull(t)
+	gittest.Git(t, dir, "config", "user.name", "Jeff")
+	h := Handler(func() ([]string, error) { return []string{dir}, nil })
+	url := "/api/projects/" + filepath.Base(dir) + "/ops"
+	m, _ := mull.Open(dir)
+
+	item, review, _ := inReview(t, dir)
+	rec := post(t, h, url, opsBody(t, tipOf(t, dir), map[string]any{"op": "do", "id": review, "reason": "the digest skips Sundays"}), nil)
+	if rec.Code != 200 {
+		t.Fatalf("send back: %d %s", rec.Code, rec.Body)
+	}
+	if v, _ := m.Show(item); v.Item.State != model.StateCommitted || !strings.Contains(v.Item.Notes, "the digest skips Sundays") {
+		t.Errorf("sent back item = %+v", v.Item)
+	}
+
+	item, _, dec := inReview(t, dir)
+	rec = post(t, h, url, opsBody(t, tipOf(t, dir), map[string]any{"op": "accept", "ids": []string{item}}), nil)
+	if rec.Code != 200 {
+		t.Fatalf("accept: %d %s", rec.Code, rec.Body)
+	}
+	if v, _ := m.Show(item); v.Item.State != model.StateDone {
+		t.Errorf("accepted item = %+v", v.Item)
+	}
+	if v, _ := m.Show(dec); v.Entry == nil || v.Entry.Settled == nil || v.Entry.Settled.By != "Jeff" || !v.Entry.Settled.Human {
+		t.Errorf("carried decision = %+v", v.Entry)
 	}
 }

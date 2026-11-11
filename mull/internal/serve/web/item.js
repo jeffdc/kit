@@ -1,12 +1,13 @@
 // An item's sheet: its title block, what to do with a captured one, what
 // needs you about it, the review packet when it has a done report, and its
-// notes. Deciding a decision differently writes (write.js); the other
-// actions copy the mull command.
+// notes. Accepting or sending back a review, and deciding a decision
+// differently, write (write.js); the other actions copy the mull command.
 
 import { esc, href, tag, itemStage, shortTitle, plural, clock, ago, base } from "./html.js";
 import { titleBlock } from "./title.js";
 import { schedule, decideDifferently } from "./needs.js";
 import { markdown } from "./doc.js";
+import { writeButton, writeState, textWrite, failure } from "./write.js";
 
 const short = sha => esc(String(sha || "").slice(0, 7));
 
@@ -59,10 +60,21 @@ function gitField(g) {
 function review(pid, it, page) {
   const { entry, report: r, decisions } = page.review;
   const open = decisions.filter(d => !d.settled);
-  let state;
+  let state, below = "";
   if (entry && !entry.settled) {
-    state = `<button class="btn" data-cmd="mull do ${esc(it.id)} --reason &quot;…&quot;">Send it back</button>` +
-      `<button class="btn p" data-cmd="mull accept ${esc(it.id)}" data-say="Accepting also ratifies ${esc(plural(open.length, "open decision"))}.">Accept${open.length ? ` with its ${plural(open.length, "decision")}` : ""}</button>`;
+    // Accepting ratifies the open decisions it carries: armed, it lists them.
+    const key = `accept:${pid}:${it.id}`;
+    const accept = writeButton({ pid, key, ops: [{ op: "accept", ids: [it.id] }], small: false,
+      label: `Accept${open.length ? ` with its ${plural(open.length, "decision")}` : ""}`, ask: open.length ? `Accept and ratify ${open.length}?` : "Accept?",
+      done: `Accepted ${it.id}${open.length ? ` and ratified ${plural(open.length, "decision")}` : ""}. It's done.` });
+    const back = textWrite({ pid, key: `sendback:${pid}:${it.id}`, ops: [{ op: "do", id: entry.id }], field: "reason", small: false,
+      label: "Send it back", save: "Send it back", done: `Sent ${it.id} back. It reopens for another session.`,
+      placeholder: "What's wrong. It goes into the item's notes for the next session; its decisions stay open." });
+    state = back.button + accept;
+    const ratifies = writeState(key).armed
+      ? `<p class="rv-note">${open.length ? `Accepting also ratifies ${open.map(d => `<code>${esc(d.id)}</code> ${esc(d.text)}`).join("; ")}. Decide one differently first if it isn't right.` : "Accepting marks it done; it carries no open decisions."}</p>`
+      : "";
+    below = ratifies + failure(key, `Accepting ${it.id}`) + back.form;
   } else if (entry?.settled) {
     const s = entry.settled;
     state = `${tag(s.action === "accept" ? "done" : "committed", SETTLED[s.action] || s.action)} <span class="sub">${esc(clock(s.at))}${s.note ? ` · ${esc(s.note)}` : ""}</span>`;
@@ -87,7 +99,7 @@ function review(pid, it, page) {
       l.files.map(f => `<tr><td><code class="mut">${esc(f.status)}</code> <code>${esc(f.path)}</code></td><td></td><td class="n mono">+${f.added}</td><td class="n mono">−${f.removed}</td></tr>`).join("");
   }).join("");
   return `<section class="review">
-    <div class="rv-head"><h2>Review: does it work, and was it built well?</h2>${state}</div>
+    <div class="rv-head"><h2>Review: does it work, and was it built well?</h2>${state}</div>${below}
     <div class="pk">
       <section><div class="hd"><h2>What was built</h2><span class="lab">Does it work?</span></div>
         <div class="prose">${markdown(r.summary, pid)}</div>

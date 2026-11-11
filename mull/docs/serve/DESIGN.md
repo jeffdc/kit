@@ -167,7 +167,7 @@ The build in `mull/internal/serve/web/` is the source of truth (`style.css` hold
 
 A project is a set of drawings issued for review. The left rail is the sheet index, every page opens with a title block of boxed fields, lists are schedules (ruled tables and numbered tiers), and whatever changed since the human last looked is ringed by a red revision cloud. The look is white bond paper with ink linework (deep graphite with light linework in dark), pale blue construction lines for minor rules, square corners, and no elevation.
 
-It's dense in the way a drawing sheet is dense. Small type sits in a tight grid, every region is boxed or ruled, and colour is rare enough that each hue reads as a checker's mark with one job. Actions are of two kinds. Most copy a mull command or an agent prompt to the clipboard and say so in a toast. A few save to mull as the human (approving, answering and deciding, so far), and those look different, ask once more, and show where they failed. A copy action must never look like it saves anything, and a write must never look like a copy.
+It's dense in the way a drawing sheet is dense. Small type sits in a tight grid, every region is boxed or ruled, and colour is rare enough that each hue reads as a checker's mark with one job. Actions are of two kinds. Most copy a mull command or an agent prompt to the clipboard and say so in a toast. A few save to mull as the human (approving, answering, deciding, and accepting or sending back a review, so far), and those look different, ask once more, and show where they failed. A copy action must never look like it saves anything, and a write must never look like a copy.
 
 Rejected outright by the contract: soft cards on grey, status pills everywhere, cream-and-serif "AI" styling, delta triangles and per-row change counts.
 
@@ -313,6 +313,10 @@ Square corners throughout (`rounded.none`), and `select` resets its radius to 0.
 - **Open by default:** the Blocking, Review and Now tiers. Open state persists across live re-renders.
 - **Decision tier:** groups sources. A group's header has "Approve all" (or "Approve" for a group of one), a write that accepts its open decisions; each decision in a larger group has its own "Approve". Every decision has "Decide differently" (a text write: `decide`, replacing the agent's in the decision log), carried by a review or not, as in the review packet. A row's own buttons show on hover or focus (always on touch screens) so a group isn't a column of boxes. A group a review carries has "Review" instead of Approve all, and no approve of its own: it's settled by reviewing it.
 - Tiers holding more than one entry offer "Copy all N for an agent".
+
+### Review packet
+- The header (`.rv-head`) holds the title, then "Send it back" and "Accept" (with "with its N decisions" when it carries open ones), both writes. Accept arms like any write ("Accept and ratify 2?"), and while armed a line under the header names each decision it will ratify, with "Decide one differently first if it isn't right". Send it back is a text write: the reason goes into the item's notes for the next session (`do` on the review entry). Their form, note and failure line sit between the header and the two columns.
+- Once settled, the header shows the outcome as a tag ("accepted", "sent back") with the time and the reason.
 
 ### Plans column
 - Each plan gets a title and stage tag, then a definition list (76px label column) with Built / Now / Next / Go live / Agents. Rows hold name, stamp, cell bar and a mono ratio, and are separated by construction lines.
