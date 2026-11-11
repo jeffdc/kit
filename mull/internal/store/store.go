@@ -254,11 +254,24 @@ func (t *Tx) List(prefix string) []string {
 	return out
 }
 
+// Commit is the mull branch commit this transaction read.
+func (t *Tx) Commit() string { return t.snap.Commit }
+
 func (t *Tx) changed() bool { return len(t.puts) > 0 || len(t.dels) > 0 }
 
 // View runs fn against the current snapshot without writing.
 func (s *Store) View(fn func(tx *Tx) error) error {
 	snap, err := s.Load()
+	if err != nil {
+		return err
+	}
+	return fn(newTx(snap))
+}
+
+// ViewAt runs fn against the mull branch as it was at commit, without
+// writing. commit must be a commit in this repository.
+func (s *Store) ViewAt(commit string, fn func(tx *Tx) error) error {
+	snap, err := s.loadCommit(commit)
 	if err != nil {
 		return err
 	}

@@ -191,3 +191,27 @@ func TestUpdateRerunsOnRace(t *testing.T) {
 		t.Errorf("fn ran %d times, want 2", runs)
 	}
 }
+
+func TestViewAt(t *testing.T) {
+	dir := gittest.NewRepo(t)
+	s := newStore(t, dir)
+	if err := s.Init("init", map[string][]byte{"a": []byte("1")}); err != nil {
+		t.Fatal(err)
+	}
+	first := gittest.Git(t, dir, "rev-parse", Ref)
+	if err := s.Update("change", func(tx *Tx) error { tx.Put("a", []byte("2")); return nil }); err != nil {
+		t.Fatal(err)
+	}
+	err := s.ViewAt(first, func(tx *Tx) error {
+		if b, _ := tx.Get("a"); string(b) != "1" || tx.Commit() != first {
+			t.Errorf("ViewAt(first): a = %q at %s, want 1 at %s", b, tx.Commit(), first)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ViewAt("0123456789012345678901234567890123456789", func(*Tx) error { return nil }); err == nil {
+		t.Error("ViewAt an unknown commit: no error")
+	}
+}
