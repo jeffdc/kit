@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "mull/internal/serve/web/style.css"
+        ],
+        "createdAt": "2026-11-11T00:25:37.602Z",
+        "reason": "agent (item e3f5): the remaining hits are ported verbatim from the approved reference docs/serve/prototype.html — .node.cur's 3px blueline marks the selected sheet-index row, and .cells i.a1 is a bottom bar inside an 8px progress cell, not a card side-tab"
+      }
+    ]
+  }
+}
