@@ -128,6 +128,7 @@ func (s *state) index() {
 		i := s.items[id]
 		s.byPhase[i.Phase] = append(s.byPhase[i.Phase], i)
 	}
+	s.search = s.searchDocs()
 	s.byItem = map[string][]*model.Entry{}
 	for _, id := range sortedKeys(s.entries) {
 		if e := s.entries[id]; e.Item != "" {

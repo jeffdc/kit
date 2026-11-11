@@ -267,6 +267,7 @@ func plan(repo string, back []int) (Shape, []target, error) {
 		page("backlog", "/api/projects/{id}/backlog", func() error { _, err := m.BacklogPage(""); return err }),
 		page("unplanned", "/api/projects/{id}/unplanned", func() error { _, err := m.UnplannedPage(false); return err }),
 		{name: "board (mull view)", call: func() error { _, err := m.Board(""); return err }},
+		page("search (a common word)", "/api/search?q=the", func() error { _, err := m.Search("the", 30); return err }),
 	}
 	// The open plan with the most items, and the done plan with the most.
 	count := map[string]int{}

@@ -107,6 +107,7 @@ type state struct {
 	// being written, whose records may change under them.
 	byPhase map[string][]*model.Item  // items by phase, in ID order
 	byItem  map[string][]*model.Entry // entries by item, in ID order
+	search  []searchDoc               // every record as search reads it
 }
 
 func load(tx *store.Tx) (*state, error) { return loadFrom(tx, nil) }

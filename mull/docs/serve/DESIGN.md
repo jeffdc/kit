@@ -345,6 +345,11 @@ Square corners throughout (`rounded.none`), and `select` resets its radius to 0.
 - Static, in `model.js`: the hierarchy as a mono tree diagram (bold record names, muted asides; it scrolls sideways on a phone), the item stages as stage tags joined by arrows, the six Needs you tiers as a schedule table (rank, title and hint, what lands there), the rules and the commands the human runs as two-column definition lists (`.rules`; one column at ≤860px).
 - It holds no status and no live data. When the model or a tier's wording changes, change it here too (tier titles and hints match `internal/mull/needsyou.go`).
 
+### Find
+- `s` (anywhere but a text field) or the Find button in the brand row opens a band across the top of the sheet: Panel Grey, closed by a 1.5px ink rule, pushing the sheet down. It's in place, not an overlay, so the toast stays the only floating thing.
+- A "Find" label, a search input in a square 1px ink box, and a muted key hint. Results are a list under it in construction lines: mono ID (truncated past 84px), the title in 550 with a muted "project · kind · on <item>" line, and the record's stage tag (or, for a settled inbox entry, its settlement as a label). The selected row takes the Selected fill; hover is Panel Grey.
+- It searches every project (`GET /api/search?q=`): an exact ID first, then IDs it starts, then titles whose words start with the query's, then titles containing them. Up and Down move, Enter or a click opens the record's sheet (an inbox entry opens its item's, or its plan's), and Esc closes. Live re-renders never touch it: the sheet renders into `#main` beside it.
+
 ### Toast
 - An ink block with Bond text, fixed 18px from the bottom right (it respects the safe-area inset). It's at most 440px wide and lasts 5s. It's the only floating element.
 
