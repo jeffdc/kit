@@ -261,7 +261,7 @@ Both families are self-hosted woff2 under `/fonts/`: Archivo variable (wdth 62�
 
 ## Elevation & Depth
 
-Flat. There are no drop shadows and nothing floats except the toast. Depth comes from rules and fills: 1.5px ink rules mark structure (the rail edge, the title block base, section heads, table header base), 1px ink outlines box controls, 1px construction lines divide rows and fields, and Panel Grey fills header bands. Hover means a Panel Grey or Rail Select fill, never a lift.
+Flat. There are no drop shadows, and only two things float: the toast and the Find palette (the human chose a floating palette on 2026-11-11, after a band at the top of the sheet proved jarring). Even they float flat, with no shadow: the palette sits over a scrim. Depth comes from rules and fills: 1.5px ink rules mark structure (the rail edge, the title block base, section heads, table header base), 1px ink outlines box controls, 1px construction lines divide rows and fields, and Panel Grey fills header bands. Hover means a Panel Grey or Rail Select fill, never a lift.
 
 `box-shadow` appears only inset, as linework. It draws the blocking stamp's 1px outline, the current tree row's 3px blue left bar, the underline of the active cell in a cell bar, and the hollow Offline dot.
 
@@ -308,7 +308,7 @@ Square corners throughout (`rounded.none`), and `select` resets its radius to 0.
 ### Needs you schedule (signature)
 - Numbered tiers 01–06 in a `details` list, ranked by what answering unblocks. The ranking comes from the API.
 - **Tier header:** a Panel Grey band (32px) with mono rank, chevron, bold title, muted mono count, and a right-aligned muted hint.
-- **Rows:** a grid of rank number (1.1, 1.2…), mono ID, text (550) with a muted "where" line of underlined links, and small action buttons. A question has "Discuss with an agent" (copies a prompt) and "Answer" (a text write: `decide`, joining the decision log). Questions and decisions also have "More", a plain toggle (Panel Grey while open, reading "Less") that shows "Park" and "Drop" in place, as nothing floats: text writes taking a reason (`park`; `drop`, whose Save reads "Drop it for good" as it can't be undone). A row's form opens on its own line under the row, the width of the text and actions; the actions wrap within 380px so the text keeps its room.
+- **Rows:** a grid of rank number (1.1, 1.2…), mono ID, text (550) with a muted "where" line of underlined links, and small action buttons. A question has "Discuss with an agent" (copies a prompt) and "Answer" (a text write: `decide`, joining the decision log). Questions and decisions also have "More", a plain toggle (Panel Grey while open, reading "Less") that shows "Park" and "Drop" in place, as row controls never float: text writes taking a reason (`park`; `drop`, whose Save reads "Drop it for good" as it can't be undone). A row's form opens on its own line under the row, the width of the text and actions; the actions wrap within 380px so the text keeps its room.
 - **Blocking tier:** its title gets a yellow highlighter swipe (a gradient covering 12–88% of the line height), and its row actions are primary.
 - **Open by default:** the Blocking, Review and Now tiers. Open state persists across live re-renders.
 - **Decision tier:** groups sources. A group's header has "Approve all" (or "Approve" for a group of one), a write that accepts its open decisions; each decision in a larger group has its own "Approve". Every decision has "Decide differently" (a text write: `decide`, replacing the agent's in the decision log), carried by a review or not, as in the review packet, and "More" for Park and Drop. A row's own buttons show on hover or focus (always on touch screens) so a group isn't a column of boxes. A group a review carries has "Review" instead of Approve all, and no approve of its own: it's settled by reviewing it.
@@ -346,12 +346,12 @@ Square corners throughout (`rounded.none`), and `select` resets its radius to 0.
 - It holds no status and no live data. When the model or a tier's wording changes, change it here too (tier titles and hints match `internal/mull/needsyou.go`).
 
 ### Find
-- `s` (anywhere but a text field) or the Find button in the brand row opens a band across the top of the sheet: Panel Grey, closed by a 1.5px ink rule, pushing the sheet down. It's in place, not an overlay, so the toast stays the only floating thing.
-- A "Find" label, a search input in a square 1px ink box, and a muted key hint. Results are a list under it in construction lines: mono ID (truncated past 84px), the title in 550 with a muted "project · kind · on <item>" line, and the record's stage tag (or, for a settled inbox entry, its settlement as a label). The selected row takes the Selected fill; hover is Panel Grey.
-- It searches every project (`GET /api/search?q=`): an exact ID first, then IDs it starts, then titles whose words start with the query's, then titles containing them. Up and Down move, Enter or a click opens the record's sheet (an inbox entry opens its item's, or its plan's), and Esc closes. Live re-renders never touch it: the sheet renders into `#main` beside it.
+- `s` (anywhere but a text field) or the Find button in the brand row opens a command palette floating in the middle of the screen, about a seventh of the way down, over a scrim of ink at 28%. It's the one floating panel besides the toast, and it floats flat: a 1.5px ink box on the ground colour, no shadow, no radius, at most 680px wide. A click on the scrim or Esc closes it and gives focus back.
+- A Panel Grey head under a 1.5px ink rule holds a "Find" label and a search input in a square 1px ink box. Results list under it, divided by construction lines: mono ID (truncated past 84px), the title in 550 with a muted "project · kind · on <item>" line, and the record's stage tag (or, for a settled inbox entry, its settlement as a label). The selected row takes the Selected fill; hover is Panel Grey. A muted foot gives the keys.
+- It searches every project (`GET /api/search?q=`): an exact ID first, then IDs it starts, then titles whose words start with the query's, then titles containing them. Up and Down move, Enter or a click opens the record's sheet (an inbox entry opens its item's, or its plan's).
 
 ### Toast
-- An ink block with Bond text, fixed 18px from the bottom right (it respects the safe-area inset). It's at most 440px wide and lasts 5s. It's the only floating element.
+- An ink block with Bond text, fixed 18px from the bottom right (it respects the safe-area inset). It's at most 440px wide and lasts 5s. Besides the Find palette, it's the only floating element.
 
 ### Motion
 - The live dot pulses to 0.35 opacity every 2.4s, and the Offline dot is a hollow muted ring that doesn't move. Chevrons rotate in 0.15s ease-out.
