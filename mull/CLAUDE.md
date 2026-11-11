@@ -28,6 +28,7 @@ Agents and humans use it only through the CLI. Data commands print JSON; errors 
 - `internal/model`: records and their file format (YAML frontmatter plus a markdown body).
 - `internal/mull`: operations: plans, phases, items, needs and readiness, claims, the inbox, the decision log.
 - `internal/gittest`: throwaway repos and worktrees for tests, isolated from global git config.
+- `internal/serve`: `mull serve`, the human's web UI (Go server; plain JS modules, CSS and fonts in `web/`, embedded). Its design lives in `docs/serve/`: `direction.md` (the contract), `PRODUCT.md`, `prototype.html`, and `DESIGN.md`, the design system as built. Read `DESIGN.md` before changing the UI; it's there rather than at the project root, where impeccable looks first.
 
 ## Build and test
 
