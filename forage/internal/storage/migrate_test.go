@@ -154,3 +154,38 @@ func TestCreateBookWithIDRejectsBadInput(t *testing.T) {
 		t.Errorf("duplicate id: err = %v, want ErrExists", err)
 	}
 }
+
+func TestMigrateOwnedStatusToFlag(t *testing.T) {
+	dir := legacyDB(t) // a1b2: status read
+	db, err := sql.Open("sqlite", filepath.Join(dir, "forage.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO books (id, title, author, status, date_added) VALUES
+		('c3d4', 'Babel', 'R. F. Kuang', 'owned', '2024-01-01')`); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+
+	s, err := New(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { s.Close() })
+
+	b, _ := s.GetBook("c3d4")
+	if b.Status != "to_read" || !b.Owned {
+		t.Errorf("owned book after migration: status %q, owned %v", b.Status, b.Owned)
+	}
+	if read, _ := s.GetBook("a1b2"); read.Status != "read" || read.Owned {
+		t.Errorf("read book after migration: status %q, owned %v", read.Status, read.Owned)
+	}
+	// Clients synced before the migration (at rev 1) learn about the change.
+	c, err := s.ChangesSince(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Full || len(c.Books) != 1 || c.Books[0].ID != "c3d4" {
+		t.Errorf("feed since rev 1: %+v", c)
+	}
+}

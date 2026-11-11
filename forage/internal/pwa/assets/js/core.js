@@ -2,10 +2,11 @@
 // sync planning, search, sorting and grouping. No DOM, no IndexedDB, no
 // network, so it runs (and is tested) under Node as well as in the browser.
 
-export const STATUSES = ["wishlist", "owned", "reading", "paused", "read", "dropped"];
+// Status is where a book stands as reading. Ownership is separate: book.owned.
+export const STATUSES = ["wishlist", "to_read", "reading", "paused", "read", "dropped"];
 
 export const STATUS_LABEL = {
-  wishlist: "Wishlist", owned: "Owned", reading: "Reading",
+  wishlist: "Wishlist", to_read: "To Read", reading: "Reading",
   paused: "Paused", read: "Read", dropped: "Abandoned", // stored as "dropped"
 };
 
@@ -245,14 +246,14 @@ export function wishlistBooks(view, sort = "author") {
   return list.sort((SORTS[sort] || SORTS.author).fn);
 }
 
-/** Reading tab: reading, paused, and owned books not started yet. */
+/** Reading tab: reading, paused, and books to read that aren't started. */
 export function readingBooks(view, sort = "title") {
   const fn = (SORTS[sort] || SORTS.title).fn;
   const all = [...view.books.values()];
   return {
     reading: all.filter((b) => b.status === "reading").sort(fn),
     paused: all.filter((b) => b.status === "paused").sort(fn),
-    owned: all.filter((b) => b.status === "owned").sort(fn),
+    toRead: all.filter((b) => b.status === "to_read").sort(fn),
   };
 }
 
@@ -294,13 +295,13 @@ export function lastRead(view, bookId) {
 
 // --- Seller links ---
 
-/** Used-book sellers first, Amazon last, as a price reference. */
-const SELLER_ORDER = ["Better World Books", "ThriftBooks", "AbeBooks", "Biblio", "BookFinder", "Bookshop.org", "WorldCat", "Goodreads", "Amazon"];
+/** Used-book sellers first, Amazon as a price reference, then a web search. */
+const SELLER_ORDER = ["Better World Books", "ThriftBooks", "AbeBooks", "Biblio", "BookFinder", "Bookshop.org", "WorldCat", "Goodreads", "Amazon", "Kagi"];
 
 export function orderSellers(sellers) {
   const rank = (s) => {
     const i = SELLER_ORDER.indexOf(s.name);
-    return i < 0 ? SELLER_ORDER.length - 1 : i;
+    return i < 0 ? SELLER_ORDER.indexOf("Amazon") : i;
   };
   return [...sellers].sort((a, b) => rank(a) - rank(b));
 }

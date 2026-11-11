@@ -45,6 +45,7 @@ var defaultBooksellers = []model.Bookseller{
 	{Name: "Goodreads", URL: "https://www.goodreads.com/search?q={query}"},
 	{Name: "Amazon", URL: "https://www.amazon.com/s?k={query}&i=stripbooks"},
 	{Name: "BookFinder", URL: "https://www.bookfinder.com/search/?keywords={query}&mode=basic&st=sr&ac=qr"},
+	{Name: "Kagi", URL: "https://kagi.com/search?q={query}"},
 }
 
 // appliedOpsRetention bounds how long op IDs are remembered for replay.
@@ -185,7 +186,7 @@ type queryer interface {
 // --- Books ---
 
 const bookSelect = `SELECT b.id, b.title, b.author, b.status, b.tags, b.rating, b.date_added, b.body,
-	b.sort_author, b.page_count, b.first_published, b.isbn, b.rev, b.updated_at, b.deleted,
+	b.sort_author, b.page_count, b.first_published, b.isbn, b.owned, b.rev, b.updated_at, b.deleted,
 	COALESCE((SELECT MAX(r.date_finished) FROM reads r WHERE r.book_id = b.id AND r.deleted = 0), '')
 	FROM books b`
 
@@ -197,7 +198,7 @@ func scanBook(sc scanner) (*model.Book, error) {
 	var b model.Book
 	var tags string
 	if err := sc.Scan(&b.ID, &b.Title, &b.Author, &b.Status, &tags, &b.Rating, &b.DateAdded, &b.Body,
-		&b.SortAuthor, &b.PageCount, &b.FirstPublished, &b.ISBN, &b.Rev, &b.UpdatedAt, &b.Deleted,
+		&b.SortAuthor, &b.PageCount, &b.FirstPublished, &b.ISBN, &b.Owned, &b.Rev, &b.UpdatedAt, &b.Deleted,
 		&b.DateRead); err != nil {
 		return nil, err
 	}
@@ -280,6 +281,9 @@ func createBookTx(tx *sql.Tx, rev int64, now string, b *model.Book) (*model.Book
 	if nb.Status == "" {
 		nb.Status = "wishlist"
 	}
+	if nb.Status == model.LegacyOwned {
+		nb.Status, nb.Owned = "to_read", true
+	}
 	if nb.SortAuthor == "" {
 		nb.SortAuthor = model.AuthorSortKey(nb.Author)
 	}
@@ -295,10 +299,10 @@ func createBookTx(tx *sql.Tx, rev int64, now string, b *model.Book) (*model.Book
 
 	res, err := tx.Exec(
 		`INSERT INTO books (id, title, author, status, tags, rating, date_added, body, sort_author,
-		 page_count, first_published, isbn, rev, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`,
+		 page_count, first_published, isbn, owned, rev, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`,
 		nb.ID, nb.Title, nb.Author, nb.Status, strings.Join(nb.Tags, ","), nb.Rating, nb.DateAdded, nb.Body,
-		nb.SortAuthor, nb.PageCount, nb.FirstPublished, nb.ISBN, rev, now,
+		nb.SortAuthor, nb.PageCount, nb.FirstPublished, nb.ISBN, nb.Owned, rev, now,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("inserting book: %w", err)
@@ -340,6 +344,7 @@ func (s *Store) UpdateBook(id string, fields map[string]string) (*model.Book, er
 var updatableBookFields = map[string]bool{
 	"title": true, "author": true, "status": true, "rating": true, "tags": true, "body": true,
 	"sort_author": true, "page_count": true, "first_published": true, "isbn": true, "date_added": true,
+	"owned": true,
 }
 
 func updateBookTx(tx *sql.Tx, rev int64, now, id string, fields map[string]string) (*model.Book, error) {
@@ -365,9 +370,9 @@ func updateBookTx(tx *sql.Tx, rev int64, now, id string, fields map[string]strin
 
 	if _, err := tx.Exec(
 		`UPDATE books SET title = ?, author = ?, status = ?, tags = ?, rating = ?, body = ?, sort_author = ?,
-		 page_count = ?, first_published = ?, isbn = ?, date_added = ?, rev = ?, updated_at = ? WHERE id = ?`,
+		 page_count = ?, first_published = ?, isbn = ?, date_added = ?, owned = ?, rev = ?, updated_at = ? WHERE id = ?`,
 		b.Title, b.Author, b.Status, strings.Join(b.Tags, ","), b.Rating, b.Body, b.SortAuthor,
-		b.PageCount, b.FirstPublished, b.ISBN, b.DateAdded, rev, now, id,
+		b.PageCount, b.FirstPublished, b.ISBN, b.DateAdded, b.Owned, rev, now, id,
 	); err != nil {
 		return nil, fmt.Errorf("updating book: %w", err)
 	}
@@ -645,6 +650,9 @@ func applyMeta(b *model.Book, meta map[string]string) error {
 			b.Author = v
 		case "status":
 			b.Status = v
+			if v == model.LegacyOwned {
+				b.Status, b.Owned = "to_read", true
+			}
 		case "rating", "page_count", "first_published":
 			n := 0
 			if v != "" {
@@ -671,6 +679,15 @@ func applyMeta(b *model.Book, meta map[string]string) error {
 			b.SortAuthor = v
 		case "isbn":
 			b.ISBN = strings.TrimSpace(v)
+		case "owned":
+			switch v {
+			case "true", "1":
+				b.Owned = true
+			case "false", "0", "":
+				b.Owned = false
+			default:
+				return invalid("owned %q", v)
+			}
 		}
 	}
 	return nil

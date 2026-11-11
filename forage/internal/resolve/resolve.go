@@ -42,6 +42,7 @@ type Match struct {
 	Status   string `json:"status"`
 	Rating   int    `json:"rating,omitempty"`
 	DateRead string `json:"date_read,omitempty"`
+	Owned    bool   `json:"owned,omitempty"`
 }
 
 // Result is the outcome of resolving one input.
@@ -280,7 +281,7 @@ func MarkLibraryMatches(cands []Candidate, books []model.Book) {
 			if s == "" || Surname(b.Author) == s {
 				cands[i].Match = &Match{
 					BookID: b.ID, Title: b.Title, Author: b.Author,
-					Status: b.Status, Rating: b.Rating, DateRead: b.DateRead,
+					Status: b.Status, Rating: b.Rating, DateRead: b.DateRead, Owned: b.Owned,
 				}
 				break
 			}

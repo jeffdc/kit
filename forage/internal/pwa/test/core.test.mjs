@@ -122,7 +122,7 @@ test("tab lists", () => {
   const s = server(
     [
       book("1", "Pastoral", "André Alexis"),
-      book("2", "Ring", "André Alexis", { status: "owned" }),
+      book("2", "Ring", "André Alexis", { status: "to_read", owned: true }),
       book("3", "The Genius of Birds", "Jennifer Ackerman"),
       book("4", "Dune", "Frank Herbert", { status: "reading" }),
       book("5", "Emma", "Jane Austen", { status: "paused" }),
@@ -132,11 +132,11 @@ test("tab lists", () => {
     [read("r1", "6", "2025-03-01"), read("r2", "6", "2022-01-01"), read("r3", "6", ""), read("r4", "4", "2019-01-01")],
   );
   const v = overlay(s, []);
-  assert.deepEqual(wishlistBooks(v).map((b) => b.id), ["3", "1"], "by surname; owned books are not on the wishlist");
+  assert.deepEqual(wishlistBooks(v).map((b) => b.id), ["3", "1"], "by surname; books to read are not on the wishlist");
   assert.deepEqual(wishlistBooks(v, "title").map((b) => b.id), ["3", "1"], "genius, pastoral");
   assert.equal(initial(v.books.get("3"), "title"), "G", "leading article ignored");
   const r = readingBooks(v);
-  assert.deepEqual([r.reading.map((b) => b.id), r.paused.map((b) => b.id), r.owned.map((b) => b.id)], [["4"], ["5"], ["2"]]);
+  assert.deepEqual([r.reading.map((b) => b.id), r.paused.map((b) => b.id), r.toRead.map((b) => b.id)], [["4"], ["5"], ["2"]]);
 
   // Undated reads list the most recently added book first.
   s.books.set("8", book("8", "Older", "A. Writer", { status: "read", date_added: "2020-01-01" }));

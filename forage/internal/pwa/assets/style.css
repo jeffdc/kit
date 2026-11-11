@@ -15,7 +15,7 @@
 
   /* Band inks, one per status, and the text that sits on each. */
   --band-wishlist: #C4471B; --on-wishlist: #FFFFFF;
-  --band-owned: #A62B5C;    --on-owned: #FFFFFF;
+  --band-to-read: #A62B5C;  --on-to-read: #FFFFFF;
   --band-reading: #2B6B43;  --on-reading: #FFFFFF;
   --band-paused: #D4A82A;   --on-paused: #1C1C1A;
   --band-read: #24488A;     --on-read: #FFFFFF;
@@ -40,7 +40,7 @@
     --n4: #33332F;
     --n5: #1F1F1D;
     --band-wishlist: #E4743F; --on-wishlist: #141413;
-    --band-owned: #D6649A;    --on-owned: #141413;
+    --band-to-read: #D6649A;  --on-to-read: #141413;
     --band-reading: #5BAE78;  --on-reading: #141413;
     --band-paused: #D9B341;   --on-paused: #141413;
     --band-read: #7A9FE0;     --on-read: #141413;
@@ -51,7 +51,7 @@
 }
 
 .s-wishlist { --band: var(--band-wishlist); --on-band: var(--on-wishlist); }
-.s-owned    { --band: var(--band-owned);    --on-band: var(--on-owned); }
+.s-to_read  { --band: var(--band-to-read);  --on-band: var(--on-to-read); }
 .s-reading  { --band: var(--band-reading);  --on-band: var(--on-reading); }
 .s-paused   { --band: var(--band-paused);   --on-band: var(--on-paused); }
 .s-read     { --band: var(--band-read);     --on-band: var(--on-read); }
@@ -174,9 +174,12 @@ h1, h2, h3, p { margin: 0; }
 .row-author { font-size: 15px; color: var(--n1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row-meta {
   flex: none; display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 5px;
-  padding: 10px 16px 10px 0;
+  padding: 10px 8px 10px 0;
   font-size: 14px; color: var(--n2); font-variant-numeric: tabular-nums;
 }
+/* Owned is ink, not a band colour: colour only ever names a status. */
+.row-own { flex: none; width: 34px; display: flex; align-items: center; padding-right: 14px; color: var(--ink); }
+.row-own .ic { width: 18px; height: 18px; }
 .letter {
   padding: 6px 16px 5px;
   background: var(--n5); color: var(--n2);
@@ -301,6 +304,21 @@ body[data-view="history"] .tab[data-tab="history"] { border-top-color: var(--ban
 }
 .cover-facts { margin-top: 6px; font-size: 15px; color: var(--n2); font-variant-numeric: tabular-nums; }
 .cover-rating { display: flex; justify-content: center; margin-top: 14px; }
+.cover-mid .own-toggle { margin-top: 6px; }
+.own-toggle {
+  display: inline-flex; align-items: center; gap: 10px;
+  min-height: 44px; padding: 0 4px;
+  background: none; border: 0; color: var(--ink);
+  font-size: 16px; font-weight: 600;
+}
+.own-box {
+  width: 26px; height: 26px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1.5px solid var(--ink); color: transparent;
+}
+.own-box .ic { width: 18px; height: 18px; }
+.own-toggle[aria-pressed="true"] .own-box { background: var(--ink); color: var(--ground); }
+.add-own { padding: 2px 12px 0; }
 .cover-mid .unsynced { margin-top: 8px; }
 .star-btn { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; background: none; border: 0; color: var(--ink); padding: 0; }
 .star-btn .star { width: 26px; height: 26px; }

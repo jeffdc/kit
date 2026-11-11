@@ -12,8 +12,8 @@ colors:
   n5: "#EFEFEB"
   band-wishlist: "#C4471B"
   on-wishlist: "#FFFFFF"
-  band-owned: "#A62B5C"
-  on-owned: "#FFFFFF"
+  band-to-read: "#A62B5C"
+  on-to-read: "#FFFFFF"
   band-reading: "#2B6B43"
   on-reading: "#FFFFFF"
   band-paused: "#D4A82A"
@@ -32,7 +32,7 @@ colors:
   n4-dark: "#33332F"
   n5-dark: "#1F1F1D"
   band-wishlist-dark: "#E4743F"
-  band-owned-dark: "#D6649A"
+  band-to-read-dark: "#D6649A"
   band-reading-dark: "#5BAE78"
   band-paused-dark: "#D9B341"
   band-read-dark: "#7A9FE0"
@@ -174,8 +174,8 @@ components:
   book-row-pressed:
     backgroundColor: "{colors.n5}"
   status-tag:
-    backgroundColor: "{colors.band-owned}"
-    textColor: "{colors.on-owned}"
+    backgroundColor: "{colors.band-to-read}"
+    textColor: "{colors.on-to-read}"
     typography: "{typography.label-tag}"
     rounded: "{rounded.none}"
     padding: "3px 6px 2px"
@@ -211,7 +211,7 @@ components:
 
 **Creative North Star: "The Paperback Series Shelf"**
 
-Forage looks like a run of mid-century paperbacks: one humanist sans, flat ink, and a coloured band that tells you what kind of book it is. Here the band tells you the book's status. Wishlist is orange, owned cerise, reading green, paused ochre, read blue, and dropped grey. Status is the only thing colour encodes. Everything else is ink on a near-white ground, with a single fixed neutral ramp.
+Forage looks like a run of mid-century paperbacks: one humanist sans, flat ink, and a coloured band that tells you what kind of book it is. Here the band tells you the book's status. Wishlist is orange, to read cerise, reading green, paused ochre, read blue, and dropped grey. Status is the only thing colour encodes. Everything else is ink on a near-white ground, with a single fixed neutral ramp.
 
 The interface is dense and plain because the job is speed. Nine or ten hairline rows fit on a phone screen. The search field is a square ink-outlined box at the top of every shelf. Lists stay quiet: colour shows only as a 5px edge, a swatch or a small tag. Colour fills a large area only when a book is opened. The detail view is drawn as a cover with three bands: a status band, a white title band and a status band. A status change sweeps the old colour off the cover to reveal the new one. That sweep is the system's one bit of theatre.
 
@@ -231,13 +231,13 @@ The palette is flat ink and flat paper. Each status gets one saturated band, and
 
 ### Primary (status bands)
 - **Paperback Orange** (band-wishlist): the wishlist. Used for the wishlist tab band, the wishlist swatch and row edge, the wishlist cover, and the sync dot while sending.
-- **Cerise** (band-owned): owned books. Used on its row edge, the "Owned" tag in wishlist rows and the owned cover.
+- **Cerise** (band-to-read): books to read, not started. Used on its row edge, the "To Read" section swatch and the to-read cover. (It was "owned" until ownership became its own field.)
 - **Reading Green** (band-reading): currently reading. Used for the Reading tab band, the reading cover, and the sync dot when synced.
 - **Ochre** (band-paused): paused. This is the only light-scheme band that takes ink text (on-paused) instead of white.
 - **Series Blue** (band-read): read books and History. Used for the History tab band, the year bars, the read cover and text selection.
 - **Slate** (band-dropped): dropped books. It is close to the neutrals on purpose, so dropped books recede.
 
-Each band has an **on-band** partner (on-wishlist, on-owned, and so on) for any text, outline or star drawn on it. In dark mode every on-band colour is the dark ground (on-band-dark).
+Each band has an **on-band** partner (on-wishlist, on-to-read, and so on) for any text, outline or star drawn on it. In dark mode every on-band colour is the dark ground (on-band-dark).
 
 ### Secondary
 - **Alert Red** (alert): errors, the "Not synced" mark on rows, the sync dot on failure, and the armed delete button. It is never used as a status.
@@ -328,11 +328,12 @@ Square and inked, with confident 700-weight labels.
 - **Focus:** a 2px ink outline at a 2px offset, applied globally.
 
 ### Status Tag
-- **Style:** a solid band fill with on-band text, 11px/700, 0.14em uppercase, padding 3px 6px 2px. It sits in the row meta column (Owned on the wishlist, every status in search results). The candidate **match** tag is the same idea at 12px and can include on-band stars.
+- **Style:** a solid band fill with on-band text, 11px/700, 0.14em uppercase, padding 3px 6px 2px. It sits in the row meta column (every status in search results). The candidate **match** tag is the same idea at 12px and can include on-band stars.
 
 ### Book Row
 The core element of the app.
-- **Structure:** a full-width button with a 5px status edge on the left, then the title (17px/700, up to two lines) above the author (15px, n1, one line with an ellipsis), then a right-aligned meta column (14px, n2, tabular): year, date, tag, stars, or the alert-coloured "Not synced" mark.
+- **Structure:** a full-width button with a 5px status edge on the left, then the title (17px/700, up to two lines) above the author (15px, n1, one line with an ellipsis), then a right-aligned meta column (14px, n2, tabular): year, date, tag, stars, or the alert-coloured "Not synced" mark. Last is the owned slot, 34px wide on every row so the marks line up: an 18px ink shelf icon (a standing and a leaning book) when the book is owned, empty otherwise.
+- **Owned is ink, never a band.** Ownership isn't a status, so it never takes a band colour (The Band Means Status Rule). In the open book it's the "I own a copy" switch under the rating: a 26px square 1.5px ink box that fills with ink and shows a check when on. The add sheets carry the same switch under "Add as".
 - **Divider:** a 1px n4 bottom hairline. There is no card or fill.
 - **Pressed / Hover:** fills n5.
 - **Alphabet strip:** when a list is sorted by author or title, an n5 strip carries the letter at 13px/600, 0.22em tracking.

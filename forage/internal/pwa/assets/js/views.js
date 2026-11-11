@@ -27,11 +27,13 @@ const tag = (status) => `<span class="tag s-${status}">${STATUS_LABEL[status]}</
 
 // --- Rows ---
 
+// Every row keeps the owned slot, so the marks line up in one column.
 function row(book, meta, pending) {
   return `<li><button class="row s-${book.status}" data-book="${esc(book.id)}">
     <span class="edge" aria-hidden="true"></span>
     <span class="row-body"><span class="row-title">${esc(book.title)}</span><span class="row-author">${esc(book.author)}</span></span>
     <span class="row-meta">${meta}${pending ? '<span class="unsynced">Not synced</span>' : ""}</span>
+    <span class="row-own">${book.owned ? `${ic.owned()}<span class="sr">Owned</span>` : ""}</span>
   </button></li>`;
 }
 
@@ -68,9 +70,9 @@ export function wishlistView(view, sort, pending) {
 }
 
 export function readingView(view, sort, pending) {
-  const { reading, paused, owned } = readingBooks(view, sort);
+  const { reading, paused, toRead } = readingBooks(view, sort);
   let html = shelfHead("reading", "Reading", plural(reading.length, "book"), sortSelect("reading", sort, ["title", "author", "added"]));
-  if (!reading.length && !paused.length && !owned.length) return html + empty("You're not reading anything.", "Open a book and tap Start reading.");
+  if (!reading.length && !paused.length && !toRead.length) return html + empty("You're not reading anything.", "Open a book and tap Start reading.");
   html += reading.length
     ? '<ul class="list">' + reading.map((b) => row(b, "", pending.has(b.id))).join("") + "</ul>"
     : '<p class="hint">Nothing in progress.</p>';
@@ -78,7 +80,7 @@ export function readingView(view, sort, pending) {
     ? `<h2 class="sub-head s-${status}"><span class="swatch" aria-hidden="true"></span>${title} <span class="count">${books.length}</span></h2>` +
       '<ul class="list">' + books.map((b) => row(b, "", pending.has(b.id))).join("") + "</ul>"
     : "";
-  return html + section("paused", "Paused", paused) + section("owned", "On your shelf, not started", owned);
+  return html + section("paused", "Paused", paused) + section("to_read", "To read", toRead);
 }
 
 export function historyView(view, sort, pending) {
@@ -124,8 +126,8 @@ function empty(title, body, action = "") {
 function primaryActions(b) {
   const btn = (act, label, kind = "") => `<button class="band-btn ${kind}" data-act="${act}">${label}</button>`;
   switch (b.status) {
-    case "wishlist": return btn("start", "Start reading", "primary") + btn("owned", "Got it");
-    case "owned": return btn("start", "Start reading", "primary") + btn("wishlist", "Back to wishlist");
+    case "wishlist": return btn("start", "Start reading", "primary") + btn("got-it", "Got it");
+    case "to_read": return btn("start", "Start reading", "primary") + btn("wishlist", "Back to wishlist");
     case "reading": return btn("finish", "Finished", "primary") + btn("pause", "Pause");
     case "paused": return btn("resume", "Resume", "primary") + btn("finish", "Finished");
     case "read": return btn("reread", "Read again", "primary");
@@ -159,7 +161,7 @@ export function detailView(b, reads, sellers, ui) {
   const readCount = reads.length;
   const topRight = readCount
     ? joinFacts([plural(readCount, "read"), b.date_read ? "last " + formatDate(b.date_read) : ""])
-    : b.status === "wishlist" || b.status === "owned" ? `Added ${formatDate(b.date_added)}` : "";
+    : b.status === "wishlist" || b.status === "to_read" ? `Added ${formatDate(b.date_added)}` : "";
   const bottom = ui.finishing ? finishPanel(b, b.rating || 0) : `<div class="band-actions">${primaryActions(b)}</div>`;
 
   const readRows = reads.slice().reverse().map((r) => `<li class="read-row">
@@ -182,6 +184,7 @@ export function detailView(b, reads, sellers, ui) {
         <p class="cover-author">${esc(b.author)}</p>
         ${facts ? `<p class="cover-facts">${facts}</p>` : ""}
         ${ui.finishing ? "" : ratingControl(b)}
+        ${ownToggle("toggle-owned", b.owned)}
         ${b.pending ? '<p class="unsynced">Not synced yet</p>' : ""}
       </div>
       <div class="band band-bottom">${bottom}</div>
@@ -210,10 +213,17 @@ export function detailView(b, reads, sellers, ui) {
   </article>`;
 }
 
+/** The owned switch: a square box, filled and checked when on. */
+function ownToggle(act, on, label = "I own a copy") {
+  return `<button type="button" class="own-toggle" data-act="${act}" aria-pressed="${!!on}"><span class="own-box" aria-hidden="true">${ic.check()}</span>${label}</button>`;
+}
+
 // --- Sheets ---
 
+const ADD_STATUSES = ["wishlist", "to_read", "reading", "read"];
+
 export function addView(ui) {
-  const statuses = ["wishlist", "owned", "reading", "read"];
+  const statuses = ADD_STATUSES;
   const seg = statuses.map((s) => `<button type="button" class="seg-btn s-${s}" data-add-status="${s}" aria-pressed="${ui.status === s}">${STATUS_LABEL[s]}</button>`).join("");
   return `<div class="sheet-head"><h2 id="sheet-title">Add a book</h2><button class="icon-btn" data-act="close-sheet" aria-label="Close">${ic.close()}</button></div>
     <form class="resolve" data-form="resolve">
@@ -225,6 +235,7 @@ export function addView(ui) {
       <button class="btn primary wide" type="submit"${ui.loading ? " disabled" : ""}>${ui.loading ? "Looking it up…" : "Find"}</button>
     </form>
     <div class="seg" role="group" aria-label="Add as">${seg}</div>
+    <div class="add-own">${ownToggle("toggle-add-owned", ui.owned)}</div>
     <div id="add-results" aria-live="polite">${addResults(ui)}</div>
     <button class="btn-quiet" data-act="manual">${ic.pencil()}Enter it by hand</button>`;
 }
@@ -240,7 +251,7 @@ export function addResults(ui) {
     const facts = joinFacts([c.first_published, c.page_count ? `${c.page_count} pages` : ""]);
     const m = c.match;
     const inLib = m
-      ? `<span class="match s-${m.status}">${m.status === "read" ? `Read${m.date_read ? " " + formatDate(m.date_read) : ""}` : `In your ${STATUS_LABEL[m.status].toLowerCase()}`}${stars(m.rating)}</span>`
+      ? `<span class="match s-${m.status}">${m.status === "read" ? `Read${m.date_read ? " " + formatDate(m.date_read) : ""}` : m.status === "wishlist" ? "On your wishlist" : STATUS_LABEL[m.status]}${m.owned ? `${SEP}Owned` : ""}${stars(m.rating)}</span>`
       : "";
     const act = m
       ? `<button class="btn" data-act="open-match" data-book="${esc(m.book_id)}">Open</button>`
@@ -261,7 +272,8 @@ export function manualView(ui) {
       <div class="field-pair">${field("first_published", "Year published", f.first_published, 'inputmode="numeric" pattern="[0-9]*"')}${field("page_count", "Pages", f.page_count, 'inputmode="numeric" pattern="[0-9]*"')}</div>
       ${field("isbn", "ISBN", f.isbn, 'inputmode="numeric" autocomplete="off"')}
       <p class="field-label">Add as</p>
-      <div class="seg" role="group" aria-label="Add as">${["wishlist", "owned", "reading", "read"].map((s) => `<button type="button" class="seg-btn s-${s}" data-add-status="${s}" aria-pressed="${ui.status === s}">${STATUS_LABEL[s]}</button>`).join("")}</div>
+      <div class="seg" role="group" aria-label="Add as">${ADD_STATUSES.map((s) => `<button type="button" class="seg-btn s-${s}" data-add-status="${s}" aria-pressed="${ui.status === s}">${STATUS_LABEL[s]}</button>`).join("")}</div>
+      ${ownToggle("toggle-add-owned", ui.owned)}
       ${ui.status === "read" ? field("date_finished", "Finished on (leave empty if unknown)", localToday(), `type="date" max="${localToday()}"`) : ""}
       <button class="btn primary wide" type="submit">Add</button>
     </form>`;

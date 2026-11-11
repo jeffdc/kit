@@ -23,7 +23,7 @@ const ui = {
 };
 
 function freshAdd(q = "") {
-  return { q, status: "wishlist", loading: false, result: null, error: null, manual: null };
+  return { q, status: "wishlist", owned: false, loading: false, result: null, error: null, manual: null };
 }
 
 function readJSON(key) {
@@ -225,7 +225,7 @@ function toast(msg, action) {
 
 const STATUS_ACTIONS = {
   start: "reading", resume: "reading", reread: "reading", pause: "paused",
-  owned: "owned", wishlist: "wishlist", undrop: "wishlist", drop: "dropped",
+  wishlist: "wishlist", undrop: "wishlist", drop: "dropped",
 };
 
 async function onAction(act, el) {
@@ -237,6 +237,20 @@ async function onAction(act, el) {
   }
   switch (act) {
     case "close": return closeDetail();
+    case "got-it":
+      await store.updateBook(id, { status: "to_read", owned: true });
+      return toast(`Moved to ${STATUS_LABEL.to_read}, marked as owned`);
+    case "toggle-owned": {
+      const b = store.get().view.books.get(id);
+      if (!b) return;
+      await store.updateBook(id, { owned: !b.owned });
+      return toast(b.owned ? "Marked as not owned" : "Marked as owned");
+    }
+    case "toggle-add-owned":
+      // Toggled in place: re-rendering the manual form would drop what's typed.
+      ui.add.owned = !ui.add.owned;
+      for (const b of document.querySelectorAll("[data-act=toggle-add-owned]")) b.setAttribute("aria-pressed", ui.add.owned);
+      return;
     case "close-sheet": return closeSheet();
     case "finish":
       ui.detail.finishing = true;
@@ -356,7 +370,7 @@ async function addCandidate(i) {
   const id = await store.createBook({
     title: c.title, author: c.author || "Unknown",
     first_published: c.first_published || 0, page_count: c.page_count || 0, isbn: c.isbn || "",
-    status, ...(status === "read" ? { date_finished: "" } : {}),
+    status, owned: ui.add.owned, ...(status === "read" ? { date_finished: "" } : {}),
   });
   closeSheet();
   toast(`Added to ${STATUS_LABEL[status]}`, { label: "Open", run: () => openDetail(id) });
@@ -384,7 +398,7 @@ async function onSubmit(form) {
       const status = ui.add.status;
       const id = await store.createBook({
         title: data.title.trim(), author: data.author.trim(), isbn: (data.isbn || "").trim(),
-        first_published: int(data.first_published), page_count: int(data.page_count), status,
+        first_published: int(data.first_published), page_count: int(data.page_count), status, owned: ui.add.owned,
         ...(status === "read" ? { date_finished: data.date_finished || "" } : {}),
       });
       closeSheet();
@@ -414,6 +428,11 @@ async function onSubmit(form) {
 function bind() {
   document.addEventListener("click", (e) => {
     const t = e.target;
+    // In the drawer layout, a click on the dimmed page outside the book closes it.
+    if (ui.detailId && !ui.sheet && !t.closest(".panel, .toast")) {
+      e.preventDefault();
+      return closeDetail();
+    }
     const rateBtn = t.closest(".finish .star-btn");
     if (rateBtn) {
       const n = +rateBtn.dataset.rate;

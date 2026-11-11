@@ -12,6 +12,7 @@ import (
 var migrations = []func(*sql.Tx) error{
 	migrateBaseline,
 	migrateReadsAndRevisions,
+	migrateOwned,
 }
 
 func migrate(db *sql.DB) error {
@@ -199,4 +200,23 @@ func migrateReadsAndRevisions(tx *sql.Tx) error {
 		}
 	}
 	return nil
+}
+
+// migrateOwned makes ownership its own column, apart from status. The
+// "owned" status meant "on the shelf, not started", so it becomes "to_read"
+// with owned set. Those books get a new revision so clients pick them up.
+func migrateOwned(tx *sql.Tx) error {
+	if _, err := tx.Exec(`ALTER TABLE books ADD COLUMN owned INTEGER NOT NULL DEFAULT 0`); err != nil {
+		return err
+	}
+	var n int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM books WHERE status = 'owned'`).Scan(&n); err != nil || n == 0 {
+		return err
+	}
+	var rev int64
+	if err := tx.QueryRow("UPDATE meta SET value = value + 1 WHERE key = 'rev' RETURNING value").Scan(&rev); err != nil {
+		return fmt.Errorf("bumping rev: %w", err)
+	}
+	_, err := tx.Exec(`UPDATE books SET status = 'to_read', owned = 1, rev = ?, updated_at = ? WHERE status = 'owned'`, rev, nowStamp())
+	return err
 }

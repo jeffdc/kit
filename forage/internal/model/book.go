@@ -2,8 +2,13 @@ package model
 
 import "strings"
 
-// StatusList is the canonical ordered list of valid statuses.
-var StatusList = []string{"wishlist", "owned", "reading", "paused", "read", "dropped"}
+// StatusList is the canonical ordered list of valid statuses. A status is
+// where the book stands as reading; whether it's owned is Book.Owned.
+var StatusList = []string{"wishlist", "to_read", "reading", "paused", "read", "dropped"}
+
+// LegacyOwned is the status "to_read" had before ownership became its own
+// field. Writes that still send it get "to_read" with Owned set.
+const LegacyOwned = "owned"
 
 var validStatuses = func() map[string]bool {
 	m := make(map[string]bool, len(StatusList))
@@ -55,6 +60,8 @@ type Book struct {
 	// FirstPublished is a year.
 	FirstPublished int    `json:"first_published,omitempty"`
 	ISBN           string `json:"isbn,omitempty"`
+	// Owned is whether there's a copy on the shelf, whatever the status.
+	Owned bool `json:"owned,omitempty"`
 
 	// DateRead is the most recent date_finished among the book's reads.
 	// It is derived, read-only, and kept for the legacy /api/books response.
