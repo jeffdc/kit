@@ -8,13 +8,14 @@ import { api, listen } from "./api.js";
 import { esc, ago, href } from "./html.js";
 import { Changes } from "./revision.js";
 import { renderTree, expandFor, toggle, reveal } from "./tree.js";
-import { pageHome, projectSheet, subsFor, pageNotFound, pageUnreadable } from "./pages.js";
+import { pageHome, projectSheet, subsFor, pageNotFound, pageUnreadable, notOnMull } from "./pages.js";
 import { filterOf, clearFilter } from "./lists.js";
 import { pageModel } from "./model.js";
 
 const state = {
   projects: null,    // GET /api/projects, once loaded
   listError: null,
+  unmulled: null,    // GET /api/unmulled: repos beside these not on mull yet
   data: new Map(),   // project ID → {tree, revision, changes, pages: Map(API sub-path → {value} | {error})}
   live: false,       // the event stream is open
 };
@@ -60,12 +61,14 @@ const readable = id => (state.projects || []).some(p => p.id === id && !p.error)
 
 function loadList() {
   return coalesce("list", async () => {
-    try {
-      state.projects = (await api.projects()).projects;
+    const [list, unmulled] = await Promise.allSettled([api.projects(), api.unmulled()]);
+    if (list.status === "fulfilled") {
+      state.projects = list.value.projects;
       state.listError = null;
-    } catch (err) {
-      state.listError = err;
+    } else {
+      state.listError = list.reason;
     }
+    if (unmulled.status === "fulfilled") state.unmulled = unmulled.value;
     for (const id of [...state.data.keys()]) if (!readable(id)) state.data.delete(id);
     for (const pr of state.projects || []) if (!pr.error && !state.data.has(pr.id)) loadProject(pr.id);
     render();
@@ -163,17 +166,20 @@ function joinRowClouds(root) {
   }
 }
 
+// renderFoot: what isn't on mull yet (old mull data to convert, then
+// recent repos with no mull branch), registered repos that can't be read,
+// and the link to the model.
 function renderFoot(r) {
-  const bad = (state.projects || []).filter(p => p.error);
   const foot = $("railfoot");
   foot.hidden = false;
+  const { convert, notYet, broken } = notOnMull(state);
+  const names = list => list.map(u => `<span title="${esc(u.path)}">${esc(u.name)}</span>`).join(" · ");
   const here = r.pid === "-" && r.kind === "model";
-  const model = `<div><a class="btn s${here ? " on" : ""}" href="${href.model()}"${here ? ' aria-current="page"' : ""}>The model: how mull works</a></div>`;
-  const fresh = bad.filter(p => p.error.code === "not_initialized"), other = bad.filter(p => p.error.code !== "not_initialized");
   foot.innerHTML =
-    (fresh.length ? `<div><span class="lab">Not on mull yet</span><p>${fresh.map(p => esc(p.name)).join(" · ")}</p></div>` : "") +
-    (other.length ? `<div><span class="lab">Can't read</span><p>${other.map(p => `<a href="#/${encodeURIComponent(p.id)}">${esc(p.name)}</a> ${esc(p.error.code)}`).join(" · ")}</p></div>` : "") +
-    model;
+    (convert.length ? `<div><span class="lab">Needs converting</span><p>${names(convert)}</p></div>` : "") +
+    (notYet.length ? `<div><span class="lab">Not on mull yet</span><p>${names(notYet)}</p></div>` : "") +
+    (broken.length ? `<div><span class="lab">Can't read</span><p>${broken.map(p => `<a href="#/${encodeURIComponent(p.id)}">${esc(p.name)}</a>`).join(" · ")}</p></div>` : "") +
+    `<div><a class="btn s${here ? " on" : ""}" href="${href.model()}"${here ? ' aria-current="page"' : ""}>The model: how mull works</a></div>`;
 }
 
 function renderLive() {
