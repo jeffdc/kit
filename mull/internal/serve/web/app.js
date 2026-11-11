@@ -20,6 +20,7 @@ const state = {
   data: new Map(),   // project ID → {tree, revision, changes, pages: Map(API sub-path → {value} | {error})}
   live: false,       // the event stream is open
   focusNeeds: "",    // a stamp was clicked: the sheet (hash) to open at its Needs you
+  focusReview: "",   // a Review link was clicked: the item sheet (hash) to open at its review packet
 };
 // What the human opened or closed (tiers, groups, the revision schedule),
 // by data-open key, so live re-renders keep it.
@@ -164,6 +165,16 @@ function render() {
     if (caret && el?.matches("textarea")) el.setSelectionRange(...caret); // typing survives a live re-render
   }
   if (state.focusNeeds === location.hash) showNeeds();
+  if (state.focusReview === location.hash) showReview();
+}
+
+// showReview scrolls an item's sheet to its review packet, once the sheet
+// has drawn it.
+function showReview() {
+  const sec = main.querySelector("section.review");
+  if (!sec) return; // not loaded yet: the next render tries again
+  state.focusReview = "";
+  sec.scrollIntoView({ block: "start" });
 }
 
 // showNeeds opens every tier and group in the sheet's Needs you and scrolls
@@ -388,6 +399,12 @@ document.addEventListener("click", ev => {
     if (state.focusNeeds === location.hash) { ev.preventDefault(); showNeeds(); }
     return; // otherwise the hash change renders the sheet, which shows its Needs you
   }
+  const rv = t.closest("a[data-review]");
+  if (rv) {
+    state.focusReview = rv.getAttribute("href");
+    if (state.focusReview === location.hash) { ev.preventDefault(); showReview(); }
+    return; // otherwise the hash change renders the item, which shows its packet
+  }
   const fb = t.closest("button[data-filter]");
   if (fb) { setFilter(fb); return; }
   const clear = t.closest("[data-clear]");
@@ -410,8 +427,12 @@ document.addEventListener("click", ev => {
   }
   const row = t.closest("[data-href]");
   if (row && !t.closest("a, button, summary, input, select, label")) {
-    if (ev.metaKey || ev.ctrlKey) window.open(row.dataset.href, "_blank");
-    else location.hash = row.dataset.href;
+    if (ev.metaKey || ev.ctrlKey) { window.open(row.dataset.href, "_blank"); return; }
+    if ("review" in row.dataset) {
+      state.focusReview = row.dataset.href;
+      if (state.focusReview === location.hash) { showReview(); return; }
+    }
+    location.hash = row.dataset.href;
   }
 });
 
@@ -430,9 +451,11 @@ window.addEventListener("hashchange", () => {
   expandFor(r, state);
   const d = r.pid && state.data.get(r.pid);
   if (d && subsFor(r).some(s => !d.pages?.has(s))) loadProject(r.pid);
+  // A stamp or a Review link opens the sheet somewhere: render scrolls there.
+  const placed = state.focusNeeds === location.hash || state.focusReview === location.hash;
+  if (!placed) { state.focusNeeds = state.focusReview = ""; window.scrollTo(0, 0); }
   render();
   reveal(treeEl);
-  if (state.focusNeeds !== location.hash) { state.focusNeeds = ""; window.scrollTo(0, 0); }
 });
 
 // ---- start

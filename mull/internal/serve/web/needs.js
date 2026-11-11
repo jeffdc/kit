@@ -68,10 +68,10 @@ function row(e, n, tierKey, opts) {
     e.source && !review ? `from ${esc(e.source)}` : "",
   ].filter(Boolean).join(" · ");
   const title = review && e.item ? e.item_title || e.text : e.text;
-  const text = review && link ? `<a href="${esc(link)}">${esc(title)}</a>` : esc(title);
+  const text = review && link ? `<a href="${esc(link)}" data-review>${esc(title)}</a>` : esc(title);
   let act, form = "";
   if (review) {
-    act = link ? `<a class="btn s" href="${esc(link)}">Review</a>` : "";
+    act = link ? `<a class="btn s" href="${esc(link)}" data-review>Review</a>` : "";
   } else {
     const ans = textWrite({ pid, key: `answer:${pid}:${e.id}`, ops: [{ op: "decide", id: e.id }], field: "decision",
       label: "Answer", save: "Save answer", placeholder: "Your answer. It joins the decision log, and the agent works from it.",
@@ -80,7 +80,7 @@ function row(e, n, tierKey, opts) {
     form = ans.form;
   }
   const code = review && e.item ? e.item : e.id;
-  return [`<div class="it"${link ? ` data-href="${esc(link)}"` : ""}><span class="n">${esc(n)}</span><code>${esc(code)}</code>` +
+  return [`<div class="it"${link ? ` data-href="${esc(link)}"` : ""}${review && link ? " data-review" : ""}><span class="n">${esc(n)}</span><code>${esc(code)}</code>` +
     `<div><p${e.detail ? ` title="${esc(e.detail)}"` : ""}>${text}</p>${where ? `<span class="w">${where}</span>` : ""}${form}</div><div class="act">${act}</div></div>`,
     cloudsOf(e, opts.changes)];
 }
@@ -97,7 +97,7 @@ function group(g, opts) {
   const carried = g.review && g.item;
   const all = `approve:${pid}:${g.key}`;
   const act = carried
-    ? `<a class="btn s" href="${esc(href.item(pid, g.item))}">Review</a>`
+    ? `<a class="btn s" href="${esc(href.item(pid, g.item))}" data-review>Review</a>`
     : ids.length === 1
       ? approve(pid, all, ids, "Approve", "Approve?", `Approved decision ${ids[0]}.`)
       : approve(pid, all, ids, "Approve all", `Approve ${ids.length}?`, `Approved ${plural(ids.length, "decision")}.`);
