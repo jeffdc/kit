@@ -1,12 +1,12 @@
-// Find: s opens a search band at the top of the sheet, in place (nothing
-// floats but the toast), that finds records by ID or title in every
-// project. Up and Down move, Enter (or a click) opens, Esc closes.
+// Find: s opens a command palette floating mid-screen over a scrim that
+// finds records by ID or title in every project. Up and Down move, Enter
+// (or a click) opens, Esc or a click outside closes.
 
 import { esc, href, tag } from "./html.js";
 import { api } from "./api.js";
 
 const band = document.getElementById("search");
-let hits = [], sel = 0, seq = 0, timer;
+let hits = [], sel = 0, seq = 0, timer, before = null;
 
 // where a hit opens: its sheet, or for an inbox entry the sheet it's on.
 function target(h) {
@@ -54,10 +54,12 @@ async function find(q) {
 
 export function openSearch() {
   if (!band.hidden) { band.querySelector("input").select(); return; }
+  before = document.activeElement;
   band.hidden = false;
-  band.innerHTML = `<div class="find"><label class="lab" for="find-q">Find</label>` +
-    `<input id="find-q" type="search" autocomplete="off" spellcheck="false" placeholder="An ID, or words from a title" aria-controls="find-hits">` +
-    `<span class="hint">↑↓ move · Enter opens · Esc closes</span></div><ol class="hits" id="find-hits" role="listbox"></ol>`;
+  band.innerHTML = `<div class="scrim" data-find-close></div>` +
+    `<div class="palette" role="dialog" aria-modal="true" aria-label="Find"><div class="q"><label class="lab" for="find-q">Find</label>` +
+    `<input id="find-q" type="search" autocomplete="off" spellcheck="false" placeholder="An ID, or words from a title" aria-controls="find-hits"></div>` +
+    `<ol class="hits" id="find-hits" role="listbox"></ol><div class="keys">↑↓ move · Enter opens · Esc closes · every project</div></div>`;
   hits = []; sel = 0;
   const input = band.querySelector("input");
   input.addEventListener("input", () => {
@@ -80,7 +82,8 @@ export function openSearch() {
       closeSearch();
     }
   });
-  band.addEventListener("click", ev => {
+  band.querySelector(".scrim").addEventListener("click", () => closeSearch());
+  band.querySelector(".palette").addEventListener("click", ev => {
     const a = ev.target.closest("[data-hit]");
     if (!a || ev.metaKey || ev.ctrlKey) return;
     ev.preventDefault();
@@ -90,6 +93,7 @@ export function openSearch() {
 }
 
 function go(h) {
+  before = null; // the sheet changes: focus starts afresh there
   closeSearch();
   location.hash = target(h);
 }
@@ -99,6 +103,8 @@ export function closeSearch() {
   seq++;
   band.hidden = true;
   band.innerHTML = "";
+  if (before?.isConnected) before.focus();
+  before = null;
 }
 
 // s opens Find unless the human is typing somewhere.
