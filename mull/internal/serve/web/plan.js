@@ -9,6 +9,7 @@ import { within } from "./revision.js";
 import { schedule } from "./needs.js";
 import { renderDoc } from "./doc.js";
 import { itemTable, col, backlogBody } from "./lists.js";
+import { writeButton } from "./write.js";
 
 const stamp = n => n ? ` <span class="stamp">${n} blocking</span>` : "";
 const crumbsFor = pid => [`<a href="${href.home()}">All projects</a>`, `<a href="${esc(href.project(pid))}">${esc(pid)}</a>`];
@@ -22,7 +23,8 @@ export function planSheet(pr, r, data, page, body) {
   const docCloud = ch ? ch.cls(c => c.type === "plan_doc" && c.id === slug) : "";
   const since = esc(clock(data.revision?.seen_at));
   const fields = [
-    ["State", p.state === "shaping" ? `${tag("shaping")} <small>not agreed yet</small>` : p.state === "active" ? tag("now", "active") : tag(p.state)],
+    ["State", p.state === "shaping" ? `${tag("shaping")} <small>not agreed yet</small>` : p.state === "active" ? tag("now", "active")
+      : p.state === "done" ? `${tag("done", "closed")} <small>in the Archive</small>` : tag(p.state)],
     ["Phases", st.phases ? `${st.built} of ${st.phases} done` : `<span class="mut">none yet</span>`],
     ["Can start now", st.now.length ? plural(st.now.length, "phase") : `<span class="mut">none</span>`],
     ["Go live", st.go_live ? `<a href="${esc(href.phase(pid, st.go_live.id))}">${esc(st.go_live.title)}</a>` : `<span class="mut">not set</span>`],
@@ -42,6 +44,9 @@ export function planSheet(pr, r, data, page, body) {
     t("doc", "Plan doc", `${base}/doc`, undefined, docCloud) +
     t("backlog", "Backlog", `${base}/backlog`, `${page.backlog}${page.untriaged ? ` · ${page.untriaged} untriaged` : ""}`) +
     `<div class="acts">${p.state === "shaping" ? `<button class="btn p" data-cmd="mull plan agree ${esc(slug)}" data-say="Agreeing a plan is yours to do.">Agree this plan</button>` : ""}` +
+    (p.state === "active" ? writeButton({ pid, key: `close:${pid}:${slug}`, ops: [{ op: "plan close", slug }], small: false,
+      label: "Close and archive", ask: st.built < st.phases ? `Close with ${plural(st.phases - st.built, "phase")} not done?` : "Close it?",
+      done: `Closed ${p.title}: it's in the Archive now.` }) : "") +
     `<button class="btn" data-seen="${esc(pid)}"${changes ? "" : " disabled"}>Mark revision seen</button></div></nav>`;
   return head + nav + `<div class="page">${body(tab)}</div>`;
 }

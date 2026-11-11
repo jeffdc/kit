@@ -3,6 +3,8 @@ package mull
 import (
 	"sort"
 	"strings"
+
+	"mull/internal/model"
 )
 
 // Hit is a record search found: enough to show it and to open it.
@@ -15,7 +17,16 @@ type Hit struct {
 	Kind  string `json:"kind,omitempty"` // an entry's kind, or a captured item's
 	State string `json:"state,omitempty"`
 	Rank  int    `json:"rank"` // lower is better: 0 the ID, 1 starts the ID, 2 starts words of the title, 3 inside it
-	at    string // last change, newest first among equal ranks
+	// Archived means it's in the archive: a closed plan, or a record in one.
+	Archived bool   `json:"archived,omitempty"`
+	at       string // last change, newest first among equal ranks
+}
+
+// Found is what Search found: the hits, and how many more matches the
+// archive holds when it wasn't searched.
+type Found struct {
+	Hits     []Hit `json:"hits"`
+	Archived int   `json:"archived"` // matches in the archive left out
 }
 
 // searchDoc is one record as search reads it: its hit, and the ID and title
@@ -33,6 +44,9 @@ func (s *state) searchDocs() []searchDoc {
 	}
 	var out []searchDoc
 	add := func(h Hit) {
+		if p := s.plans[h.Plan]; p != nil && p.State == model.PlanDone {
+			h.Archived = true
+		}
 		out = append(out, searchDoc{hit: h, id: strings.ToLower(h.ID), title: strings.ToLower(h.Title)})
 	}
 	for _, slug := range sortedKeys(s.plans) {
@@ -64,20 +78,29 @@ func (s *state) searchDocs() []searchDoc {
 // Search finds records by ID or title: every word of q must start the ID or
 // appear in the title. Best first: the ID itself, then IDs it starts, then
 // titles whose words start with q's, then titles containing them; among
-// equals, the most recently changed first. At most limit hits.
-func (m *Mull) Search(q string, limit int) ([]Hit, error) {
-	out := []Hit{}
+// equals, the most recently changed first. At most limit hits. The archive
+// (closed plans and what's in them) is searched only with archive; without
+// it, Found counts the matches it holds.
+func (m *Mull) Search(q string, limit int, archive bool) (Found, error) {
+	found := Found{Hits: []Hit{}}
 	words := strings.Fields(strings.ToLower(q))
 	if len(words) == 0 || limit <= 0 {
-		return out, nil
+		return found, nil
 	}
+	var out []Hit
 	err := m.view(func(s *state) error {
 		for _, d := range s.searchDocs() {
-			if rank, ok := match(d, words); ok {
-				h := d.hit
-				h.Rank = rank
-				out = append(out, h)
+			rank, ok := match(d, words)
+			if !ok {
+				continue
 			}
+			if d.hit.Archived && !archive {
+				found.Archived++
+				continue
+			}
+			h := d.hit
+			h.Rank = rank
+			out = append(out, h)
 		}
 		return nil
 	})
@@ -90,7 +113,10 @@ func (m *Mull) Search(q string, limit int) ([]Hit, error) {
 	if len(out) > limit {
 		out = out[:limit]
 	}
-	return out, err
+	if out != nil {
+		found.Hits = out
+	}
+	return found, err
 }
 
 // match ranks d against the query's words (see Hit.Rank).

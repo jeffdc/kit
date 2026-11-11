@@ -63,6 +63,15 @@ function projectNode(pr, data) {
         meta: marks(tree.own.blocking, tree.own.needs_you, false, href.project(pid)) });
     }
     kids.push({ key: `bl:${pid}`, label: "Backlog", href: href.backlog(pid), match: within.backlog(), meta: em(`${c.backlog}${c.untriaged ? ` · ${c.untriaged} new` : ""}`) });
+    // Closed plans are archived: under Archive, collapsed, newest first.
+    if (tree.archive?.length) {
+      const inPlan = tree.archive.map(pl => within.plan(pl.slug));
+      kids.push({
+        key: `ar:${pid}`, label: "Archive", waits: true, match: c => inPlan.some(m => m(c)), meta: em(plural(tree.archive.length, "plan")),
+        kids: tree.archive.map(pl => ({ key: `pl:${pid}:${pl.slug}`, label: pl.title, href: href.plan(pid, pl.slug), match: within.plan(pl.slug), waits: true,
+          meta: em(`closed ${pl.closed.slice(0, 10)}`) })),
+      });
+    }
   }
   return {
     key: `p:${pid}`, label: pid, href: href.project(pid), top: true, match: within.all(), kids, expandable: true,
@@ -128,6 +137,7 @@ export function expandFor(route, state) {
     }
   }
   if (kind === "plans") expanded.add(`pl:${pid}:${id}`);
+  if (kind === "plans" && tree?.archive?.some(pl => pl.slug === id)) expanded.add(`ar:${pid}`);
   save();
 }
 
