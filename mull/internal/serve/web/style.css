@@ -187,7 +187,7 @@ main { min-width: 0; display: flex; flex-direction: column; }
 .cols { display: grid; grid-template-columns: minmax(0, 1fr) 384px; gap: 40px; align-items: start; }
 .hd { display: flex; align-items: baseline; justify-content: space-between; gap: 6px 12px; flex-wrap: wrap; padding-bottom: 8px; border-bottom: 1.5px solid var(--ink); }
 .hd h2 { font-size: 19px; font-weight: 750; font-stretch: 95%; letter-spacing: -.01em; }
-.note { margin: 0; padding: 9px 12px; border: 1px solid var(--ink); border-left-width: 4px; font-size: 13px; max-width: 90ch; }
+.note { margin: 0; padding: 9px 12px; border: 1px solid var(--ink); font-size: 13px; max-width: 90ch; }
 .note code { font-size: 12px; }
 
 /* the Needs you schedule */
