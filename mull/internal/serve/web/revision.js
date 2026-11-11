@@ -45,6 +45,26 @@ export class Changes {
   }
 }
 
+// runs joins consecutive changed pieces under one cloud, as the sheet index
+// does, so a list where much changed reads as one clouded region, not a
+// cloud per row. parts are [html, cls] (cls from Changes.cls, or ""); cloud
+// wraps a run of changed pieces, plain a run of the rest.
+export function runs(parts, cloud, plain = h => h) {
+  let out = "", run = [], changed = false;
+  const flush = () => {
+    if (!run.length) return;
+    const html = run.map(p => p[0]).join("");
+    out += changed ? cloud(html, run.some(p => p[1].includes("fresh")) ? " cl fresh" : " cl") : plain(html);
+    run = [];
+  };
+  for (const [html, cls] of parts) {
+    if (!!cls !== changed) { flush(); changed = !!cls; }
+    run.push([html, cls]);
+  }
+  flush();
+  return out;
+}
+
 // The revision schedule: one row per changed record, newest first.
 export function revisionSchedule(pid, rev, entryHref) {
   const changes = rev?.changes || [];

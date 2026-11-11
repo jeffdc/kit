@@ -328,6 +328,7 @@ Square corners throughout (`rounded.none`), and `select` resets its radius to 0.
 ### Revision clouds (signature)
 - A scalloped red outline built from four radial-gradient arc strips: 12px scallops, a 1px stroke (5.1–6.1px radius), and a 7px band, drawn in a `::before` that sits 6px × 10px outside the element and doesn't take pointer events.
 - **What gets clouded:** a tree row (when it's collapsed and anything inside changed, or open and the change is in none of its open children), a closed Needs you tier (at its header), a Needs you row or decision, Plans rows, tabs (Unplanned, Backlog, Plan doc), and the sheet name.
+- **Runs:** changed things next to each other share one cloud, never a cloud each: runs of rows in the sheet index, in tables, in a Needs you tier and in a decision group (`runs()` in `revision.js`). A closed group or tier carries the cloud for what's inside it; open, only its changed rows do. A clouded name in a title block is clouded as one block, however many lines it takes.
 - **Table rows:** each cell draws its share of the cloud, so a clouded row's top and bottom edges run across all its cells while the first and last cells close the sides. Consecutive clouded rows share one cloud through `.cl-cont` and `.cl-open`.
 - **Motion:** a fresh cloud (one not present on the previous fetch) draws in left to right over 0.7s `cubic-bezier(.16, 1, .3, 1)` via clip-path, and stays fresh for 750ms. "Mark revision seen" fades clouds out over 0.35s ease-out, and the tree's clouds clear in step.
 

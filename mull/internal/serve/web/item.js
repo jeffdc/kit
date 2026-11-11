@@ -9,6 +9,9 @@ import { markdown } from "./doc.js";
 
 const short = sha => esc(String(sha || "").slice(0, 7));
 
+// How a settled review or decision reads: the action as the human took it.
+const SETTLED = { accept: "accepted", do: "sent back", decide: "decided", drop: "dropped", park: "parked" };
+
 function duration(ms) {
   const s = Math.round(ms / 1000);
   return s < 60 ? `${s} s` : `${Math.floor(s / 60)} m ${String(s % 60).padStart(2, "0")} s`;
@@ -61,7 +64,7 @@ function review(pid, it, page) {
       `<button class="btn p" data-cmd="mull accept ${esc(it.id)}" data-say="Accepting also ratifies ${esc(plural(open.length, "open decision"))}.">Accept${open.length ? ` with its ${plural(open.length, "decision")}` : ""}</button>`;
   } else if (entry?.settled) {
     const s = entry.settled;
-    state = `${tag(s.action === "accept" ? "done" : "committed", s.action === "accept" ? "accepted" : s.action)} <span class="sub">${esc(clock(s.at))}${s.note ? ` · ${esc(s.note)}` : ""}</span>`;
+    state = `${tag(s.action === "accept" ? "done" : "committed", SETTLED[s.action] || s.action)} <span class="sub">${esc(clock(s.at))}${s.note ? ` · ${esc(s.note)}` : ""}</span>`;
   } else {
     state = `<span class="sub">Report ${r.n} ${r.passed ? "isn't filed for review" : "failed its checks, so it isn't filed for review"}.</span>`;
   }
@@ -73,7 +76,7 @@ function review(pid, it, page) {
     : `<div><span class="lab">Try it</span><p class="sub" style="margin:6px 0 0">No UI tour: nothing visible changed.</p></div>`;
   const decs = decisions.length ? decisions.map(d => {
     const s = d.settled;
-    const act = s ? tag(s.action === "accept" ? "done" : "committed", s.action === "accept" ? "approved" : s.action) : `<button class="btn s" data-cmd="mull decide ${esc(d.id)} &quot;…&quot;">Decide differently</button>`;
+    const act = s ? tag(s.action === "accept" ? "done" : "committed", s.action === "accept" ? "approved" : SETTLED[s.action] || s.action) : `<button class="btn s" data-cmd="mull decide ${esc(d.id)} &quot;…&quot;">Decide differently</button>`;
     return `<div class="decn"><code>${esc(d.id)}</code><span>${esc(d.text)}</span>${act}${d.detail ? `<span class="why">${esc(d.detail)}</span>` : ""}${s?.note && s.action !== "accept" ? `<span class="why">${esc(s.note)}</span>` : ""}</div>`;
   }).join("") : `<p class="sub" style="margin:6px 0 0">None.</p>`;
   const files = (r.changes || []).map(l => {

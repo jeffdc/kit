@@ -149,7 +149,7 @@ tr.cl.cl-cont.cl-open > td::after { background-size: 12px 0, 12px 0, 7px 12px; }
 .tier:not([open]):has(.cl) + .tier > summary { margin-top: 6px; }
 .cl.fresh::before, tr.cl.fresh > td::after, .tier:not([open]):has(.cl.fresh) > summary::before { animation: draw .7s cubic-bezier(.16, 1, .3, 1); }
 .cl.fading::before, tr.cl.fading > td::after, .tier:not([open]):has(.cl.fading) > summary::before { transition: opacity .35s ease-out; opacity: 0; }
-.pj .cl { display: inline; }
+.pj .cl { display: inline-block; }
 .pj .cl::before { inset: -8px -12px; }
 .tree .tcl { margin: 7px 0; }
 .tree .tcl::before { inset: -5px 3px; }
@@ -231,8 +231,10 @@ main { min-width: 0; display: flex; flex-direction: column; }
 .it .w { display: block; margin-top: 3px; font-size: 12px; color: var(--mut); }
 .it .w a { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 2px; }
 .it .act { display: flex; gap: 6px; align-items: center; }
-.it.cl { margin: 6px 0; border-top-color: transparent; }
-.it.cl + .it { border-top-color: transparent; }
+/* a run of changed rows shares one cloud */
+.clrun { margin: 6px 0; }
+.clrun > .it:first-child, .clrun + .it, .tier > summary + .clrun > .it:first-child { border-top-color: transparent; }
+.clrun::before { inset: -2px -6px; }
 .grp { padding: 8px 10px 10px 42px; border-top: 1px solid var(--line); }
 .grp > summary { cursor: pointer; display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; list-style: none; min-width: 0; }
 .grp > summary::-webkit-details-marker { display: none; }
@@ -240,10 +242,12 @@ main { min-width: 0; display: flex; flex-direction: column; }
 .grp > summary .sp { flex: 1; }
 .grp > summary small { font-weight: 400; font-size: 12px; color: var(--mut); }
 .grp.cl { margin: 6px 0; }
+.grp[open].cl::before { display: none; }
 .grp ul { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .grp li { display: grid; grid-template-columns: 54px 1fr; font-size: 12.5px; color: var(--mut); }
-.grp li.cl { color: var(--ink); margin: 4px 0; }
-.grp li.cl::before { inset: -4px -8px; }
+.grp ul.clrun { margin: 10px 0 2px; color: var(--ink); }
+.grp ul.clrun + ul { margin-top: 10px; }
+.grp ul.clrun::before { inset: -6px -8px; }
 .foot-act { padding: 8px 10px 10px 42px; display: flex; gap: 8px; }
 
 .revs > summary { list-style: none; cursor: pointer; }

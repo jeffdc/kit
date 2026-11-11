@@ -4,7 +4,7 @@
 // prompt or a mull command for the human to run.
 
 import { esc, href, CHEVRON, itemStage, stageLabel, shortTitle, plural, clock } from "./html.js";
-import { within } from "./revision.js";
+import { within, runs } from "./revision.js";
 
 // Tiers open by default: the ones that hold work up.
 const OPEN = new Set(["blocking", "review", "now"]);
@@ -30,7 +30,7 @@ function tier(t, opts) {
   } else {
     const entries = t.entries || [];
     count = String(t.count);
-    body = entries.map((e, i) => row(e, `${t.rank}.${i + 1}`, t.key, opts)).join("");
+    body = runs(entries.map((e, i) => row(e, `${t.rank}.${i + 1}`, t.key, opts)), (h, cl) => `<div class="clrun${cl}">${h}</div>`);
     if (entries.length > 1 && t.key !== "review") {
       body += `<div class="foot-act"><button class="btn s" data-copy="${esc(entries.map(e => e.id).join(", "))}">Copy all ${entries.length} for an agent</button></div>`;
     }
@@ -71,8 +71,9 @@ function row(e, n, tierKey, opts) {
     ? (link ? `<a class="btn s" href="${esc(link)}">Review</a>` : "")
     : `<button class="btn s${tierKey === "blocking" ? " p" : ""}" data-copy="${esc(e.id)}">Answer</button>`;
   const code = review && e.item ? e.item : e.id;
-  return `<div class="it${cloudsOf(e, opts.changes)}"${link ? ` data-href="${esc(link)}"` : ""}><span class="n">${esc(n)}</span><code>${esc(code)}</code>` +
-    `<div><p${e.detail ? ` title="${esc(e.detail)}"` : ""}>${text}</p>${where ? `<span class="w">${where}</span>` : ""}</div><div class="act">${act}</div></div>`;
+  return [`<div class="it"${link ? ` data-href="${esc(link)}"` : ""}><span class="n">${esc(n)}</span><code>${esc(code)}</code>` +
+    `<div><p${e.detail ? ` title="${esc(e.detail)}"` : ""}>${text}</p>${where ? `<span class="w">${where}</span>` : ""}</div><div class="act">${act}</div></div>`,
+    cloudsOf(e, opts.changes)];
 }
 
 // group: decisions from one source. A group carried by an open review is
@@ -87,6 +88,8 @@ function group(g, opts) {
   const act = g.review && g.item
     ? `<a class="btn s" href="${esc(href.item(pid, g.item))}">Review</a>`
     : `<button class="btn s" data-cmd="mull accept ${esc(ids.join(" "))}" data-say="Approving ratifies ${esc(plural(ids.length, "decision"))}.">Approve all</button>`;
-  const items = g.entries.map(e => `<li class="${ch ? ch.cls(within.entry(e.id)).trim() : ""}"><code>${esc(e.id)}</code><span${e.detail ? ` title="${esc(e.detail)}"` : ""}>${esc(e.text)}</span></li>`).join("");
-  return `<details class="grp${cloud}" data-open="${esc(key)}"><summary>${CHEVRON}<span>${name}${carried}</span><span class="sp"></span><span class="mono mut">${g.entries.length}</span>${act}</summary><ul>${items}</ul></details>`;
+  const items = runs(g.entries.map(e => [`<li><code>${esc(e.id)}</code><span${e.detail ? ` title="${esc(e.detail)}"` : ""}>${esc(e.text)}</span></li>`, ch ? ch.cls(within.entry(e.id)) : ""]),
+    (h, cl) => `<ul class="clrun${cl}">${h}</ul>`, h => `<ul>${h}</ul>`);
+  // Closed, the group carries the cloud; open, its changed rows do.
+  return `<details class="grp${cloud}" data-open="${esc(key)}"><summary>${CHEVRON}<span>${name}${carried}</span><span class="sp"></span><span class="mono mut">${g.entries.length}</span>${act}</summary>${items}</details>`;
 }
