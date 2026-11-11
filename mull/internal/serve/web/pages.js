@@ -3,7 +3,7 @@
 // reads one or two API pages (subsFor), which app.js loads into the
 // project's data.pages.
 
-import { esc, href, agoSpan, ago } from "./html.js";
+import { esc, href, agoSpan, ago, needsTotal, needsBreakdown } from "./html.js";
 import { titleBlock, projectHead, liveField } from "./title.js";
 import { schedule } from "./needs.js";
 import { plansColumn } from "./plans.js";
@@ -86,7 +86,7 @@ export function pageHome(state) {
   const fields = [
     ["Projects on mull", String(ok.length)],
     ["Blocking", String(sum(s => s.blocking))],
-    ["Waiting for review", String(sum(s => s.needs_you.reviews))],
+    ["Needs you", String(sum(s => needsTotal(s.needs_you)))],
     ["Agents working", String(sum(s => s.agents))],
     ["Status", liveField(state.live)],
     ["Not on mull yet", String(convert.length + notYet.length)],
@@ -95,11 +95,11 @@ export function pageHome(state) {
   if (!all.length && !convert.length && !notYet.length) {
     return head + `<div class="page"><p class="empty">No projects yet. Run any mull command in a repository with a mull branch to add it.</p></div>`;
   }
-  const group = (title, list, row) => list.length ? `<tr class="grp-h"><td colspan="9">${title}<em>${list.length}</em></td></tr>${list.map(row).join("")}` : "";
+  const group = (title, list, row) => list.length ? `<tr class="grp-h"><td colspan="8">${title}<em>${list.length}</em></td></tr>${list.map(row).join("")}` : "";
   const rows = ok.map(pr => homeRow(pr, state.data.get(pr.id))).join("") + bad.map(errorRow).join("") +
     group("Needs converting", convert, unmulledRow) + group("Not on mull yet", notYet, unmulledRow);
   return head + `<div class="page"><section><div class="hd"><h2>Projects</h2><span class="lab">Updates when any repo's mull branch moves</span></div>
-    <div class="tbl-wrap"><table class="t"><thead><tr><th>Project</th><th>Active plans</th><th class="n nl">Blocking</th><th class="n w">Reviews</th><th class="n w">Questions</th><th class="n w">Agents</th><th class="n w">Untriaged</th><th class="n w">Revision</th><th class="n w">Last change</th></tr></thead>
+    <div class="tbl-wrap"><table class="t"><thead><tr><th>Project</th><th>Active plans</th><th class="n">Blocking</th><th class="n nl">Needs you</th><th class="n w">Agents</th><th class="n w">Untriaged</th><th class="n w">Revision</th><th class="n w">Last change</th></tr></thead>
     <tbody>${rows}</tbody></table></div></section></div>`;
 }
 
@@ -115,7 +115,7 @@ function homeRow(pr, data) {
   const branch = `<code>${esc(s.integration)}</code>${s.ahead_of_release ? ` · ${s.ahead_of_release} ahead of ${esc(s.release)}` : ""}`;
   const changed = rev?.changes ? (data?.changes ? data.changes.clsOf(data.changes.list) : " cl") : "";
   return `<tr class="${changed.trim()}" data-href="${esc(link)}"><td><a class="ttl" href="${esc(link)}" style="font-size:15px">${esc(pid)}</a><span class="meta">${branch}</span></td>` +
-    `<td>${plans}</td><td class="n nl">${s.blocking ? `<span class="stamp">${s.blocking}</span>` : "0"}</td><td class="n w">${s.needs_you.reviews}</td><td class="n w">${s.needs_you.questions}</td>` +
+    `<td>${plans}</td><td class="n">${s.blocking ? `<span class="stamp">${s.blocking}</span>` : "0"}</td><td class="n nl">${needsCell(s.needs_you, link)}</td>` +
     `<td class="n w">${s.agents}</td><td class="n w">${s.untriaged}</td><td class="n w">${rev ? `Rev ${rev.number}` : ""}</td>` +
     `<td class="n mut w">${agoSpan(s.last_change)}</td></tr>`;
 }
@@ -126,14 +126,20 @@ function unmulledRow(u) {
   const what = u.kind === "old_mull"
     ? `Old <code>.mull/</code> data. ${when}Convert it with an intake: an agent runs <code>mull guide intake</code> in it.`
     : `No mull branch. ${when}Run <code>mull init</code> in it to start.`;
-  return `<tr class="waits"><td>${esc(u.name)}<span class="meta">${esc(u.path)}</span></td><td colspan="8">${what}</td></tr>`;
+  return `<tr class="waits"><td>${esc(u.name)}<span class="meta">${esc(u.path)}</span></td><td colspan="7">${what}</td></tr>`;
+}
+
+// needsCell: the count of what needs the human, and what it is.
+function needsCell(ny, link) {
+  const n = needsTotal(ny);
+  return n ? `<a class="mk" href="${esc(link)}" data-needs><span class="ask">${n}</span></a><span class="meta">${esc(needsBreakdown(ny))}</span>` : "0";
 }
 
 function errorRow(pr) {
   const why = pr.error.code === "not_initialized"
     ? "No mull branch yet: run mull init in it to start."
     : `<code>${esc(pr.error.code)}</code> ${esc(pr.error.error)}`;
-  return `<tr class="waits"><td>${esc(pr.name)}<span class="meta">${esc(pr.path)}</span></td><td colspan="8">${why}</td></tr>`;
+  return `<tr class="waits"><td>${esc(pr.name)}<span class="meta">${esc(pr.path)}</span></td><td colspan="7">${why}</td></tr>`;
 }
 
 // pageProject is a project's Overview: the revision schedule, then Needs
@@ -158,7 +164,7 @@ export function pageProject(state, pr) {
     ? `<p class="note">This project's mull data is format ${s.format}. mull reads it, but refuses every write until it's migrated: <code>mull migrate --dry-run --text</code> shows what would change.</p>`
     : "";
   return head + `<div class="page">${migrate}${revisionSchedule(pr.id, data.revision, entryHref)}<div class="cols">
-    <section><div class="hd"><h2>Needs you</h2><span class="lab">${ny.open} open${ny.parked ? ` · ${ny.parked} parked` : ""} · ranked by what it unblocks</span></div>${schedule(ny, { pid: pr.id, changes: ch })}</section>
+    <section id="needs"><div class="hd"><h2>Needs you</h2><span class="lab">${ny.open} open${ny.parked ? ` · ${ny.parked} parked` : ""} · ranked by what it unblocks</span></div>${schedule(ny, { pid: pr.id, changes: ch })}</section>
     <aside>${plansColumn(pr.id, ov, ch)}</aside>
   </div></div>`;
 }

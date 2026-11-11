@@ -1,6 +1,6 @@
 // The title block across the top of every sheet, and a project's tabs.
 
-import { esc, href, agoSpan, clock, plural } from "./html.js";
+import { esc, href, agoSpan, clock, plural, needsTotal, needsBreakdown } from "./html.js";
 import { within } from "./revision.js";
 
 // titleBlock: the sheet's name (large) with its breadcrumbs, then boxed
@@ -19,8 +19,8 @@ export const liveField = live => live
   ? `<span class="live"><i></i></span>Live`
   : `<span class="live off"><i></i></span>Reconnecting <small>showing the last data</small>`;
 
-// projectFields: branch, ahead count, live state, last change, agents and
-// revision, from the project list's summary and revision.
+// projectFields: branch, ahead count, live state, last change, what needs
+// the human and revision, from the project list's summary and revision.
 export function projectFields(pr, live) {
   const s = pr.summary, rev = pr.revision;
   const fields = [
@@ -28,7 +28,7 @@ export function projectFields(pr, live) {
     [`Ahead of ${s.release}`, s.ahead_of_release ? plural(s.ahead_of_release, "commit") : `<span class="mut">level</span>`],
     ["Status", liveField(live)],
     ["Last change", `${agoSpan(s.last_change)} <small class="mono">${esc(clock(s.last_change))}</small>`],
-    ["Agents working", String(s.agents)],
+    ["Needs you", needsField(pr)],
   ];
   if (rev) {
     const since = esc(clock(rev.seen_at));
@@ -37,6 +37,15 @@ export function projectFields(pr, live) {
     fields.push(["Revision", `<span class="mut">unknown</span>`]);
   }
   return fields;
+}
+
+// needsField: how much needs the human, what it is, and whether any of it
+// blocks.
+function needsField(pr) {
+  const ny = pr.summary.needs_you, n = needsTotal(ny);
+  if (!n) return `<span class="mut">nothing</span>`;
+  const b = pr.summary.blocking ? ` <span class="stamp">${pr.summary.blocking} blocking</span>` : "";
+  return `<a class="mk" href="${esc(href.project(pr.id))}" data-needs><span class="ask">${n}</span></a>${b} <small>${esc(needsBreakdown(ny))}</small>`;
 }
 
 // projectHead: a project's title block and tabs, shared by its Overview,

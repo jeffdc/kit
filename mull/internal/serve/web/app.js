@@ -18,6 +18,7 @@ const state = {
   unmulled: null,    // GET /api/unmulled: repos beside these not on mull yet
   data: new Map(),   // project ID → {tree, revision, changes, pages: Map(API sub-path → {value} | {error})}
   live: false,       // the event stream is open
+  focusNeeds: "",    // a stamp was clicked: the sheet (hash) to open at its Needs you
 };
 // What the human opened or closed (tiers, groups, the revision schedule),
 // by data-open key, so live re-renders keep it.
@@ -156,6 +157,19 @@ function render() {
   renderLive();
   for (const d of state.data.values()) d.changes?.settle();
   if (focus) (inTree ? treeEl : main).querySelector(focus)?.focus({ preventScroll: true });
+  if (state.focusNeeds === location.hash) showNeeds();
+}
+
+// showNeeds opens every tier and group in the sheet's Needs you and scrolls
+// to it, once the sheet has drawn it.
+function showNeeds() {
+  const sec = main.querySelector("#needs");
+  if (!sec) return; // not loaded yet: the next render tries again
+  state.focusNeeds = "";
+  for (const d of sec.querySelectorAll("details[data-open]")) {
+    if (d.classList.contains("tier")) { d.open = true; opened.set(d.dataset.open, true); }
+  }
+  sec.scrollIntoView({ block: "start" });
 }
 
 // Consecutive clouded table rows share one cloud.
@@ -271,6 +285,12 @@ document.addEventListener("click", ev => {
     treeEl.querySelector(`[data-tg="${CSS.escape(tg.dataset.tg)}"]`)?.focus();
     return;
   }
+  const mk = t.closest("a[data-needs]");
+  if (mk) {
+    state.focusNeeds = mk.getAttribute("href");
+    if (state.focusNeeds === location.hash) { ev.preventDefault(); showNeeds(); }
+    return; // otherwise the hash change renders the sheet, which shows its Needs you
+  }
   const fb = t.closest("button[data-filter]");
   if (fb) { setFilter(fb); return; }
   const clear = t.closest("[data-clear]");
@@ -307,7 +327,7 @@ window.addEventListener("hashchange", () => {
   if (d && subsFor(r).some(s => !d.pages?.has(s))) loadProject(r.pid);
   render();
   reveal(treeEl);
-  window.scrollTo(0, 0);
+  if (state.focusNeeds !== location.hash) { state.focusNeeds = ""; window.scrollTo(0, 0); }
 });
 
 // ---- start
