@@ -1,0 +1,10 @@
+---
+kind: decision
+text: Send it back runs do on the review entry, not the item
+plan: mull-ui-edit
+item: db04
+by: /Users/jeff/dev/kit
+created: "2026-11-11T13:18:57Z"
+---
+
+do takes an inbox entry; the copied command it replaces passed the item ID and would have failed.
