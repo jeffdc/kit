@@ -74,6 +74,19 @@ const (
 	logFormat = "%H%x1f%P%x1f%cI%x1f%s%x1f%(trailers:key=Mull,valueonly,separator=%x2C)%x1e"
 )
 
+// logFrom returns up to historyLimit commits reachable from tip, a commit
+// ID, and not from not (another commit ID, or ""). Both are IDs, so the
+// answer never changes and is cached.
+func (m *Mull) logFrom(tip, not string) ([]commitInfo, error) {
+	args := []string{"-n", itoa(historyLimit), tip}
+	if not != "" {
+		args = append(args, "--not", not)
+	}
+	return gitLogs.get(m.repo.Dir+"\x00"+strings.Join(args, " "), func() ([]commitInfo, error) {
+		return m.logCommits(args...)
+	})
+}
+
 func (m *Mull) logCommits(args ...string) ([]commitInfo, error) {
 	out, err := m.repo.Output(nil, nil, append([]string{"log", "--format=" + logFormat}, args...)...)
 	if err != nil {
@@ -102,21 +115,41 @@ func (m *Mull) logCommits(args ...string) ([]commitInfo, error) {
 
 // aheadOfRelease counts the commits on the integration branch (at integ)
 // that the release branch doesn't have; 0 when they are the same branch or
-// the release branch is missing.
-func (m *Mull) aheadOfRelease(s *state, integration, integ string) int {
+// the release branch is missing. heads are the branch tips.
+func (m *Mull) aheadOfRelease(s *state, integration, integ string, heads map[string]string) int {
 	rel := s.config.Release
 	if rel == "" || rel == integration {
 		return 0
 	}
-	relSha, _ := m.repo.RefCommit("refs/heads/" + rel)
+	relSha := heads[rel]
 	if relSha == "" {
 		return 0
 	}
-	n, err := m.repo.Output(nil, nil, "rev-list", "--count", integ, "--not", relSha)
+	n, _ := gitCounts.get(m.repo.Dir+"\x00"+integ+" --not "+relSha, func() (int, error) {
+		n, err := m.repo.Output(nil, nil, "rev-list", "--count", integ, "--not", relSha)
+		return atoi(n), err
+	})
+	return n
+}
+
+// branchHeads returns the local branches, in refname order, and the commit
+// each points at: one git call.
+func (m *Mull) branchHeads() ([]string, map[string]string, error) {
+	out, err := m.repo.Output(nil, nil, "for-each-ref", "--format=%(objectname) %(refname:short)", "refs/heads")
 	if err != nil {
-		return 0
+		return nil, nil, err
 	}
-	return atoi(n)
+	var names []string
+	heads := map[string]string{}
+	for _, line := range strings.Split(out, "\n") {
+		sha, name, ok := strings.Cut(strings.TrimSpace(line), " ")
+		if !ok {
+			continue
+		}
+		names = append(names, name)
+		heads[name] = sha
+	}
+	return names, heads, nil
 }
 
 // readGit derives git links for the items in s. A missing integration branch
@@ -126,16 +159,17 @@ func (m *Mull) readGit(s *state) (*gitState, error) {
 	if g.Integration == "" {
 		g.Integration = "main"
 	}
-	integ, err := m.repo.RefCommit("refs/heads/" + g.Integration)
+	branches, heads, err := m.branchHeads()
 	if err != nil {
 		return nil, err
 	}
+	integ := heads[g.Integration]
 	g.IntegrationFound = integ != ""
 	known := func(id string) bool { return s.items[id] != nil }
 	weekAgo := m.Now().Add(-7 * 24 * time.Hour).UTC().Format(time.RFC3339)
 
 	if g.IntegrationFound {
-		commits, err := m.logCommits("-n", itoa(historyLimit), integ)
+		commits, err := m.logFrom(integ, "")
 		if err != nil {
 			return nil, err
 		}
@@ -174,24 +208,15 @@ func (m *Mull) readGit(s *state) (*gitState, error) {
 			}
 			sha = c.parents[0]
 		}
-		g.AheadOfRelease = m.aheadOfRelease(s, g.Integration, integ)
+		g.AheadOfRelease = m.aheadOfRelease(s, g.Integration, integ, heads)
 	}
 
 	// Unmerged work on other local branches.
-	branches, err := m.repo.Output(nil, nil, "for-each-ref", "--format=%(refname:short)", "refs/heads")
-	if err != nil {
-		return nil, err
-	}
-	for _, b := range strings.Split(branches, "\n") {
-		b = strings.TrimSpace(b)
-		if b == "" || "refs/heads/"+b == store.Ref || b == g.Integration || b == s.config.Release {
+	for _, b := range branches {
+		if "refs/heads/"+b == store.Ref || b == g.Integration || b == s.config.Release {
 			continue
 		}
-		args := []string{b}
-		if g.IntegrationFound {
-			args = append(args, "--not", integ)
-		}
-		commits, err := m.logCommits(append([]string{"-n", itoa(historyLimit)}, args...)...)
+		commits, err := m.logFrom(heads[b], integ)
 		if err != nil {
 			return nil, err
 		}

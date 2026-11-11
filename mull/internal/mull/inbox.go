@@ -2,6 +2,7 @@ package mull
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 
 	"mull/internal/model"
@@ -145,12 +146,24 @@ func (m *Mull) Inbox(f InboxFilter) ([]*model.Entry, error) {
 			if e.Settled != nil && !f.All && !(f.Parked && parked) {
 				continue
 			}
-			out = append(out, e)
+			out = append(out, copyEntry(e))
 		}
 		return nil
 	})
 	sort.SliceStable(out, func(a, b int) bool { return out[a].Created < out[b].Created })
 	return out, err
+}
+
+// copyEntry returns a copy of e that shares nothing with it: reads hand out
+// copies, never the cached state's own records.
+func copyEntry(e *model.Entry) *model.Entry {
+	c := *e
+	if e.Settled != nil {
+		st := *e.Settled
+		c.Settled = &st
+	}
+	c.Decisions = slices.Clone(e.Decisions)
+	return &c
 }
 
 func retiredKind(kind string) bool { return kind == model.KindLoose || kind == model.KindIdea }

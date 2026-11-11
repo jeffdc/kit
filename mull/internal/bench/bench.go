@@ -314,6 +314,27 @@ func plan(repo string, back []int) (Shape, []target, error) {
 		}
 		ts = append(ts, target{name: fmt.Sprintf("revision, %d back", b), call: func() error { _, err := m.Revision(since); return err }})
 	}
+	// The first read after a write: the state at a commit the cache hasn't
+	// seen, read as the difference from the one before. Each call steps one
+	// commit nearer the tip, so every call is a new commit.
+	if shape.Commits > 2 {
+		out, err := r.Output(nil, nil, "rev-list", "--first-parent", "-n", "65", store.Ref)
+		if err != nil {
+			return shape, nil, err
+		}
+		recent := strings.Fields(out) // newest first
+		k := len(recent) - 1
+		if err := m.Preload(recent[k]); err != nil {
+			return shape, nil, err
+		}
+		ts = append(ts, target{name: "next commit (after a write)", call: func() error {
+			if k == 0 {
+				return fmt.Errorf("ran out of commits")
+			}
+			k--
+			return m.Preload(recent[k])
+		}})
+	}
 	// Over HTTP, revision reads the last look from per-machine state: mark
 	// it at the farthest distance so the endpoint does the real work.
 	if len(back) > 0 {

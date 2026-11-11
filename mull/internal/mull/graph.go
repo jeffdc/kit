@@ -1,6 +1,7 @@
 package mull
 
 import (
+	"slices"
 	"strings"
 
 	"mull/internal/model"
@@ -16,6 +17,9 @@ func finished(i *model.Item) bool {
 }
 
 func (s *state) phaseItems(phaseID string) []*model.Item {
+	if s.byPhase != nil {
+		return slices.Clone(s.byPhase[phaseID])
+	}
 	var out []*model.Item
 	for _, id := range sortedKeys(s.items) {
 		if s.items[id].Phase == phaseID {
