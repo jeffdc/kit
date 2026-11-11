@@ -40,6 +40,7 @@ const (
 	CodeMigrationRequired  = "migration_required"  // the data is from before Model v2: writes wait for mull migrate
 	CodeUnsupportedFormat  = "unsupported_format"  // the data is in a newer format than this mull understands
 	CodePortInUse          = "port_in_use"         // mull serve's port is taken (another mull serve?)
+	CodeLaunchd            = "launchd_error"       // launchctl refused to load or unload mull serve's LaunchAgent
 	CodeInternal           = "internal"            // anything else
 )
 

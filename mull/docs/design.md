@@ -1,8 +1,9 @@
-# mull (next): design
+# mull: design
 
-Status: draft for review, 2026-11-09 (revision 2). Built on branch `mull-next` from scratch; none of the old code is reused.
+Status: revision 3, 2026-11-10 (Model v2 and `mull serve`). mull is a from-scratch rewrite of old mull, and none of the old code is reused. It replaced old mull at the 2026-11-09 cutover (see "Transition").
 
 Background:
+- `serve/`: the design of `mull serve`, and in `serve/README.md` the Model v2 summary and the decisions of 2026-11-10.
 - `research/prior-art.md`: what exists and what to borrow.
 - `research/taxogall-recast.md`: the target view, filled in with real gallformers data.
 - `research/superseded/`: earlier drafts, kept for history.
@@ -22,29 +23,30 @@ New mull is the record of a program: its plans, where they stand, and everything
 
 ## Principles
 
-1. **Any LLM, any harness.** The only interfaces are a CLI and git. Agents learn the protocol from a plain-text block in `AGENTS.md`. Nothing depends on Claude Code, Codex or any other harness. The test for every feature: it works with you typing the commands.
+1. **Any LLM, any harness.** The only interfaces are a CLI and git. Agents learn the protocol from a plain-text block in `AGENTS.md`. Nothing depends on Claude Code, Codex or any other harness. The test for every feature: it works with you typing the commands. `mull serve`, the human's web view, reads the same records and changes none of this.
 2. **Agents never edit mull's data files.** They read and write through the CLI. Long design documents are not mull data: they stay as ordinary files in the repo, and records link to them.
-3. **What agents write is a claim; git and checks are evidence.** An item is done only when mull itself has run the project's hard checks and they passed. Whether its work has landed is shown separately, as *seen in git*.
+3. **What agents write is a claim; git and checks are evidence.** An item reaches review only when mull itself has run the project's hard checks and they passed, and it's done only once reviewed. Whether its work has landed is shown separately, as *seen in git*.
 4. **You stay involved, not sidelined.** Plans are yours. Decisions agents make come to you for ratification. Finished items come to you for review. Everything that needs you is in one queue, and you settle each entry with one action.
 5. **It holds up when the model has a bad week.** An item is sized for one agent in one session. Checks are deterministic and run by mull. Problems surface fast.
-6. **Limits are soft and loud,** with one exception: an item isn't done until its checks pass. Everything else is shown, never blocked.
+6. **Limits are soft and loud,** with one exception: an item can't reach review until its checks pass. Everything else is shown, never blocked.
 
 ## Data model: three levels
 
 | Record | What it is | Fields | Who writes it |
 |---|---|---|---|
 | **Plan** | A large effort, such as `taxogall`. High-level only. | id (plain-English slug, e.g. `taxogall`, `general`), title, summary, doc, state `shaping`, `active` or `done` | You |
-| **Epic** | A big piece of a plan; a set of items. | id (4-hex), plan (required), title, summary, doc, needs | You, or agents on your instruction |
-| **Item** | A unit of work **one agent completes in one session.** | id (4-hex), plan (required), epic (optional), title, notes, docs (paths), state, claim (no needs: see "Ordering") | Agents and you |
-| **Inbox entry** | Something that needs you | id, kind (`decision`, `question`, `loose-end` or `review`), one-line text, detail, item/epic/plan, source, created; when settled: action, note, by, time | Agents capture; you settle |
-| **Idea** | Not work: something to keep until its time comes | an inbox entry of kind `idea`: title, short note (`detail`), source, optional plan | Agents file only ideas the human raises; only the human promotes |
+| **Phase** | A big piece of a plan; a set of items. Called an epic before Model v2. | id (4-hex), plan (required), title, summary, doc, needs (phases only), from | You, or agents on your instruction |
+| **Item** | A unit of work **one agent completes in one session.** | id (4-hex), plan (optional), phase (optional), title, notes, docs (paths), stage, claim, from (no needs: see "Ordering") | Agents and you |
+| **Captured item** | The backlog: a bug or an idea, not work until you commit it (see "The backlog") | an item at stage `captured`, plus kind (`bug` or `idea`), category, source, triaged; a short note as its notes; optionally tagged to a plan or phase | Anyone captures; only you commit |
+| **Inbox entry** | Something that needs you | id, kind (`decision`, `question` or `review`), one-line text, detail, item, plan, source, by, created; a review also lists the decisions it carries; when settled: action, note, what it made, by, time | Agents capture; you settle |
 | **Done report** | The record of a finished item | item, commit SHA, tree hash, summary, UI tour, check results, design notes, decisions made in the session, system context | Agent plus mull |
-| **Config** | Per repo | integration branch, release branch, hard checks, layers, remote | You |
+| **Config** | Per repo | integration branch, release branch, hard checks, layers, remote, storage format | You |
 
 **Structure rules:**
-- Every epic and every item belongs to a plan. An item may sit directly under its plan with no epic. The view shows those as "unfiled" in that plan.
+- Every phase belongs to a plan. An item belongs to a plan or to none: committed work with no plan is **unplanned** (`--plan none`), and a captured item with no plan is backlog not tagged to a plan.
+- An item in a plan may sit directly under it with no phase. The view shows those as "(no phase)" in that plan.
 - Before Model v2, `mull init` created one standing plan, `general`, for work outside any big effort. Model v2 has unplanned work instead, and `mull migrate` retires `general`.
-- No docket, no sessions, no free-floating epics.
+- No docket, no sessions, no free-floating phases.
 
 **Plan states** (Model v2): `shaping → active → done`.
 - `mull plan new` creates a plan `shaping`, and only on your explicit ask (`--on-request`): its doc and questions are being worked out with you. It takes captures and inbox entries, but refuses phases and committed items (and starting a capture tagged to it) until you agree it.
@@ -56,11 +58,13 @@ New mull is the record of a program: its plans, where they stand, and everything
 
 | Stage | What triggers it |
 |---|---|
-| `captured` | The item is in the backlog, not committed to |
-| `committed` | The item is committed work (`mull add` creates items here) |
+| `captured` | The item is in the backlog, not committed to (`mull bug`, `mull idea`) |
+| `committed` | The item is committed work. `mull add` creates items here, and `mull commit` moves a captured one here. `release` and a review sent back return an item here |
 | `active` | The item is claimed by an agent (see "Claims"). `start` works from captured or committed |
 | `in-review` | Only through `mull done`, after the hard checks pass |
 | `done` | The work is reviewed and accepted (see "Review") |
+
+Because `start` works from captured, a small bug can go from the backlog to done in one session with no planning step. Review is never skipped.
 
 **Unreviewed work is incomplete work.** An item counts as finished only once it's `done`, which means reviewed.
 - A phase's progress counts done items out of its committed items, with items in review shown separately. Captured items tagged to a phase are counted on their own and never hold it open.
@@ -74,26 +78,26 @@ New mull is the record of a program: its plans, where they stand, and everything
 There is no priority list and no ordering field. Order only where it matters (Model v2):
 - A phase may **need** other phases. That is the only ordering: items have no needs, and items inside a phase are unordered. A phase's need is met when the needed phase is complete.
 - "Can start now" is derived: the phases whose needs are done.
-- **Ready** means committed, in a phase whose needs are done (or in no phase).
+- **Ready** means committed, in a phase whose needs are done (or in no phase), in a plan that isn't shaping.
 - **Blocked** means committed, in a phase with at least one need not done.
 - Cycles are refused when written.
 - Needs from before Model v2 are kept until `mull migrate` converts them: an item's needs are shown but ignored (migrate drops them), and a phase's needs on items still count (migrate makes each a need on that item's phase).
 - `mull ready [--plan p]` lists ready items. A supervisor agent uses it to hand out work.
-- The view sorts epics and items by readiness, then by age.
+- The view sorts phases by readiness (can start, blocked, complete), then by age.
 
 ### Claims (several agents at once)
 
 - `mull start <id>` claims an item and sets it `active`.
 - The claim is atomic: the write is a compare-and-swap (see "Storage"). If two agents start the same item, one wins and the other gets an error.
 - A claim records the worktree, the branch and the time. The worktree is the agent's identity.
-- `mull release <id>` gives a claim back.
+- `mull release <id>` gives a claim back, and the item returns to committed.
 - A claim with no linked commits for a day shows up as a problem in the view.
 
 ### Review
 
 Most items are reviewed in the session that finished them, by you or by a supervising agent. The inbox is the safety net for any that slip through.
 
-- **Review entry.** `mull done` always files a `review` entry. Accepting it marks the item `accepted`, and `mull accept <item-id>` works directly on the item too.
+- **Review entry.** `mull done` always files a `review` entry. Accepting it marks the item `done`, and `mull accept <item-id>` works directly on the item too.
 - **Review is what and how** (Model v2). The report holds what was built (summary, tour, checks) and how (design notes, the decisions made in the session, files by layer), and they're settled together:
   - the review carries every open decision on its item when `mull done` files it (unsettled and not parked), listed on the entry as `decisions`;
   - accepting the review ratifies those still unsettled. To decide one differently, `mull decide <decision-id> "…"` before accepting; `mull accept <decision-id>` alone still ratifies just that one;
@@ -107,28 +111,36 @@ Most items are reviewed in the session that finished them, by you or by a superv
   An accept run from the item's own claim worktree without `--on-request` is refused. That's a cheap, deterministic guard against an agent approving its own work.
 - **Anything not reviewed stays in NEEDS YOU** as a review entry until someone settles it.
 
-### Ideas
+### The backlog
 
-An idea is a title, a short note, a source and an optional plan. It isn't work, so it:
+The backlog is the captured items: bugs and ideas. A captured item is a title, a short note, a source, a free-text category, and optionally the plan or phase it's tagged to. It isn't work yet, so it:
 - needs no sizing and is never ready;
-- stays out of `inbox` and NEEDS YOU;
-- shows on the board only as a count (per plan, plus ideas with no plan), with `mull ideas` listing them all.
+- counts toward no progress: plans and phases count their captured items on their own, and they never hold a phase open;
+- stays out of `inbox` and NEEDS YOU, so it never nags;
+- shows on the board only as counts: captured and untriaged per plan and phase, plus the project's untriaged total. `mull list --state captured` lists them all, and `--untriaged` or `--kind bug|idea` narrows the list.
 
-**Settling an idea:**
-- **promote** with `mull do <idea> --plan <p>` (`--as epic` for an epic; the default is an item). The new record's `from` links back to the idea, and the idea's note and source go into its notes;
-- **drop**;
-- **park.**
+**Anyone captures; only the human commits.**
+- `mull bug "…"` captures something out of scope that's wrong: a bug, an inconsistency, half-finished work, an assumption. Feedback the human hands over for later goes in the same way, in their words, with the human as its source.
+- `mull idea "…"` captures a possibility worth keeping that isn't work yet, whether the human raised it or an agent noticed it. In intake, most of the old backlog fits here.
+- `mull commit <id>` makes it committed work, optionally moving it to a plan or phase (`--plan none` for unplanned work). An agent must pass `--on-request`, meaning the human asked, and mull refuses otherwise.
+- `mull start <id>` on a captured item commits it too, for a small fix the human wants done now. A capture tagged to a shaping plan can't be started.
+- `mull drop <id>` drops it.
+- The human goes through the backlog with an agent in triage (see "Triage" above).
 
-Only the human promotes ideas. An agent must pass `--on-request`, meaning the human asked, and mull refuses otherwise. Agents file ideas only when the human raises them; their own findings are loose ends. In intake, most of the old backlog fits here.
+A committed item keeps the kind, category and source it was captured with.
+
+**Before Model v2** (history): agents filed out-of-scope findings as inbox entries of kind `loose-end`, and ideas the human raised as inbox entries of kind `idea`, promoted with `mull do <idea> --plan <p> [--as epic]`. Model v2 keeps NEEDS YOU for attention only, so captured items replaced both, and `mull loose` and `mull ideas` are retired (code `retired`). Loose ends and inbox ideas already filed are kept until `mull migrate` turns them into captured items. Until then they're listed only by `mull inbox --kind loose-end|idea`, counted in the view as legacy, never in NEEDS YOU, and settled as before: a loose end like a question, and an idea with do, drop or park, where promoting it still needs `--on-request`.
 
 ### The inbox
 
+The inbox holds only what needs you: questions, decisions and reviews.
+
 | Action | Applies to | Effect |
 |---|---|---|
-| **Accept** | decisions, reviews | Decision: ratified as recorded. Review: the item becomes `accepted`, optionally with `--follow-up "text"` creating a new item in the same plan and epic |
-| **Decide** `"text"` | decisions, questions, loose ends | You write the decision (overruling an agent's decision if need be), and it joins the decision log |
-| **Do** | questions, loose ends, reviews | Question or loose end: becomes a new item. Review: **sends the work back**: the item reopens for another session, with `--reason` added to its notes |
-| **Drop** | decisions, questions, loose ends | Gone for good, with the drop recorded so it doesn't resurface |
+| **Accept** | decisions, reviews | Decision: ratified as recorded. Review: the item becomes `done`, and the decisions the review carries are ratified (see "Review"). `--follow-up "text"` also creates a new item in the same plan and phase |
+| **Decide** `"text"` | decisions, questions | You write the decision (overruling an agent's decision if need be), and it joins the decision log |
+| **Do** | questions, reviews | Question: becomes a new committed item (`--as phase` for a phase). Review: **sends the work back**: the item returns to committed for another session, with `--reason` added to its notes |
+| **Drop** | decisions, questions | Gone for good, with the drop recorded so it doesn't resurface |
 | **Park** `"reason"` | any | Out of the queue, still listed with `--parked`, and can be settled later |
 
 A review can't be decided or dropped, because both would leave unreviewed work looking finished. To abandon the work, drop the item itself.
@@ -231,7 +243,7 @@ mull derives from git:
 |---|---|
 | **Linked commits** | Commits with the trailer, or reached through a branch or merge carrying the ID |
 | **Seen in git** | The item's linked commits are reachable from the integration branch, so its work has landed. Shown next to `done`, never a gate |
-| **Problems** | An active claim with no linked commits for a day; done with nothing seen in git after N days; a failed done attempt; commits on the integration branch with no link, shown as a count |
+| **Problems** | An active claim with no linked commits for a day; an item in review or done with nothing seen in git after three days; a failed done attempt; recent commits on an item nobody has claimed; commits on the integration branch with no link, shown as a count |
 
 Bare 4-hex mentions in commit prose are not counted, because they collide with hashes.
 
@@ -244,24 +256,24 @@ The agent runs `mull done <id> --summary "…" --tour "…" --design -` when it 
 3. **Don't re-run what already passed.** If a passing result is cached for the same tree hash (`checks/<tree-hash>.json`, written by an earlier `mull check`), it's reused. Same tree, same result.
 4. **If a check fails:** the item stays `active`. The failed attempt is saved and shown as a problem, and the command exits non-zero, so the agent knows it isn't done.
 5. **If all checks pass,** mull:
-   - marks the item `done`;
+   - marks the item `in-review`;
    - writes the done report: the agent's summary, UI tour and design notes (required: how it was built and why), the decisions the review carries, the check results, and system context from the diff (files added, changed and deleted, grouped by the layers in config, with test files and code files counted separately);
    - files a **review** entry in your inbox.
 
-You then read the report and explore the tour. Settling the review is how an item becomes `accepted`:
-- **Accept** marks it accepted.
-- **Do** opens a follow-up item.
+You then read the report and explore the tour. Settling the review is how an item becomes `done`:
+- **Accept** marks it done. `--follow-up "text"` adds a new item for small leftovers.
+- **Do** sends it back: the item returns to committed, with the reason in its notes.
 
 There's no override for agents. For you, `mull done --override "reason"` exists, and it stays visible in the report and the view.
 
-Your instinct was right, and not naive. The project owns *what* the hard checks are (a make target), and mull owns *running them and recording the result*. The agent can't skip the checks or misreport them, because the only way to `done` is through mull. What checks can't prove (that it works and that you understand it) is covered by your review.
+Your instinct was right, and not naive. The project owns *what* the hard checks are (a make target), and mull owns *running them and recording the result*. The agent can't skip the checks or misreport them, because the only way into review, and so to done, is through `mull done`. What checks can't prove (that it works and that you understand it) is covered by your review.
 
 **As built:**
 - **Setting config.** Config is set with `mull config set integration|release|remote <v>`, `mull config checks "<cmd>" ...` and `mull config layer <name> <glob...>`. A layer named `ui` is what triggers the tour requirement.
 - **Where changes are measured from.** Changes are measured from the commit that was checked out when the item was claimed (`claim.base`, recorded by `mull start`). That captures exactly the session's work. If there's no recorded base, they're measured from the merge base with the integration branch.
 - **How checks run.** Checks run with `sh -c` in the worktree, one after another, and stop at the first failure. Only the last 40 lines of a failing command's output are kept. Results are cached on the `mull` branch at `checks/<tree>.json`, keyed by tree and command list.
 - **No checks configured.** `done` refuses unless the human gives `--override`.
-- **Reading a report.** `mull report <id>` prints the report as markdown.
+- **Reading a report.** `mull report <id> --text` prints the report as markdown.
 - **Trust.** Check commands come from mull's config, which travels with `sync`, and `done` runs them. Treat them like a Makefile in the repo: as trusted as whoever can push to the remote.
 
 Config example:
@@ -281,23 +293,54 @@ layers:
 
 ## The view
 
-`mull view [--plan p] [--json]`, with one block per active plan:
+`mull view [--plan p] [--text]`, with one block per open plan (active, then shaping), then unplanned work, the backlog's untriaged count and unlinked commits. With `--text`:
 
 ```
-TAXOGALL                                       taxogall 166 ahead of main · 2026-11-09
-EPICS      Admin ▰▰▰▱ 3/4   Phase 2 ▰▰▱▱ 4/9 +1 unreviewed (2 ready)   Notes ▱▱▱ blocked by Phase 2   Cutover ▱ blocked
-PROBLEMS   1 failed done (d3b0) · 1 claim idle 2 days · 31 unlinked commits this week
-IN FLIGHT  cb28 Add a taxon from iNat     agent-2 · cb28-inat · 6 commits · 1d
-           d3b0 Unified edit model        agent-1 · no commits since 11-07
-NEEDS YOU  3 reviews · 21 decisions · 8 questions · 22 loose ends (4 older than a week)
+integration taxogall · 166 ahead of main · 2026-11-09
+
+TAXOGALL  Taxogall
+  ▰▰▰▰▱▱▱▱▱▱ 7/17 done · 1 in review · 2 active · 3 ready · 12 captured (4 untriaged)
+  PHASES
+    3f1a  Admin                        ▰▰▰▱       3/4 done · 1 ready
+    8b2e  Phase 2                      ▰▰▰▰▱▱▱▱▱  4/9 done · 1 in review · 2 active · 2 ready
+    d470  Notes                        ▱▱▱        0/3 done · blocked by 8b2e
+    e915  Cutover                      ▱          0/1 done · blocked by 8b2e, d470
+  PROBLEMS (2)
+    d3b0  claimed 3d ago by agent-1, no linked commits for a day
+    d3b0  done attempt 1 failed its checks (reports/d3b0-1.md)
+  IN FLIGHT
+    cb28  Add a taxon from iNat                agent-2 · cb28-inat · 6 commits · last 3h
+    d3b0  Unified edit model                   agent-1 · d3b0-edit-model · 2 commits · last 3d
+  NEEDS YOU  1 review · 21 decisions · 8 questions (4 older than a week)
+
+BACKLOG  4 captured items untriaged (triage with the human: mull guide triage) · last triage 2026-11-02
+
+UNLINKED  31 commits on taxogall this week carry no item link
 ```
 
-`mull inbox [--kind]` lists the queue, oldest first, with each entry's source.
+`mull inbox [--kind] [--plan]` lists the queue, oldest first, with each entry's source.
+
+## `mull serve`: the human's view
+
+The CLI is for agents, and `view --text` is a snapshot in a terminal. `mull serve` is the human's own view: a local web UI of every repository on mull, live as agents write. Opening a project answers "where are we?" and "what's next, and what do I need to do or decide?", and every review can be read there in full.
+
+- **A server inside mull.** It's a Go server in the mull binary, using mull's own packages. It listens on `127.0.0.1` only, on a fixed port (6855, or `--port`), and serves plain JS modules, CSS and fonts embedded in the binary, so there's no Node build step. Plain `http://localhost` is enough, since nothing leaves the machine.
+- **It never writes mull data.** It reads each repository's `mull` branch as the CLI does. The only thing it writes is when you last looked at each repository.
+- **The registry.** Repositories are found with no configuration: every mull command run in a repository with a `mull` branch adds it to `~/.config/mull/repos` (under `$XDG_CONFIG_HOME` when that's set), one path per line. It's per machine and never on the `mull` branch, and a line can be removed by hand.
+- **Last looked, and revisions.** What changed since you last looked is clouded in red, with no delta counts. A revision is a commit on the `mull` branch, numbered by how many commits lead to it. Your last look is the revision you marked seen, kept per machine in `~/.config/mull/seen.json` beside the registry, never on the `mull` branch: it's yours, not the program's. The changes are the records that differ between it and the tip. The first read of a repository takes the tip as the baseline, so only later changes are clouded.
+- **Live updates.** mull serve watches each repository's `refs/heads/mull` and the registry, and tells open pages which project changed over Server-Sent Events; the page refetches that project. A write from any worktree, a sync, or a newly registered repository shows without a reload.
+- **Read-first.** Until the flow and the model settle, the UI doesn't change records: an action copies the mull command (or a prompt for an agent) to run instead. Marking a revision seen is the one exception, and it writes only the last-looked state.
+- **Nothing that needs you is lost below the fold.** Every row in the sheet index that holds a question, review or decision is marked (yellow when it blocks work), each count adds up to the rows below it, and a mark opens that sheet at its Needs you.
+- **Not on mull yet.** Beside the registered repositories it lists the ones that aren't on mull: old `.mull/` data to convert, and repositories worked on in the last 60 days with no `mull` branch.
+- **Needs you is ranked** by what an answer unblocks, in six tiers: questions that block work, reviews, questions on phases that can start now, questions on later phases, questions about a whole plan, then decisions to approve, grouped by source.
+- **At login on macOS.** `mull serve --install` runs it as a LaunchAgent (`~/Library/LaunchAgents/mull.serve.plist`, logging to `~/Library/Logs/mull-serve.log`), restarted if it stops. It runs this mull binary with the PATH and XDG_CONFIG_HOME it was installed with. `make install` runs `--install` again when the agent is installed, so the server restarts on the new binary, and an open page that reconnects to a different build (`GET /api/build`: the version and the embedded UI, hashed) reloads itself. `--uninstall` removes it.
+
+Its design is in `serve/`: who it's for and its principles in `serve/PRODUCT.md`, the visual direction in `serve/direction.md`, and the design system as built in `serve/DESIGN.md`. Its JSON API (endpoints, the Needs you tiers, revisions and changes) is in `mull guide json`.
 
 ## The CLI
 
-mull is used only by agents; humans see its data through an agent.
-- **Output.** Every command prints JSON to stdout. `view`, `inbox`, `report` and `guide` also have `--text`, so an agent can show its human a rendering.
+The CLI is used by agents. The human sees its data through an agent, or in `mull serve` (see above).
+- **Output.** Every command prints JSON to stdout. `view`, `inbox`, `report`, `guide`, `migrate`, `plan doc` and `phase doc` also have `--text`, so an agent can show its human a rendering.
 - **Errors.** An error prints `{"code", "error"}` to stderr and exits 1. The codes are stable.
 - **The contract.** The shapes and codes are in `mull guide json`, and tests check every command's output against it.
 - **Long text** is read from stdin with `-`.
@@ -310,76 +353,81 @@ mull is used only by agents; humans see its data through an agent.
 The ops are every write except `init`, `sync`, `migrate`, `check` and `done`.
 
 **Scope is never silent:**
-- `add` takes its plan from `--epic`, and refuses a `--plan` that disagrees.
-- `decided`, `ask` and `loose` require `--item` or `--plan` once the repo has more than one active plan.
+- `add` takes its plan from `--phase`, and refuses a `--plan` that disagrees. With neither, it refuses: unplanned work is asked for with `--plan none`.
+- `decided` and `ask` require `--item` or `--plan` once the repo has more than one open plan (shaping or active). Captures (`bug`, `idea`) need neither.
 
 | Group | Commands |
 |---|---|
-| Setup | `mull init` · `mull sync [--dry-run]` · `mull migrate [--dry-run] [--text] [--on-request]` |
-| Plans (you) | `mull plan new <slug> "title" [--summary -] --on-request` · `plan agree <slug>` · `plan list` · `plan show <slug>` · `plan doc <slug> [-] [--log]` · `plan close <slug>` |
-| Epics | `mull epic add "title" --plan <slug> [--needs …]` · `epic show <id>` · `epic list [--plan]` · `phase doc <id> [-] [--log]` |
-| Items | `mull add "title" (--plan <slug> \| --epic <id>) [--notes -] [--doc path]` · `show` · `list` · `set` · `drop` |
+| Setup | `mull init [--integration b] [--release b]` · `mull config [set\|checks\|layer …]` · `mull sync [--dry-run]` · `mull migrate [--dry-run] [--text] [--on-request]` |
+| Plans (you) | `mull plan new <slug> "title" [--summary -] --on-request` · `plan agree <slug> --on-request` · `plan list` · `plan show <slug>` · `plan doc <slug> [-] [--log]` · `plan close <slug>` |
+| Phases | `mull phase add "title" --plan <slug> [--needs …] [--summary -]` · `phase list [--plan]` · `phase doc <id> [-] [--log]` · `show <id>` |
+| Items | `mull add "title" (--plan <slug> \| --phase <id> \| --plan none) [--notes -] [--doc path]` · `show` · `list [--plan] [--phase] [--state] [--kind] [--untriaged]` · `set` · `drop` |
 | Dependencies | `mull need <phase> <phase…>` · `mull unneed <phase> <phase…>` · `mull ready [--plan]` |
 | Work (agents) | `mull start <id>` · `release <id>` · `check` (run the hard checks, cache the result) · `done <id> --summary "…" --tour "…" --design -` |
-| Capture (agents) | `mull decided "text"`, `ask "question"`, `loose "text"`, each with `--item <id>` or `--plan <slug>`, plus `[--detail -] [--source …]` |
+| Capture (agents) | `mull decided "text"`, `ask "question"`, each with `--item <id>` or `--plan <slug>`, plus `[--detail -] [--source …]` |
+| Backlog | `mull bug "title"` · `idea "title"`, each with `[--detail -] [--source …] [--plan \| --phase] [--category …]` · `commit <id> [--plan \| --phase \| --plan none] --on-request` · `triage <id…> --on-request` (or `--all [--plan <slug>\|none]`) |
 | Batch | `mull batch [--dry-run] < ops.jsonl` |
-| Settle (you, or an agent on your request) | `mull inbox` · `accept <id…>` · `decide <id> "text"` · `do <id> [--plan] [--epic]` · `drop <id…>` · `park <id> "reason"` |
-| Read (agents) | `mull context [--item <id>]` (compact JSON for the start of a session: the plan, its epics, ready items, the item's needs, recent decisions, open questions on the item, the protocol reminder) · `decisions [--plan]` |
-| Guides | `mull guide agents` · `mull guide intake` · `mull guide supervisor` · `mull guide triage` |
+| Settle (you, or an agent on your request) | `mull inbox [--kind] [--plan] [--parked]` · `accept <id…> [--follow-up "…"]` · `decide <id> "text"` · `do <id> [--plan] [--phase] [--as phase] [--reason "…"]` · `drop <id…> [--reason "…"]` · `park <id> "reason"` |
+| Read (agents) | `mull view [--plan] [--text]` · `mull context [--item <id>]` (compact JSON for the start of a session: the protocol reminder, the shaping and active plans with their phases, ready and active items, your claims, recent decisions, and for the item its phase's doc, open questions and last report) · `decisions [--plan]` · `report <id> [--n] [--text]` |
+| Guides | `mull guide agents` · `mull guide intake` · `mull guide supervisor` · `mull guide triage` · `mull guide json` (the output shapes and error codes) |
+| The human's view | `mull serve [--port n]` · `mull serve --install` · `mull serve --uninstall` |
 
 ## The agent protocol (`mull guide agents`)
 
 This is a short block pasted into the project's `AGENTS.md`. In outline:
-1. At session start, run `mull context --item <id>`. Read the decision log before deciding anything it may already settle.
-2. **One item per session.** Claim it with `mull start`. Name the branch `<id>-…`. End every commit message with `Mull: <id>`.
+1. At session start, run `mull context --item <id>`. Read the decision log before deciding anything it may already settle, and read the item's docs and its phase's doc.
+2. **One item per session.** It's committed work from `mull ready`, or a captured item the human wants done now. Claim it with `mull start`, which commits a captured item. Name the branch `<id>-…`. End every commit message with `Mull: <id>`.
 3. Capture as you go, one line each:
    - `mull decided` for any choice you made that the human didn't;
    - `mull ask` for anything you need from the human;
-   - `mull loose` for anything out of scope you noticed.
-4. Don't edit plans or epics unless the human asks. Propose changes with `mull ask`.
-5. Finish with `mull done`. If it fails, fix the problem or `mull release` the item and say why. Never claim "done" in prose.
+   - `mull bug` for anything out of scope that's wrong, and for feedback the human hands over for later;
+   - `mull idea` for a possibility worth keeping that isn't work yet.
+
+   Bugs and ideas go to the backlog, not to the inbox.
+4. Don't change plans or phases (or their docs), add items, or commit captured ones unless the human asks. Propose changes with `mull ask`.
+5. Finish with `mull done`. If it fails, fix the problem or `mull release` the item and say why. After `done` the item is in review, and it's done only once its review is accepted. Never claim "done" in prose.
 6. Show the human, or the supervisor, the done report and the UI tour. Run `mull accept <id> --on-request` only when the human tells you to. Then `mull sync`.
 7. Never read or edit mull's data directly. Use the CLI.
 
 `mull guide supervisor` covers coordinating several agents:
 - pick from `mull ready`;
 - give each worker one item ID;
-- review each finished item's done report and diff, then `accept`, or `do` a follow-up;
-- watch `mull view`;
-- route questions and decisions to the human instead of answering them.
+- review each finished item's done report and diff, then `accept` (with `--follow-up` for small leftovers), or send it back with `do <review> --reason`;
+- watch `mull view`, acting on problems first;
+- route questions and decisions to the human instead of answering them;
+- keep the backlog from workers until the human commits it, and go through it with the human when they ask (`mull guide triage`).
 
 ## Intake (`mull guide intake`)
 
-There's no intake tooling. `mull guide intake` prints a procedure an agent follows in a project, with you, using the normal CLI. It reads:
+There's no intake tooling. `mull guide intake` prints a procedure an agent follows in a project, with you, using the normal CLI and recording with `mull batch`. A repo already on mull from before Model v2 is migrated first (`mull migrate`). The agent reads:
 - the old `.mull/` matters;
 - any hub document (for gallformers, 50ff);
 - branches, worktrees and recent commits.
 
 The agent then:
-1. **Proposes plans and epics** for you to approve. Taxogall becomes a plan, and its release steps become epics with `needs` between them.
+1. **Proposes plans and phases** for you to approve, with a doc for each. Taxogall becomes a plan, and its release steps become phases with `needs` between them. Small, unrelated work is unplanned.
 2. **Creates items** for work in flight or ready, each sized for one session.
-3. **Files inbox entries:**
-   - decisions still awaiting your review;
-   - open questions;
-   - loose ends, including stale branches and worktrees.
-4. **Cites sources.** Each record notes where it came from.
-5. **Leaves the old backlog to you.** Matters with no place in a plan are triaged with you in conversation.
+3. **Files inbox entries** for decisions still awaiting your review and for open questions.
+4. **Captures loose ends as bugs** in the backlog, including stale branches and worktrees.
+5. **Cites sources.** Each record notes where it came from.
+6. **Leaves the old backlog to you.** Matters with no place in a plan are gone through with you in conversation: most become ideas, some unplanned items or bugs, and some are left behind.
 
 ## Transition
 
-- **During development:** the new binary runs from the worktree as `./mull`. The installed `mull` stays the old one.
-- **At cutover:** the old binary is installed as `mull1`, and the new one as `mull`. Each repo moves over through its own intake.
+History: new mull was developed beside old mull, then replaced it at the cutover on 2026-11-09.
+- **The new binary is installed as `mull`** (`make install`), and the old one as `mull1`, for reading old `.mull/` data.
+- **Each repo moves over through its own intake** (`mull guide intake`). A repo on new mull from before Model v2 moves to it with `mull migrate`.
 - **Old `.mull/` directories stay in git as history.** Removing them is a later, explicit decision for each repo.
 - **Claude-specific setup is dropped.** Old mull's `onboard hooks` is replaced by `mull context` plus the AGENTS.md block.
 
 ## Build order
 
-Each step is usable before the next one starts.
+History: mull was built in this order, each step usable before the next one started.
 
 1. **Store and CLI:**
    - the `mull` branch, with plumbing writes and compare-and-swap;
    - `init`;
-   - plans, epics and items, with needs and readiness;
+   - plans, phases (epics then) and items, with needs and readiness;
    - claims;
    - capture and settle;
    - decisions;
@@ -390,13 +438,15 @@ Each step is usable before the next one starts.
 3. **View:** `view` and `inbox`, with git linking and the derived marks.
 4. **Done:** `check`, `done`, the report and the review entry.
 5. **Guides and pilot:** `guide agents`, `guide intake` and `guide supervisor`. Intake piloted on gallformers with an agent, including `make done-checks` there.
-6. **Later:** a GUI (native vs web decided then), a view across repos, and automatic sync.
+6. **Later:** a GUI (native vs web decided then), a view across repos, and automatic sync. The first two became `mull serve`, a web UI across every repo on the machine, together with Model v2.
 
 ## Settled in review (2026-11-09)
 
 - `mull sync` pushes only the `mull` branch, so agents may run it.
-- Plan IDs are plain-English slugs. Epics and items use 4-hex IDs.
+- Plan IDs are plain-English slugs. Phases and items use 4-hex IDs.
 - A claim's identity is its worktree.
 - Every done item gets reviewed, usually in session by you or a supervising agent, with the inbox as the safety net. Unreviewed work is incomplete work.
 - Agents may settle inbox entries on your explicit instruction.
 - `mull done` runs the project's hard checks deterministically, reusing cached passes for the same tree.
+
+Model v2 and `mull serve` were settled with the human on 2026-11-10. Those decisions are in `serve/README.md`.

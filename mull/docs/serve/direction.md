@@ -6,13 +6,13 @@ Audience and job: one solo developer, glancing between agent sessions, doing sit
 
 Constraints: light and dark, following the system. Not generic SaaS, not the AI look (no cream and serif). Not too sparse or too dense, not decorative. The ranked Needs you tiers stay. Plan docs must render as well-formatted, readable markdown. Status must be visible, but chips are optional. Read-first; actions arrive later, so leave room for them.
 
-Unresolved: the production front-end stack; the name "phase" or "epic"; how answers flow back into docs.
+Unresolved: how answers flow back into docs. (Settled on 2026-11-10: plain JS modules embedded in the binary, and "phase".)
 
 ## Direction contract
 
 THESIS: The project is an issued drawing set. The tree is its sheet index, the header is a title block, and whatever changed since you last looked is clouded in red. This refuses the category default of soft cards on grey, and status pills everywhere.
 
-OWN-WORLD: White bond ground (deep graphite in dark), ink linework at 1 and 1.5px, blue construction lines for minor rules. Colour follows a checker's marks on a check print, one job each: revision red for change clouds and deltas only; highlighter yellow for blocking work; blueline blue for now, active and the selected path; checker's green for done, accepted and passed. The sheet-index rail sits on pale blueline paper. Archivo across widths (condensed tracked caps for field labels and status words, wide heavy for page names) and Red Hat Mono for IDs and figures only. The real server self-hosts both as woff2; the artifact prototype loads them from Google Fonts because that is the only font host its sandbox allows. Square corners and boxed fields; no shadows.
+OWN-WORLD: White bond ground (deep graphite in dark), ink linework at 1 and 1.5px, blue construction lines for minor rules. Colour follows a checker's marks on a check print, one job each: revision red for change clouds and deltas only; highlighter yellow for blocking work; blueline blue for now, active and the selected path; checker's green for done, accepted and passed. Added by the human on 2026-11-11: a violet edge on an ink box for what needs the human without blocking (see DESIGN.md). The sheet-index rail sits on pale blueline paper. Archivo across widths (condensed tracked caps for field labels and status words, wide heavy for page names) and Red Hat Mono for IDs and figures only. The real server self-hosts both as woff2; the artifact prototype loads them from Google Fonts because that is the only font host its sandbox allows. Square corners and boxed fields; no shadows.
 
 STORY: You open a project and read the title block (branch, ahead count, live state, revision), then the numbered Needs you schedule ranked by what it unblocks, then the plans' Now, Next and Go live lines. Red clouds show at once what moved since your last visit, and "Mark revision seen" clears them.
 

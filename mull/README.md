@@ -2,7 +2,7 @@
 
 The record of a program run by you and your agents: its plans, where they stand, and everything that needs you.
 
-> **This branch is a from-scratch rewrite (`mull-next`).** It replaces the old matter tracker; `make install` installs it as `mull`, and the old binary is kept as `mull1`. The design is in [docs/design.md](docs/design.md), and the research behind it is in [docs/research/](docs/research/).
+`make install` installs it as `mull`. It replaced the old matter tracker, whose binary is kept as `mull1` for reading old `.mull/` data until each repository is converted (`mull guide intake`). The design is in [docs/design.md](docs/design.md), the research behind it in [docs/research/](docs/research/), and the human's view in [docs/serve/](docs/serve/).
 
 ## What it does
 
@@ -14,6 +14,23 @@ The record of a program run by you and your agents: its plans, where they stand,
 - **One inbox for what needs you:** decisions agents made, questions and reviews. You settle each with one action: accept, decide, do, drop or park. Settled decisions form a log agents read before deciding anything.
 - **Stored in git, out of the way.** Everything lives on a `mull` branch that is never checked out. Writes never touch your working tree, and every worktree sees the same data.
 - **Any LLM, any harness.** Agents use the CLI. Nothing depends on a particular tool.
+
+## The human's view: `mull serve`
+
+```bash
+mull serve              # http://localhost:6855/, until interrupted
+mull serve --install    # macOS: run it at login as a LaunchAgent (make install restarts it)
+mull serve --uninstall
+```
+
+A local web page of every repository on mull, live as agents write. Repositories are found with no configuration: any mull command run in a repository with a mull branch registers it (`~/.config/mull/repos`). For each project it answers where things stand and what needs you:
+- **Needs you,** ranked by what an answer unblocks: blocking work, reviews, questions by phase, then decisions to approve. Everything that needs you is marked in the sheet index, blocking or not.
+- **Plans:** what's built, what can start now, what's next, the go-live phase, and the agents at work; each plan's doc, rendered, with the status of what it names beside it.
+- **Phases, items and reviews:** what was built and how, with the session's decisions.
+- **The backlog and unplanned work,** and the repositories beside yours that aren't on mull yet.
+- **What changed since you last looked** is clouded in red; Mark revision seen clears it. The last look is kept on this machine, never on the mull branch.
+
+It listens on 127.0.0.1 only and never writes mull data. After `make install`, the LaunchAgent restarts on the new build, and open pages reload themselves when they reconnect to it. Actions are read-first for now: a button copies the mull command to run. `mull guide json` documents its API; [docs/serve/](docs/serve/) its design, and [docs/serve/DESIGN.md](docs/serve/DESIGN.md) its design system.
 
 ## Output
 

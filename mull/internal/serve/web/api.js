@@ -25,6 +25,8 @@ const p = id => `/api/projects/${encodeURIComponent(id)}`;
 
 export const api = {
   projects: () => call("/api/projects"),
+  // build names the server's build ({build, version}).
+  build: () => call("/api/build"),
   // unmulled: the repositories beside the registered ones that aren't on
   // mull (old mull data, or worked on recently).
   unmulled: () => call("/api/unmulled"),

@@ -33,7 +33,7 @@ func allows(kind, action string) bool {
 
 // CaptureInput is an inbox entry an agent files.
 type CaptureInput struct {
-	Kind   string // decision, question, loose-end or idea
+	Kind   string // decision or question (loose-end and idea are retired: bugs and ideas are captured items)
 	Text   string // for an idea, its title
 	Item   string // the item it concerns; implies the plan (not for ideas)
 	Plan   string // the plan, when there is no item (optional for ideas)
@@ -357,8 +357,8 @@ type DoInput struct {
 	SettleOpts
 }
 
-// Do turns a question, loose end or idea into an item (or a phase, with As
-// "phase"), linked back to it; or sends reviewed work back (the item reopens
+// Do turns a question (or a loose end or idea filed before Model v2) into an
+// item (or a phase, with As "phase"), linked back to it; or sends reviewed work back (the item reopens
 // for another session, with the reason added to its notes). Only the human
 // promotes ideas: an agent must have been asked, and say so with OnRequest.
 func (m *Mull) Do(in DoInput) (DoResult, error) {

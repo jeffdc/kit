@@ -332,13 +332,28 @@ window.addEventListener("hashchange", () => {
 
 // ---- start
 
+// The build this page was loaded from. When the stream comes back from a
+// server running a different build (mull was upgraded and mull serve
+// restarted), the page reloads itself onto the new UI rather than run old
+// code against a new server.
+let build = null;
+async function checkBuild() {
+  try {
+    const now = (await api.build()).build;
+    if (build && now !== build) { location.reload(); return true; }
+    build = now;
+  } catch { /* an older server without /api/build: keep going */ }
+  return false;
+}
+checkBuild();
+
 listen({
   project: id => {
     loadList();
     if (state.data.has(id)) loadProject(id);
   },
   live: up => { state.live = up; render(); },
-  reopened: loadAll,
+  reopened: async () => { if (!(await checkBuild())) loadAll(); },
 });
 
 loadList().then(() => {

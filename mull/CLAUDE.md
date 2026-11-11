@@ -1,6 +1,6 @@
-# mull (next)
+# mull
 
-Guidance for any agent working on mull's code. This branch (`mull-next`) is a from-scratch rewrite; the design is `docs/design.md`. Read it before changing behaviour.
+Guidance for any agent working on mull's code. The design is `docs/design.md` (and `docs/serve/` for `mull serve`). Read it before changing behaviour.
 
 ## What mull is
 
@@ -9,7 +9,8 @@ The record of a program, kept on a dedicated git branch (`mull`) in the project'
 - **phases** (big pieces of a plan; called epics before Model v2);
 - **items** (one agent, one session);
 - **a backlog** of captured items (bugs and ideas) that aren't work until the human commits them;
-- **an inbox** of decisions, questions and reviews that need the human.
+- **an inbox** of decisions, questions and reviews that need the human;
+- **mull serve,** the human's view: a local web UI of every registered repository.
 
 Agents and humans use it only through the CLI. Data commands print JSON; errors go to stderr as `{"code", "error"}` (see `internal/guide/json.md`).
 
@@ -28,6 +29,8 @@ Agents and humans use it only through the CLI. Data commands print JSON; errors 
 - `internal/model`: records and their file format (YAML frontmatter plus a markdown body).
 - `internal/mull`: operations: plans, phases, items, needs and readiness, claims, the inbox, the decision log.
 - `internal/gittest`: throwaway repos and worktrees for tests, isolated from global git config.
+- `internal/registry` and `internal/seen`: per-machine state in `~/.config/mull/` (the repositories on mull, and when the human last looked at each), never on the mull branch.
+- `internal/launchagent`: `mull serve --install`, the macOS LaunchAgent.
 - `internal/serve`: `mull serve`, the human's web UI (Go server; plain JS modules, CSS and fonts in `web/`, embedded). Its design lives in `docs/serve/`: `direction.md` (the contract), `PRODUCT.md`, `prototype.html`, and `DESIGN.md`, the design system as built. Read `DESIGN.md` before changing the UI; it's there rather than at the project root, where impeccable looks first.
 
 ## Build and test

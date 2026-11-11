@@ -1,8 +1,11 @@
 package serve
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"io"
+	"io/fs"
 	"net/http"
 	"sort"
 	"strings"
@@ -13,6 +16,39 @@ import (
 
 // Option adds an endpoint to Handler.
 type Option func(*http.ServeMux)
+
+// WithBuild serves GET /api/build: {build, version}, where build names this
+// server's build (its version and the UI it embeds). A page that reconnects
+// to a different build reloads itself, so a restarted mull serve brings the
+// new UI with it.
+func WithBuild(version string) Option {
+	build := buildID(version)
+	return func(mux *http.ServeMux) {
+		mux.HandleFunc("GET /api/build", func(w http.ResponseWriter, r *http.Request) {
+			writeJSON(w, http.StatusOK, map[string]string{"build": build, "version": version})
+		})
+	}
+}
+
+// buildID hashes the version with every embedded UI file, so it changes
+// whenever either does (a dirty build with the same version included).
+func buildID(version string) string {
+	h := sha256.New()
+	h.Write([]byte(version))
+	_ = fs.WalkDir(web, "web", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		b, err := fs.ReadFile(web, path)
+		if err != nil {
+			return err
+		}
+		h.Write([]byte(path))
+		h.Write(b)
+		return nil
+	})
+	return hex.EncodeToString(h.Sum(nil))[:12]
+}
 
 // WithEvents serves GET /api/events from w: the live updates.
 func WithEvents(w *Watcher) Option {

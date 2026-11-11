@@ -685,7 +685,7 @@ func doCmd(a *app) *cobra.Command {
 	var in mull.DoIn
 	c := &cobra.Command{
 		Use:   "do <id>",
-		Short: "Turn a question, loose end or idea into an item (or --as phase), or send reviewed work back (--reason)",
+		Short: "Turn a question into an item (or --as phase), or send reviewed work back (--reason); also settles loose ends and ideas filed before Model v2",
 		Args:  exact(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			in.ID = args[0]
