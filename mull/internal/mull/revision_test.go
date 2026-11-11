@@ -245,3 +245,55 @@ func TestAcknowledge(t *testing.T) {
 		t.Errorf("with acks off the branch: %v", got)
 	}
 }
+
+// touched for a later tip extends the kept walk by the commits in between,
+// and gives what a full walk gives.
+func TestTouchedExtendsTheKeptWalk(t *testing.T) {
+	m, _ := setup(t)
+	from := must[string](t)(m.store.Head())
+	agreedPlan(t, m, "launch", "Launch", "")
+	v := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "launch", Title: "First"}))
+	mid := must[string](t)(m.store.Head())
+	if _, err := m.touched(from, mid); err != nil {
+		t.Fatal(err)
+	}
+	must[SetResult](t)(m.Set(v.ID, "title", "First, renamed"))
+	must[ItemView](t)(m.ItemAdd(NewItem{Plan: "launch", Title: "Second"}))
+	tip := must[string](t)(m.store.Head())
+
+	got := must[map[string]string](t)(m.touched(from, tip))
+	want := must[map[string]string](t)(m.touchedLog(from, tip))
+	if len(got) != len(want) {
+		t.Fatalf("extended walk has %d paths, full walk %d", len(got), len(want))
+	}
+	for p, at := range want {
+		if got[p] != at {
+			t.Errorf("%s: extended %q, full %q", p, got[p], at)
+		}
+	}
+	if _, ok := got[model.ItemPath(v.ID)]; !ok {
+		t.Errorf("the renamed item's path is missing")
+	}
+}
+
+// RevisionCount finds the same changes as Revision, without their times.
+func TestRevisionCountMatchesRevision(t *testing.T) {
+	m, _ := setup(t)
+	since := must[string](t)(m.store.Head())
+	f := newRankFixture(t, m)
+	must[SetResult](t)(m.Set(f.ready.ID, "title", "Renamed"))
+	timed := must[Revision](t)(m.Revision(since))
+	count := must[Revision](t)(m.RevisionCount(since))
+	if len(timed.Changes) == 0 || len(count.Changes) != len(timed.Changes) {
+		t.Fatalf("Revision found %d changes, RevisionCount %d", len(timed.Changes), len(count.Changes))
+	}
+	refs := map[RecordRef]bool{}
+	for _, c := range timed.Changes {
+		refs[c.Ref()] = true
+	}
+	for _, c := range count.Changes {
+		if !refs[c.Ref()] || c.At != "" {
+			t.Errorf("RevisionCount change %+v", c)
+		}
+	}
+}

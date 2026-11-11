@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"mull/internal/model"
@@ -105,6 +106,17 @@ var commitPattern = regexp.MustCompile(`^[0-9a-f]{40}([0-9a-f]{24})?$`)
 // at. An empty since, or one this repository doesn't have, gives a baseline:
 // Since is the tip and there are no changes.
 func (m *Mull) Revision(since string) (Revision, error) {
+	return m.revision(since, true)
+}
+
+// RevisionCount is Revision for counting: its changes carry no times (At is
+// empty) and come in record order, which spares walking the history between
+// the two commits.
+func (m *Mull) RevisionCount(since string) (Revision, error) {
+	return m.revision(since, false)
+}
+
+func (m *Mull) revision(since string, timed bool) (Revision, error) {
 	tip, err := m.tip()
 	if err != nil {
 		return Revision{}, err
@@ -120,7 +132,11 @@ func (m *Mull) Revision(since string) (Revision, error) {
 	if out.Since, err = m.point(since); err != nil {
 		return Revision{}, err
 	}
-	out.Changes, err = m.recordChanges(since, tip)
+	if timed {
+		out.Changes, err = m.recordChanges(since, tip)
+	} else {
+		out.Changes, err = m.diffRecords(since, tip)
+	}
 	return out, err
 }
 
@@ -137,7 +153,7 @@ func (m *Mull) Acknowledge(rev *Revision, acks []Ack) error {
 		later, ok := after[a.Commit]
 		if !ok {
 			if m.knownCommit(a.Commit) && m.isAncestor(a.Commit, rev.Tip.Commit) {
-				changes, err := m.recordChanges(a.Commit, rev.Tip.Commit)
+				changes, err := m.diffRecords(a.Commit, rev.Tip.Commit)
 				if err != nil {
 					return err
 				}
@@ -173,7 +189,7 @@ func (m *Mull) Wrote(commit string) ([]RecordRef, error) {
 	if err != nil || code != 0 {
 		return out, err
 	}
-	changes, err := m.recordChanges(strings.TrimSpace(string(parent)), commit)
+	changes, err := m.diffRecords(strings.TrimSpace(string(parent)), commit)
 	if err != nil {
 		return nil, err
 	}
@@ -215,18 +231,38 @@ func (m *Mull) tip() (string, error) {
 }
 
 // knownCommit reports whether c is a full commit ID this repository has.
+// Having it is remembered (a commit, once there, stays).
 func (m *Mull) knownCommit(c string) bool {
-	return commitPattern.MatchString(c) && m.hasCommit(c)
+	if !commitPattern.MatchString(c) {
+		return false
+	}
+	known, _ := gitCounts.get(m.repo.Dir+"\x00has "+c, func() (int, error) {
+		if !m.hasCommit(c) {
+			return 0, errUnknownCommit // not kept: it may arrive
+		}
+		return 1, nil
+	})
+	return known == 1
 }
 
+var errUnknownCommit = errf(CodeInvalid, "unknown commit")
+
+// point is commit's revision: its number (commits up to it) and time, both
+// fixed by its ID, so cached.
 func (m *Mull) point(commit string) (RevisionPoint, error) {
-	n, err := m.repo.Output(nil, nil, "rev-list", "--count", commit)
+	num, err := gitCounts.get(m.repo.Dir+"\x00count "+commit, func() (int, error) {
+		n, err := m.repo.Output(nil, nil, "rev-list", "--count", commit)
+		if err != nil {
+			return 0, err
+		}
+		num, err := strconv.Atoi(n)
+		if err != nil {
+			return 0, errf(CodeGit, "unexpected rev-list count %q", n)
+		}
+		return num, nil
+	})
 	if err != nil {
 		return RevisionPoint{}, err
-	}
-	num, err := strconv.Atoi(n)
-	if err != nil {
-		return RevisionPoint{}, errf(CodeGit, "unexpected rev-list count %q", n)
 	}
 	at, err := m.commitTime(commit)
 	if err != nil {
@@ -237,15 +273,21 @@ func (m *Mull) point(commit string) (RevisionPoint, error) {
 
 // commitTime is a commit's time in UTC, RFC 3339.
 func (m *Mull) commitTime(commit string) (string, error) {
-	ts, err := m.repo.Output(nil, nil, "log", "-1", "--format=%ct", commit)
+	secs, err := gitCounts.get(m.repo.Dir+"\x00time "+commit, func() (int, error) {
+		ts, err := m.repo.Output(nil, nil, "log", "-1", "--format=%ct", commit)
+		if err != nil {
+			return 0, err
+		}
+		secs, err := strconv.ParseInt(ts, 10, 64)
+		if err != nil {
+			return 0, errf(CodeGit, "unexpected commit time %q", ts)
+		}
+		return int(secs), nil
+	})
 	if err != nil {
 		return "", err
 	}
-	secs, err := strconv.ParseInt(ts, 10, 64)
-	if err != nil {
-		return "", errf(CodeGit, "unexpected commit time %q", ts)
-	}
-	return unixUTC(secs), nil
+	return unixUTC(int64(secs)), nil
 }
 
 func unixUTC(secs int64) string { return time.Unix(secs, 0).UTC().Format(time.RFC3339) }
@@ -258,6 +300,47 @@ func (m *Mull) stateAt(commit string) (*state, error) { return m.cachedState(com
 // alone (mull migrate moving a phase, renaming a stage) is no change, and
 // nor is a record rewritten with only a new updated time.
 func (m *Mull) recordChanges(from, to string) ([]Change, error) {
+	out, err := m.diffRecords(from, to)
+	if err != nil || len(out) == 0 {
+		return out, err
+	}
+	times, err := m.touched(from, to)
+	if err != nil {
+		return nil, err
+	}
+	tipAt := ""
+	for i := range out {
+		for _, p := range changePaths(out[i]) {
+			if at, ok := times[p]; ok && at > out[i].At {
+				out[i].At = at
+			}
+		}
+		if out[i].At == "" { // not touched by a commit in from..to (from isn't an ancestor)
+			if tipAt == "" {
+				if tipAt, err = m.commitTime(to); err != nil {
+					return nil, err
+				}
+			}
+			out[i].At = tipAt
+		}
+	}
+	order := map[string]int{RecordPlan: 0, RecordPlanDoc: 1, RecordPhase: 2, RecordPhaseDoc: 3, RecordItem: 4, RecordEntry: 5}
+	sort.SliceStable(out, func(a, b int) bool {
+		if out[a].At != out[b].At {
+			return out[a].At > out[b].At
+		}
+		if out[a].Type != out[b].Type {
+			return order[out[a].Type] < order[out[b].Type]
+		}
+		return out[a].ID < out[b].ID
+	})
+	return out, nil
+}
+
+// diffRecords lists the records that differ between the states at from and
+// to, in record order and without times: what recordChanges times and sorts.
+// It reads no history, only the two states.
+func (m *Mull) diffRecords(from, to string) ([]Change, error) {
 	out := []Change{}
 	if from == to {
 		return out, nil
@@ -299,45 +382,70 @@ func (m *Mull) recordChanges(from, to string) ([]Change, error) {
 			out = append(out, c)
 		}
 	}
-	if len(out) == 0 {
-		return out, nil
-	}
-	times, err := m.touched(from, to)
-	if err != nil {
-		return nil, err
-	}
-	tipAt := ""
-	for i := range out {
-		for _, p := range changePaths(out[i]) {
-			if at, ok := times[p]; ok && at > out[i].At {
-				out[i].At = at
-			}
-		}
-		if out[i].At == "" { // not touched by a commit in from..to (from isn't an ancestor)
-			if tipAt == "" {
-				if tipAt, err = m.commitTime(to); err != nil {
-					return nil, err
-				}
-			}
-			out[i].At = tipAt
-		}
-	}
-	order := map[string]int{RecordPlan: 0, RecordPlanDoc: 1, RecordPhase: 2, RecordPhaseDoc: 3, RecordItem: 4, RecordEntry: 5}
-	sort.SliceStable(out, func(a, b int) bool {
-		if out[a].At != out[b].At {
-			return out[a].At > out[b].At
-		}
-		if out[a].Type != out[b].Type {
-			return order[out[a].Type] < order[out[b].Type]
-		}
-		return out[a].ID < out[b].ID
-	})
 	return out, nil
 }
 
 // touched maps each path changed by a commit in from..to to the time of the
 // newest such commit, in UTC RFC 3339 so the times compare as strings.
+//
+// The walk costs as much as the range is long (seconds over 10k commits on a
+// large branch), so the answer is kept per from, and a later to that
+// descends from the kept one walks only the commits in between.
 func (m *Mull) touched(from, to string) (map[string]string, error) {
+	key := m.repo.Dir + "\x00" + from
+	touchedMu.Lock()
+	kept := touchedCache[key]
+	touchedMu.Unlock()
+	if kept != nil && kept.to == to {
+		return kept.times, nil
+	}
+	var times map[string]string
+	if kept != nil && m.isAncestor(kept.to, to) {
+		// from..to is from..kept.to plus kept.to..to, all newer.
+		newer, err := m.touchedLog(kept.to, to)
+		if err != nil {
+			return nil, err
+		}
+		times = make(map[string]string, len(kept.times)+len(newer))
+		for p, at := range kept.times {
+			times[p] = at
+		}
+		for p, at := range newer {
+			if at > times[p] {
+				times[p] = at
+			}
+		}
+	} else {
+		var err error
+		if times, err = m.touchedLog(from, to); err != nil {
+			return nil, err
+		}
+	}
+	touchedMu.Lock()
+	if len(touchedCache) >= maxTouched {
+		clear(touchedCache) // rare: more last-looks than repositories in use
+	}
+	touchedCache[key] = &touchedRange{to: to, times: times}
+	touchedMu.Unlock()
+	return times, nil
+}
+
+// touchedRange is touched(from, to) for a kept from. times is never changed
+// once kept.
+type touchedRange struct {
+	to    string
+	times map[string]string
+}
+
+const maxTouched = 32
+
+var (
+	touchedMu    sync.Mutex
+	touchedCache = map[string]*touchedRange{}
+)
+
+// touchedLog walks from..to: touched without the cache.
+func (m *Mull) touchedLog(from, to string) (map[string]string, error) {
 	log, err := m.repo.Output(nil, nil, "log", "--format=@%ct", "--name-only", "--no-renames", from+".."+to)
 	if err != nil {
 		return nil, err
@@ -415,7 +523,7 @@ func list(ids []string) string { return strings.Join(ids, ",") }
 func change[T any](a, b *T, diff func(a, b *T) fields, describe func(r *T, c *Change)) (Change, bool) {
 	var c Change
 	switch {
-	case a == nil && b == nil:
+	case a == b: // the same record, shared by two states read from one blob (or both nil)
 		return c, false
 	case a == nil:
 		c.Change = ChangeAdded
