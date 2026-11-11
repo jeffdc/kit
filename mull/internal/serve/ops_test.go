@@ -244,3 +244,31 @@ func TestOpsReview(t *testing.T) {
 		t.Errorf("carried decision = %+v", v.Entry)
 	}
 }
+
+// The page parks or drops a Needs you entry with a reason.
+func TestOpsParkDrop(t *testing.T) {
+	dir := onMull(t)
+	gittest.Git(t, dir, "config", "user.name", "Jeff")
+	h := Handler(func() ([]string, error) { return []string{dir}, nil })
+	m, _ := mull.Open(dir)
+	q, err := m.Capture(mull.CaptureInput{Kind: model.KindQuestion, Text: "Which queue?"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := decision(t, dir, "use sqlite")
+	rec := post(t, h, "/api/projects/"+filepath.Base(dir)+"/ops", opsBody(t, tipOf(t, dir),
+		map[string]any{"op": "park", "id": q.ID, "reason": "after the launch"},
+		map[string]any{"op": "drop", "ids": []string{d}, "reason": "superseded"}), nil)
+	if rec.Code != 200 {
+		t.Fatalf("POST ops: %d %s", rec.Code, rec.Body)
+	}
+	for id, want := range map[string]string{q.ID: model.ActPark, d: model.ActDrop} {
+		v, err := m.Show(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if s := v.Entry.Settled; s == nil || s.Action != want || s.By != "Jeff" || !s.Human || s.Note == "" {
+			t.Errorf("%s settled = %+v, want %s by the human with the reason", id, s, want)
+		}
+	}
+}

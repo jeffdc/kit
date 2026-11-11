@@ -6,7 +6,7 @@
 
 import { esc, href, CHEVRON, itemStage, stageLabel, shortTitle, plural, clock } from "./html.js";
 import { within, runs } from "./revision.js";
-import { writeButton, textWrite, failure } from "./write.js";
+import { writeButton, textWrite, failure, writeState, moreOpen, moreButton } from "./write.js";
 
 // Tiers open by default: the ones that hold work up.
 const OPEN = new Set(["blocking", "review", "now"]);
@@ -76,12 +76,13 @@ function row(e, n, tierKey, opts) {
     const ans = textWrite({ pid, key: `answer:${pid}:${e.id}`, ops: [{ op: "decide", id: e.id }], field: "decision",
       label: "Answer", save: "Save answer", placeholder: "Your answer. It joins the decision log, and the agent works from it.",
       done: `Answered ${e.id}. It's in the decision log.` });
-    act = `<button class="btn s" data-copy="${esc(e.id)}" title="Copies a prompt to work through it with an agent">Discuss with an agent</button>${ans.button}`;
-    form = ans.form;
+    const rest = parkOrDrop(pid, e.id, "needs");
+    act = `<button class="btn s" data-copy="${esc(e.id)}" title="Copies a prompt to work through it with an agent">Discuss with an agent</button>${ans.button}${rest.buttons}`;
+    form = ans.form + rest.forms;
   }
   const code = review && e.item ? e.item : e.id;
   return [`<div class="it"${link ? ` data-href="${esc(link)}"` : ""}${review && link ? " data-review" : ""}><span class="n">${esc(n)}</span><code>${esc(code)}</code>` +
-    `<div><p${e.detail ? ` title="${esc(e.detail)}"` : ""}>${text}</p>${where ? `<span class="w">${where}</span>` : ""}${form}</div><div class="act">${act}</div></div>`,
+    `<div><p${e.detail ? ` title="${esc(e.detail)}"` : ""}>${text}</p>${where ? `<span class="w">${where}</span>` : ""}</div><div class="act">${act}</div>${form}</div>`,
     cloudsOf(e, opts.changes)];
 }
 
@@ -116,8 +117,24 @@ function group(g, opts) {
 function decision(pid, e, approvable) {
   const key = `approve:${pid}:${e.id}`;
   const dd = decideDifferently(pid, e.id, "needs");
-  const act = (approvable ? approve(pid, key, [e.id], "Approve", "Approve?", `Approved decision ${e.id}.`) : "") + dd.button;
-  return `<li><code>${esc(e.id)}</code><span${e.detail ? ` title="${esc(e.detail)}"` : ""}>${esc(e.text)}</span><span class="li-acts">${act}</span>${failure(key, `Approving ${e.id}`)}${dd.form}</li>`;
+  const rest = parkOrDrop(pid, e.id, "needs");
+  const act = (approvable ? approve(pid, key, [e.id], "Approve", "Approve?", `Approved decision ${e.id}.`) : "") + dd.button + rest.buttons;
+  return `<li><code>${esc(e.id)}</code><span${e.detail ? ` title="${esc(e.detail)}"` : ""}>${esc(e.text)}</span><span class="li-acts">${act}</span>${failure(key, `Approving ${e.id}`)}${dd.form}${rest.forms}</li>`;
+}
+
+// parkOrDrop are an entry's rarer writes, behind More: park sets it aside
+// (it leaves Needs you, and is only counted), drop settles it for good.
+// Both take a reason; the drop form says it can't be undone.
+function parkOrDrop(pid, id, where) {
+  const k = `${where}:${pid}:${id}`;
+  const park = textWrite({ pid, key: `park:${k}`, ops: [{ op: "park", id }], field: "reason",
+    label: "Park", save: "Park it", done: `Parked ${id}. It's counted as parked, out of Needs you.`,
+    placeholder: "Why it can wait. Parked, it leaves Needs you and is only counted." });
+  const drop = textWrite({ pid, key: `drop:${k}`, ops: [{ op: "drop", ids: [id] }], field: "reason",
+    label: "Drop", save: "Drop it for good", done: `Dropped ${id}.`,
+    placeholder: "Why it isn't needed. Dropping can't be undone." });
+  const open = moreOpen(`more:${k}`) || writeState(`park:${k}`).open || writeState(`drop:${k}`).open;
+  return { buttons: (open ? park.button + drop.button : "") + moreButton(`more:${k}`, open), forms: park.form + drop.form };
 }
 
 // decideDifferently settles a decision with the human's own, which joins

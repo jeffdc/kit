@@ -25,7 +25,7 @@ const COMMANDS = [
   ["mull commit <id>", "Make a captured bug or idea into committed work (--plan, --phase, or --plan none)."],
   ["mull plan agree <slug>", "Agree a shaping plan, so it can have phases and work."],
   ["mull triage", "Stamp the backlog as gone through, with an agent (mull guide triage)."],
-  ["mull park <id> / mull drop <id>", "Set an entry aside, or drop an entry or item for good (both recorded)."],
+  ["mull park <id> / mull drop <id>", "Set an entry aside, or drop an entry or item for good (both recorded; More, on a Needs you row, does this for you)."],
 ];
 
 export function pageModel() {
@@ -72,7 +72,7 @@ export function pageModel() {
     <dt>Revisions</dt><dd>Whatever changed since you last looked is clouded in red. What you do from a page isn't clouded. Mark revision seen clears the clouds; the last look is kept on this machine, never on the mull branch.</dd>
   </dl></section>
 
-  <section><div class="hd"><h2>What you run</h2><span class="lab">Most buttons copy these; Approve, Answer, Decide differently, Accept and Send it back save as you</span></div><dl class="rules cmds">
+  <section><div class="hd"><h2>What you run</h2><span class="lab">Most buttons copy these; Approve, Answer, Decide differently, Park, Drop, Accept and Send it back save as you</span></div><dl class="rules cmds">
     ${COMMANDS.map(([cmd, what]) => `<dt><code>${esc(cmd)}</code></dt><dd>${esc(what)}</dd>`).join("")}
   </dl><p class="sub measure">The rest is in <code>mull guide</code>: <code>agents</code>, <code>supervisor</code>, <code>intake</code>, <code>triage</code> and <code>json</code>.</p></section>
 </div>`;

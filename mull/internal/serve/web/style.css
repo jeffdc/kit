@@ -177,6 +177,7 @@ tr.cl.cl-cont.cl-open > td::after { background-size: 12px 0, 12px 0, 7px 12px; }
 /* write actions save to mull (write.js): a heavier box and a tick. Armed,
    the button asks once more in ink; pending, it's hatched like work in
    review. Copy actions stay plain .btn. */
+.btn.more.on { background: var(--panel); }
 .btn.wr { border-width: 1.5px; }
 .btn.wr svg { flex: none; }
 .btn.wr.armed { background: var(--ink); color: var(--ground); }
@@ -248,7 +249,8 @@ main { min-width: 0; display: flex; flex-direction: column; }
 .it p { margin: 0; font-size: 13.5px; font-weight: 550; line-height: 1.38; overflow-wrap: anywhere; }
 .it .w { display: block; margin-top: 3px; font-size: 12px; color: var(--mut); }
 .it .w a { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 2px; }
-.it .act { display: flex; gap: 6px; align-items: center; }
+.it .act { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; align-items: center; max-width: 380px; }
+.it > .wform { grid-column: 3 / -1; }
 /* a run of changed rows shares one cloud */
 .clrun { margin: 6px 0; }
 .clrun > .it:first-child, .clrun + .it, .tier > summary + .clrun > .it:first-child { border-top-color: transparent; }
@@ -270,7 +272,7 @@ main { min-width: 0; display: flex; flex-direction: column; }
    touch screens), so a long group isn't a column of boxes. Opacity, not
    visibility, keeps it in the tab order. */
 @media (hover: hover) {
-  .grp li .li-acts > .btn:not(.armed, .pending) { opacity: 0; }
+  .grp li .li-acts > .btn:not(.armed, .pending, .on) { opacity: 0; }
   .grp li:hover .li-acts > .btn, .grp li:focus-within .li-acts > .btn { opacity: 1; }
 }
 .grp + .wfail { padding: 0 10px 0 42px; margin: 0 0 8px; }
@@ -450,7 +452,7 @@ table.t.files code { font-size: 11.5px; overflow-wrap: anywhere; }
   .tb > .f, .tb > .f:nth-child(n+2) { border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
   .tb > .f:nth-child(even) { border-left: 0; }
   .it { grid-template-columns: 26px 56px minmax(0, 1fr); }
-  .it .act { grid-column: 3; padding-top: 8px; }
+  .it .act { grid-column: 3; padding-top: 8px; justify-content: flex-start; max-width: none; }
   .tier > summary small { display: none; }
   .revs td:nth-child(4), .revs th:nth-child(4) { display: none; }
   table.t .w { display: none; }

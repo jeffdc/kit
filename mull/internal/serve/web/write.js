@@ -58,6 +58,15 @@ export function textWrite({ pid, key, ops, field, label, save, placeholder, done
   return { button, form };
 }
 
+// More: a row's rarer writes (park, drop) stay behind a toggle that opens
+// in place, as nothing floats. Open ones are kept here, by key, so live
+// re-renders keep them open.
+const more = new Set();
+export const moreOpen = key => more.has(key);
+export const toggleMore = key => (more.has(key) ? more.delete(key) : more.add(key));
+export const moreButton = (key, open) =>
+  `<button class="btn s more${open ? " on" : ""}" data-more="${esc(key)}" aria-expanded="${open ? "true" : "false"}">${open ? "Less" : "More"}</button>`;
+
 // failure is the line saying why a write didn't save, where it was tried.
 export function failure(key, what) {
   const s = writeState(key);
