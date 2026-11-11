@@ -19,7 +19,8 @@ const enc = encodeURIComponent;
 export function subsFor(r) {
   switch (r.kind) {
     case "": return [""];
-    case "unplanned": case "backlog": return [r.kind];
+    case "unplanned": return [r.id === "all" ? "unplanned?done=all" : "unplanned"];
+    case "backlog": return [r.kind];
     case "plans": return planSubs({ ...r, id: enc(r.id) });
     case "phases": case "items": return [`${r.kind}/${enc(r.id)}`];
   }
@@ -48,7 +49,7 @@ export function projectSheet(state, pr, r) {
   switch (r.kind) {
     case "": return pageProject(state, pr);
     case "unplanned":
-      return projectHead(pr, data, "unplanned", state.live) + `<div class="page">${need(data, sub, p => unplannedBody(pid, p, ch))}</div>`;
+      return projectHead(pr, data, "unplanned", state.live) + `<div class="page">${need(data, sub, p => unplannedBody(pid, p, ch, r.id === "all"))}</div>`;
     case "backlog":
       return projectHead(pr, data, "backlog", state.live) + `<div class="page">${need(data, sub, p => backlogBody(pid, p, ch, { key: `project:${pid}` }))}</div>`;
     case "plans":

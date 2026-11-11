@@ -46,7 +46,7 @@ func registerAPI(mux *http.ServeMux, repos Repos) {
 		return m.ItemPage(r.PathValue("item"))
 	})
 	page("/api/projects/{project}/unplanned", func(m *mull.Mull, r *http.Request) (any, error) {
-		return m.UnplannedPage()
+		return m.UnplannedPage(r.URL.Query().Get("done") == "all")
 	})
 	page("/api/projects/{project}/backlog", func(m *mull.Mull, r *http.Request) (any, error) {
 		return m.BacklogPage(r.URL.Query().Get("plan"))

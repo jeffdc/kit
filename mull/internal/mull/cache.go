@@ -128,6 +128,26 @@ func (s *state) index() {
 		i := s.items[id]
 		s.byPhase[i.Phase] = append(s.byPhase[i.Phase], i)
 	}
+	s.byItem = map[string][]*model.Entry{}
+	for _, id := range sortedKeys(s.entries) {
+		if e := s.entries[id]; e.Item != "" {
+			s.byItem[e.Item] = append(s.byItem[e.Item], e)
+		}
+	}
+}
+
+// itemEntries are the inbox entries on item id, in ID order.
+func (s *state) itemEntries(id string) []*model.Entry {
+	if s.byItem != nil {
+		return s.byItem[id]
+	}
+	var out []*model.Entry
+	for _, eid := range sortedKeys(s.entries) {
+		if e := s.entries[eid]; e.Item == id {
+			out = append(out, e)
+		}
+	}
+	return out
 }
 
 // headState returns the state at the mull branch's tip.

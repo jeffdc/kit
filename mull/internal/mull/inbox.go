@@ -190,9 +190,8 @@ func (m *Mull) settle(s *state, e *model.Entry, action, note, item string, o Set
 
 // openReview returns the item's unsettled (or parked) review entry, if any.
 func (s *state) openReview(itemID string) *model.Entry {
-	for _, id := range sortedKeys(s.entries) {
-		e := s.entries[id]
-		if e.Kind == model.KindReview && e.Item == itemID &&
+	for _, e := range s.itemEntries(itemID) {
+		if e.Kind == model.KindReview &&
 			(e.Settled == nil || e.Settled.Action == model.ActPark) {
 			return e
 		}
@@ -204,9 +203,8 @@ func (s *state) openReview(itemID string) *model.Entry {
 // what a review filed now would carry. Parked decisions are left out.
 func (s *state) openDecisions(itemID string) []*model.Entry {
 	var out []*model.Entry
-	for _, id := range sortedKeys(s.entries) {
-		e := s.entries[id]
-		if e.Kind == model.KindDecision && e.Item == itemID && e.Settled == nil {
+	for _, e := range s.itemEntries(itemID) {
+		if e.Kind == model.KindDecision && e.Settled == nil {
 			out = append(out, e)
 		}
 	}

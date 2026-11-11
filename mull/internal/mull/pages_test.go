@@ -440,7 +440,7 @@ func TestOverviewTreeAndLists(t *testing.T) {
 		t.Errorf("the first phase's items carry none of its %d entries: %+v", first.NeedsYou, first.Items)
 	}
 
-	un := must[Unplanned](t)(m.UnplannedPage())
+	un := must[Unplanned](t)(m.UnplannedPage(false))
 	if len(un.Items) != 1 || un.Items[0].ID != f.unplannedReady.ID || un.Items[0].Questions != 1 || un.NeedsYou.Open != 1 {
 		t.Errorf("unplanned = %+v", un)
 	}
