@@ -2,12 +2,17 @@
 plan: mull-serve
 phase: e7cb
 title: 'Not on mull yet: list recently worked-on repos beside the registered ones that aren''t on mull, and repos with old .mull/ data that need converting'
-stage: committed
+stage: active
 kind: idea
 category: ui
 source: human, 2026-11-11, reviewing the prototype's rail foot
+claim:
+  worktree: /Users/jeff/dev/kit
+  branch: bfcf-model-page
+  at: "2026-11-11T01:37:59Z"
+  base: 66646b17eff935a78e07d3296bf5831a9c535e7e
 created: "2026-11-11T01:24:13Z"
-updated: "2026-11-11T01:26:48Z"
+updated: "2026-11-11T01:37:59Z"
 ---
 
 The prototype's lower-left "Not on mull yet" list, made real (human, 2026-11-11). Agreed shape:
