@@ -84,8 +84,8 @@ svg.ic { width: 10px; height: 10px; flex: none; stroke: currentColor; fill: none
 .node em { font: 600 11px var(--font); font-stretch: 78%; letter-spacing: .03em; font-style: normal; color: var(--mut); flex: none; font-variant-numeric: tabular-nums; }
 .node.top .x { font-weight: 700; }
 .node.cur { background: var(--rail-sel); box-shadow: inset 3px 0 var(--blue); }
-.node.cur .x { color: var(--blue); font-weight: 700; }
 .node.waits .x, .node.waits em { color: var(--faint); }
+.node.cur .x, .node.cur.waits .x { color: var(--blue); font-weight: 700; }
 .node:hover { background: var(--rail-sel); }
 .node a:hover { text-decoration: none; }
 .brand .idx-toggle { display: none; }
@@ -183,7 +183,7 @@ main { min-width: 0; display: flex; flex-direction: column; }
 .v small { font-size: 12px; font-weight: 400; color: var(--mut); }
 .v code { font-size: 14px; overflow-wrap: anywhere; }
 .tabs { min-height: 44px; display: flex; align-items: stretch; flex-wrap: wrap; padding: 0 clamp(16px, 2.4vw, 32px); border-bottom: 1px solid var(--ink); gap: 4px 28px; }
-.tabs a { display: flex; align-items: center; gap: 7px; font-weight: 550; color: var(--mut); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tabs a { display: flex; align-items: center; gap: 7px; min-height: 44px; font-weight: 550; color: var(--mut); border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .tabs a:hover { color: var(--ink); text-decoration: none; }
 .tabs a.on { color: var(--ink); border-bottom-color: var(--ink); font-weight: 700; }
 .tabs a em { font: 600 11.5px var(--font); font-stretch: 80%; font-style: normal; font-variant-numeric: tabular-nums; }
@@ -372,6 +372,9 @@ table.t.files code { font-size: 11.5px; overflow-wrap: anywhere; }
   .tb > .f:nth-child(n+2) { border-top: 0; }
   .tb > .f:nth-child(n+5) { border-top: 1px solid var(--line); }
   .tb > .f:nth-child(2), .tb > .f:nth-child(5) { border-left: 0; }
+  .tabs { display: grid; grid-template-columns: auto auto auto 1fr; align-content: start; align-items: stretch; column-gap: 22px; min-height: 0; }
+  .tabs a { padding-block: 12px; white-space: nowrap; }
+  .tabs .acts { grid-column: 1 / -1; margin-left: 0; border-top: 1px solid var(--line); padding-block: 8px; }
 }
 @media (max-width: 860px) {
   .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; }
@@ -387,10 +390,13 @@ table.t.files code { font-size: 11.5px; overflow-wrap: anywhere; }
   .it { grid-template-columns: 26px 56px minmax(0, 1fr); }
   .it .act { grid-column: 3; padding-top: 8px; }
   .tier > summary small { display: none; }
-  .tabs { display: grid; grid-template-columns: auto auto auto 1fr; align-content: start; align-items: stretch; column-gap: 22px; min-height: 0; }
-  .tabs a { padding-block: 12px; white-space: nowrap; }
-  .tabs .acts { grid-column: 1 / -1; margin-left: 0; border-top: 1px solid var(--line); padding-block: 8px; }
   .revs td:nth-child(4), .revs th:nth-child(4) { display: none; }
+  table.t .w { display: none; }
+  /* nl: the cell that ends a row once the wide-only columns after it are gone */
+  tr.cl > td.nl::after { background:
+    radial-gradient(circle at 50% 100%, #0000 4.7px, var(--red) 5.1px 6.1px, #0000 6.5px) 0 0 / 12px 7px repeat-x,
+    radial-gradient(circle at 50% 0, #0000 4.7px, var(--red) 5.1px 6.1px, #0000 6.5px) 0 100% / 12px 7px repeat-x,
+    radial-gradient(circle at 100% 50%, #0000 4.7px, var(--red) 5.1px 6.1px, #0000 6.5px) 100% 0 / 7px 12px repeat-y; }
   .grp { padding-left: 26px; }
   .grp > summary { flex-wrap: wrap; }
   .foot-act { padding-left: 26px; }

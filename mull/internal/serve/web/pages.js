@@ -82,7 +82,7 @@ export function pageHome(state) {
   }
   const rows = ok.map(pr => homeRow(pr, state.data.get(pr.id))).join("") + bad.map(errorRow).join("");
   return head + `<div class="page"><section><div class="hd"><h2>Projects</h2><span class="lab">Updates when any repo's mull branch moves</span></div>
-    <div class="tbl-wrap"><table class="t"><thead><tr><th>Project</th><th>Active plans</th><th class="n">Blocking</th><th class="n">Reviews</th><th class="n">Questions</th><th class="n">Agents</th><th class="n">Untriaged</th><th class="n">Revision</th><th class="n">Last change</th></tr></thead>
+    <div class="tbl-wrap"><table class="t"><thead><tr><th>Project</th><th>Active plans</th><th class="n nl">Blocking</th><th class="n w">Reviews</th><th class="n w">Questions</th><th class="n w">Agents</th><th class="n w">Untriaged</th><th class="n w">Revision</th><th class="n w">Last change</th></tr></thead>
     <tbody>${rows}</tbody></table></div></section></div>`;
 }
 
@@ -98,14 +98,16 @@ function homeRow(pr, data) {
   const branch = `<code>${esc(s.integration)}</code>${s.ahead_of_release ? ` · ${s.ahead_of_release} ahead of ${esc(s.release)}` : ""}`;
   const changed = rev?.changes ? (data?.changes ? data.changes.clsOf(data.changes.list) : " cl") : "";
   return `<tr class="${changed.trim()}" data-href="${esc(link)}"><td><a class="ttl" href="${esc(link)}" style="font-size:15px">${esc(pid)}</a><span class="meta">${branch}</span></td>` +
-    `<td>${plans}</td><td class="n">${s.blocking ? `<span class="stamp">${s.blocking}</span>` : "0"}</td><td class="n">${s.needs_you.reviews}</td><td class="n">${s.needs_you.questions}</td>` +
-    `<td class="n">${s.agents}</td><td class="n">${s.untriaged}</td><td class="n">${rev ? `Rev ${rev.number}` : ""}</td>` +
-    `<td class="n mut">${agoSpan(s.last_change)}</td></tr>`;
+    `<td>${plans}</td><td class="n nl">${s.blocking ? `<span class="stamp">${s.blocking}</span>` : "0"}</td><td class="n w">${s.needs_you.reviews}</td><td class="n w">${s.needs_you.questions}</td>` +
+    `<td class="n w">${s.agents}</td><td class="n w">${s.untriaged}</td><td class="n w">${rev ? `Rev ${rev.number}` : ""}</td>` +
+    `<td class="n mut w">${agoSpan(s.last_change)}</td></tr>`;
 }
 
 function errorRow(pr) {
-  const why = pr.error.code === "not_initialized" ? "No mull branch yet: run mull init in it to start." : pr.error.error;
-  return `<tr class="waits"><td>${esc(pr.name)}<span class="meta">${esc(pr.path)}</span></td><td colspan="8"><code>${esc(pr.error.code)}</code> ${esc(why)}</td></tr>`;
+  const why = pr.error.code === "not_initialized"
+    ? "No mull branch yet: run mull init in it to start."
+    : `<code>${esc(pr.error.code)}</code> ${esc(pr.error.error)}`;
+  return `<tr class="waits"><td>${esc(pr.name)}<span class="meta">${esc(pr.path)}</span></td><td colspan="8">${why}</td></tr>`;
 }
 
 // pageProject is a project's Overview: the revision schedule, then Needs
@@ -142,7 +144,7 @@ export function pageNotFound(what) {
 
 export function pageUnreadable(pr) {
   return titleBlock({ title: pr.name, crumbs: [crumbHome] }) +
-    `<div class="page"><p class="note"><code>${esc(pr.error.code)}</code> ${esc(pr.error.error)}<br><span class="mut">${esc(pr.path)}</span></p></div>`;
+    `<div class="page"><p class="note">${pr.error.code === "not_initialized" ? "No mull branch yet: run <code>mull init</code> in it to start." : `<code>${esc(pr.error.code)}</code> ${esc(pr.error.error)}`}<br><span class="mut">${esc(pr.path)}</span></p></div>`;
 }
 
 export const failed = err => `<p class="note">Couldn't load this from mull serve: ${err.code ? `<code>${esc(err.code)}</code> ` : ""}${esc(err.message)}</p>`;
