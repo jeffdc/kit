@@ -54,7 +54,7 @@ export function planStatus(pid, page, ch) {
     ? `<section><div class="hd"><h2>Not in a phase</h2><span class="lab">Committed to this plan without a phase</span></div>${itemTable(pid, page.unfiled, [col.id(), col.title(pid), col.stage()], { changes: ch })}</section>`
     : "";
   return `${intro}${table}<div class="cols">
-    <section><div class="hd"><h2>Needs you</h2><span class="lab">This plan · ranked</span></div>${schedule(page.needs_you, { pid, changes: ch, noPlan: true })}</section>
+    <section id="needs"><div class="hd"><h2>Needs you</h2><span class="lab">This plan · ranked</span></div>${schedule(page.needs_you, { pid, changes: ch, noPlan: true })}</section>
     <aside><div class="hd"><h2>What's next</h2><span class="lab">Phases that can start now</span></div>${nextBlock(pid, page, ch)}</aside>
   </div>${unfiled}`;
 }

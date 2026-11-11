@@ -115,7 +115,7 @@ function homeRow(pr, data) {
   const branch = `<code>${esc(s.integration)}</code>${s.ahead_of_release ? ` · ${s.ahead_of_release} ahead of ${esc(s.release)}` : ""}`;
   const changed = rev?.changes ? (data?.changes ? data.changes.clsOf(data.changes.list) : " cl") : "";
   return `<tr class="${changed.trim()}" data-href="${esc(link)}"><td><a class="ttl" href="${esc(link)}" style="font-size:15px">${esc(pid)}</a><span class="meta">${branch}</span></td>` +
-    `<td>${plans}</td><td class="n">${s.blocking ? `<span class="stamp">${s.blocking}</span>` : "0"}</td><td class="n nl">${needsCell(s.needs_you)}</td>` +
+    `<td>${plans}</td><td class="n">${s.blocking ? `<span class="stamp">${s.blocking}</span>` : "0"}</td><td class="n nl">${needsCell(s.needs_you, link)}</td>` +
     `<td class="n w">${s.agents}</td><td class="n w">${s.untriaged}</td><td class="n w">${rev ? `Rev ${rev.number}` : ""}</td>` +
     `<td class="n mut w">${agoSpan(s.last_change)}</td></tr>`;
 }
@@ -130,9 +130,9 @@ function unmulledRow(u) {
 }
 
 // needsCell: the count of what needs the human, and what it is.
-function needsCell(ny) {
+function needsCell(ny, link) {
   const n = needsTotal(ny);
-  return n ? `<span class="ask">${n}</span><span class="meta">${esc(needsBreakdown(ny))}</span>` : "0";
+  return n ? `<a class="mk" href="${esc(link)}" data-needs><span class="ask">${n}</span></a><span class="meta">${esc(needsBreakdown(ny))}</span>` : "0";
 }
 
 function errorRow(pr) {
@@ -164,7 +164,7 @@ export function pageProject(state, pr) {
     ? `<p class="note">This project's mull data is format ${s.format}. mull reads it, but refuses every write until it's migrated: <code>mull migrate --dry-run --text</code> shows what would change.</p>`
     : "";
   return head + `<div class="page">${migrate}${revisionSchedule(pr.id, data.revision, entryHref)}<div class="cols">
-    <section><div class="hd"><h2>Needs you</h2><span class="lab">${ny.open} open${ny.parked ? ` · ${ny.parked} parked` : ""} · ranked by what it unblocks</span></div>${schedule(ny, { pid: pr.id, changes: ch })}</section>
+    <section id="needs"><div class="hd"><h2>Needs you</h2><span class="lab">${ny.open} open${ny.parked ? ` · ${ny.parked} parked` : ""} · ranked by what it unblocks</span></div>${schedule(ny, { pid: pr.id, changes: ch })}</section>
     <aside>${plansColumn(pr.id, ov, ch)}</aside>
   </div></div>`;
 }

@@ -495,7 +495,20 @@ type Tree struct {
 	Plans    []TreePlan `json:"plans"`
 	Counts   Counts     `json:"counts"`
 	Blocking int        `json:"blocking"`
-	NeedsYou int        `json:"needs_you"` // open entries, parked ones aside: everything Needs you lists
+	// NeedsYou counts the open entries (parked ones aside): everything
+	// Needs you lists. Each is counted once, on the row that shows it, and
+	// a row's count includes everything below it: so NeedsYou is the plans'
+	// counts, plus Unplanned's, plus Own.
+	NeedsYou  int       `json:"needs_you"`
+	Unplanned Attention `json:"unplanned"` // entries on unplanned work
+	Own       Attention `json:"own"`       // entries about the project, on no plan's or unplanned item
+}
+
+// Attention is how much needs the human somewhere, and how much of that
+// blocks work.
+type Attention struct {
+	NeedsYou int `json:"needs_you"`
+	Blocking int `json:"blocking"`
 }
 
 // TreePlan is a plan in the tree.
@@ -504,49 +517,112 @@ type TreePlan struct {
 	Title    string      `json:"title"`
 	State    string      `json:"state"`
 	Blocking int         `json:"blocking"`
-	NeedsYou int         `json:"needs_you"` // open entries about the plan or anything in it
+	NeedsYou int         `json:"needs_you"` // its phases', its unfiled items' and its own
 	Phases   []TreePhase `json:"phases"`
+	Unfiled  []TreeItem  `json:"unfiled"` // committed work in the plan with no phase
+	Own      Attention   `json:"own"`     // entries about the plan itself, or on its captured items
 }
 
 // TreePhase is a phase in the tree.
 type TreePhase struct {
 	PhaseRow
-	NeedsYou int        `json:"needs_you"` // open entries on its items
+	NeedsYou int        `json:"needs_you"` // its items'
 	Items    []TreeItem `json:"items"`
 }
 
 // TreeItem is an item in the tree.
 type TreeItem struct {
-	ID    string `json:"id"`
-	Title string `json:"title"`
-	State string `json:"state"`
-	Ready bool   `json:"ready,omitempty"`
+	ID       string `json:"id"`
+	Title    string `json:"title"`
+	State    string `json:"state"`
+	Ready    bool   `json:"ready,omitempty"`
+	NeedsYou int    `json:"needs_you,omitempty"` // open entries on it: questions, its review, decisions made in it
+	Blocking int    `json:"blocking,omitempty"`
 }
 
 // TreePage reads the project's sheet index.
 func (m *Mull) TreePage() (Tree, error) {
 	var out Tree
 	err := m.view(func(s *state) error {
-		count := func(keep func(*model.Entry) bool) int {
-			open, _ := s.openEntries(keep)
-			return len(open)
+		// Where each open entry shows: on its item when the tree lists it,
+		// else on its plan, on Unplanned, or on the project.
+		byItem := map[string]Attention{}
+		byPlan := map[string]Attention{}
+		listed := map[string]bool{}
+		open, _ := s.openEntries(nil)
+		add := func(a *Attention, e *model.Entry) {
+			a.NeedsYou++
+			if s.blocking(e) {
+				a.Blocking++
+			}
 		}
-		out = Tree{Plans: []TreePlan{}, Counts: s.counts(), Blocking: s.countBlocking(nil), NeedsYou: count(nil)}
+		out = Tree{Plans: []TreePlan{}, Counts: s.counts(), Blocking: s.countBlocking(nil), NeedsYou: len(open)}
+		row := func(ir ItemRow) TreeItem {
+			listed[ir.ID] = true
+			return TreeItem{ID: ir.ID, Title: ir.Title, State: ir.State, Ready: ir.Ready}
+		}
 		for _, p := range s.notDonePlans() {
-			inPlan := func(e *model.Entry) bool { return e.Plan == p.Slug }
-			tp := TreePlan{Slug: p.Slug, Title: p.Title, State: p.State, Phases: []TreePhase{},
-				Blocking: s.countBlocking(inPlan), NeedsYou: count(inPlan)}
+			tp := TreePlan{Slug: p.Slug, Title: p.Title, State: p.State, Phases: []TreePhase{}, Unfiled: []TreeItem{}}
 			for _, g := range s.schedule(p.Slug) {
 				for _, r := range g.Phases {
-					ph := TreePhase{PhaseRow: r, Items: []TreeItem{},
-						NeedsYou: count(func(e *model.Entry) bool { return s.entryPhase(e) == r.ID })}
+					ph := TreePhase{PhaseRow: r, Items: []TreeItem{}}
 					for _, ir := range s.itemRows(func(i *model.Item) bool { return i.Phase == r.ID && i.State != model.StateCaptured }) {
-						ph.Items = append(ph.Items, TreeItem{ID: ir.ID, Title: ir.Title, State: ir.State, Ready: ir.Ready})
+						ph.Items = append(ph.Items, row(ir))
 					}
 					tp.Phases = append(tp.Phases, ph)
 				}
 			}
+			for _, ir := range s.itemRows(func(i *model.Item) bool { return i.Plan == p.Slug && i.Phase == "" && i.State != model.StateCaptured }) {
+				tp.Unfiled = append(tp.Unfiled, row(ir))
+			}
 			out.Plans = append(out.Plans, tp)
+		}
+		for _, e := range open {
+			i := s.items[e.Item]
+			switch {
+			case i != nil && listed[i.ID]:
+				a := byItem[i.ID]
+				add(&a, e)
+				byItem[i.ID] = a
+			case i != nil && unplanned(i):
+				add(&out.Unplanned, e)
+			default:
+				plan := e.Plan
+				if i != nil && i.Plan != "" {
+					plan = i.Plan
+				}
+				a := byPlan[plan]
+				add(&a, e)
+				byPlan[plan] = a
+			}
+		}
+		for pi := range out.Plans {
+			tp := &out.Plans[pi]
+			fill := func(items []TreeItem) (n, b int) {
+				for ii := range items {
+					a := byItem[items[ii].ID]
+					items[ii].NeedsYou, items[ii].Blocking = a.NeedsYou, a.Blocking
+					n, b = n+a.NeedsYou, b+a.Blocking
+				}
+				return n, b
+			}
+			for phi := range tp.Phases {
+				n, b := fill(tp.Phases[phi].Items)
+				tp.Phases[phi].NeedsYou = n
+				tp.NeedsYou += n
+				tp.Blocking += b
+			}
+			n, b := fill(tp.Unfiled)
+			tp.Own = byPlan[tp.Slug]
+			delete(byPlan, tp.Slug)
+			tp.NeedsYou += n + tp.Own.NeedsYou
+			tp.Blocking += b + tp.Own.Blocking
+		}
+		// Entries about plans that aren't listed (done ones) or no plan at
+		// all are the project's own.
+		for _, a := range byPlan {
+			out.Own.NeedsYou += a.NeedsYou
+			out.Own.Blocking += a.Blocking
 		}
 		return nil
 	})

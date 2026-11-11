@@ -43,14 +43,16 @@ export const needsTotal = ny => (ny?.questions || 0) + (ny?.reviews || 0) + (ny?
 export const needsBreakdown = ny => [[ny?.questions, "question"], [ny?.reviews, "review"], [ny?.decisions, "decision"]]
   .filter(([n]) => n).map(([n, w]) => plural(n, w)).join(" · ");
 
-// marks: what a row holds for the human. The yellow stamp is blocking work
-// only; the ink box counts everything else that needs them, shown only when
+// marks: what a row holds for the human. The yellow stamp is blocking work;
+// the violet one counts everything else that needs them, shown only when
 // there's more than what blocks. long spells them out ("2 blocking", "3 for
-// you"), for project rows; otherwise they're bare counts with a title.
-export function marks(blocking, total, long = false) {
+// you"), for project rows; otherwise they're bare counts with a title. With
+// a link, they open that sheet at its Needs you (data-needs).
+export function marks(blocking, total, long = false, link = "") {
   const b = blocking ? `<span class="stamp" title="${plural(blocking, "question")} blocking committed work">${long ? `${blocking} blocking` : blocking}</span>` : "";
   const rest = total > blocking ? `<span class="ask" title="${total} need${total === 1 ? "s" : ""} you">${long ? `${total} for you` : total}</span>` : "";
-  return b + rest;
+  if (!b && !rest) return "";
+  return link ? `<a class="mk" href="${esc(link)}" data-needs title="Open what needs you here">${b}${rest}</a>` : b + rest;
 }
 
 // cells draws a phase's or plan's progress as one cell per item: done,

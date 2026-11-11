@@ -22,6 +22,7 @@
   --green: #2B7A48;     /* checker's green: done, accepted, passed */
   --hl: #FFE14D;        /* highlighter: blocking */
   --hl-ink: #121417;
+  --vi: #5B3F98;        /* checker's violet: the edge of a needs-you stamp */
   --rail: #EEF3FB;      /* blueline paper: the sheet index */
   --rail-sel: #DDE7F8;
   --font: "Archivo", "Helvetica Neue", Arial, sans-serif;
@@ -32,7 +33,7 @@
   :root:not([data-theme="light"]) {
     --ground: #101215; --panel: #181C21; --ink: #E6E9ED; --mut: #A2ABB6; --faint: #828B97;
     --line: #34506F; --red: #FF5D5D; --sel: #1F2A37;
-    --blue: #86A8F5; --blue-soft: #1B2740; --green: #6CC48B; --hl: #F0CF45; --hl-ink: #101215;
+    --blue: #86A8F5; --blue-soft: #1B2740; --green: #6CC48B; --hl: #F0CF45; --hl-ink: #101215; --vi: #B6A2EC;
     --rail: #131A25; --rail-sel: #1E2B42;
     color-scheme: dark;
   }
@@ -40,7 +41,7 @@
 :root[data-theme="dark"] {
   --ground: #101215; --panel: #181C21; --ink: #E6E9ED; --mut: #A2ABB6; --faint: #828B97;
   --line: #34506F; --red: #FF5D5D; --sel: #1F2A37;
-  --blue: #86A8F5; --blue-soft: #1B2740; --green: #6CC48B; --hl: #F0CF45; --hl-ink: #101215;
+  --blue: #86A8F5; --blue-soft: #1B2740; --green: #6CC48B; --hl: #F0CF45; --hl-ink: #101215; --vi: #B6A2EC;
   --rail: #131A25; --rail-sel: #1E2B42;
   color-scheme: dark;
 }
@@ -94,9 +95,14 @@ svg.ic { width: 10px; height: 10px; flex: none; stroke: currentColor; fill: none
 
 /* stamps and stage tags */
 .stamp { background: var(--hl); color: var(--hl-ink); box-shadow: 0 0 0 1px var(--hl-ink) inset; font-size: 11px; font-weight: 700; font-stretch: 72%; letter-spacing: .08em; text-transform: uppercase; padding: 2px 5px; line-height: 1.2; flex: none; white-space: nowrap; }
-/* the ink box: something needs the human, but doesn't block (yellow is
-   blocking only, so this takes ink and a line, not a hue) */
-.ask { color: var(--ink); box-shadow: 0 0 0 1px var(--ink) inset; font-size: 11px; font-weight: 700; font-stretch: 72%; letter-spacing: .08em; text-transform: uppercase; padding: 2px 5px; line-height: 1.2; flex: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* the needs-you stamp: something needs the human, but doesn't block. An
+   ink box with a violet edge (the human's choice): its own mark beside the
+   yellow blocking stamp, without a block of colour. Stamps link to the
+   sheet's Needs you. */
+.ask { color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink), inset 3px 0 0 var(--vi); font-size: 11px; font-weight: 700; font-stretch: 72%; letter-spacing: .08em; text-transform: uppercase; padding: 2px 5px 2px 8px; line-height: 1.2; flex: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
+a.mk { display: inline-flex; gap: 4px; flex: none; }
+a.mk:hover { text-decoration: none; }
+a.mk:hover > span { box-shadow: 0 0 0 1px var(--ink), 0 0 0 2px var(--ground); }
 .tag { display: inline-block; font-size: 11px; font-weight: 650; font-stretch: 72%; letter-spacing: .09em; text-transform: uppercase; border: 1px solid currentColor; padding: 1px 5px; line-height: 1.3; white-space: nowrap; flex: none; }
 .s-captured { border-style: dashed; color: var(--mut); }
 .s-committed { color: var(--mut); }
@@ -143,7 +149,7 @@ tr.cl.cl-cont.cl-open > td::after { background-size: 12px 0, 12px 0, 7px 12px; }
 .tier:not([open]):has(.cl) + .tier > summary { margin-top: 6px; }
 .cl.fresh::before, tr.cl.fresh > td::after, .tier:not([open]):has(.cl.fresh) > summary::before { animation: draw .7s cubic-bezier(.16, 1, .3, 1); }
 .cl.fading::before, tr.cl.fading > td::after, .tier:not([open]):has(.cl.fading) > summary::before { transition: opacity .35s ease-out; opacity: 0; }
-.pj .cl { display: inline; }
+.pj .cl { display: inline-block; }
 .pj .cl::before { inset: -8px -12px; }
 .tree .tcl { margin: 7px 0; }
 .tree .tcl::before { inset: -5px 3px; }
@@ -210,7 +216,8 @@ main { min-width: 0; display: flex; flex-direction: column; }
 .tier.t-blocking > summary b em { color: var(--hl-ink); }
 .tier > summary b em { font: 500 11px var(--mono); font-style: normal; color: var(--mut); margin-left: 6px; }
 /* a closed tier still says how much is inside it, boxed like any count that needs the human */
-.tier:not([open]) > summary b em { color: var(--ink); font-weight: 600; box-shadow: 0 0 0 1px var(--ink) inset; padding: 1px 5px; }
+.tier:not([open]) > summary b em { color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink), inset 3px 0 0 var(--vi); font-weight: 600; padding: 1px 5px 1px 8px; }
+.tier.t-blocking:not([open]) > summary b em { color: var(--hl-ink); box-shadow: none; }
 .tier > summary small { font-size: 12px; color: var(--mut); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tier > summary svg, .grp > summary svg, .revs > summary svg { transition: transform .15s ease-out; color: var(--mut); }
 .tier[open] > summary svg, .grp[open] > summary svg, .revs[open] > summary svg { transform: rotate(90deg); }
@@ -224,8 +231,10 @@ main { min-width: 0; display: flex; flex-direction: column; }
 .it .w { display: block; margin-top: 3px; font-size: 12px; color: var(--mut); }
 .it .w a { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 2px; }
 .it .act { display: flex; gap: 6px; align-items: center; }
-.it.cl { margin: 6px 0; border-top-color: transparent; }
-.it.cl + .it { border-top-color: transparent; }
+/* a run of changed rows shares one cloud */
+.clrun { margin: 6px 0; }
+.clrun > .it:first-child, .clrun + .it, .tier > summary + .clrun > .it:first-child { border-top-color: transparent; }
+.clrun::before { inset: -2px -6px; }
 .grp { padding: 8px 10px 10px 42px; border-top: 1px solid var(--line); }
 .grp > summary { cursor: pointer; display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; list-style: none; min-width: 0; }
 .grp > summary::-webkit-details-marker { display: none; }
@@ -233,10 +242,12 @@ main { min-width: 0; display: flex; flex-direction: column; }
 .grp > summary .sp { flex: 1; }
 .grp > summary small { font-weight: 400; font-size: 12px; color: var(--mut); }
 .grp.cl { margin: 6px 0; }
+.grp[open].cl::before { display: none; }
 .grp ul { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .grp li { display: grid; grid-template-columns: 54px 1fr; font-size: 12.5px; color: var(--mut); }
-.grp li.cl { color: var(--ink); margin: 4px 0; }
-.grp li.cl::before { inset: -4px -8px; }
+.grp ul.clrun { margin: 10px 0 2px; color: var(--ink); }
+.grp ul.clrun + ul { margin-top: 10px; }
+.grp ul.clrun::before { inset: -6px -8px; }
 .foot-act { padding: 8px 10px 10px 42px; display: flex; gap: 8px; }
 
 .revs > summary { list-style: none; cursor: pointer; }

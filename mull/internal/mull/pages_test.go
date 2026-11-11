@@ -403,16 +403,41 @@ func TestOverviewTreeAndLists(t *testing.T) {
 	if tree.Plans[1].Blocking != 2 || tree.Counts != ov.Counts {
 		t.Errorf("tree plan blocking = %d, counts = %+v", tree.Plans[1].Blocking, tree.Counts)
 	}
-	// What needs the human, not only what blocks: the same count each sheet's
-	// Needs you shows.
-	launch := must[PlanPage](t)(m.PlanPage("launch"))
-	firstPage := must[PhasePage](t)(m.PhasePage(f.first.ID))
-	if tree.NeedsYou != ov.NeedsYou.Open || tree.Plans[1].NeedsYou != launch.NeedsYou.Open || first.NeedsYou != firstPage.NeedsYou.Open {
-		t.Errorf("tree needs you = %d / plan %d / phase %d, want %d / %d / %d", tree.NeedsYou, tree.Plans[1].NeedsYou, first.NeedsYou,
-			ov.NeedsYou.Open, launch.NeedsYou.Open, firstPage.NeedsYou.Open)
+	// What needs the human, not only what blocks: every open entry is
+	// counted once, on the row that shows it, and each row's count is the
+	// sum of what's below it, so drilling down always finds it.
+	if tree.NeedsYou != ov.NeedsYou.Open {
+		t.Errorf("tree needs you = %d, want the overview's %d", tree.NeedsYou, ov.NeedsYou.Open)
+	}
+	sum := tree.Unplanned.NeedsYou + tree.Own.NeedsYou
+	for _, p := range tree.Plans {
+		inPlan := p.Own.NeedsYou
+		for _, ph := range p.Phases {
+			inPhase := 0
+			for _, it := range ph.Items {
+				inPhase += it.NeedsYou
+			}
+			if ph.NeedsYou != inPhase {
+				t.Errorf("phase %s needs you = %d, its items' = %d", ph.ID, ph.NeedsYou, inPhase)
+			}
+			inPlan += ph.NeedsYou
+		}
+		for _, it := range p.Unfiled {
+			inPlan += it.NeedsYou
+		}
+		if p.NeedsYou != inPlan {
+			t.Errorf("plan %s needs you = %d, its rows' = %d", p.Slug, p.NeedsYou, inPlan)
+		}
+		sum += p.NeedsYou
+	}
+	if sum != tree.NeedsYou {
+		t.Errorf("tree needs you = %d, its rows' = %d", tree.NeedsYou, sum)
 	}
 	if tree.Plans[1].NeedsYou <= tree.Plans[1].Blocking {
 		t.Errorf("plan needs you = %d, want more than its %d blocking (it has other open entries)", tree.Plans[1].NeedsYou, tree.Plans[1].Blocking)
+	}
+	if first.Items[0].NeedsYou == 0 && first.Items[1].NeedsYou == 0 {
+		t.Errorf("the first phase's items carry none of its %d entries: %+v", first.NeedsYou, first.Items)
 	}
 
 	un := must[Unplanned](t)(m.UnplannedPage())

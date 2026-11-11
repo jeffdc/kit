@@ -45,7 +45,7 @@ function needsField(pr) {
   const ny = pr.summary.needs_you, n = needsTotal(ny);
   if (!n) return `<span class="mut">nothing</span>`;
   const b = pr.summary.blocking ? ` <span class="stamp">${pr.summary.blocking} blocking</span>` : "";
-  return `<span class="ask">${n}</span>${b} <small>${esc(needsBreakdown(ny))}</small>`;
+  return `<a class="mk" href="${esc(href.project(pr.id))}" data-needs><span class="ask">${n}</span></a>${b} <small>${esc(needsBreakdown(ny))}</small>`;
 }
 
 // projectHead: a project's title block and tabs, shared by its Overview,

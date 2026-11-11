@@ -39,18 +39,34 @@ function projectNode(pr, data) {
         });
       }
       plKids.push(...live.map(ph => phaseNode(pid, ph)));
+      if (pl.unfiled.length) {
+        const ids = new Set(pl.unfiled.map(it => it.id)), n = pl.unfiled.reduce((s, it) => s + (it.needs_you || 0), 0), b = pl.unfiled.reduce((s, it) => s + (it.blocking || 0), 0);
+        plKids.push({
+          key: `nf:${pid}:${pl.slug}`, label: "No phase", match: c => c.type === "item" && ids.has(c.id),
+          meta: marks(b, n, false, href.plan(pid, pl.slug)) + em(plural(pl.unfiled.length, "item")),
+          kids: pl.unfiled.map(it => itemNode(pid, it)),
+        });
+      }
+      if (pl.own.needs_you) {
+        plKids.push({ key: `po:${pid}:${pl.slug}`, label: "About the plan", href: href.plan(pid, pl.slug), match: () => false,
+          meta: marks(pl.own.blocking, pl.own.needs_you, false, href.plan(pid, pl.slug)) });
+      }
       kids.push({
         key: `pl:${pid}:${pl.slug}`, label: pl.title, href: href.plan(pid, pl.slug), match: within.plan(pl.slug), kids: plKids,
-        meta: marks(pl.blocking, pl.needs_you) + (pl.state === "shaping" ? `<span class="tag s-shaping">shaping</span>` : ""),
+        meta: marks(pl.blocking, pl.needs_you, false, href.plan(pid, pl.slug)) + (pl.state === "shaping" ? `<span class="tag s-shaping">shaping</span>` : ""),
       });
     }
     const c = tree.counts;
-    kids.push({ key: `un:${pid}`, label: "Unplanned", href: href.unplanned(pid), match: within.unplanned(), meta: em(c.unplanned) });
+    kids.push({ key: `un:${pid}`, label: "Unplanned", href: href.unplanned(pid), match: within.unplanned(), meta: marks(tree.unplanned.blocking, tree.unplanned.needs_you, false, href.unplanned(pid)) + em(c.unplanned) });
+    if (tree.own.needs_you) {
+      kids.push({ key: `jo:${pid}`, label: "About the project", href: href.project(pid), match: () => false,
+        meta: marks(tree.own.blocking, tree.own.needs_you, false, href.project(pid)) });
+    }
     kids.push({ key: `bl:${pid}`, label: "Backlog", href: href.backlog(pid), match: within.backlog(), meta: em(`${c.backlog}${c.untriaged ? ` · ${c.untriaged} new` : ""}`) });
   }
   return {
     key: `p:${pid}`, label: pid, href: href.project(pid), top: true, match: within.all(), kids, expandable: true,
-    meta: marks(pr.summary?.blocking || 0, needsTotal(pr.summary?.needs_you), true),
+    meta: marks(pr.summary?.blocking || 0, needsTotal(pr.summary?.needs_you), true, href.project(pid)),
   };
 }
 
@@ -59,11 +75,16 @@ function phaseNode(pid, ph) {
   const progress = ph.state === "done" ? "done" : ph.state === "waits" ? "waits" : total ? `${p.done}/${total}` : "now";
   return {
     key: `ph:${pid}:${ph.id}`, label: ph.title, href: href.phase(pid, ph.id), match: within.phase(ph.id), waits: ph.state !== "now",
-    meta: marks(ph.blocking, ph.needs_you) + (ph.go_live ? `<span class="tag">Go live</span>` : "") + em(progress),
-    kids: ph.items.map(it => ({
-      key: `it:${pid}:${it.id}`, label: it.title, code: it.id, href: href.item(pid, it.id), match: within.item(it.id),
-      waits: it.state === "done" || it.state === "dropped", meta: em(stageLabel(itemStage(it))),
-    })),
+    meta: marks(ph.blocking, ph.needs_you, false, href.phase(pid, ph.id)) + (ph.go_live ? `<span class="tag">Go live</span>` : "") + em(progress),
+    kids: ph.items.map(it => itemNode(pid, it)),
+  };
+}
+
+function itemNode(pid, it) {
+  return {
+    key: `it:${pid}:${it.id}`, label: it.title, code: it.id, href: href.item(pid, it.id), match: within.item(it.id),
+    waits: (it.state === "done" || it.state === "dropped") && !it.needs_you,
+    meta: marks(it.blocking || 0, it.needs_you || 0, false, href.item(pid, it.id)) + em(stageLabel(itemStage(it))),
   };
 }
 
@@ -100,6 +121,10 @@ export function expandFor(route, state) {
       expanded.add(`pl:${pid}:${pl.slug}`);
       if (ph.state === "done") expanded.add(`built:${pid}:${pl.slug}`);
       if (kind === "items") expanded.add(`ph:${pid}:${ph.id}`);
+    }
+    if (kind === "items" && pl.unfiled?.some(it => it.id === id)) {
+      expanded.add(`pl:${pid}:${pl.slug}`);
+      expanded.add(`nf:${pid}:${pl.slug}`);
     }
   }
   if (kind === "plans") expanded.add(`pl:${pid}:${id}`);

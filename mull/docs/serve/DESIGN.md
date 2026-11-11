@@ -15,6 +15,7 @@ colors:
   green: "#2B7A48"
   hl: "#FFE14D"
   hl-ink: "#121417"
+  vi: "#5B3F98"
   rail: "#EEF3FB"
   rail-sel: "#DDE7F8"
   ground-dark: "#101215"
@@ -30,6 +31,7 @@ colors:
   green-dark: "#6CC48B"
   hl-dark: "#F0CF45"
   hl-ink-dark: "#101215"
+  vi-dark: "#B6A2EC"
   rail-dark: "#131A25"
   rail-sel-dark: "#1E2B42"
 typography:
@@ -188,6 +190,9 @@ The palette is ink on paper plus four marker hues, each restricted to one meanin
 - **Revision Red** (`--red`): revision clouds and nothing else.
 - **Highlighter Yellow** (`--hl`, with **Highlighter Ink** `--hl-ink` on top): blocking work only. Used for the blocking stamp (a yellow box with a 1px ink outline) and the highlighter swipe behind the "Blocking work" tier title.
 
+### Needs you
+- **Checker's Violet** (`--vi`): something needs the human that doesn't block: open questions, reviews and decisions. It's the 3px left edge of the needs-you stamp and of a closed tier's count, and nothing else. The human chose this on 2026-11-11 after two tries: an ink-only box was missed, and a filled violet stamp was garish. So the stamp stays ink on paper, and its edge gives it a mark of its own.
+
 ### Tertiary
 - **Checker's Green** (`--green`): done, accepted and passed. Used for done tags, done cells in cell bars, the passed check's 1px border, and the filled PASSED tag.
 
@@ -202,7 +207,7 @@ The palette is ink on paper plus four marker hues, each restricted to one meanin
 - **Blueline Paper** (`--rail`, with **Rail Select** `--rail-sel`): the sheet-index rail and its hovered or current row.
 
 ### Named Rules
-**The One Mark, One Job Rule.** Red means changed since you last looked, and nothing else in the UI is red. That includes errors, destructive actions and warnings. Yellow means blocking, blue means now, active or selected, and green means done or passed. A new state takes ink, grey or a line style (dashed, dotted, double, struck through) before it takes a hue.
+**The One Mark, One Job Rule.** Red means changed since you last looked, and nothing else in the UI is red. That includes errors, destructive actions and warnings. Yellow means blocking, a violet edge means needs you (not blocking), blue means now, active or selected, and green means done or passed. A new state takes ink, grey or a line style (dashed, dotted, double, struck through) before it takes a hue.
 
 **The Cloud Alone Rule.** Change is shown only by a cloud. Don't add per-row change counts, delta triangles or "new" badges. The title block's Revision field and the revision schedule are the only places that count changes.
 
@@ -278,7 +283,7 @@ Square corners throughout (`rounded.none`), and `select` resets its radius to 0.
 ### Stage tags and stamps
 - **Tag:** status face in a 1px currentColor box, square. Colour follows the One Mark, One Job Rule: ready and now are blue, active is a solid blue fill, done is green, passed is a solid green fill, and committed and captured are muted.
 - **Stamp:** a yellow box with a 1px ink outline that carries a blocking count ("2 BLOCKING", or just "2" in tight rows). It's for blocking only.
-- **Ask:** the same face in a 1px ink box with no fill: how much needs the human (open questions, reviews and decisions, parked ones aside). It follows the stamp only when there's more than what blocks ("1 BLOCKING" then "3 FOR YOU" on a project row, bare counts with a title on plan and phase rows), so every row holding something for the human is marked, blocking or not. `marks()` in `html.js` draws both. A closed Needs you tier boxes its count the same way.
+- **Ask:** the stamp's face in a 1px ink box on the paper, with a 3px violet left edge (the human's choice, and the second sanctioned left stripe after the current sheet-index row): how much needs the human (open questions, reviews and decisions, parked ones aside). It follows the yellow stamp only when there's more than what blocks ("1 BLOCKING" then "3 FOR YOU" on a project row, bare counts with a title on plan, phase and item rows), so blocking stays the loudest mark on a row. Every open entry is counted once, on the row that shows it, and a row's count is the sum of what's below it, so drilling down always ends on the item (or an "About the plan" or "About the project" row, or a plan's "No phase" group). Both stamps are one link (`marks()` in `html.js`, `data-needs`): it opens that row's sheet scrolled to its Needs you, with every tier open. A closed tier's count takes the same box.
 
 ### Segmented filter, select, checkbox
 - **Segmented control:** buttons joined in a 1px ink box. The pressed one (`aria-pressed`) is filled with ink.
@@ -323,6 +328,7 @@ Square corners throughout (`rounded.none`), and `select` resets its radius to 0.
 ### Revision clouds (signature)
 - A scalloped red outline built from four radial-gradient arc strips: 12px scallops, a 1px stroke (5.1–6.1px radius), and a 7px band, drawn in a `::before` that sits 6px × 10px outside the element and doesn't take pointer events.
 - **What gets clouded:** a tree row (when it's collapsed and anything inside changed, or open and the change is in none of its open children), a closed Needs you tier (at its header), a Needs you row or decision, Plans rows, tabs (Unplanned, Backlog, Plan doc), and the sheet name.
+- **Runs:** changed things next to each other share one cloud, never a cloud each: runs of rows in the sheet index, in tables, in a Needs you tier and in a decision group (`runs()` in `revision.js`). A closed group or tier carries the cloud for what's inside it; open, only its changed rows do. A clouded name in a title block is clouded as one block, however many lines it takes.
 - **Table rows:** each cell draws its share of the cloud, so a clouded row's top and bottom edges run across all its cells while the first and last cells close the sides. Consecutive clouded rows share one cloud through `.cl-cont` and `.cl-open`.
 - **Motion:** a fresh cloud (one not present on the previous fetch) draws in left to right over 0.7s `cubic-bezier(.16, 1, .3, 1)` via clip-path, and stays fresh for 750ms. "Mark revision seen" fades clouds out over 0.35s ease-out, and the tree's clouds clear in step.
 
@@ -348,14 +354,14 @@ Square corners throughout (`rounded.none`), and `select` resets its radius to 0.
 - **Do** make every new action copy a mull command or agent prompt and confirm in the toast until writes exist.
 - **Do** mark a table's wide-only columns `.w` and give the last always-visible cell `.nl` when `.w` columns follow it. The final visible column must not be `.w`.
 - **Do** let any element that can hold a change take the cloud class from `Changes.cls(...)` rather than inventing its own marker.
-- **Do** mark anything that holds something for the human with `marks()`: the stamp for blocking, the ask box for the rest. A row that needs the human must never look like one that doesn't.
+- **Do** mark anything that holds something for the human with `marks()`: the yellow stamp for blocking, the violet-edged box for the rest, linked to where it's listed. A row that needs the human must never look like one that doesn't, and its count must add up to what's below it.
 
 ### Don't:
 - **Don't** use red for anything except revision clouds. That includes errors, destructive buttons and warnings.
 - **Don't** add per-row change counts, delta triangles or "new" badges. The cloud alone means changed.
 - **Don't** round corners, use pills for status, or put soft cards on grey.
 - **Don't** add drop shadows, blur or raised surfaces. Inset `box-shadow` is allowed only as a line.
-- **Don't** use yellow for anything but blocking, or blue for decoration.
+- **Don't** use yellow for anything but blocking, violet for anything but the needs-you edge, or blue for decoration.
 - **Don't** load fonts from a CDN or add a third family.
 - **Don't** render a doc's raw HTML or follow non-web links from docs.
 - **Don't** show a raw API error code (such as `not_initialized`) for an expected state: say it in words. An unexpected code may sit beside the words, for diagnosis.
