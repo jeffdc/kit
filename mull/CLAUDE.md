@@ -31,6 +31,7 @@ Agents and humans use it only through the CLI. Data commands print JSON; errors 
 - `internal/gittest`: throwaway repos and worktrees for tests, isolated from global git config.
 - `internal/registry` and `internal/seen`: per-machine state in `~/.config/mull/` (the repositories on mull, and when the human last looked at each), never on the mull branch.
 - `internal/launchagent`: `mull serve --install`, the macOS LaunchAgent.
+- `internal/bench` and `scripts/bench`: `make bench`. Seeds large repositories (through git fast-import, as mull's writes would have built them) and times every page mull serve shows, counting git calls.
 - `internal/serve`: `mull serve`, the human's web UI (Go server; plain JS modules, CSS and fonts in `web/`, embedded). Its design lives in `docs/serve/`: `direction.md` (the contract), `PRODUCT.md`, `prototype.html`, and `DESIGN.md`, the design system as built. Read `DESIGN.md` before changing the UI; it's there rather than at the project root, where impeccable looks first.
 
 ## Build and test
@@ -42,8 +43,11 @@ make race       # with the race detector
 make fmt vet
 make dev        # build and (re)start a scratch mull serve on a seeded demo repo: http://localhost:6899/#/demo
 make dev-stop   # stop it; make dev-reset starts again from a fresh demo repo
+make bench      # time every serve page on this repo's mull branch and a seeded large one (.dev/bench/); see the Makefile for flags
 ```
 
 To try a UI change, use `make dev`, not a hand-started server: it serves this tree's build on port 6899 from `.dev/` (ignored), with its own config dir so the real registry and last-looked state are never touched, and it stops only the server it started (by its PID file). Don't start, kill or `pkill` servers at the prompt; the human's permissions ask on every kill.
+
+Measure before and after any change meant to make reads faster, with `make bench`, and put the numbers in the done report.
 
 Tests always use temporary repositories (`gittest.NewRepo`). Never run tests against a real repository's `mull` branch.
