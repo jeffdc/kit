@@ -1,0 +1,15 @@
+{
+  "tree": "efe2b38570b282d946326fb265c87723a5760902",
+  "commit": "b66b341e63e794650b0269921acd5246353daf75",
+  "at": "2026-11-11T23:38:57Z",
+  "by": "/Users/jeff/dev/kit",
+  "passed": false,
+  "results": [
+    {
+      "command": "make done-checks",
+      "exit": 2,
+      "duration_ms": 99539,
+      "tail": "  ---\n  duration_ms: 0.823542\n  type: 'test'\n  ...\n# Subtest: sellers: used first, Amazon last; ISBN where the URL wants it\nok 9 - sellers: used first, Amazon last; ISBN where the URL wants it\n  ---\n  duration_ms: 0.282791\n  type: 'test'\n  ...\n1..9\n# tests 9\n# suites 0\n# pass 9\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 49.151834\n== mull\ngo vet ./...\ngo test ./...\n?   \tmull\t[no test files]\nok  \tmull/cmd\t18.525s\nok  \tmull/internal/bench\t2.341s\n?   \tmull/internal/git\t[no test files]\n?   \tmull/internal/gittest\t[no test files]\n?   \tmull/internal/guide\t[no test files]\nok  \tmull/internal/launchagent\t(cached)\nok  \tmull/internal/model\t(cached)\nok  \tmull/internal/mull\t95.909s\nok  \tmull/internal/registry\t0.571s\nok  \tmull/internal/seen\t(cached)\nok  \tmull/internal/serve\t11.458s\nok  \tmull/internal/store\t(cached)\n?   \tmull/scripts/bench\t[no test files]\nFiles need formatting:\ninternal/mull/search.go\nmake[1]: *** [fmt-check] Error 1\nmake: *** [done-checks] Error 2"
+    }
+  ]
+}
