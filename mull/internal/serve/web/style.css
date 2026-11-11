@@ -360,6 +360,20 @@ table.t.files code { font-size: 11.5px; overflow-wrap: anywhere; }
 .decn { display: grid; grid-template-columns: 54px minmax(0, 1fr) auto; gap: 4px 8px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 13px; align-items: start; }
 .decn .why { grid-column: 2 / 4; color: var(--mut); font-size: 12px; }
 
+/* the model: a help sheet */
+.model pre { font: 500 12.5px/1.7 var(--mono); margin: 0; padding: 14px 0; overflow-x: auto; white-space: pre; border-bottom: 1px solid var(--line); }
+.model pre b { font-weight: 700; }
+.model pre i { font-style: normal; color: var(--mut); }
+.model .measure { max-width: 72ch; margin: 10px 0 0; }
+.stages { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 14px 0 0; }
+.rules { display: grid; grid-template-columns: 220px minmax(0, 1fr); margin: 0; }
+.rules dt, .rules dd { padding: 10px 0; border-bottom: 1px solid var(--line); margin: 0; }
+.rules dt { font-weight: 700; padding-right: 16px; }
+.rules dd { color: var(--mut); }
+.rules.cmds { grid-template-columns: 290px minmax(0, 1fr); }
+.rules.cmds dt { font-weight: 500; }
+.rail-foot .btn.on { background: var(--rail-sel); border-color: var(--blue); color: var(--blue); }
+
 .toast { position: fixed; right: 18px; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--ground); padding: 10px 14px; font-size: 12.5px; max-width: min(440px, calc(100vw - 36px)); z-index: 10; overflow-wrap: anywhere; }
 .toast code { font-size: 12px; }
 
@@ -398,6 +412,8 @@ table.t.files code { font-size: 11.5px; overflow-wrap: anywhere; }
     radial-gradient(circle at 50% 0, #0000 4.7px, var(--red) 5.1px 6.1px, #0000 6.5px) 0 100% / 12px 7px repeat-x,
     radial-gradient(circle at 100% 50%, #0000 4.7px, var(--red) 5.1px 6.1px, #0000 6.5px) 100% 0 / 7px 12px repeat-y; }
   .grp { padding-left: 26px; }
+  .rules, .rules.cmds { grid-template-columns: minmax(0, 1fr); }
+  .rules dt { border-bottom: 0; padding-bottom: 0; }
   .grp > summary { flex-wrap: wrap; }
   .foot-act { padding-left: 26px; }
 }

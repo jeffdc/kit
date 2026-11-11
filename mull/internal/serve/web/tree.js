@@ -91,7 +91,7 @@ function keyFor(route) {
 
 // expandFor opens the tree down to the route's row.
 export function expandFor(route, state) {
-  if (!route.pid) return;
+  if (!route.pid || route.pid === "-") return;
   const { pid, kind, id } = route;
   expanded.add(`p:${pid}`);
   const tree = state.data.get(pid)?.tree;
