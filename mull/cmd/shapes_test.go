@@ -182,7 +182,7 @@ func TestOutputShapes(t *testing.T) {
 	checkKeys(t, "drop.items[0]", first(t, "items", drop["items"]), itemViewKeys)
 	ds := shape(keys{[]string{"decisions"}, nil}, "decisions")
 	checkKeys(t, "decisions[0]", first(t, "decisions", ds["decisions"]),
-		keys{[]string{"id", "plan", "kind", "context", "decision", "by", "at"}, []string{"item", "on_request"}})
+		keys{[]string{"id", "plan", "kind", "context", "decision", "by", "at"}, []string{"item", "human", "on_request"}})
 
 	// Finish work.
 	r.ok("start", id(a))

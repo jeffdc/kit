@@ -36,7 +36,7 @@ func (m *Mull) planNew(s *state, slug, title, summary string, onRequest bool) (*
 	if s.plans[slug] != nil {
 		return nil, errf(CodeExists, "plan %q already exists", slug)
 	}
-	if !onRequest {
+	if !m.asked(onRequest) {
 		return nil, errf(CodeNotAllowed, "only the human creates a plan: pass --on-request when the human has asked for plan %q (to suggest one, mull ask)", slug)
 	}
 	now := m.now()
@@ -64,7 +64,7 @@ func (m *Mull) planAgree(s *state, slug string, onRequest bool) (*model.Plan, er
 	if p.State != model.PlanShaping {
 		return nil, errf(CodeState, "plan %q is %s; only a shaping plan can be agreed", slug, p.State)
 	}
-	if !onRequest {
+	if !m.asked(onRequest) {
 		return nil, errf(CodeNotAllowed, "only the human agrees a plan: pass --on-request when the human has agreed %q", slug)
 	}
 	p.State, p.Updated = model.PlanActive, m.now()
@@ -407,7 +407,7 @@ func (m *Mull) commit(s *state, in CommitInput) (ItemView, error) {
 	if i.State != model.StateCaptured {
 		return ItemView{}, errf(CodeState, "item %s is %s; only captured items can be committed", i.ID, i.State)
 	}
-	if !in.OnRequest {
+	if !m.asked(in.OnRequest) {
 		return ItemView{}, errf(CodeNotAllowed, "only the human commits work: pass --on-request when the human has asked for %s to be committed", i.ID)
 	}
 	plan, phase := i.Plan, i.Phase
@@ -474,7 +474,7 @@ func (m *Mull) triage(s *state, in TriageInput) (TriageResult, error) {
 	case !in.All && in.Plan != "":
 		return out, errf(CodeInvalid, "--plan goes with --all; with item IDs, the IDs say what was triaged")
 	}
-	if !in.OnRequest {
+	if !m.asked(in.OnRequest) {
 		return out, errf(CodeNotAllowed, "triage is run with the human: pass --on-request when the human has triaged these items with you")
 	}
 	var items []*model.Item

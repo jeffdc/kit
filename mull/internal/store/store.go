@@ -259,6 +259,12 @@ func (t *Tx) Commit() string { return t.snap.Commit }
 
 func (t *Tx) changed() bool { return len(t.puts) > 0 || len(t.dels) > 0 }
 
+// Written reports whether this transaction writes or deletes path.
+func (t *Tx) Written(path string) bool {
+	_, put := t.puts[path]
+	return put || t.dels[path]
+}
+
 // View runs fn against the current snapshot without writing.
 func (s *Store) View(fn func(tx *Tx) error) error {
 	snap, err := s.Load()
@@ -331,35 +337,42 @@ func (s *Store) SetRef(newCommit, old string) error {
 // first, fn runs again on the new snapshot, so fn must decide only from what
 // the transaction shows it. fn making no changes writes nothing.
 func (s *Store) Update(msg string, fn func(tx *Tx) error) error {
+	_, err := s.Write(msg, fn)
+	return err
+}
+
+// Write is Update, returning the commit it wrote ("" when fn changed
+// nothing).
+func (s *Store) Write(msg string, fn func(tx *Tx) error) (string, error) {
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		snap, err := s.Load()
 		if err != nil {
-			return err
+			return "", err
 		}
 		tx := newTx(snap)
 		if err := fn(tx); err != nil {
-			return err
+			return "", err
 		}
 		if !tx.changed() {
-			return nil
+			return "", nil
 		}
 		newCommit, err := s.writeCommit(snap.Commit, tx, msg)
 		if err != nil {
-			return err
+			return "", err
 		}
 		_, err = s.git.Run(nil, nil, "update-ref", Ref, newCommit, snap.Commit)
 		if err == nil {
-			return nil
+			return newCommit, nil
 		}
 		current, rerr := s.git.RefCommit(Ref)
 		if rerr != nil {
-			return rerr
+			return "", rerr
 		}
 		if current == snap.Commit {
-			return err // failed for a reason other than a race
+			return "", err // failed for a reason other than a race
 		}
 	}
-	return ErrBusy
+	return "", ErrBusy
 }
 
 // writeCommit builds a tree from parent plus tx's changes in a private index

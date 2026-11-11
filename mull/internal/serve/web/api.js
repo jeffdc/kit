@@ -43,6 +43,13 @@ export const api = {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ commit }),
   }),
+  // ops writes mull data as the human: batch lines, chosen from the
+  // revision at commit. A conflict (409) means what they touch changed since.
+  ops: (id, commit, ops) => call(`${p(id)}/ops`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ commit, ops }),
+  }),
 };
 
 // listen follows GET /api/events: project(id) for each project whose mull

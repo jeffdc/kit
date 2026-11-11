@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sync"
 	"testing"
 )
@@ -30,7 +31,7 @@ func TestMarkAndGet(t *testing.T) {
 	if err := Mark("/r/forage", Look{Commit: "bbbb", At: "2026-11-10T09:00:00Z"}); err != nil {
 		t.Fatal(err)
 	}
-	if l, ok, err := Get("/r/kit"); !ok || err != nil || l != a {
+	if l, ok, err := Get("/r/kit"); !ok || err != nil || !reflect.DeepEqual(l, a) {
 		t.Errorf("Get = %+v, %v, %v; want %+v", l, ok, err, a)
 	}
 	b, err := os.ReadFile(path)
@@ -50,11 +51,11 @@ func TestMarkAndGet(t *testing.T) {
 func TestBaseline(t *testing.T) {
 	isolate(t)
 	first := Look{Commit: "aaaa", At: "t1"}
-	if l, err := Baseline("/r/kit", first, ""); err != nil || l != first {
+	if l, err := Baseline("/r/kit", first, ""); err != nil || !reflect.DeepEqual(l, first) {
 		t.Fatalf("first Baseline = %+v, %v", l, err)
 	}
 	// Someone marked it meanwhile: a baseline from a stale read keeps theirs.
-	if l, err := Baseline("/r/kit", Look{Commit: "bbbb", At: "t2"}, ""); err != nil || l != first {
+	if l, err := Baseline("/r/kit", Look{Commit: "bbbb", At: "t2"}, ""); err != nil || !reflect.DeepEqual(l, first) {
 		t.Errorf("Baseline over a look = %+v, %v; want the existing %+v", l, err, first)
 	}
 	// Replacing a stale commit (one the repository doesn't have).
@@ -100,5 +101,38 @@ func TestConcurrentMarks(t *testing.T) {
 		if l, ok, _ := Get(r); !ok || l.Commit != r {
 			t.Errorf("lost the mark for %s", r)
 		}
+	}
+}
+
+func TestAcknowledge(t *testing.T) {
+	isolate(t)
+	// No look yet: nothing to add to (the baseline will take it in).
+	if err := Acknowledge("/r/kit", []Ack{{Type: "entry", ID: "d1", Commit: "c1"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, _ := Get("/r/kit"); ok {
+		t.Fatal("Acknowledge made a look")
+	}
+	if err := Mark("/r/kit", Look{Commit: "aaaa", At: "t1"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, acks := range [][]Ack{
+		{{Type: "entry", ID: "d1", Commit: "c1"}, {Type: "item", ID: "i1", Commit: "c1"}},
+		{{Type: "entry", ID: "d1", Commit: "c2"}}, // the same record again: the later commit holds
+	} {
+		if err := Acknowledge("/r/kit", acks); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want := Look{Commit: "aaaa", At: "t1", Acked: []Ack{{Type: "item", ID: "i1", Commit: "c1"}, {Type: "entry", ID: "d1", Commit: "c2"}}}
+	if l, _, _ := Get("/r/kit"); !reflect.DeepEqual(l, want) {
+		t.Errorf("look = %+v, want %+v", l, want)
+	}
+	// Marking seen acknowledges everything: the acks go.
+	if err := Mark("/r/kit", Look{Commit: "bbbb", At: "t2"}); err != nil {
+		t.Fatal(err)
+	}
+	if l, _, _ := Get("/r/kit"); l.Acked != nil {
+		t.Errorf("acks kept after Mark: %+v", l.Acked)
 	}
 }

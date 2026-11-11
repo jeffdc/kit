@@ -168,8 +168,9 @@ func (m *Mull) settle(s *state, e *model.Entry, action, note, item string, o Set
 	if !allows(e.Kind, action) {
 		return errf(CodeNotAllowed, "a %s cannot be settled with %q (allowed: %v)", e.Kind, action, allowed[e.Kind])
 	}
-	e.Settled = &model.Settlement{
-		Action: action, Note: note, Item: item, By: m.Worktree(), OnRequest: o.OnRequest, At: m.now(),
+	e.Settled = &model.Settlement{Action: action, Note: note, Item: item, By: m.Worktree(), OnRequest: o.OnRequest, At: m.now()}
+	if m.human != "" {
+		e.Settled.By, e.Settled.Human, e.Settled.OnRequest = m.human, true, false
 	}
 	return s.putEntry(e)
 }
@@ -312,7 +313,7 @@ func (m *Mull) acceptItem(s *state, i *model.Item, o SettleOpts) error {
 	if i.State != model.StateInReview {
 		return errf(CodeState, "item %s is %s; only items in review can be accepted", i.ID, i.State)
 	}
-	if i.Claim != nil && i.Claim.Worktree == m.Worktree() && !o.OnRequest {
+	if i.Claim != nil && i.Claim.Worktree == m.Worktree() && !m.asked(o.OnRequest) {
 		return errf(CodeNotAllowed, "item %s was done from this worktree; a worker cannot accept its own work unless the human asks (use --on-request)", i.ID)
 	}
 	i.State, i.Updated = model.StateDone, m.now()
@@ -411,7 +412,7 @@ func (m *Mull) do(s *state, in DoInput) (DoResult, error) {
 	if !allows(e.Kind, model.ActDo) {
 		return DoResult{}, errf(CodeNotAllowed, "a %s cannot be settled with %q (allowed: %v)", e.Kind, model.ActDo, allowed[e.Kind])
 	}
-	if e.Kind == model.KindIdea && !in.OnRequest {
+	if e.Kind == model.KindIdea && !m.asked(in.OnRequest) {
 		return DoResult{}, errf(CodeNotAllowed, "only the human promotes ideas: pass --on-request when the human has asked for idea %s to become work", e.ID)
 	}
 	if e.Settled != nil && e.Settled.Action != model.ActPark {
@@ -553,6 +554,7 @@ type Decision struct {
 	Context   string `json:"context"`  // what was asked or decided by the agent
 	Decision  string `json:"decision"` // what holds now
 	By        string `json:"by"`
+	Human     bool   `json:"human,omitempty"` // the human settled it themselves; By is their name
 	OnRequest bool   `json:"on_request,omitempty"`
 	At        string `json:"at"`
 }
@@ -573,7 +575,7 @@ func (m *Mull) Decisions(plan string) ([]Decision, error) {
 				continue
 			}
 			d := Decision{ID: e.ID, Plan: e.Plan, Item: e.Item, Kind: e.Kind, Context: e.Text,
-				By: e.Settled.By, OnRequest: e.Settled.OnRequest, At: e.Settled.At}
+				By: e.Settled.By, Human: e.Settled.Human, OnRequest: e.Settled.OnRequest, At: e.Settled.At}
 			switch {
 			case e.Settled.Action == model.ActDecide:
 				d.Decision = e.Settled.Note

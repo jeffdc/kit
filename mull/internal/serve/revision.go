@@ -95,7 +95,8 @@ func registerRevision(mux *http.ServeMux, repos Repos) {
 
 // revisionSince is the project's revision since its last look, and when that
 // look was. With no usable last look (never looked at, or a commit the
-// repository no longer has), the tip is recorded as the baseline.
+// repository no longer has), the tip is recorded as the baseline. Changes
+// to records the human acted on since are left out (see mull.Acknowledge).
 func revisionSince(path string) (mull.Revision, string, error) {
 	m, err := mull.Open(path)
 	if err != nil {
@@ -106,18 +107,20 @@ func revisionSince(path string) (mull.Revision, string, error) {
 		return mull.Revision{}, "", err
 	}
 	rev, err := m.Revision(look.Commit)
-	if err != nil || !rev.Baseline {
-		return rev, look.At, err
+	if err == nil && rev.Baseline {
+		base := seen.Look{Commit: rev.Tip.Commit, At: time.Now().UTC().Format(time.RFC3339)}
+		if look, err = seen.Baseline(path, base, look.Commit); err == nil && look.Commit != base.Commit { // marked meanwhile
+			rev, err = m.Revision(look.Commit)
+		}
 	}
-	base := seen.Look{Commit: rev.Tip.Commit, At: time.Now().UTC().Format(time.RFC3339)}
-	kept, err := seen.Baseline(path, base, look.Commit)
 	if err != nil {
 		return mull.Revision{}, "", err
 	}
-	if kept.Commit != base.Commit { // marked meanwhile
-		rev, err = m.Revision(kept.Commit)
+	acks := make([]mull.Ack, 0, len(look.Acked))
+	for _, a := range look.Acked {
+		acks = append(acks, mull.Ack{RecordRef: mull.RecordRef{Type: a.Type, ID: a.ID}, Commit: a.Commit})
 	}
-	return rev, kept.At, err
+	return rev, look.At, m.Acknowledge(&rev, acks)
 }
 
 // projectRevision is the project list's revision column, or nil if it

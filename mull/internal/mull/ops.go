@@ -533,14 +533,48 @@ func (m *Mull) Batch(r io.Reader, dryRun bool) ([]BatchResult, error) {
 	if len(lines) == 0 && len(bad) == 0 {
 		return nil, errf(CodeInvalid, "the batch is empty")
 	}
+	results, _, err := m.runBatch(lines, bad, dryRun, "")
+	return results, err
+}
 
+// Apply runs ops for a page that showed the mull branch at since: the batch
+// lines of mull batch, as JSON objects, numbered from 1 in errors. Like a
+// batch it writes every op or none, in one commit, and returns that commit
+// ("" when the ops changed nothing). If a record the ops name or write
+// changed after since, nothing is written and the error is CodeConflict, so
+// the page redraws rather than act on what it no longer shows.
+func (m *Mull) Apply(ops []json.RawMessage, since string) ([]BatchResult, string, error) {
+	if since == "" {
+		return nil, "", errf(CodeInvalid, "say which revision the ops were chosen from (the mull branch commit shown)")
+	}
+	if len(ops) == 0 {
+		return nil, "", errf(CodeInvalid, "no ops to apply")
+	}
+	var lines []batchLine
+	var bad []LineError
+	for i, raw := range ops {
+		bl, lerr := parseLine(i+1, raw)
+		if lerr != nil {
+			bad = append(bad, *lerr)
+			continue
+		}
+		lines = append(lines, bl)
+	}
+	return m.runBatch(lines, bad, false, since)
+}
+
+// runBatch runs parsed batch lines in one transaction (see Batch), after
+// any that failed to parse (bad). A since other than "" refuses the batch
+// if what it touches changed after that commit (see Apply).
+func (m *Mull) runBatch(lines []batchLine, bad []LineError, dryRun bool, since string) ([]BatchResult, string, error) {
 	var results []BatchResult
-	err := m.update(fmt.Sprintf("batch of %d operations", len(lines)), func(s *state) error {
+	commit, err := m.write(fmt.Sprintf("batch of %d operations", len(lines)), func(s *state) error {
 		results = make([]BatchResult, 0, len(lines))
 		runBad := append([]LineError{}, bad...)
 		refIDs := map[string]string{} // ref -> ID
 		refLine := map[string]int{}   // ref -> line that defined it
 		failedRef := map[string]int{} // ref -> line that failed to define it
+		named := map[string]bool{}    // the records the lines name
 		fail := func(bl batchLine, err error) {
 			e := AsError(err)
 			runBad = append(runBad, LineError{Line: bl.n, Op: bl.op, Ref: bl.ref, Code: e.Code, Error: e.Msg})
@@ -559,6 +593,9 @@ func (m *Mull) Batch(r io.Reader, dryRun bool) ([]BatchResult, error) {
 				fail(bl, err)
 				continue
 			}
+			for _, id := range refIDsOf(bl.input) {
+				named[id] = true
+			}
 			res, id, err := bl.input.run(m, s)
 			if err != nil {
 				fail(bl, err)
@@ -573,6 +610,12 @@ func (m *Mull) Batch(r io.Reader, dryRun bool) ([]BatchResult, error) {
 			}
 			results = append(results, BatchResult{Line: bl.n, Op: bl.op, Ref: bl.ref, ID: id, Result: res})
 		}
+		// A conflict comes first: it is likely why a line failed.
+		if since != "" {
+			if err := m.unchangedSince(s, since, named); err != nil {
+				return err
+			}
+		}
 		if len(runBad) > 0 {
 			sort.SliceStable(runBad, func(a, b int) bool { return runBad[a].Line < runBad[b].Line })
 			return &Error{Code: CodeBatchInvalid,
@@ -585,12 +628,57 @@ func (m *Mull) Batch(r io.Reader, dryRun bool) ([]BatchResult, error) {
 		return nil
 	})
 	if errors.Is(err, errDryRun) {
-		return results, nil
+		return results, "", nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	return results, nil
+	return results, commit, nil
+}
+
+// unchangedSince fails with CodeConflict if a record named (by ID) or
+// written in s changed between since and the commit s was read from.
+func (m *Mull) unchangedSince(s *state, since string, named map[string]bool) error {
+	read := s.tx.Commit()
+	if since == read {
+		return nil
+	}
+	if !m.knownCommit(since) || !m.isAncestor(since, read) {
+		return errf(CodeInvalid, "%q is not a commit on the mull branch (want the full commit ID the page showed)", since)
+	}
+	changes, err := m.recordChanges(since, read)
+	if err != nil {
+		return err
+	}
+	var hit []string
+	for _, c := range changes {
+		touched := named[c.ID]
+		for _, p := range changePaths(c) {
+			touched = touched || s.tx.Written(p)
+		}
+		if touched {
+			hit = append(hit, c.Type+" "+c.ID)
+		}
+	}
+	if len(hit) == 0 {
+		return nil
+	}
+	return errf(CodeConflict, "changed since the page showed it: %s; nothing was written", strings.Join(hit, ", "))
+}
+
+// refIDsOf lists the IDs an op's input names, once its refs are resolved.
+func refIDsOf(in Input) []string {
+	var out []string
+	singles, lists := in.refFields()
+	for _, p := range singles {
+		if *p != "" {
+			out = append(out, *p)
+		}
+	}
+	for _, l := range lists {
+		out = append(out, (*l)...)
+	}
+	return out
 }
 
 func parseLine(n int, raw []byte) (batchLine, *LineError) {

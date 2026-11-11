@@ -18,10 +18,13 @@ import (
 	"mull/internal/store"
 )
 
-// Mull is mull opened in one worktree. The worktree is the caller's identity.
+// Mull is mull opened in one worktree. The worktree is the caller's identity,
+// unless it acts for the human (AsHuman).
 type Mull struct {
 	repo  *git.Repo
 	store *store.Store
+	// human is the human's name when they act themselves (AsHuman).
+	human string
 	// Now returns the current time; tests may replace it.
 	Now func() time.Time
 	// pushHook, when set, sees the exact git push arguments (tests only).
@@ -39,6 +42,28 @@ func Open(dir string) (*Mull, error) {
 
 // Worktree is the caller's identity: this working tree's path.
 func (m *Mull) Worktree() string { return m.repo.Worktree() }
+
+// AsHuman returns m acting for the human themselves, as mull serve does for a
+// write from its pages. What it settles is recorded as the human's, by their
+// name (the repository's git user.name), and the steps only the human takes
+// need no on-request. It fails when user.name isn't set.
+func (m *Mull) AsHuman() (*Mull, error) {
+	out, code, err := m.repo.RunStatus(nil, nil, "config", "user.name")
+	if err != nil {
+		return nil, err
+	}
+	name := strings.TrimSpace(string(out))
+	if code != 0 || name == "" {
+		return nil, errf(CodeNotAllowed, "set git user.name in %s: a write from mull serve is recorded by the human's name", m.repo.MainWorktree())
+	}
+	h := *m
+	h.human = name
+	return &h, nil
+}
+
+// asked reports whether the human is behind a step only they may take: they
+// took it themselves (AsHuman), or an agent says they asked (onRequest).
+func (m *Mull) asked(onRequest bool) bool { return onRequest || m.human != "" }
 
 func (m *Mull) now() string { return m.Now().UTC().Format(time.RFC3339) }
 
@@ -358,7 +383,17 @@ func (m *Mull) view(fn func(s *state) error) error {
 // update runs fn on the latest state and commits its changes atomically.
 // It refuses data that isn't migrated (see writable).
 func (m *Mull) update(msg string, fn func(s *state) error) error {
-	return m.updateAny(msg, func(s *state) error {
+	_, err := m.write(msg, fn)
+	return err
+}
+
+// write is update, returning the commit written ("" when fn changed nothing).
+func (m *Mull) write(msg string, fn func(s *state) error) (string, error) {
+	return m.store.Write("mull: "+msg, func(tx *store.Tx) error {
+		s, err := load(tx)
+		if err != nil {
+			return err
+		}
 		if err := s.writable(); err != nil {
 			return err
 		}

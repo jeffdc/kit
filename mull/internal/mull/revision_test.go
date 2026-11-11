@@ -194,3 +194,54 @@ func TestRevisionAt(t *testing.T) {
 		wantCode(t, err, CodeInvalid)
 	}
 }
+
+func TestWrote(t *testing.T) {
+	m, dir := setup(t)
+	i := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "general", Title: "w"}))
+	markInReview(t, m, i.ID)
+	review := must[[]*model.Entry](t)(m.Inbox(InboxFilter{Kind: model.KindReview}))[0]
+	must[AcceptResult](t)(m.Accept([]string{review.ID}, "", SettleOpts{OnRequest: true}))
+	got := must[[]RecordRef](t)(m.Wrote(head(t, dir)))
+	want := map[RecordRef]bool{{RecordItem, i.ID}: true, {RecordEntry, review.ID}: true}
+	if len(got) != len(want) || !want[got[0]] || !want[got[1]] {
+		t.Errorf("Wrote = %+v, want the item and its review", got)
+	}
+	root := gittest.Git(t, dir, "rev-list", "--max-parents=0", head(t, dir))
+	if got := must[[]RecordRef](t)(m.Wrote(root)); len(got) != 0 {
+		t.Errorf("Wrote(first commit) = %+v", got)
+	}
+	_, err := m.Wrote("nope")
+	wantCode(t, err, CodeInvalid)
+}
+
+// What the human acted on isn't clouded, until it changes again.
+func TestAcknowledge(t *testing.T) {
+	m, dir := setup(t)
+	since := head(t, dir)
+	d := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindDecision, Text: "d", Plan: "general"}))
+	i := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "general", Title: "w"}))
+	must[AcceptResult](t)(m.Accept([]string{d.ID}, "", SettleOpts{OnRequest: true}))
+	acted := head(t, dir)
+	acks := []Ack{{RecordRef{RecordEntry, d.ID}, acted}, {RecordRef{RecordItem, i.ID}, acted}}
+	clouded := func() map[string]Change {
+		t.Helper()
+		r := must[Revision](t)(m.Revision(since))
+		if err := m.Acknowledge(&r, acks); err != nil {
+			t.Fatal(err)
+		}
+		return byRecord(r.Changes)
+	}
+	if got := clouded(); len(got) != 0 {
+		t.Errorf("acted-on records still clouded: %v", got)
+	}
+	// A later change to one clouds it again, with its whole change since.
+	must[SetResult](t)(m.Set(i.ID, "title", "w2"))
+	if got := clouded(); len(got) != 1 || got["item:"+i.ID].Change != ChangeAdded {
+		t.Errorf("after a later change: %v", got)
+	}
+	// An ack naming a commit the branch doesn't hold is ignored.
+	acks = []Ack{{RecordRef{RecordEntry, d.ID}, "0123456789abcdef0123456789abcdef01234567"}, {RecordRef{RecordEntry, d.ID}, gittest.Git(t, dir, "rev-parse", "main")}}
+	if got := clouded(); len(got) != 2 {
+		t.Errorf("with acks off the branch: %v", got)
+	}
+}

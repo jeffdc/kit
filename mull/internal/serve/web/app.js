@@ -11,6 +11,7 @@ import { renderTree, expandFor, toggle, reveal } from "./tree.js";
 import { pageHome, projectSheet, subsFor, pageNotFound, pageUnreadable, notOnMull } from "./pages.js";
 import { filterOf, clearFilter } from "./lists.js";
 import { pageModel } from "./model.js";
+import { writeState, setWrite, disarm } from "./write.js";
 
 const state = {
   projects: null,    // GET /api/projects, once loaded
@@ -135,7 +136,7 @@ function focusKey() {
   const el = document.activeElement;
   if (!el || el === document.body) return null;
   if (el.tagName === "SUMMARY" && el.parentElement.dataset.open) return `[data-open="${CSS.escape(el.parentElement.dataset.open)}"] > summary`;
-  for (const attr of ["data-tg", "data-seen", "data-copy", "data-cmd", "href"]) {
+  for (const attr of ["data-tg", "data-seen", "data-write", "data-copy", "data-cmd", "href"]) {
     const v = el.getAttribute(attr);
     if (v !== null) return `[${attr}="${CSS.escape(v)}"]`;
   }
@@ -250,6 +251,45 @@ async function markSeen(pid, btn) {
   }
 }
 
+// write runs a write button: the first click arms it, the second saves. It
+// sends the revision the page shows, so a page that's behind is refused
+// (a conflict) and redrawn rather than acting on what it no longer shows.
+let disarmTimer;
+async function write(btn) {
+  const key = btn.dataset.write, pid = btn.dataset.pid, s = writeState(key);
+  if (s.pending) return;
+  disarm(key);
+  clearTimeout(disarmTimer);
+  if (!s.armed) {
+    setWrite(key, { armed: true });
+    render();
+    disarmTimer = setTimeout(() => { if (disarm()) render(); }, 4000);
+    return;
+  }
+  const commit = state.data.get(pid)?.revision?.tip.commit;
+  if (!commit) {
+    setWrite(key, { error: "the page hasn't loaded this project's revision yet; try again in a moment" });
+    render();
+    return;
+  }
+  setWrite(key, { pending: true });
+  render();
+  try {
+    const rep = await api.ops(pid, commit, JSON.parse(btn.dataset.ops));
+    setWrite(key, null);
+    toast(rep.ack_error ? `${esc(btn.dataset.done)} It may still be clouded: ${esc(rep.ack_error.error)}` : esc(btn.dataset.done));
+  } catch (err) {
+    if (err.code === "conflict") {
+      setWrite(key, null);
+      toast("Nothing was saved: this changed since the page was drawn. It's redrawn now, so look again.");
+    } else {
+      setWrite(key, { error: err.message });
+    }
+  }
+  await loadProject(pid);
+  render();
+}
+
 // showRows shows or hides the table rows a group's <details> folds.
 function showRows(det) {
   for (const tr of main.querySelectorAll(`tr[data-group="${CSS.escape(det.dataset.rows)}"]`)) tr.hidden = !det.open;
@@ -273,6 +313,9 @@ document.addEventListener("change", ev => {
 
 document.addEventListener("click", ev => {
   const t = ev.target;
+  const wb = t.closest("[data-write]");
+  if (wb) { ev.preventDefault(); write(wb); return; }
+  if (disarm()) render(); // a click anywhere else cancels an armed write
   if (t.closest("#idx")) {
     const open = document.querySelector(".rail").classList.toggle("open");
     $("idx").setAttribute("aria-expanded", open);
@@ -316,6 +359,10 @@ document.addEventListener("click", ev => {
     if (ev.metaKey || ev.ctrlKey) window.open(row.dataset.href, "_blank");
     else location.hash = row.dataset.href;
   }
+});
+
+document.addEventListener("keydown", ev => {
+  if (ev.key === "Escape" && disarm()) render();
 });
 
 window.addEventListener("hashchange", () => {
