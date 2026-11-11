@@ -122,7 +122,7 @@ func TestStaticAndUnknown(t *testing.T) {
 	rec = httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 	if rec.Code != http.StatusMethodNotAllowed {
-		t.Errorf("POST /api/projects: %d, want 405 (the API is read-only)", rec.Code)
+		t.Errorf("POST /api/projects: %d, want 405 (projects are only read)", rec.Code)
 	}
 }
 

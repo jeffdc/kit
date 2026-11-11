@@ -236,11 +236,15 @@ func (i *Item) UnmarshalYAML(node *yaml.Node) error {
 
 // Settlement records how an inbox entry was settled.
 type Settlement struct {
-	Action    string `yaml:"action" json:"action"`
-	Note      string `yaml:"note,omitempty" json:"note,omitempty"`
-	Item      string `yaml:"item,omitempty" json:"item,omitempty"`   // the item created by "do"
-	Phase     string `yaml:"phase,omitempty" json:"phase,omitempty"` // the phase created by "do --as phase"
-	By        string `yaml:"by" json:"by"`
+	Action string `yaml:"action" json:"action"`
+	Note   string `yaml:"note,omitempty" json:"note,omitempty"`
+	Item   string `yaml:"item,omitempty" json:"item,omitempty"`   // the item created by "do"
+	Phase  string `yaml:"phase,omitempty" json:"phase,omitempty"` // the phase created by "do --as phase"
+	// By is the worktree that settled it, or the human's name when Human.
+	By string `yaml:"by" json:"by"`
+	// Human means the human settled it themselves (from mull serve), not an
+	// agent: By is their name.
+	Human     bool   `yaml:"human,omitempty" json:"human,omitempty"`
 	OnRequest bool   `yaml:"on_request,omitempty" json:"on_request,omitempty"`
 	At        string `yaml:"at" json:"at"`
 	// Legacy means it was read in format 1, with its phase under epic:.

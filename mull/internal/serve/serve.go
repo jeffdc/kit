@@ -1,7 +1,8 @@
 // Package serve is mull serve: the human's view of every repository on mull,
 // as a local web server. It listens on 127.0.0.1 only, serves the UI
-// embedded in the binary, and a JSON API over internal/mull. It never writes
-// mull data; its one write is the last-looked state (package seen).
+// embedded in the binary, and a JSON API over internal/mull. It writes mull
+// data only as the human, through POST …/ops (the ops the UI offers), and
+// otherwise writes only the last-looked state (package seen).
 package serve
 
 import (
@@ -47,6 +48,7 @@ func Handler(repos Repos, opts ...Option) http.Handler {
 	})
 	registerAPI(mux, repos)
 	registerRevision(mux, repos)
+	registerOps(mux, repos)
 	registerUnmulled(mux, repos, &scanner{now: time.Now})
 	for _, opt := range opts {
 		opt(mux)
@@ -163,8 +165,9 @@ func writeError(w http.ResponseWriter, status int, e *mull.Error) {
 }
 
 // writeMullError writes err with the HTTP status its code means: a record
-// or project that doesn't exist is 404, a bad value 400, a refused action
-// 403, anything else 500. A registered project that can't be read is 500:
+// or project that doesn't exist is 404, a bad value or batch 400, a refused
+// action 403, a write from a stale page 409, too many writers 503, anything
+// else 500. A registered project that can't be read is 500:
 // the request is fine, the server can't serve it (the code says why).
 func writeMullError(w http.ResponseWriter, err error) {
 	e := mull.AsError(err)
@@ -172,10 +175,14 @@ func writeMullError(w http.ResponseWriter, err error) {
 	switch e.Code {
 	case mull.CodeNotFound:
 		status = http.StatusNotFound
-	case mull.CodeInvalid:
+	case mull.CodeInvalid, mull.CodeBatchInvalid:
 		status = http.StatusBadRequest
 	case mull.CodeNotAllowed:
 		status = http.StatusForbidden
+	case mull.CodeConflict:
+		status = http.StatusConflict
+	case mull.CodeBusy:
+		status = http.StatusServiceUnavailable
 	}
 	writeError(w, status, e)
 }

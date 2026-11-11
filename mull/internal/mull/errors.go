@@ -35,6 +35,7 @@ const (
 	CodeBatchInvalid       = "batch_invalid"       // one or more batch lines failed; nothing was written
 	CodeInvalidJSON        = "invalid_json"        // a batch line is not a valid JSON object
 	CodeBusy               = "busy"                // too many concurrent writers; try again
+	CodeConflict           = "conflict"            // the records a write from a page touches changed since the page showed them
 	CodeGit                = "git_error"           // git failed unexpectedly
 	CodeRetired            = "retired"             // the command or op was retired; the message names its replacement
 	CodeMigrationRequired  = "migration_required"  // the data is from before Model v2: writes wait for mull migrate
