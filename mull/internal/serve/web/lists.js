@@ -26,6 +26,10 @@ export const col = {
   date: () => ["Date", it => `<span class="mono">${esc(day(it.created))}</span>`, "n"],
 };
 
+// wide marks a column to drop at phone width. Never the last column: its
+// cell closes a clouded row's cloud.
+export const wide = ([th, td, cls = "", style]) => [th, td, `${cls} w`.trim(), style];
+
 export function itemTable(pid, items, cols, { changes, empty = "None." } = {}) {
   if (!items.length) return `<p class="empty">${esc(empty)}</p>`;
   const head = cols.map(([th, , cls, style]) => `<th${cls ? ` class="${cls}"` : ""}${style ? ` style="${style}"` : ""}>${th}</th>`).join("");
@@ -70,9 +74,7 @@ export function backlogBody(pid, page, changes, { key, inPlan = "" } = {}) {
   const opt = (v, label, cur) => `<option value="${esc(v)}"${cur === v ? " selected" : ""}>${esc(label)}</option>`;
   const planSelect = inPlan ? "" : `<label>Plan <select data-filter="${esc(key)}" data-k="plan">${opt("all", "Any", f.plan)}${page.plans.map(p => opt(p.slug, shortTitle(p.title), f.plan)).join("")}${opt("none", "No plan", f.plan)}</select></label>`;
   const triage = page.last_triage ? `last triage ${esc(day(page.last_triage))}` : "never triaged";
-  const cols = [col.id(), col.title(pid, "Captured"), col.kind(), col.category()];
-  if (!inPlan) cols.push(col.plan(pid, plans)); else cols.push(col.phase());
-  cols.push(col.from(), col.date());
+  const cols = [col.id(), col.title(pid, "Captured"), col.kind(), wide(col.category()), wide(inPlan ? col.phase() : col.plan(pid, plans)), wide(col.from()), col.date()];
   const table = list.length
     ? itemTable(pid, list, cols, { changes })
     : all.length

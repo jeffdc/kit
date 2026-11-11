@@ -72,7 +72,7 @@ function phaseTable(pid, slug, steps, ch) {
     return `<tr class="grp-h${s.key === "now" ? " now" : ""}"><td colspan="7">${esc(s.title)}<em>${s.phases.length}</em></td></tr>` + s.phases.map(ph => phaseRow(pid, ph, ch)).join("");
   }).join("");
   return `<section><div class="hd"><h2>Where we are</h2><span class="lab">Phases in the order their needs allow</span></div>
-    <div class="tbl-wrap"><table class="t"><thead><tr><th style="width:70px">ID</th><th>Phase</th><th>State</th><th>Items</th><th class="n">Done</th><th class="n">Questions</th><th>Needs</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
+    <div class="tbl-wrap"><table class="t"><thead><tr><th style="width:70px">ID</th><th>Phase</th><th>State</th><th class="w">Items</th><th class="n">Done</th><th class="n w">Questions</th><th>Needs</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
 }
 
 function phaseRow(pid, ph, ch, group) {
@@ -80,8 +80,8 @@ function phaseRow(pid, ph, ch, group) {
   const cls = [ph.state !== "now" ? "waits" : "", ch ? ch.cls(within.phase(ph.id)).trim() : ""].filter(Boolean).join(" ");
   return `<tr${cls ? ` class="${cls}"` : ""} data-href="${esc(link)}"${group ? ` data-group="${esc(group)}" hidden` : ""}><td><code>${esc(ph.id)}</code></td>` +
     `<td><a class="ttl" href="${esc(link)}">${esc(ph.title)}</a>${ph.go_live ? ` <span class="tag">Go live</span>` : ""}${ph.summary ? `<span class="meta">${esc(ph.summary)}</span>` : ""}</td>` +
-    `<td>${tag(ph.state)}${stamp(ph.blocking)}</td><td>${cells(p)}</td>` +
-    `<td class="n">${total ? `<span class="mono">${p.done}/${total}</span>` : `<span class="mut">no items</span>`}</td><td class="n">${ph.questions || ""}</td>` +
+    `<td>${tag(ph.state)}${stamp(ph.blocking)}</td><td class="w">${cells(p)}</td>` +
+    `<td class="n">${total ? `<span class="mono">${p.done}/${total}</span>` : `<span class="mut">no items</span>`}</td><td class="n w">${ph.questions || ""}</td>` +
     `<td class="mono">${ph.needs.map(n => `<a href="${esc(href.phase(pid, n))}">${esc(n)}</a>`).join(" ")}</td></tr>`;
 }
 

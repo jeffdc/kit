@@ -126,24 +126,36 @@ func TestStaticAndUnknown(t *testing.T) {
 	}
 }
 
-// TestModuleImports checks that every relative import in the embedded UI
-// names an embedded file, since there's no build step to catch a typo.
-func TestModuleImports(t *testing.T) {
-	imp := regexp.MustCompile(`(?m)^import [^"]*"\./([^"]+)";$`)
-	files, err := fs.Glob(web, "web/*.js")
-	if err != nil || len(files) == 0 {
-		t.Fatalf("no embedded modules: %v", err)
+// TestEmbeddedReferences checks that every file the UI refers to (module
+// imports, the stylesheet's url()s, the page's href and src) is embedded,
+// since there's no build step to catch a typo, and that the fonts are
+// served as fonts.
+func TestEmbeddedReferences(t *testing.T) {
+	refs := map[string]*regexp.Regexp{
+		"web/*.js":   regexp.MustCompile(`(?m)^import [^"]*"\./([^"]+)";$`),
+		"web/*.css":  regexp.MustCompile(`url\(/([^)]+)\)`),
+		"web/*.html": regexp.MustCompile(`(?:href|src)="/([^"]+)"`),
 	}
-	for _, f := range files {
-		src, err := fs.ReadFile(web, f)
-		if err != nil {
-			t.Fatal(err)
+	for glob, re := range refs {
+		files, err := fs.Glob(web, glob)
+		if err != nil || len(files) == 0 {
+			t.Fatalf("no embedded %s: %v", glob, err)
 		}
-		for _, m := range imp.FindAllStringSubmatch(string(src), -1) {
-			if _, err := fs.Stat(web, "web/"+m[1]); err != nil {
-				t.Errorf("%s imports ./%s, which isn't embedded", f, m[1])
+		for _, f := range files {
+			src, err := fs.ReadFile(web, f)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, m := range re.FindAllStringSubmatch(string(src), -1) {
+				if _, err := fs.Stat(web, "web/"+m[1]); err != nil {
+					t.Errorf("%s refers to %s, which isn't embedded", f, m[1])
+				}
 			}
 		}
+	}
+	h := Handler(func() ([]string, error) { return []string{}, nil })
+	if ct := get(t, h, "/fonts/archivo-latin.woff2").Header().Get("Content-Type"); ct != "font/woff2" {
+		t.Errorf("GET a font: Content-Type %q, want font/woff2", ct)
 	}
 }
 

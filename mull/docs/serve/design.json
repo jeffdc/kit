@@ -1,0 +1,683 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-11T01:13:35+00:00",
+  "title": "Design System: mull serve",
+  "extensions": {
+    "colorMeta": {
+      "ground": {
+        "role": "neutral",
+        "displayName": "Bond",
+        "canonical": "#FFFFFF",
+        "tonalRamp": [
+          "#4C4C4C",
+          "#808080",
+          "#B2B2B2",
+          "#E0E0E0",
+          "#FFFFFF",
+          "#FFFFFF",
+          "#FFFFFF",
+          "#FFFFFF"
+        ]
+      },
+      "panel": {
+        "role": "neutral",
+        "displayName": "Panel Grey",
+        "canonical": "#EEF2F6",
+        "tonalRamp": [
+          "#47494A",
+          "#77797B",
+          "#A7A9AC",
+          "#D1D5D8",
+          "#F3F6F9",
+          "#F7F9FB",
+          "#FBFCFD",
+          "#FDFEFE"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#121417",
+        "tonalRamp": [
+          "#050607",
+          "#090A0C",
+          "#0D0E10",
+          "#101214",
+          "#595A5D",
+          "#949597",
+          "#C4C4C5",
+          "#E7E8E8"
+        ]
+      },
+      "mut": {
+        "role": "neutral",
+        "displayName": "Muted",
+        "canonical": "#565F6B",
+        "tonalRamp": [
+          "#1A1C20",
+          "#2B3036",
+          "#3C424B",
+          "#4C545E",
+          "#898F97",
+          "#B3B7BC",
+          "#D5D7DA",
+          "#EEEFF0"
+        ]
+      },
+      "faint": {
+        "role": "neutral",
+        "displayName": "Faint",
+        "canonical": "#69717C",
+        "tonalRamp": [
+          "#202225",
+          "#34383E",
+          "#4A4F57",
+          "#5C636D",
+          "#969CA3",
+          "#BCBFC4",
+          "#DADCDE",
+          "#F0F1F2"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Construction Line",
+        "canonical": "#8DB0D6",
+        "tonalRamp": [
+          "#2A3540",
+          "#46586B",
+          "#637B96",
+          "#7C9BBC",
+          "#AFC8E2",
+          "#CCDBED",
+          "#E2EBF5",
+          "#F4F7FB"
+        ]
+      },
+      "red": {
+        "role": "secondary",
+        "displayName": "Revision Red",
+        "canonical": "#D2232A",
+        "tonalRamp": [
+          "#3F0A0D",
+          "#691215",
+          "#93181D",
+          "#B91F25",
+          "#E0656A",
+          "#EB9C9F",
+          "#F4C8CA",
+          "#FAE9EA"
+        ]
+      },
+      "sel": {
+        "role": "neutral",
+        "displayName": "Selection",
+        "canonical": "#DCE6F1",
+        "tonalRamp": [
+          "#424548",
+          "#6E7378",
+          "#9AA1A9",
+          "#C2CAD4",
+          "#E6EEF5",
+          "#EFF4F9",
+          "#F6F9FC",
+          "#FCFCFE"
+        ]
+      },
+      "blue": {
+        "role": "primary",
+        "displayName": "Blueline Blue",
+        "canonical": "#2E58C2",
+        "tonalRamp": [
+          "#0E1A3A",
+          "#172C61",
+          "#203E88",
+          "#284DAB",
+          "#6D8AD4",
+          "#A1B4E4",
+          "#CBD5F0",
+          "#EAEEF9"
+        ]
+      },
+      "blue-soft": {
+        "role": "primary",
+        "displayName": "Blueline Wash",
+        "canonical": "#E3EBFA",
+        "tonalRamp": [
+          "#44464B",
+          "#72767D",
+          "#9FA4AF",
+          "#C8CFDC",
+          "#EBF1FC",
+          "#F2F6FD",
+          "#F8FAFE",
+          "#FCFDFE"
+        ]
+      },
+      "green": {
+        "role": "tertiary",
+        "displayName": "Checker's Green",
+        "canonical": "#2B7A48",
+        "tonalRamp": [
+          "#0D2516",
+          "#163D24",
+          "#1E5532",
+          "#266B3F",
+          "#6BA27F",
+          "#A0C3AD",
+          "#CADED1",
+          "#EAF2ED"
+        ]
+      },
+      "hl": {
+        "role": "secondary",
+        "displayName": "Highlighter Yellow",
+        "canonical": "#FFE14D",
+        "tonalRamp": [
+          "#4C4417",
+          "#807026",
+          "#B29E36",
+          "#E0C644",
+          "#FFEA82",
+          "#FFF2AF",
+          "#FFF8D2",
+          "#FFFCED"
+        ]
+      },
+      "hl-ink": {
+        "role": "secondary",
+        "displayName": "Highlighter Ink",
+        "canonical": "#121417",
+        "tonalRamp": [
+          "#050607",
+          "#090A0C",
+          "#0D0E10",
+          "#101214",
+          "#595A5D",
+          "#949597",
+          "#C4C4C5",
+          "#E7E8E8"
+        ]
+      },
+      "rail": {
+        "role": "neutral",
+        "displayName": "Blueline Paper",
+        "canonical": "#EEF3FB",
+        "tonalRamp": [
+          "#47494B",
+          "#777A7E",
+          "#A7AAB0",
+          "#D1D6DD",
+          "#F3F7FC",
+          "#F7FAFD",
+          "#FBFCFE",
+          "#FDFEFF"
+        ]
+      },
+      "rail-sel": {
+        "role": "neutral",
+        "displayName": "Rail Select",
+        "canonical": "#DDE7F8",
+        "tonalRamp": [
+          "#42454A",
+          "#6E747C",
+          "#9BA2AE",
+          "#C2CBDA",
+          "#E7EEFA",
+          "#F0F4FC",
+          "#F6F9FD",
+          "#FCFDFE"
+        ]
+      },
+      "ground-dark": {
+        "role": "neutral",
+        "displayName": "Bond (dark)",
+        "canonical": "#101215",
+        "tonalRamp": [
+          "#050506",
+          "#08090A",
+          "#0B0D0F",
+          "#0E1012",
+          "#58595B",
+          "#939496",
+          "#C3C4C4",
+          "#E7E7E8"
+        ]
+      },
+      "panel-dark": {
+        "role": "neutral",
+        "displayName": "Panel Grey (dark)",
+        "canonical": "#181C21",
+        "tonalRamp": [
+          "#07080A",
+          "#0C0E10",
+          "#111417",
+          "#15191D",
+          "#5D6064",
+          "#97999B",
+          "#C5C6C8",
+          "#E8E8E9"
+        ]
+      },
+      "ink-dark": {
+        "role": "neutral",
+        "displayName": "Ink (dark)",
+        "canonical": "#E6E9ED",
+        "tonalRamp": [
+          "#454647",
+          "#737476",
+          "#A1A3A6",
+          "#CACDD1",
+          "#EEF0F2",
+          "#F4F5F7",
+          "#F9FAFA",
+          "#FCFDFD"
+        ]
+      },
+      "mut-dark": {
+        "role": "neutral",
+        "displayName": "Muted (dark)",
+        "canonical": "#A2ABB6",
+        "tonalRamp": [
+          "#313337",
+          "#51565B",
+          "#71787F",
+          "#8F96A0",
+          "#BEC4CC",
+          "#D5D9DE",
+          "#E8EAED",
+          "#F6F7F8"
+        ]
+      },
+      "faint-dark": {
+        "role": "neutral",
+        "displayName": "Faint (dark)",
+        "canonical": "#828B97",
+        "tonalRamp": [
+          "#272A2D",
+          "#41464C",
+          "#5B616A",
+          "#727A85",
+          "#A8AEB6",
+          "#C7CBD0",
+          "#E0E2E5",
+          "#F2F3F5"
+        ]
+      },
+      "line-dark": {
+        "role": "neutral",
+        "displayName": "Construction Line (dark)",
+        "canonical": "#34506F",
+        "tonalRamp": [
+          "#101821",
+          "#1A2838",
+          "#24384E",
+          "#2E4662",
+          "#71849A",
+          "#A4B0BE",
+          "#CCD3DB",
+          "#EBEEF1"
+        ]
+      },
+      "red-dark": {
+        "role": "secondary",
+        "displayName": "Revision Red (dark)",
+        "canonical": "#FF5D5D",
+        "tonalRamp": [
+          "#4C1C1C",
+          "#802E2E",
+          "#B24141",
+          "#E05252",
+          "#FF8E8E",
+          "#FFB6B6",
+          "#FFD6D6",
+          "#FFEFEF"
+        ]
+      },
+      "sel-dark": {
+        "role": "neutral",
+        "displayName": "Selection (dark)",
+        "canonical": "#1F2A37",
+        "tonalRamp": [
+          "#090D10",
+          "#10151C",
+          "#161D26",
+          "#1B2530",
+          "#626A73",
+          "#9A9FA5",
+          "#C7CACD",
+          "#E9EAEB"
+        ]
+      },
+      "blue-dark": {
+        "role": "primary",
+        "displayName": "Blueline Blue (dark)",
+        "canonical": "#86A8F5",
+        "tonalRamp": [
+          "#28324A",
+          "#43547A",
+          "#5E76AC",
+          "#7694D8",
+          "#AAC2F8",
+          "#C9D8FA",
+          "#E1E9FC",
+          "#F3F6FE"
+        ]
+      },
+      "blue-soft-dark": {
+        "role": "primary",
+        "displayName": "Blueline Wash (dark)",
+        "canonical": "#1B2740",
+        "tonalRamp": [
+          "#080C13",
+          "#0E1420",
+          "#131B2D",
+          "#182238",
+          "#5F6879",
+          "#989EA9",
+          "#C6C9CF",
+          "#E8E9EC"
+        ]
+      },
+      "green-dark": {
+        "role": "tertiary",
+        "displayName": "Checker's Green (dark)",
+        "canonical": "#6CC48B",
+        "tonalRamp": [
+          "#203B2A",
+          "#366246",
+          "#4C8961",
+          "#5FAC7A",
+          "#98D6AE",
+          "#BDE4CB",
+          "#DAF0E2",
+          "#F0F9F3"
+        ]
+      },
+      "hl-dark": {
+        "role": "secondary",
+        "displayName": "Highlighter Yellow (dark)",
+        "canonical": "#F0CF45",
+        "tonalRamp": [
+          "#483E15",
+          "#786822",
+          "#A89130",
+          "#D3B63D",
+          "#F4DD7D",
+          "#F8E9AB",
+          "#FBF3D0",
+          "#FEFAEC"
+        ]
+      },
+      "hl-ink-dark": {
+        "role": "secondary",
+        "displayName": "Highlighter Ink (dark)",
+        "canonical": "#101215",
+        "tonalRamp": [
+          "#050506",
+          "#08090A",
+          "#0B0D0F",
+          "#0E1012",
+          "#58595B",
+          "#939496",
+          "#C3C4C4",
+          "#E7E7E8"
+        ]
+      },
+      "rail-dark": {
+        "role": "neutral",
+        "displayName": "Blueline Paper (dark)",
+        "canonical": "#131A25",
+        "tonalRamp": [
+          "#06080B",
+          "#0A0D12",
+          "#0D121A",
+          "#111721",
+          "#5A5F66",
+          "#95989D",
+          "#C4C6C8",
+          "#E7E8E9"
+        ]
+      },
+      "rail-sel-dark": {
+        "role": "neutral",
+        "displayName": "Rail Select (dark)",
+        "canonical": "#1E2B42",
+        "tonalRamp": [
+          "#090D14",
+          "#0F1621",
+          "#151E2E",
+          "#1A263A",
+          "#626B7B",
+          "#9AA0AA",
+          "#C7CAD0",
+          "#E8EAEC"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Sheet name",
+        "purpose": "Title-block name; steps down for long titles."
+      },
+      "brand": {
+        "displayName": "Brand",
+        "purpose": "\"mull\" in the rail."
+      },
+      "headline": {
+        "displayName": "Section head",
+        "purpose": "Section heads on a 1.5px ink rule."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Plan names in the Plans column."
+      },
+      "value": {
+        "displayName": "Field value",
+        "purpose": "Title-block field values."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "App default."
+      },
+      "prose": {
+        "displayName": "Prose",
+        "purpose": "Rendered docs, 68ch measure."
+      },
+      "label": {
+        "displayName": "Field label",
+        "purpose": "Condensed tracked caps: field labels, table headers, captions."
+      },
+      "status": {
+        "displayName": "Status word",
+        "purpose": "Stage tags and stamps."
+      },
+      "mono": {
+        "displayName": "Figures",
+        "purpose": "IDs, hashes, branches, clocks, counts only."
+      }
+    },
+    "shadows": [
+      {
+        "name": "stamp-outline",
+        "value": "inset 0 0 0 1px var(--hl-ink)",
+        "purpose": "1px ink outline of the blocking stamp (a line, not elevation)."
+      },
+      {
+        "name": "current-row-bar",
+        "value": "inset 3px 0 var(--blue)",
+        "purpose": "Current sheet-index row; from the prototype, pending the human's confirmation."
+      },
+      {
+        "name": "active-cell",
+        "value": "inset 0 -3px var(--blue)",
+        "purpose": "Active cell in a cell bar."
+      }
+    ],
+    "motion": [
+      {
+        "name": "cloud-draw",
+        "value": "clip-path inset 0.7s cubic-bezier(.16, 1, .3, 1)",
+        "purpose": "Fresh revision clouds draw in left to right."
+      },
+      {
+        "name": "cloud-fade",
+        "value": "opacity 0.35s ease-out",
+        "purpose": "Clouds fade on Mark revision seen."
+      },
+      {
+        "name": "chevron",
+        "value": "transform 0.15s ease-out",
+        "purpose": "Disclosure chevrons rotate 90deg."
+      },
+      {
+        "name": "checkbox",
+        "value": "transform 0.12s ease-out",
+        "purpose": "Checkbox mark scales in."
+      },
+      {
+        "name": "live-pulse",
+        "value": "opacity to .35, 2.4s ease-in-out infinite",
+        "purpose": "Live dot; offline dot is static."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "prefers-reduced-motion: reduce",
+        "purpose": "All animation and transition off."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "stack",
+        "value": "1180px"
+      },
+      {
+        "name": "collapse",
+        "value": "860px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Button",
+      "kind": "button",
+      "refersTo": "button",
+      "description": "Square outline button; copies a mull command (read-first).",
+      "html": "<button class=\"ds-btn\">Mark revision seen</button>",
+      "css": ".ds-btn{font-family: Archivo, 'Helvetica Neue', Arial, sans-serif;height:28px;display:inline-flex;align-items:center;padding:0 12px;border:1px solid var(--ink,#121417);border-radius:0;background:var(--ground,#fff);color:var(--ink,#121417);font-weight:600;font-size:12px;cursor:pointer}.ds-btn:hover{background:var(--panel,#EEF2F6)}.ds-btn:active{transform:translateY(1px)}.ds-btn:focus-visible{outline:2px solid var(--blue,#2E58C2);outline-offset:2px}"
+    },
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Ink-filled; one per action group.",
+      "html": "<button class=\"ds-btn-p\">Capture</button>",
+      "css": ".ds-btn-p{font-family: Archivo, 'Helvetica Neue', Arial, sans-serif;height:28px;display:inline-flex;align-items:center;padding:0 12px;border:1px solid var(--ink,#121417);border-radius:0;background:var(--ink,#121417);color:var(--ground,#fff);font-weight:600;font-size:12px;cursor:pointer}.ds-btn-p:hover{opacity:.88}.ds-btn-p:active{transform:translateY(1px)}.ds-btn-p:focus-visible{outline:2px solid var(--blue,#2E58C2);outline-offset:2px}"
+    },
+    {
+      "name": "Stage tags and blocking stamp",
+      "kind": "chip",
+      "refersTo": "tag-active",
+      "description": "Square condensed caps; colour by the One Mark, One Job Rule; stamp is blocking only.",
+      "html": "<span class=\"ds-tag ds-active\">active</span> <span class=\"ds-tag ds-ready\">ready</span> <span class=\"ds-tag ds-done\">done</span> <span class=\"ds-tag ds-captured\">captured</span> <span class=\"ds-stamp\">2 blocking</span>",
+      "css": ".ds-tag{font-family: Archivo, 'Helvetica Neue', Arial, sans-serif;display:inline-block;font-size:11px;font-weight:650;font-stretch:72%;letter-spacing:.09em;text-transform:uppercase;border:1px solid currentColor;padding:1px 5px;line-height:1.3}.ds-active{background:var(--blue,#2E58C2);color:var(--ground,#fff);border-color:var(--blue,#2E58C2)}.ds-ready{color:var(--blue,#2E58C2)}.ds-done{color:var(--green,#2B7A48)}.ds-captured{color:var(--mut,#565F6B);border-style:dashed}.ds-stamp{font-family: Archivo, 'Helvetica Neue', Arial, sans-serif;background:var(--hl,#FFE14D);color:var(--hl-ink,#121417);box-shadow:inset 0 0 0 1px var(--hl-ink,#121417);font-size:11px;font-weight:700;font-stretch:72%;letter-spacing:.08em;text-transform:uppercase;padding:2px 5px}"
+    },
+    {
+      "name": "Tabs",
+      "kind": "nav",
+      "refersTo": "tab",
+      "description": "Sheet tabs with ink underline on the active tab.",
+      "html": "<nav class=\"ds-tabs\"><a class=\"ds-on\" href=\"#\">Overview</a><a href=\"#\">Unplanned <em>1</em></a><a href=\"#\">Backlog <em>6</em></a></nav>",
+      "css": ".ds-tabs{font-family: Archivo, 'Helvetica Neue', Arial, sans-serif;display:flex;gap:28px;border-bottom:1px solid var(--ink,#121417);font-size:13.5px}.ds-tabs a{display:flex;align-items:center;gap:7px;min-height:44px;color:var(--mut,#565F6B);font-weight:550;text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px}.ds-tabs a:hover{color:var(--ink,#121417)}.ds-tabs a.ds-on{color:var(--ink,#121417);font-weight:700;border-bottom-color:var(--ink,#121417)}.ds-tabs em{font-style:normal;font-size:11.5px;font-weight:600;font-stretch:80%}.ds-tabs a:focus-visible{outline:2px solid var(--blue,#2E58C2);outline-offset:2px}"
+    },
+    {
+      "name": "Sheet-index row",
+      "kind": "nav",
+      "refersTo": "tree-node-current",
+      "description": "29px tree rows on blueline paper; current row blue (inset bar provisional).",
+      "html": "<div class=\"ds-rail\"><div class=\"ds-node\">All projects</div><div class=\"ds-node ds-cur\">fixture</div><div class=\"ds-node ds-d1\">Tunnel under the hill</div></div>",
+      "css": ".ds-rail{font-family: Archivo, 'Helvetica Neue', Arial, sans-serif;background:var(--rail,#EEF3FB);width:312px;font-size:13.5px;color:var(--ink,#121417)}.ds-node{display:flex;align-items:center;height:29px;padding:0 12px 0 24px}.ds-d1{padding-left:38px}.ds-node:hover{background:var(--rail-sel,#DDE7F8)}.ds-cur{background:var(--rail-sel,#DDE7F8);box-shadow:inset 3px 0 var(--blue,#2E58C2);color:var(--blue,#2E58C2);font-weight:700}"
+    },
+    {
+      "name": "Title block field",
+      "kind": "card",
+      "refersTo": "",
+      "description": "Boxed field: condensed tracked label over a value.",
+      "html": "<div class=\"ds-f\"><span class=\"ds-lab\">Integration branch</span><div class=\"ds-v\"><code>main</code></div></div>",
+      "css": ".ds-f{font-family: Archivo, 'Helvetica Neue', Arial, sans-serif;padding:9px 18px 10px;border-left:1px solid var(--line,#8DB0D6);border-bottom:1.5px solid var(--ink,#121417);width:220px}.ds-lab{font-size:11px;font-weight:650;font-stretch:75%;letter-spacing:.12em;text-transform:uppercase;color:var(--mut,#565F6B)}.ds-v{margin-top:3px;font-size:14.5px;font-weight:550;color:var(--ink,#121417)}.ds-v code{font-family:'Red Hat Mono',ui-monospace,Menlo,monospace;font-size:14px}"
+    },
+    {
+      "name": "Needs you tier and row",
+      "kind": "custom",
+      "refersTo": "tier-header",
+      "description": "Numbered tier header on panel grey; blocking title highlighted; row with ID, text, where, action.",
+      "html": "<div class=\"ds-tier\"><div class=\"ds-sum\"><span class=\"ds-n\">01</span><b class=\"ds-blk\">Blocking work</b><small>Committed work that can't finish without your answer</small></div><div class=\"ds-it\"><span class=\"ds-n ds-f\">1.1</span><code>de3e</code><p>Which concrete mix for the piers?</p></div></div>",
+      "css": ".ds-tier{font-family: Archivo, 'Helvetica Neue', Arial, sans-serif;border-bottom:1px solid var(--line,#8DB0D6);color:var(--ink,#121417);font-size:13.5px}.ds-sum{display:grid;grid-template-columns:34px auto 1fr;gap:8px;align-items:center;min-height:32px;background:var(--panel,#EEF2F6);padding-right:10px}.ds-sum b{font-size:12.5px;font-weight:700}.ds-blk{background:linear-gradient(transparent 12%,var(--hl,#FFE14D) 12% 88%,transparent 88%);color:var(--hl-ink,#121417);padding:0 4px}.ds-sum small{font-size:12px;color:var(--mut,#565F6B);text-align:right}.ds-n{font-family:'Red Hat Mono',ui-monospace,monospace;font-size:11px;font-weight:600;padding-left:4px}.ds-f{color:var(--faint,#69717C);font-weight:400}.ds-it{display:grid;grid-template-columns:34px 62px 1fr;gap:0 8px;padding:10px 10px 10px 0}.ds-it code{font-family:'Red Hat Mono',ui-monospace,monospace;font-size:12px;font-weight:500}.ds-it p{margin:0;font-weight:550}.ds-it:hover{background:var(--panel,#EEF2F6)}"
+    },
+    {
+      "name": "Revision cloud",
+      "kind": "custom",
+      "refersTo": "",
+      "description": "Scalloped red outline around whatever changed; draws in when fresh.",
+      "html": "<div class=\"ds-cl\">Bridge: a span across the river</div>",
+      "css": ".ds-cl{font-family: Archivo, 'Helvetica Neue', Arial, sans-serif;position:relative;display:inline-block;margin:12px;font-size:15px;font-weight:700;color:var(--ink,#121417)}.ds-cl::before{content:'';position:absolute;inset:-6px -10px;pointer-events:none;background:radial-gradient(circle at 50% 100%,#0000 4.7px,var(--red,#D2232A) 5.1px 6.1px,#0000 6.5px) 0 0/12px 7px round no-repeat,radial-gradient(circle at 50% 0,#0000 4.7px,var(--red,#D2232A) 5.1px 6.1px,#0000 6.5px) 0 100%/12px 7px round no-repeat,radial-gradient(circle at 100% 50%,#0000 4.7px,var(--red,#D2232A) 5.1px 6.1px,#0000 6.5px) 0 0/7px 12px no-repeat round,radial-gradient(circle at 0 50%,#0000 4.7px,var(--red,#D2232A) 5.1px 6.1px,#0000 6.5px) 100% 0/7px 12px no-repeat round;animation:ds-draw .7s cubic-bezier(.16,1,.3,1)}@keyframes ds-draw{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 0 0 0)}}@media (prefers-reduced-motion:reduce){.ds-cl::before{animation:none}}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Issued Drawing Set",
+    "overview": "A project is a set of drawings issued for review. The left rail is the sheet index, every page opens with a title block of boxed fields, lists are schedules (ruled tables and numbered tiers), and whatever changed since the human last looked is ringed by a red revision cloud. The look is white bond paper with ink linework (deep graphite with light linework in dark), pale blue construction lines for minor rules, square corners, and no elevation.\n\nIt's dense in the way a drawing sheet is dense. Small type sits in a tight grid, every region is boxed or ruled, and colour is rare enough that each hue reads as a checker's mark with one job. The UI is read-first: every action copies a mull command or an agent prompt to the clipboard and says so in a toast. Nothing in the UI writes to the database yet, so actions must never look like they save anything.\n\nRejected outright by the contract: soft cards on grey, status pills everywhere, cream-and-serif \"AI\" styling, delta triangles and per-row change counts.",
+    "keyCharacteristics": [
+      "Square corners everywhere. Ink rules at 1 and 1.5px, blue construction lines at 1px.",
+      "One job per hue: revision red, highlighter yellow, blueline blue, checker's green.",
+      "Archivo across its width axis for everything except IDs and figures, which use Red Hat Mono.",
+      "Revision clouds (scalloped red outlines) are the only \"changed\" signal.",
+      "Light and dark follow the system, with a `data-theme` override on the root."
+    ],
+    "rules": [
+      {
+        "name": "The One Mark, One Job Rule",
+        "body": "Red means changed since you last looked, and nothing else in the UI is red. That includes errors, destructive actions and warnings. Yellow means blocking, blue means now, active or selected, and green means done or passed. A new state takes ink, grey or a line style (dashed, dotted, double, struck through) before it takes a hue.",
+        "section": "colors"
+      },
+      {
+        "name": "The Cloud Alone Rule",
+        "body": "Change is shown only by a cloud. Don't add per-row change counts, delta triangles or \"new\" badges. The title block's Revision field and the revision schedule are the only places that count changes.",
+        "section": "colors"
+      },
+      {
+        "name": "The Mono Is For Figures Rule",
+        "body": "Red Hat Mono sets IDs, hashes, branch names, clock times, counts and ratios. Never use it for sentences, headings or labels.",
+        "section": "typography"
+      },
+      {
+        "name": "The Width Axis Rule",
+        "body": "Hierarchy comes from Archivo's width and weight, not from new families. Names are wide and heavy (112–118%), labels are condensed and tracked (72–78%), and everything else sits near 100%.",
+        "section": "typography"
+      },
+      {
+        "name": "The Linework Not Lift Rule",
+        "body": "Separate regions with a rule or a fill, never with a shadow, blur or raised card. An inset `box-shadow` is allowed only as a line.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** use the CSS custom properties (`--ink`, `--line`, `--blue`, and so on) and keep the light and dark blocks in step. A new token needs a value in the light `:root`, the `prefers-color-scheme: dark` block and the `[data-theme=\"dark\"]` block.",
+      "**Do** build structure from rules: 1.5px ink for structural edges, 1px construction line for minor dividers, 1px ink for control boxes.",
+      "**Do** keep each hue to its job: red for clouds, yellow for blocking, blue for now, active and selected, green for done and passed.",
+      "**Do** set IDs, counts and times in Red Hat Mono with tabular figures, and labels in condensed tracked Archivo caps.",
+      "**Do** make every new action copy a mull command or agent prompt and confirm in the toast until writes exist.",
+      "**Do** mark a table's wide-only columns `.w` and give the last always-visible cell `.nl` when `.w` columns follow it. The final visible column must not be `.w`.",
+      "**Do** let any element that can hold a change take the cloud class from `Changes.cls(...)` rather than inventing its own marker."
+    ],
+    "donts": [
+      "**Don't** use red for anything except revision clouds. That includes errors, destructive buttons and warnings.",
+      "**Don't** add per-row change counts, delta triangles or \"new\" badges. The cloud alone means changed.",
+      "**Don't** round corners, use pills for status, or put soft cards on grey.",
+      "**Don't** add drop shadows, blur or raised surfaces. Inset `box-shadow` is allowed only as a line.",
+      "**Don't** use yellow for anything but blocking, or blue for decoration.",
+      "**Don't** load fonts from a CDN or add a third family.",
+      "**Don't** render a doc's raw HTML or follow non-web links from docs.",
+      "**Don't** show raw API error codes (such as `not_initialized`) to the human. Say what's wrong in words."
+    ]
+  }
+}
