@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"mull/internal/gittest"
@@ -147,5 +148,127 @@ func TestOpsAcknowledge(t *testing.T) {
 	post(t, h, base+"/seen", "", nil)
 	if l, _, _ := seen.Get(dir); l.Acked != nil {
 		t.Errorf("acks kept after marking seen: %+v", l.Acked)
+	}
+}
+
+// The page answers questions and decides decisions differently with decide.
+func TestOpsDecide(t *testing.T) {
+	dir := onMull(t)
+	gittest.Git(t, dir, "config", "user.name", "Jeff")
+	m, _ := mull.Open(dir)
+	q, err := m.Capture(mull.CaptureInput{Kind: model.KindQuestion, Text: "Which queue?"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := decision(t, dir, "use sqlite")
+	h := Handler(func() ([]string, error) { return []string{dir}, nil })
+	rec := post(t, h, "/api/projects/"+filepath.Base(dir)+"/ops", opsBody(t, tipOf(t, dir),
+		map[string]any{"op": "decide", "id": q.ID, "decision": "The jobs table"},
+		map[string]any{"op": "decide", "id": d, "decision": "use postgres"}), nil)
+	if rec.Code != 200 {
+		t.Fatalf("POST ops: %d %s", rec.Code, rec.Body)
+	}
+	log, err := m.Decisions("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]mull.Decision{}
+	for _, e := range log {
+		got[e.ID] = e
+	}
+	if a := got[q.ID]; a.Decision != "The jobs table" || a.By != "Jeff" || !a.Human {
+		t.Errorf("answer = %+v", a)
+	}
+	if b := got[d]; b.Decision != "use postgres" || b.Context != "use sqlite" || !b.Human {
+		t.Errorf("decided differently = %+v", b)
+	}
+}
+
+// inReview puts a new unplanned item through mull done, carrying one open
+// decision, and returns the item's ID and its review entry's.
+func inReview(t *testing.T, dir string) (item, review, dec string) {
+	t.Helper()
+	m, err := mull.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Batch(strings.NewReader(`{"op": "config checks", "commands": ["true"]}`), false); err != nil {
+		t.Fatal(err)
+	}
+	it, err := m.ItemAdd(mull.NewItem{Plan: model.NoPlan, Title: "Digest job"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Start(it.ID); err != nil {
+		t.Fatal(err)
+	}
+	d, err := m.Capture(mull.CaptureInput{Kind: model.KindDecision, Text: "one digest a day", Item: it.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	done, err := m.Done(it.ID, mull.DoneInput{Summary: "built", Design: "simply"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return it.ID, done.Review, d.ID
+}
+
+// The page accepts a review (ratifying what it carries) or sends it back
+// with a reason, as the human, even for work done in the server's own
+// worktree.
+func TestOpsReview(t *testing.T) {
+	dir := onMull(t)
+	gittest.Git(t, dir, "config", "user.name", "Jeff")
+	h := Handler(func() ([]string, error) { return []string{dir}, nil })
+	url := "/api/projects/" + filepath.Base(dir) + "/ops"
+	m, _ := mull.Open(dir)
+
+	item, review, _ := inReview(t, dir)
+	rec := post(t, h, url, opsBody(t, tipOf(t, dir), map[string]any{"op": "do", "id": review, "reason": "the digest skips Sundays"}), nil)
+	if rec.Code != 200 {
+		t.Fatalf("send back: %d %s", rec.Code, rec.Body)
+	}
+	if v, _ := m.Show(item); v.Item.State != model.StateCommitted || !strings.Contains(v.Item.Notes, "the digest skips Sundays") {
+		t.Errorf("sent back item = %+v", v.Item)
+	}
+
+	item, _, dec := inReview(t, dir)
+	rec = post(t, h, url, opsBody(t, tipOf(t, dir), map[string]any{"op": "accept", "ids": []string{item}}), nil)
+	if rec.Code != 200 {
+		t.Fatalf("accept: %d %s", rec.Code, rec.Body)
+	}
+	if v, _ := m.Show(item); v.Item.State != model.StateDone {
+		t.Errorf("accepted item = %+v", v.Item)
+	}
+	if v, _ := m.Show(dec); v.Entry == nil || v.Entry.Settled == nil || v.Entry.Settled.By != "Jeff" || !v.Entry.Settled.Human {
+		t.Errorf("carried decision = %+v", v.Entry)
+	}
+}
+
+// The page parks or drops a Needs you entry with a reason.
+func TestOpsParkDrop(t *testing.T) {
+	dir := onMull(t)
+	gittest.Git(t, dir, "config", "user.name", "Jeff")
+	h := Handler(func() ([]string, error) { return []string{dir}, nil })
+	m, _ := mull.Open(dir)
+	q, err := m.Capture(mull.CaptureInput{Kind: model.KindQuestion, Text: "Which queue?"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := decision(t, dir, "use sqlite")
+	rec := post(t, h, "/api/projects/"+filepath.Base(dir)+"/ops", opsBody(t, tipOf(t, dir),
+		map[string]any{"op": "park", "id": q.ID, "reason": "after the launch"},
+		map[string]any{"op": "drop", "ids": []string{d}, "reason": "superseded"}), nil)
+	if rec.Code != 200 {
+		t.Fatalf("POST ops: %d %s", rec.Code, rec.Body)
+	}
+	for id, want := range map[string]string{q.ID: model.ActPark, d: model.ActDrop} {
+		v, err := m.Show(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if s := v.Entry.Settled; s == nil || s.Action != want || s.By != "Jeff" || !s.Human || s.Note == "" {
+			t.Errorf("%s settled = %+v, want %s by the human with the reason", id, s, want)
+		}
 	}
 }

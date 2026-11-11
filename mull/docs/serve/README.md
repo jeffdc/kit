@@ -41,5 +41,5 @@ Project            a repo
 - Repos are found with no configuration: any `mull` command registers its repo in `~/.config/mull/repos`.
 - "Last looked" is kept by `mull serve` in `~/.config/mull/`, per machine, never on the mull branch.
 - `http://localhost` is fine; no HTTPS needed.
-- Mostly read-first: an action copies the mull command to run, except the human's own steps that have moved onto the page (approving decisions so far; the `mull-ui-edit` plan moves the rest), which save as the human.
+- Mostly read-first: an action copies the mull command to run, except the human's own steps that have moved onto the page (approving, answering, deciding and settling reviews so far; the `mull-ui-edit` plan moves the rest), which save as the human.
 - Fonts (Archivo, Red Hat Mono) are self-hosted by `mull serve`; the prototype loads them from Google Fonts only because its sandbox allows nothing else.

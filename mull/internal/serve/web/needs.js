@@ -1,12 +1,12 @@
 // The Needs you schedule: questions, reviews and decisions, in numbered
 // tiers ranked by what an answer unblocks. The tiers and their order come
-// from the API; this only draws them. Approving decisions writes (see
-// write.js); the other actions copy a prompt or a mull command for the
-// human to run.
+// from the API; this only draws them. Approving, answering and deciding
+// write (see write.js); the other actions copy a prompt or a mull command
+// for the human to run.
 
 import { esc, href, CHEVRON, itemStage, stageLabel, shortTitle, plural, clock } from "./html.js";
 import { within, runs } from "./revision.js";
-import { writeButton, failure } from "./write.js";
+import { writeButton, textWrite, failure, writeState, moreOpen, moreButton } from "./write.js";
 
 // Tiers open by default: the ones that hold work up.
 const OPEN = new Set(["blocking", "review", "now"]);
@@ -68,13 +68,21 @@ function row(e, n, tierKey, opts) {
     e.source && !review ? `from ${esc(e.source)}` : "",
   ].filter(Boolean).join(" · ");
   const title = review && e.item ? e.item_title || e.text : e.text;
-  const text = review && link ? `<a href="${esc(link)}">${esc(title)}</a>` : esc(title);
-  const act = review
-    ? (link ? `<a class="btn s" href="${esc(link)}">Review</a>` : "")
-    : `<button class="btn s${tierKey === "blocking" ? " p" : ""}" data-copy="${esc(e.id)}">Answer</button>`;
+  const text = review && link ? `<a href="${esc(link)}" data-review>${esc(title)}</a>` : esc(title);
+  let act, form = "";
+  if (review) {
+    act = link ? `<a class="btn s" href="${esc(link)}" data-review>Review</a>` : "";
+  } else {
+    const ans = textWrite({ pid, key: `answer:${pid}:${e.id}`, ops: [{ op: "decide", id: e.id }], field: "decision",
+      label: "Answer", save: "Save answer", placeholder: "Your answer. It joins the decision log, and the agent works from it.",
+      done: `Answered ${e.id}. It's in the decision log.` });
+    const rest = parkOrDrop(pid, e.id, "needs");
+    act = `<button class="btn s" data-copy="${esc(e.id)}" title="Copies a prompt to work through it with an agent">Discuss with an agent</button>${ans.button}${rest.buttons}`;
+    form = ans.form + rest.forms;
+  }
   const code = review && e.item ? e.item : e.id;
-  return [`<div class="it"${link ? ` data-href="${esc(link)}"` : ""}><span class="n">${esc(n)}</span><code>${esc(code)}</code>` +
-    `<div><p${e.detail ? ` title="${esc(e.detail)}"` : ""}>${text}</p>${where ? `<span class="w">${where}</span>` : ""}</div><div class="act">${act}</div></div>`,
+  return [`<div class="it"${link ? ` data-href="${esc(link)}"` : ""}${review && link ? " data-review" : ""}><span class="n">${esc(n)}</span><code>${esc(code)}</code>` +
+    `<div><p${e.detail ? ` title="${esc(e.detail)}"` : ""}>${text}</p>${where ? `<span class="w">${where}</span>` : ""}</div><div class="act">${act}</div>${form}</div>`,
     cloudsOf(e, opts.changes)];
 }
 
@@ -90,7 +98,7 @@ function group(g, opts) {
   const carried = g.review && g.item;
   const all = `approve:${pid}:${g.key}`;
   const act = carried
-    ? `<a class="btn s" href="${esc(href.item(pid, g.item))}">Review</a>`
+    ? `<a class="btn s" href="${esc(href.item(pid, g.item))}" data-review>Review</a>`
     : ids.length === 1
       ? approve(pid, all, ids, "Approve", "Approve?", `Approved decision ${ids[0]}.`)
       : approve(pid, all, ids, "Approve all", `Approve ${ids.length}?`, `Approved ${plural(ids.length, "decision")}.`);
@@ -103,13 +111,38 @@ function group(g, opts) {
     failure(all, `Approving ${plural(ids.length, "decision")}`);
 }
 
-// decision is one decision in a group, with its own approve if approvable
-// (not carried by a review, and not alone in its group).
+// decision is one decision in a group: decide it differently, and approve
+// it on its own if approvable (not carried by a review, and not alone in
+// its group).
 function decision(pid, e, approvable) {
   const key = `approve:${pid}:${e.id}`;
-  const act = approvable ? approve(pid, key, [e.id], "Approve", "Approve?", `Approved decision ${e.id}.`) : "";
-  return `<li><code>${esc(e.id)}</code><span${e.detail ? ` title="${esc(e.detail)}"` : ""}>${esc(e.text)}</span>${act}${failure(key, `Approving ${e.id}`)}</li>`;
+  const dd = decideDifferently(pid, e.id, "needs");
+  const rest = parkOrDrop(pid, e.id, "needs");
+  const act = (approvable ? approve(pid, key, [e.id], "Approve", "Approve?", `Approved decision ${e.id}.`) : "") + dd.button + rest.buttons;
+  return `<li><code>${esc(e.id)}</code><span${e.detail ? ` title="${esc(e.detail)}"` : ""}>${esc(e.text)}</span><span class="li-acts">${act}</span>${failure(key, `Approving ${e.id}`)}${dd.form}${rest.forms}</li>`;
 }
+
+// parkOrDrop are an entry's rarer writes, behind More: park sets it aside
+// (it leaves Needs you, and is only counted), drop settles it for good.
+// Both take a reason; the drop form says it can't be undone.
+function parkOrDrop(pid, id, where) {
+  const k = `${where}:${pid}:${id}`;
+  const park = textWrite({ pid, key: `park:${k}`, ops: [{ op: "park", id }], field: "reason",
+    label: "Park", save: "Park it", done: `Parked ${id}. It's counted as parked, out of Needs you.`,
+    placeholder: "Why it can wait. Parked, it leaves Needs you and is only counted." });
+  const drop = textWrite({ pid, key: `drop:${k}`, ops: [{ op: "drop", ids: [id] }], field: "reason",
+    label: "Drop", save: "Drop it for good", done: `Dropped ${id}.`,
+    placeholder: "Why it isn't needed. Dropping can't be undone." });
+  const open = moreOpen(`more:${k}`) || writeState(`park:${k}`).open || writeState(`drop:${k}`).open;
+  return { buttons: (open ? park.button + drop.button : "") + moreButton(`more:${k}`, open), forms: park.form + drop.form };
+}
+
+// decideDifferently settles a decision with the human's own, which joins
+// the decision log in its place. The review packet uses it too; where
+// keeps the two apart, as an item's sheet shows a decision in both.
+export const decideDifferently = (pid, id, where) => textWrite({ pid, key: `decide:${where}:${pid}:${id}`, ops: [{ op: "decide", id }], field: "decision",
+  label: "Decide differently", save: "Save decision", placeholder: "What you decide instead. It replaces the agent's in the decision log.",
+  done: `Decided ${id} differently. It's in the decision log.` });
 
 const approve = (pid, key, ids, label, ask, done) =>
   writeButton({ pid, key, ops: [{ op: "accept", ids }], label, ask, done });

@@ -15,7 +15,11 @@ import (
 // uiOps are the ops the UI offers. Each step of editing from the UI adds the
 // ops it needs; anything else is refused.
 var uiOps = map[string]bool{
-	"accept": true,
+	"accept": true, // approve decisions
+	"decide": true, // answer a question, or decide a decision differently
+	"do":     true, // send reviewed work back
+	"drop":   true, // drop a Needs you entry
+	"park":   true, // set one aside
 }
 
 // OpsReport is what POST …/ops returns: each op's result, as mull batch
