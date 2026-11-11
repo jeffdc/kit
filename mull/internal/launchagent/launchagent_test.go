@@ -57,7 +57,8 @@ func TestInstall(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, s := range []string{"<string>mull.serve</string>", "<string>/Users/me/go/bin/mull</string>", "<string>serve</string>", "<string>6855</string>",
-		"<key>PATH</key>", "/Users/me/.config &amp; co", "<key>RunAtLoad</key>\n\t<true/>", "<key>KeepAlive</key>\n\t<true/>", a.LogPath()} {
+		"<key>PATH</key>", "/Users/me/.config &amp; co", "<key>RunAtLoad</key>\n\t<true/>", "<key>KeepAlive</key>\n\t<true/>",
+		"<key>ProcessType</key>\n\t<string>Interactive</string>", a.LogPath()} {
 		if !strings.Contains(string(plist), s) {
 			t.Errorf("plist lacks %q:\n%s", s, plist)
 		}

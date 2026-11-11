@@ -83,7 +83,10 @@ func (a Agent) Plist() []byte {
 	b.WriteString("\t<key>RunAtLoad</key>\n\t<true/>\n")
 	b.WriteString("\t<key>KeepAlive</key>\n\t<true/>\n")
 	b.WriteString("\t<key>ThrottleInterval</key>\n\t<integer>30</integer>\n")
-	b.WriteString("\t<key>ProcessType</key>\n\t" + str("Background") + "\n")
+	// Interactive: the human is waiting on every page. Background (and, per
+	// launchd.plist(5), leaving it unset) throttles CPU and I/O, git children
+	// included, which made pages 3-4x slower.
+	b.WriteString("\t<key>ProcessType</key>\n\t" + str("Interactive") + "\n")
 	b.WriteString("\t<key>StandardOutPath</key>\n\t" + str(a.LogPath()) + "\n")
 	b.WriteString("\t<key>StandardErrorPath</key>\n\t" + str(a.LogPath()) + "\n")
 	b.WriteString("</dict>\n</plist>\n")
