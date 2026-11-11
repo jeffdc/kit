@@ -1,10 +1,12 @@
 // The Needs you schedule: questions, reviews and decisions, in numbered
 // tiers ranked by what an answer unblocks. The tiers and their order come
-// from the API; this only draws them. Actions are read-first: they copy a
-// prompt or a mull command for the human to run.
+// from the API; this only draws them. Approving decisions writes (see
+// write.js); the other actions copy a prompt or a mull command for the
+// human to run.
 
 import { esc, href, CHEVRON, itemStage, stageLabel, shortTitle, plural, clock } from "./html.js";
 import { within, runs } from "./revision.js";
+import { writeButton, failure } from "./write.js";
 
 // Tiers open by default: the ones that hold work up.
 const OPEN = new Set(["blocking", "review", "now"]);
@@ -77,19 +79,37 @@ function row(e, n, tierKey, opts) {
 }
 
 // group: decisions from one source. A group carried by an open review is
-// settled by reviewing it; the others are approved with mull accept.
+// settled by reviewing it; the others are approved here, all at once or
+// one by one.
 function group(g, opts) {
   const pid = opts.pid, key = `grp:${pid}:${g.key}`;
   const ids = g.entries.map(e => e.id);
   const ch = opts.changes;
   const cloud = ch ? ch.cls(c => ids.includes(c.id) && c.type === "entry") : "";
   const name = g.item ? `<code>${esc(g.item)}</code> ${esc(g.title)}` : esc(g.title);
-  const carried = g.review && g.item ? ` <small>carried by its review</small>` : "";
-  const act = g.review && g.item
+  const carried = g.review && g.item;
+  const all = `approve:${pid}:${g.key}`;
+  const act = carried
     ? `<a class="btn s" href="${esc(href.item(pid, g.item))}">Review</a>`
-    : `<button class="btn s" data-cmd="mull accept ${esc(ids.join(" "))}" data-say="Approving ratifies ${esc(plural(ids.length, "decision"))}.">Approve all</button>`;
-  const items = runs(g.entries.map(e => [`<li><code>${esc(e.id)}</code><span${e.detail ? ` title="${esc(e.detail)}"` : ""}>${esc(e.text)}</span></li>`, ch ? ch.cls(within.entry(e.id)) : ""]),
+    : ids.length === 1
+      ? approve(pid, all, ids, "Approve", "Approve?", `Approved decision ${ids[0]}.`)
+      : approve(pid, all, ids, "Approve all", `Approve ${ids.length}?`, `Approved ${plural(ids.length, "decision")}.`);
+  // A group of one is approved from its header alone.
+  const own = !carried && ids.length > 1;
+  const items = runs(g.entries.map(e => [decision(pid, e, own), ch ? ch.cls(within.entry(e.id)) : ""]),
     (h, cl) => `<ul class="clrun${cl}">${h}</ul>`, h => `<ul>${h}</ul>`);
   // Closed, the group carries the cloud; open, its changed rows do.
-  return `<details class="grp${cloud}" data-open="${esc(key)}"><summary>${CHEVRON}<span>${name}${carried}</span><span class="sp"></span><span class="mono mut">${g.entries.length}</span>${act}</summary>${items}</details>`;
+  return `<details class="grp${cloud}" data-open="${esc(key)}"><summary>${CHEVRON}<span>${name}${carried ? ` <small>carried by its review</small>` : ""}</span><span class="sp"></span><span class="mono mut">${g.entries.length}</span>${act}</summary>${items}</details>` +
+    failure(all, `Approving ${plural(ids.length, "decision")}`);
 }
+
+// decision is one decision in a group, with its own approve if approvable
+// (not carried by a review, and not alone in its group).
+function decision(pid, e, approvable) {
+  const key = `approve:${pid}:${e.id}`;
+  const act = approvable ? approve(pid, key, [e.id], "Approve", "Approve?", `Approved decision ${e.id}.`) : "";
+  return `<li><code>${esc(e.id)}</code><span${e.detail ? ` title="${esc(e.detail)}"` : ""}>${esc(e.text)}</span>${act}${failure(key, `Approving ${e.id}`)}</li>`;
+}
+
+const approve = (pid, key, ids, label, ask, done) =>
+  writeButton({ pid, key, ops: [{ op: "accept", ids }], label, ask, done });

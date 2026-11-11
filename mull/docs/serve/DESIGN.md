@@ -167,7 +167,7 @@ The build in `mull/internal/serve/web/` is the source of truth (`style.css` hold
 
 A project is a set of drawings issued for review. The left rail is the sheet index, every page opens with a title block of boxed fields, lists are schedules (ruled tables and numbered tiers), and whatever changed since the human last looked is ringed by a red revision cloud. The look is white bond paper with ink linework (deep graphite with light linework in dark), pale blue construction lines for minor rules, square corners, and no elevation.
 
-It's dense in the way a drawing sheet is dense. Small type sits in a tight grid, every region is boxed or ruled, and colour is rare enough that each hue reads as a checker's mark with one job. The UI is read-first: every action copies a mull command or an agent prompt to the clipboard and says so in a toast. Nothing in the UI writes to the database yet, so actions must never look like they save anything.
+It's dense in the way a drawing sheet is dense. Small type sits in a tight grid, every region is boxed or ruled, and colour is rare enough that each hue reads as a checker's mark with one job. Actions are of two kinds. Most copy a mull command or an agent prompt to the clipboard and say so in a toast. A few save to mull as the human (approving decisions, so far), and those look different, ask once more, and show where they failed. A copy action must never look like it saves anything, and a write must never look like a copy.
 
 Rejected outright by the contract: soft cards on grey, status pills everywhere, cream-and-serif "AI" styling, delta triangles and per-row change counts.
 
@@ -208,6 +208,8 @@ The palette is ink on paper plus four marker hues, each restricted to one meanin
 
 ### Named Rules
 **The One Mark, One Job Rule.** Red means changed since you last looked, and nothing else in the UI is red. That includes errors, destructive actions and warnings. Yellow means blocking, a violet edge means needs you (not blocking), blue means now, active or selected, and green means done or passed. A new state takes ink, grey or a line style (dashed, dotted, double, struck through) before it takes a hue.
+
+**The Two Kinds of Action Rule.** An action either copies (a plain `.btn`) or writes (`.btn.wr`, from `writeButton()` in `write.js`). A write has a 1.5px ink box and a leading tick. Its first click arms it: it fills with ink and asks ("Approve 3?"), and Esc, a click elsewhere or 4 seconds disarms it. The second click saves, and while it runs the button is hatched at 135° in construction line (work in progress, as in-review cells are) and says "Saving…". A failure stays where it happened, as an ink "NOT SAVED" label and the reason in ink, until it's tried again. Never red. A conflict (the page was behind) redraws the page and says so in the toast. A success says so in the toast, and what was saved isn't clouded.
 
 **The Cloud Alone Rule.** Change is shown only by a cloud. Don't add per-row change counts, delta triangles or "new" badges. The title block's Revision field and the revision schedule are the only places that count changes.
 
@@ -278,7 +280,8 @@ Square corners throughout (`rounded.none`), and `select` resets its radius to 0.
 - **Primary (`.p`):** ink fill, Bond text. Hover drops opacity to 0.88. There's one primary per action group, and the "Answer" button is primary only in the Blocking tier.
 - **Small (`.s`):** 24px, 11.5px text, for row actions.
 - **Disabled:** opacity 0.45, with a title explaining why (for example, "Mark revision seen" when nothing is new).
-- **Behaviour:** read-first. A button copies a mull command or agent prompt and confirms in the toast ("Copied `mull accept …`: run it in a terminal"). "Mark revision seen" is the single exception: it posts the seen revision and fades the clouds.
+- **Behaviour:** a copy button copies a mull command or agent prompt and confirms in the toast ("Copied `mull decide …`: run it in a terminal"). A write button (`.wr`) saves to mull through `POST …/ops`, following the Two Kinds of Action Rule. "Mark revision seen" posts the seen revision and fades the clouds; it saves no mull data, so it stays a plain button.
+- **Write (`.wr`):** 1.5px ink border and a 10px tick before the label. **Armed:** ink fill, Bond text, the label asks. **Pending:** disabled, hatched (`--line` at 135°), "Saving…". The failure line (`.wfail`) sits under what failed: an inverted status-face "NOT SAVED" label, then the reason.
 
 ### Stage tags and stamps
 - **Tag:** status face in a 1px currentColor box, square. Colour follows the One Mark, One Job Rule: ready and now are blue, active is a solid blue fill, done is green, passed is a solid green fill, and committed and captured are muted.
@@ -307,7 +310,7 @@ Square corners throughout (`rounded.none`), and `select` resets its radius to 0.
 - **Rows:** a grid of rank number (1.1, 1.2…), mono ID, text (550) with a muted "where" line of underlined links, and a small action button.
 - **Blocking tier:** its title gets a yellow highlighter swipe (a gradient covering 12–88% of the line height), and its row actions are primary.
 - **Open by default:** the Blocking, Review and Now tiers. Open state persists across live re-renders.
-- **Decision tier:** groups sources with "Approve all" (which copies `mull accept`) or "Review" when a review carries the group.
+- **Decision tier:** groups sources. A group's header has "Approve all" (or "Approve" for a group of one), a write that accepts its open decisions; each decision in a larger group has its own "Approve", shown on hover or focus (always on touch screens) so a group isn't a column of boxes. A group a review carries has "Review" instead, and no approve of its own: it's settled by reviewing it.
 - Tiers holding more than one entry offer "Copy all N for an agent".
 
 ### Plans column
@@ -351,7 +354,7 @@ Square corners throughout (`rounded.none`), and `select` resets its radius to 0.
 - **Do** build structure from rules: 1.5px ink for structural edges, 1px construction line for minor dividers, 1px ink for control boxes.
 - **Do** keep each hue to its job: red for clouds, yellow for blocking, blue for now, active and selected, green for done and passed.
 - **Do** set IDs, counts and times in Red Hat Mono with tabular figures, and labels in condensed tracked Archivo caps.
-- **Do** make every new action copy a mull command or agent prompt and confirm in the toast until writes exist.
+- **Do** make a new action a copy unless it's a step that's the human's own and its op is offered by the server (`uiOps` in `internal/serve/ops.go`); then make it a write with `writeButton()`, never a hand-rolled button. Handing work to an agent stays a copy.
 - **Do** mark a table's wide-only columns `.w` and give the last always-visible cell `.nl` when `.w` columns follow it. The final visible column must not be `.w`.
 - **Do** let any element that can hold a change take the cloud class from `Changes.cls(...)` rather than inventing its own marker.
 - **Do** mark anything that holds something for the human with `marks()`: the yellow stamp for blocking, the violet-edged box for the rest, linked to where it's listed. A row that needs the human must never look like one that doesn't, and its count must add up to what's below it.
