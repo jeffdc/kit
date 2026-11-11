@@ -251,6 +251,7 @@ h1, h2, h3, p { margin: 0; }
 }
 .tab[aria-current="page"] { color: var(--ink); }
 body[data-view="wishlist"] .tab[data-tab="wishlist"] { --tab-band: var(--band-wishlist); }
+body[data-view="to_read"] .tab[data-tab="to_read"] { --tab-band: var(--band-to-read); }
 body[data-view="reading"] .tab[data-tab="reading"] { --tab-band: var(--band-reading); }
 body[data-view="history"] .tab[data-tab="history"] { --tab-band: var(--band-read); }
 body[data-view="undated"] .tab[data-tab="undated"] { --tab-band: var(--band-read); }
@@ -534,12 +535,12 @@ kbd {
     grid-area: rail; position: static; max-width: none; margin: 0; height: auto;
     padding: 0 16px 0 8px; border-top: 1px solid var(--n4); border-bottom: 1px solid var(--n4);
   }
-  .tab { flex: none; flex-direction: row; gap: 8px; min-height: 52px; padding: 0 12px; font-size: 16px; letter-spacing: 0; }
-  .tab .ic { width: 20px; height: 20px; }
+  /* Four shelves and Add share the list's width: words only, no icons. */
+  .tab { flex: none; flex-direction: row; gap: 6px; min-height: 52px; padding: 0 10px; font-size: 16px; letter-spacing: 0; }
+  .tab .ic { display: none; }
   .tab-count { display: inline; font-weight: 400; color: var(--n2); font-variant-numeric: tabular-nums; }
-  .add-btn { width: auto; height: 40px; margin-left: auto; padding: 0 16px 0 12px; gap: 8px; font-size: 16px; font-weight: 700; }
+  .add-btn { width: 48px; height: 40px; margin-left: auto; gap: 8px; font-size: 16px; font-weight: 700; }
   .add-btn .ic { width: 20px; height: 20px; }
-  .add-label { display: inline; }
 
   /* The open book: always on screen, no scrim, no slide. */
   #detail, #detail[hidden] {
@@ -575,6 +576,7 @@ kbd {
     padding: 12px 0; border-bottom: 0; border-right: 1px solid var(--n4);
   }
   .add-btn { order: -1; margin: 0 16px 14px 20px; height: 46px; justify-content: flex-start; }
+  .tab .ic { display: block; width: 20px; height: 20px; }
   .tab {
     min-height: 46px; padding: 0 16px 0 16px; gap: 12px;
     border-top: 0; border-left: 4px solid var(--tab-band, transparent);
@@ -623,4 +625,9 @@ kbd {
   @media (hover: hover) { button.col:hover { color: var(--ink); } }
   .shelf-head { padding: 18px 16px 12px; border-bottom: 0; }
   .toast { left: calc(var(--rail-w) + 16px); }
+}
+
+@media (min-width: 1100px) {
+  .add-btn { width: auto; padding: 0 16px 0 12px; }
+  .add-label { display: inline; }
 }

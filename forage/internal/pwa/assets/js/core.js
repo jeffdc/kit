@@ -247,12 +247,13 @@ export function wishlistBooks(view, sort = "author") {
   return list.sort((SORTS[sort] || SORTS.author).fn);
 }
 
-/** How many books each tab holds (Reading counts paused and to-read books too). */
+/** How many books each tab holds (Reading counts paused books too). */
 export function shelfCounts(view) {
-  const c = { wishlist: 0, reading: 0, history: 0 };
+  const c = { wishlist: 0, to_read: 0, reading: 0, history: 0 };
   for (const b of view.books.values()) {
     if (b.status === "wishlist") c.wishlist++;
-    else if (b.status === "reading" || b.status === "paused" || b.status === "to_read") c.reading++;
+    else if (b.status === "to_read") c.to_read++;
+    else if (b.status === "reading" || b.status === "paused") c.reading++;
     else if (b.status === "read") c.history++;
   }
   c.undated = 0;
@@ -276,14 +277,19 @@ export function undatedReads(view) {
  */
 export const plausibleDate = (d) => d === "" || (/^\d{4}-\d{2}-\d{2}$/.test(d) && +d.slice(0, 4) >= 1000);
 
-/** Reading tab: reading, paused, and books to read that aren't started. */
+/** To Read tab: the up-next pile, books not started yet. */
+export function toReadBooks(view, sort = "added") {
+  const list = [...view.books.values()].filter((b) => b.status === "to_read");
+  return list.sort((SORTS[sort] || SORTS.added).fn);
+}
+
+/** Reading tab: in progress, then paused. */
 export function readingBooks(view, sort = "title") {
   const fn = (SORTS[sort] || SORTS.title).fn;
   const all = [...view.books.values()];
   return {
     reading: all.filter((b) => b.status === "reading").sort(fn),
     paused: all.filter((b) => b.status === "paused").sort(fn),
-    toRead: all.filter((b) => b.status === "to_read").sort(fn),
   };
 }
 

@@ -3,7 +3,7 @@
 
 import * as ic from "./icons.js";
 import {
-  STATUS_LABEL, SORTS, formatDate, initial, wishlistBooks, readingBooks, historyGroups,
+  STATUS_LABEL, SORTS, formatDate, initial, wishlistBooks, readingBooks, toReadBooks, historyGroups,
   orderSellers, sellerURL, localToday, undatedReads,
 } from "./core.js";
 
@@ -66,7 +66,8 @@ function colHead(tab, sort, cols, withStatus = false) {
 
 function sortSelect(tab, current, keys) {
   const opts = keys.map((k) => `<option value="${k}"${k === current ? " selected" : ""}>${k === "date" ? "Date read" : SORTS[k].label}</option>`).join("");
-  return `<label class="sort"><span class="sr">Sort ${tab} by</span><select data-sort="${tab}">${opts}</select></label>`;
+  const name = { to_read: "To Read" }[tab] || tab;
+  return `<label class="sort"><span class="sr">Sort ${name} by</span><select data-sort="${tab}">${opts}</select></label>`;
 }
 
 function shelfHead(tab, title, count, sortHTML) {
@@ -95,9 +96,17 @@ export function wishlistView(view, sort, pending) {
   return html + "</ul>";
 }
 
+export function toReadView(view, sort, pending) {
+  const books = toReadBooks(view, sort);
+  const head = shelfHead("to_read", "To Read", plural(books.length, "book"), sortSelect("to_read", sort, ["added", "author", "title", "year"]));
+  if (!books.length) return head + empty("Nothing waiting to be read.", "Tap Got it on a wishlist book, or add one as To Read.");
+  return head + colHead("to_read", sort, [["Title", "title"], ["Author", "author"], ["Year", "year"], ["", ""]]) +
+    '<ul class="list">' + books.map((b) => row(b, { when: b.first_published || "" }, pending.has(b.id))).join("") + "</ul>";
+}
+
 export function readingView(view, sort, pending) {
-  const { reading, paused, toRead } = readingBooks(view, sort);
-  const total = reading.length + paused.length + toRead.length;
+  const { reading, paused } = readingBooks(view, sort);
+  const total = reading.length + paused.length;
   let html = shelfHead("reading", "Reading", plural(total, "book"), sortSelect("reading", sort, ["title", "author", "added"]));
   if (!total) return html + empty("You're not reading anything.", "Open a book and tap Start reading.");
   html += colHead("reading", sort, [["Title", "title"], ["Author", "author"], ["", ""], ["Rating", ""]]);
@@ -108,7 +117,7 @@ export function readingView(view, sort, pending) {
     ? `<h2 class="sub-head s-${status}"><span class="swatch" aria-hidden="true"></span>${title} <span class="count">${books.length}</span></h2>` +
       '<ul class="list">' + books.map((b) => row(b, { rated: true }, pending.has(b.id))).join("") + "</ul>"
     : "";
-  return html + section("paused", "Paused", paused) + section("to_read", "To read", toRead);
+  return html + section("paused", "Paused", paused);
 }
 
 export function historyView(view, sort, pending) {

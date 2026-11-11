@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   newId, newOpId, localToday, formatDate, authorSortKey, overlay, sinceFor, planChanges,
-  settleResults, fold, search, wishlistBooks, readingBooks, historyGroups, initial,
+  settleResults, fold, search, wishlistBooks, readingBooks, toReadBooks, historyGroups, initial,
   orderSellers, sellerURL, shelfCounts, undatedReads, plausibleDate,
 } from "../assets/js/core.js";
 
@@ -138,8 +138,9 @@ test("tab lists", () => {
   assert.deepEqual(wishlistBooks(v, "title").map((b) => b.id), ["3", "1"], "genius, pastoral");
   assert.equal(initial(v.books.get("3"), "title"), "G", "leading article ignored");
   const r = readingBooks(v);
-  assert.deepEqual([r.reading.map((b) => b.id), r.paused.map((b) => b.id), r.toRead.map((b) => b.id)], [["4"], ["5"], ["2"]]);
-  assert.deepEqual(shelfCounts(v), { wishlist: 2, reading: 3, history: 1, undated: 1 }, "Reading counts paused and to-read books");
+  assert.deepEqual([r.reading.map((b) => b.id), r.paused.map((b) => b.id)], [["4"], ["5"]]);
+  assert.deepEqual(toReadBooks(v).map((b) => b.id), ["2"]);
+  assert.deepEqual(shelfCounts(v), { wishlist: 2, to_read: 1, reading: 2, history: 1, undated: 1 }, "Reading counts paused books too");
   assert.deepEqual(undatedReads(v).map((e) => e.read.id), ["r3"]);
   assert.ok(plausibleDate("2025-11-09") && plausibleDate(""));
   assert.ok(!plausibleDate("0202-11-09") && !plausibleDate("2025-11"), "a year still being typed isn't saved");

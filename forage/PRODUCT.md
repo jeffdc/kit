@@ -42,7 +42,7 @@ A private, single-user tool built around the owner's own jobs: a quick wishlist 
 ## Capabilities and Constraints
 
 - About 2,100 books: roughly 1,900 read, 150 on the wishlist, plus reading, paused, to read and dropped.
-- Statuses: wishlist, to_read (shown as "To Read"), reading, paused, read, dropped (shown as "Abandoned"; Goodreads called it abandoned). All six stay. Books to read sit on the Reading tab, not the wishlist.
+- Statuses: wishlist, to_read (shown as "To Read"), reading, paused, read, dropped (shown as "Abandoned"; Goodreads called it abandoned). All six stay. The shelves follow a book's life: Wishlist, To Read (the up-next pile, its own tab), Reading (with Paused), History.
 - Ownership is separate from status: any book can be owned, whatever its reading state. Until November 2026 "owned" was a status (meaning "on the shelf, not started"); those books became to_read and owned. "Got it" on a wishlist book does both.
 - Reads: a book can be read many times, and each read has a date finished (day precision). 1,345 older reads have no date (imported history).
 - Rating (0–5 stars) belongs to the book, not to each read.

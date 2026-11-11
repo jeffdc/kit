@@ -253,7 +253,7 @@ The palette is flat ink and flat paper. Each status gets one saturated band, and
 
 ### Primary (status bands)
 - **Paperback Orange** (band-wishlist): the wishlist. Used for the wishlist tab band, the wishlist swatch and row edge, the wishlist cover, and the sync dot while sending.
-- **Cerise** (band-to-read): books to read, not started. Used on its row edge, the "To Read" section swatch and the to-read cover. (It was "owned" until ownership became its own field.)
+- **Cerise** (band-to-read): books to read, not started. Used for the To Read tab band, its row edge and swatch, and the to-read cover. (It was "owned" until ownership became its own field.)
 - **Reading Green** (band-reading): currently reading. Used for the Reading tab band, the reading cover, and the sync dot when synced.
 - **Ochre** (band-paused): paused. This is the only light-scheme band that takes ink text (on-paused) instead of white.
 - **Series Blue** (band-read): read books and History. Used for the History tab band, the year bars, the read cover and text selection.
@@ -293,8 +293,8 @@ Each band has an **on-band** partner (on-wishlist, on-to-read, and so on) for an
 
 ### Hierarchy
 - **Display** (700, 31px, 1.1, -0.01em, balanced wrap): the book title on the cover. Used only there. Titles longer than 48 characters step down to **Display Long** (24px, 1.15) so the cover doesn't fill a phone screen.
-- **Headline** (700, 28px, 1.1, -0.01em): shelf titles (Wishlist, Reading, History).
-- **Title** (700, 22px): sheet titles, History year headings and empty-state titles. **Title Sub** (20px) is for the Paused and To read sub-heads.
+- **Headline** (700, 28px, 1.1, -0.01em): shelf titles (Wishlist, To Read, Reading, History).
+- **Title** (700, 22px): sheet titles, History year headings and empty-state titles. **Title Sub** (20px) is for the Paused sub-head.
 - **Title Row** (700, 17px, 1.2, clamped to two lines): the book title in a row.
 - **Body** (400, 17px, 1.35): the base size. Inputs are also 17px, which stops iOS zooming on focus. Notes are capped at 65ch.
 - **Body Secondary** (400, 15px, tabular figures): authors, counts, row meta and cover facts. Authors on the cover are 19px.
@@ -388,8 +388,9 @@ The core element of the app.
 - **Style:** a 1.5px ink frame split by 1px ink dividers, with buttons at least 42px high in 15px/600. The pressed segment fills with **its own status band** and on-band text. This is how "Add as" previews the colour the book will get.
 
 ### Navigation (Tab Bar)
-- **Style:** fixed to the bottom on a ground fill with a 1px n4 top rule. Each of the three tabs stacks a 24px icon over a 13px/600 label in n2.
-- **Active:** ink text and a **4px band along the top edge** in the shelf's colour (orange for Wishlist, green for Reading, blue for History).
+- **Style:** fixed to the bottom on a ground fill with a 1px n4 top rule. Each of the four tabs (Wishlist, To Read, Reading, History, in the order a book moves through them) stacks a 24px icon over a 13px/600 label in n2. To Read's icon is a closed book.
+- **Active:** ink text and a **4px band along the top edge** in the shelf's colour (orange for Wishlist, cerise for To Read, green for Reading, blue for History).
+- **Split strip (900–1279px):** the tabs drop their icons and show counts; Add is a square "+" until 1100px, then gains its label.
 - **Add:** a square 58x48 solid ink button with a ground-coloured plus, at the right end.
 
 ### Sync Dot

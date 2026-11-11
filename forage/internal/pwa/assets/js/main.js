@@ -17,7 +17,7 @@ const isWide = () => wideMQ.matches;
 const SORT_KEY = "forage_sorts";
 const ui = {
   tab: "wishlist",
-  sorts: { wishlist: "author", reading: "title", history: "date", ...readJSON(SORT_KEY) },
+  sorts: { wishlist: "author", to_read: "added", reading: "title", history: "date", ...readJSON(SORT_KEY) },
   query: "",
   detailId: null,
   detail: { finishing: false, confirmDelete: false, sweep: null, lastStatus: null },
@@ -46,6 +46,8 @@ function renderMain() {
   let html;
   if (ui.query.trim()) {
     html = V.searchView(search(st.view.books.values(), ui.query), ui.query, pending);
+  } else if (ui.tab === "to_read") {
+    html = V.toReadView(st.view, ui.sorts.to_read, pending);
   } else if (ui.tab === "reading") {
     html = V.readingView(st.view, ui.sorts.reading, pending);
   } else if (ui.tab === "history") {
