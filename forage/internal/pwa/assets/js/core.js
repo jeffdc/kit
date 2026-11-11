@@ -203,9 +203,10 @@ export function search(books, query) {
   for (const b of books) {
     const title = fold(b.title);
     const author = fold(b.author);
-    const hay = title + " " + author + " " + fold(b.sort_author);
+    // Each word must start a word: "guin" finds Le Guin, not "Arguing".
+    const hay = " " + title + " " + author + " " + fold(b.sort_author);
     const isbnHit = qDigits.length >= 10 && (b.isbn || "").replace(/[^0-9xX]/g, "") === qDigits;
-    if (!isbnHit && !words.every((w) => hay.includes(w))) continue;
+    if (!isbnHit && !words.every((w) => hay.includes(" " + w))) continue;
     let rank = 3;
     if (isbnHit || title.startsWith(q) || titleKey(b.title).startsWith(q)) rank = 0;
     else if ((" " + title).includes(" " + words[0])) rank = 1;
@@ -245,6 +246,35 @@ export function wishlistBooks(view, sort = "author") {
   const list = [...view.books.values()].filter((b) => b.status === "wishlist");
   return list.sort((SORTS[sort] || SORTS.author).fn);
 }
+
+/** How many books each tab holds (Reading counts paused and to-read books too). */
+export function shelfCounts(view) {
+  const c = { wishlist: 0, reading: 0, history: 0 };
+  for (const b of view.books.values()) {
+    if (b.status === "wishlist") c.wishlist++;
+    else if (b.status === "reading" || b.status === "paused" || b.status === "to_read") c.reading++;
+    else if (b.status === "read") c.history++;
+  }
+  c.undated = 0;
+  for (const r of view.reads.values()) if (!r.date_finished && view.books.has(r.book_id)) c.undated++;
+  return c;
+}
+
+/** Reads with no finish date, the most recently added book first. */
+export function undatedReads(view) {
+  const out = [];
+  for (const r of view.reads.values()) {
+    const book = view.books.get(r.book_id);
+    if (book && !r.date_finished) out.push({ book, read: r });
+  }
+  return out.sort((x, y) => byAdded(x.book, y.book));
+}
+
+/**
+ * A finish date worth saving. Typing a year into a date field produces
+ * 0002, 0020, 0202 on the way to 2025; those aren't saved.
+ */
+export const plausibleDate = (d) => d === "" || (/^\d{4}-\d{2}-\d{2}$/.test(d) && +d.slice(0, 4) >= 1000);
 
 /** Reading tab: reading, paused, and books to read that aren't started. */
 export function readingBooks(view, sort = "title") {

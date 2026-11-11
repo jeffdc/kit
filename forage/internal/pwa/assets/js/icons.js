@@ -14,8 +14,6 @@ export const pencil = () => svg('<path d="M4 20h4L19 9l-4-4L4 16zM13 7l4 4"/>');
 export const settings = () => svg('<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><rect x="14" y="5" width="4" height="4"/><rect x="6" y="15" width="4" height="4"/>');
 export const paste = () => svg('<path d="M9 4h6v3H9zM9 5.5H5V21h14V5.5h-4"/>');
 export const check = () => svg('<path d="M4 12.5 9.5 18 20 6"/>');
-// Owned: a book standing on a shelf beside one leaning on it.
-export const owned = () => svg('<path d="M2.5 20.5h19M5 4.5h4.5v16H5zM12 20.5h3.6l4.6-12.6-3.4-1.3z"/>');
 
 // Tab icons: a wishlist bookmark, an open book, a stack of finished books.
 export const tabWishlist = () => svg('<path d="M6 3h12v18l-6-4.5L6 21z"/>');

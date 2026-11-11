@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import {
   newId, newOpId, localToday, formatDate, authorSortKey, overlay, sinceFor, planChanges,
   settleResults, fold, search, wishlistBooks, readingBooks, historyGroups, initial,
-  orderSellers, sellerURL,
+  orderSellers, sellerURL, shelfCounts, undatedReads, plausibleDate,
 } from "../assets/js/core.js";
 
 const book = (id, title, author, extra = {}) => ({
@@ -106,7 +106,9 @@ test("search", () => {
     book("3", "Cien años de soledad", "Gabriel García Márquez"),
     book("4", "Dune", "Frank Herbert", { isbn: "9780441172719" }),
     book("5", "Piranesi", "Susanna Clarke"),
+    book("6", "Thank You for Arguing", "Jay Heinrichs"),
   ];
+  assert.deepEqual(search(books, "guin").map((b) => b.id), ["1"], "words match from their start, not inside other words");
   assert.deepEqual(search(books, "dark").map((b) => b.id), ["2", "1"], "title prefix first, then word match");
   assert.deepEqual(search(books, "left hand").map((b) => b.id), ["1"]);
   assert.deepEqual(search(books, "marquez").map((b) => b.id), ["3"], "accents folded");
@@ -137,6 +139,10 @@ test("tab lists", () => {
   assert.equal(initial(v.books.get("3"), "title"), "G", "leading article ignored");
   const r = readingBooks(v);
   assert.deepEqual([r.reading.map((b) => b.id), r.paused.map((b) => b.id), r.toRead.map((b) => b.id)], [["4"], ["5"], ["2"]]);
+  assert.deepEqual(shelfCounts(v), { wishlist: 2, reading: 3, history: 1, undated: 1 }, "Reading counts paused and to-read books");
+  assert.deepEqual(undatedReads(v).map((e) => e.read.id), ["r3"]);
+  assert.ok(plausibleDate("2025-11-09") && plausibleDate(""));
+  assert.ok(!plausibleDate("0202-11-09") && !plausibleDate("2025-11"), "a year still being typed isn't saved");
 
   // Undated reads list the most recently added book first.
   s.books.set("8", book("8", "Older", "A. Writer", { status: "read", date_added: "2020-01-01" }));

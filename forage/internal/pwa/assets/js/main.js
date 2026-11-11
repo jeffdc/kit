@@ -3,9 +3,14 @@
 import * as store from "./store.js";
 import * as sync from "./sync.js";
 import * as V from "./views.js";
-import { search, STATUS_LABEL, formatDate } from "./core.js";
+import { search, STATUS_LABEL, formatDate, shelfCounts, plausibleDate } from "./core.js";
 
 const $ = (sel) => document.querySelector(sel);
+
+// From 900px the open book is a pane beside the list, not a panel over it:
+// picking a row shows it there, with no history entry and no scrim.
+const wideMQ = matchMedia("(min-width: 900px)");
+const isWide = () => wideMQ.matches;
 
 // --- UI state (what's on screen; data lives in store.js) ---
 
@@ -45,10 +50,22 @@ function renderMain() {
     html = V.readingView(st.view, ui.sorts.reading, pending);
   } else if (ui.tab === "history") {
     html = V.historyView(st.view, ui.sorts.history, pending);
+  } else if (ui.tab === "undated") {
+    html = V.undatedView(st.view, pending);
   } else {
     html = V.wishlistView(st.view, ui.sorts.wishlist, pending);
   }
-  $("#main").innerHTML = html;
+  const main = $("#main");
+  const top = main.scrollTop; // the list scrolls inside main on wide screens
+  main.innerHTML = html;
+  main.scrollTop = top;
+  markSelected();
+  // After a date is saved in Needs a date, its row is gone; the next one takes its place.
+  if (ui.focusDate != null) {
+    const next = main.querySelectorAll("input[data-read]")[ui.focusDate];
+    ui.focusDate = null;
+    if (next) next.focus({ preventScroll: false });
+  }
   document.body.dataset.view = ui.query.trim() ? "search" : ui.tab;
   for (const b of document.querySelectorAll(".tab[data-tab]")) {
     const on = !ui.query.trim() && b.dataset.tab === ui.tab;
@@ -65,11 +82,23 @@ function renderHeader() {
   btn.setAttribute("aria-label", `Sync status: ${label}. Open settings`);
   $("#q").placeholder = `Search ${st.view.books.size.toLocaleString()} books`;
   $("#q-clear").hidden = !ui.query;
+  const counts = shelfCounts(st.view);
+  for (const el of document.querySelectorAll("[data-count]")) el.textContent = counts[el.dataset.count].toLocaleString();
+}
+
+/** On wide screens the open book's rows are marked in the list. */
+function markSelected() {
+  for (const r of document.querySelectorAll("#main .row[aria-current]")) r.removeAttribute("aria-current");
+  if (!ui.detailId || !isWide()) return;
+  for (const r of document.querySelectorAll(`#main .row[data-book="${CSS.escape(ui.detailId)}"]`)) r.setAttribute("aria-current", "true");
 }
 
 function renderDetail() {
   const panel = $("#detail");
-  if (!ui.detailId) return;
+  if (!ui.detailId) {
+    if (isWide()) panel.innerHTML = V.paneEmpty();
+    return;
+  }
   const st = store.get();
   const b = st.view.books.get(ui.detailId);
   if (!b) return closeDetail();
@@ -109,8 +138,8 @@ function renderSheet() {
 
 function renderAll() {
   renderHeader();
-  renderMain();
-  if (ui.detailId && !editingInside("#detail")) renderDetail();
+  if (!editingInside("#main")) renderMain();
+  if ((ui.detailId || isWide()) && !editingInside("#detail")) renderDetail();
   if (ui.sheet === "settings" && !editingInside("#sheet")) renderSheet();
 }
 
@@ -175,11 +204,17 @@ window.addEventListener("popstate", () => {
 });
 
 function openDetail(id) {
-  if (ui.sheet) closeSheet({ handoff: !ui.detailId });
+  if (ui.sheet) closeSheet(isWide() ? undefined : { handoff: !ui.detailId });
   ui.detailId = id;
   ui.detail = { finishing: false, confirmDelete: false, sweep: null, lastStatus: null };
   const panel = $("#detail");
   renderDetail();
+  if (isWide()) {
+    // Focus stays in the list, so j/k and the arrows keep moving through it.
+    markSelected();
+    panel.scrollTop = 0;
+    return;
+  }
   if (!panelStack.some((p) => p.name === "detail")) openPanel("detail", panel);
   // Reset after showing: a hidden panel ignores scrollTop and keeps the last book's position.
   panel.scrollTop = 0;
@@ -189,7 +224,75 @@ function openDetail(id) {
 function closeDetail(opts) {
   if (!ui.detailId) return;
   ui.detailId = null;
+  if (isWide()) {
+    renderDetail();
+    markSelected();
+    return;
+  }
   closePanel($("#detail"), opts);
+}
+
+/** Moving across 900px turns the book panel into the pane, or back. */
+function applyLayout() {
+  const panel = $("#detail");
+  if (isWide()) {
+    panel.setAttribute("role", "region");
+    panel.removeAttribute("aria-modal");
+    const i = panelStack.findIndex((p) => p.name === "detail");
+    if (i >= 0) {
+      panelStack.splice(i, 1);
+      if (!panelStack.length) {
+        document.body.classList.remove("panel-open");
+        if (historyHeld) {
+          ignorePop = true;
+          history.back();
+          historyHeld = false;
+        }
+      }
+    }
+    panel.classList.remove("open");
+    renderDetail();
+  } else {
+    panel.setAttribute("role", "dialog");
+    panel.setAttribute("aria-modal", "true");
+    ui.detailId = null;
+    panel.classList.remove("open");
+    panel.hidden = true;
+  }
+  markSelected();
+}
+
+/** Wide-screen keys: move through the list and act on the open book. */
+function shortcut(e) {
+  const k = e.key;
+  if (k === "j" || k === "ArrowDown") moveSelection(1);
+  else if (k === "k" || k === "ArrowUp") moveSelection(-1);
+  else if (k === "n") onAction("add");
+  else if (!ui.detailId) return;
+  else if (k === "o") onAction("toggle-owned");
+  else if (k === "e") onAction("edit");
+  else if (k === "f") {
+    const b = store.get().view.books.get(ui.detailId);
+    if (!b || (b.status !== "reading" && b.status !== "paused")) return;
+    onAction("finish");
+  } else if (/^[1-5]$/.test(k)) {
+    const b = store.get().view.books.get(ui.detailId);
+    if (!b || b.status === "wishlist" || b.status === "to_read") return;
+    onAction("rate", { dataset: { rate: k } });
+  }
+  else return;
+  e.preventDefault();
+}
+
+function moveSelection(step) {
+  const rows = [...document.querySelectorAll("#main .row[data-book]")];
+  if (!rows.length) return;
+  let i = rows.findIndex((r) => r.dataset.book === ui.detailId);
+  i = i < 0 ? (step > 0 ? 0 : rows.length - 1) : Math.min(rows.length - 1, Math.max(0, i + step));
+  const r = rows[i];
+  openDetail(r.dataset.book);
+  r.focus({ preventScroll: true });
+  r.scrollIntoView({ block: "nearest" });
 }
 
 function openSheet(name) {
@@ -199,7 +302,8 @@ function openSheet(name) {
   renderSheet();
   if (!wasOpen) openPanel("sheet", panel);
   panel.scrollTop = 0;
-  const first = panel.querySelector("input:not([type=hidden]), textarea") || panel.querySelector("button");
+  const typeFirst = name === "add" || name === "manual";
+  const first = (typeFirst && panel.querySelector("input:not([type=hidden]), textarea")) || panel.querySelector(".sheet-head .icon-btn");
   if (first) first.focus({ preventScroll: true });
 }
 
@@ -217,8 +321,17 @@ function toast(msg, action) {
   el.innerHTML = `<span>${V.esc(msg)}</span>${action ? `<button class="toast-btn">${V.esc(action.label)}</button>` : ""}`;
   el.classList.add("show");
   if (action) el.querySelector("button").onclick = () => { el.classList.remove("show"); action.run(); };
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove("show"), action ? 6000 : 3000);
+  const hide = (ms) => { clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove("show"), ms); };
+  hide(action ? 6000 : 3000);
+  // A toast with a button waits while the pointer or focus is on it.
+  el.onmouseenter = el.onfocusin = () => clearTimeout(toastTimer);
+  el.onmouseleave = el.onfocusout = () => hide(action ? 3000 : 1500);
+}
+
+/** Makes a change, then says so with an Undo button. */
+async function withUndo(msg, change) {
+  const undo = await store.undoable(change);
+  toast(msg, { label: "Undo", run: async () => { await undo(); toast("Undone"); } });
 }
 
 // --- Actions ---
@@ -231,20 +344,32 @@ const STATUS_ACTIONS = {
 async function onAction(act, el) {
   const id = ui.detailId;
   if (STATUS_ACTIONS[act] && id) {
-    await store.setStatus(id, STATUS_ACTIONS[act]);
-    toast(`Moved to ${STATUS_LABEL[STATUS_ACTIONS[act]]}`);
-    return;
+    return withUndo(`Moved to ${STATUS_LABEL[STATUS_ACTIONS[act]]}`, () => store.setStatus(id, STATUS_ACTIONS[act]));
   }
   switch (act) {
     case "close": return closeDetail();
+    case "undated":
+      if (ui.sheet) closeSheet();
+      if (!isWide()) closeDetail();
+      ui.tab = "undated";
+      setQuery("");
+      window.scrollTo({ top: 0 });
+      $("#main").scrollTop = 0;
+      return;
+    case "set-date": {
+      const input = [...document.querySelectorAll("#detail input[data-read]")].find((i) => !i.value);
+      if (!input) return;
+      input.scrollIntoView({ block: "center" });
+      input.focus({ preventScroll: true });
+      try { input.showPicker(); } catch { /* not supported, or needs a direct tap */ }
+      return;
+    }
     case "got-it":
-      await store.updateBook(id, { status: "to_read", owned: true });
-      return toast(`Moved to ${STATUS_LABEL.to_read}, marked as owned`);
+      return withUndo(`Moved to ${STATUS_LABEL.to_read}, marked as owned`, () => store.updateBook(id, { status: "to_read", owned: true }));
     case "toggle-owned": {
       const b = store.get().view.books.get(id);
       if (!b) return;
-      await store.updateBook(id, { owned: !b.owned });
-      return toast(b.owned ? "Marked as not owned" : "Marked as owned");
+      return withUndo(b.owned ? "Marked as not owned" : "Marked as owned", () => store.updateBook(id, { owned: !b.owned }));
     }
     case "toggle-add-owned":
       // Toggled in place: re-rendering the manual form would drop what's typed.
@@ -263,18 +388,27 @@ async function onAction(act, el) {
     case "rate": {
       const n = +el.dataset.rate;
       const b = store.get().view.books.get(id);
-      return store.updateBook(id, { rating: b && b.rating === n ? 0 : n });
+      if (b && b.rating === n) return withUndo("Rating cleared", () => store.updateBook(id, { rating: 0 }));
+      return store.updateBook(id, { rating: n });
     }
     case "add-read":
-      await store.addRead(id, "");
-      return toast("Added a read. Set its date below.");
-    case "delete-read":
-      if (el.dataset.armed) return store.deleteRead(el.dataset.read);
+      return withUndo("Added a read. Set its date below.", () => store.addRead(id, ""));
+    case "delete-read": {
+      if (el.dataset.armed) return withUndo("Read deleted", () => store.deleteRead(el.dataset.read));
+      // Armed: the icon becomes a labelled button for a few seconds.
+      const icon = el.innerHTML;
       el.dataset.armed = "1";
       el.classList.add("armed");
-      el.setAttribute("aria-label", "Tap again to delete this read");
-      setTimeout(() => { delete el.dataset.armed; el.classList.remove("armed"); }, 3000);
+      el.textContent = "Delete";
+      el.setAttribute("aria-label", "Delete this read");
+      setTimeout(() => {
+        delete el.dataset.armed;
+        el.classList.remove("armed");
+        el.innerHTML = icon;
+        el.setAttribute("aria-label", "Delete this read");
+      }, 4000);
       return;
+    }
     case "edit": return openSheet("edit");
     case "delete":
       if (!ui.detail.confirmDelete) {
@@ -290,7 +424,7 @@ async function onAction(act, el) {
         toast(`Deleted “${b ? b.title : "book"}”`);
       }
       return;
-    case "add": ui.add = freshAdd(); return openSheet("add");
+    case "add": ui.add = freshAdd(); ui.add.offline = !navigator.onLine; return openSheet("add");
     case "add-from-search": ui.add = freshAdd(ui.query); openSheet("add"); return resolve();
     case "paste": return pasteAndResolve();
     case "manual": {
@@ -346,6 +480,7 @@ async function resolve() {
   }
   ui.add.loading = false;
   renderAddForm();
+  if (ui.add.result && ui.add.result.candidates.length) $("#add-q")?.blur();
 }
 
 function renderAddForm() {
@@ -388,10 +523,8 @@ async function onSubmit(form) {
       return resolve();
     case "finish": {
       const rating = form.querySelectorAll(".star-btn[aria-pressed=true]").length;
-      await store.finishBook(ui.detailId, data.date, rating);
       ui.detail.finishing = false;
-      renderDetail();
-      return toast(`Logged as finished ${formatDate(data.date)}`);
+      return withUndo(`Logged as finished ${formatDate(data.date)}`, () => store.finishBook(ui.detailId, data.date, rating));
     }
     case "manual": {
       if (!data.title.trim() || !data.author.trim()) return;
@@ -429,7 +562,7 @@ function bind() {
   document.addEventListener("click", (e) => {
     const t = e.target;
     // In the drawer layout, a click on the dimmed page outside the book closes it.
-    if (ui.detailId && !ui.sheet && !t.closest(".panel, .toast")) {
+    if (ui.detailId && !ui.sheet && !isWide() && !t.closest(".panel, .toast")) {
       e.preventDefault();
       return closeDetail();
     }
@@ -464,6 +597,12 @@ function bind() {
       onAction(act.dataset.act, act);
       return;
     }
+    const sortCol = t.closest("[data-sort-col]");
+    if (sortCol) {
+      ui.sorts[sortCol.dataset.sortCol] = sortCol.dataset.key;
+      saveSorts();
+      return renderMain();
+    }
     const bookBtn = t.closest("[data-book]");
     if (bookBtn) return openDetail(bookBtn.dataset.book);
     const tab = t.closest("button.tab[data-tab]"); // only the tab bar (not any ancestor)
@@ -471,6 +610,7 @@ function bind() {
       ui.tab = tab.dataset.tab;
       setQuery("");
       window.scrollTo({ top: 0 });
+      $("#main").scrollTop = 0;
     }
   });
 
@@ -486,7 +626,14 @@ function bind() {
       saveSorts();
       renderMain();
     } else if (t.matches("input[data-read]")) {
-      store.updateRead(t.dataset.read, { date_finished: t.value });
+      if (!plausibleDate(t.value)) return;
+      const inList = t.closest("#main");
+      const index = inList ? [...inList.querySelectorAll("input[data-read]")].indexOf(t) : -1;
+      store.updateRead(t.dataset.read, { date_finished: t.value }).then(() => {
+        if (index < 0) return;
+        ui.focusDate = index;
+        renderMain();
+      });
     }
   });
 
@@ -510,15 +657,29 @@ function bind() {
   });
 
   document.addEventListener("keydown", (e) => {
+    if (e.key === "Tab" && ui.sheet) trapFocus(e, $("#sheet"));
     if (e.key === "Escape") {
       if (ui.sheet) closeSheet();
       else if (ui.detailId) closeDetail();
       else if (ui.query) setQuery("");
-    } else if (e.key === "/" && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) {
+    } else if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) {
+      // typing: leave keys alone
+    } else if (e.key === "/") {
       e.preventDefault();
       $("#q").focus();
+    } else if (isWide() && !ui.sheet && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      shortcut(e);
     }
   });
+}
+
+function trapFocus(e, panel) {
+  const items = [...panel.querySelectorAll("button, input, select, textarea, a[href], summary")].filter((el) => !el.disabled && el.offsetParent);
+  if (!items.length) return;
+  const first = items[0], last = items[items.length - 1];
+  if (!panel.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+  else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
 }
 
 function setQuery(q, updateInput = true) {
@@ -532,6 +693,8 @@ function setQuery(q, updateInput = true) {
 
 async function boot() {
   bind();
+  applyLayout();
+  wideMQ.addEventListener("change", () => { applyLayout(); renderAll(); });
   await store.load();
   let rejectedSeen = store.get().sync.rejected.length;
   store.subscribe((st) => {
