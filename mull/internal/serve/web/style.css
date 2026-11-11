@@ -22,8 +22,7 @@
   --green: #2B7A48;     /* checker's green: done, accepted, passed */
   --hl: #FFE14D;        /* highlighter: blocking */
   --hl-ink: #121417;
-  --vi: #6A3FC8;        /* checker's violet: needs you, not blocking */
-  --vi-ink: #FFFFFF;
+  --vi: #5B3F98;        /* checker's violet: the edge of a needs-you stamp */
   --rail: #EEF3FB;      /* blueline paper: the sheet index */
   --rail-sel: #DDE7F8;
   --font: "Archivo", "Helvetica Neue", Arial, sans-serif;
@@ -34,7 +33,7 @@
   :root:not([data-theme="light"]) {
     --ground: #101215; --panel: #181C21; --ink: #E6E9ED; --mut: #A2ABB6; --faint: #828B97;
     --line: #34506F; --red: #FF5D5D; --sel: #1F2A37;
-    --blue: #86A8F5; --blue-soft: #1B2740; --green: #6CC48B; --hl: #F0CF45; --hl-ink: #101215; --vi: #B59CFF; --vi-ink: #101215;
+    --blue: #86A8F5; --blue-soft: #1B2740; --green: #6CC48B; --hl: #F0CF45; --hl-ink: #101215; --vi: #B6A2EC;
     --rail: #131A25; --rail-sel: #1E2B42;
     color-scheme: dark;
   }
@@ -42,7 +41,7 @@
 :root[data-theme="dark"] {
   --ground: #101215; --panel: #181C21; --ink: #E6E9ED; --mut: #A2ABB6; --faint: #828B97;
   --line: #34506F; --red: #FF5D5D; --sel: #1F2A37;
-  --blue: #86A8F5; --blue-soft: #1B2740; --green: #6CC48B; --hl: #F0CF45; --hl-ink: #101215; --vi: #B59CFF; --vi-ink: #101215;
+  --blue: #86A8F5; --blue-soft: #1B2740; --green: #6CC48B; --hl: #F0CF45; --hl-ink: #101215; --vi: #B6A2EC;
   --rail: #131A25; --rail-sel: #1E2B42;
   color-scheme: dark;
 }
@@ -96,9 +95,11 @@ svg.ic { width: 10px; height: 10px; flex: none; stroke: currentColor; fill: none
 
 /* stamps and stage tags */
 .stamp { background: var(--hl); color: var(--hl-ink); box-shadow: 0 0 0 1px var(--hl-ink) inset; font-size: 11px; font-weight: 700; font-stretch: 72%; letter-spacing: .08em; text-transform: uppercase; padding: 2px 5px; line-height: 1.2; flex: none; white-space: nowrap; }
-/* the violet stamp: something needs the human, but doesn't block (yellow is
-   blocking only). Stamps link to the sheet's Needs you. */
-.ask { background: var(--vi); color: var(--vi-ink); font-size: 11px; font-weight: 700; font-stretch: 72%; letter-spacing: .08em; text-transform: uppercase; padding: 2px 5px; line-height: 1.2; flex: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* the needs-you stamp: something needs the human, but doesn't block. An
+   ink box with a violet edge (the human's choice): its own mark beside the
+   yellow blocking stamp, without a block of colour. Stamps link to the
+   sheet's Needs you. */
+.ask { color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink), inset 3px 0 0 var(--vi); font-size: 11px; font-weight: 700; font-stretch: 72%; letter-spacing: .08em; text-transform: uppercase; padding: 2px 5px 2px 8px; line-height: 1.2; flex: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
 a.mk { display: inline-flex; gap: 4px; flex: none; }
 a.mk:hover { text-decoration: none; }
 a.mk:hover > span { box-shadow: 0 0 0 1px var(--ink), 0 0 0 2px var(--ground); }
@@ -215,8 +216,8 @@ main { min-width: 0; display: flex; flex-direction: column; }
 .tier.t-blocking > summary b em { color: var(--hl-ink); }
 .tier > summary b em { font: 500 11px var(--mono); font-style: normal; color: var(--mut); margin-left: 6px; }
 /* a closed tier still says how much is inside it, boxed like any count that needs the human */
-.tier:not([open]) > summary b em { color: var(--vi-ink); background: var(--vi); font-weight: 600; padding: 1px 5px; }
-.tier.t-blocking:not([open]) > summary b em { color: var(--hl-ink); background: none; }
+.tier:not([open]) > summary b em { color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink), inset 3px 0 0 var(--vi); font-weight: 600; padding: 1px 5px 1px 8px; }
+.tier.t-blocking:not([open]) > summary b em { color: var(--hl-ink); box-shadow: none; }
 .tier > summary small { font-size: 12px; color: var(--mut); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tier > summary svg, .grp > summary svg, .revs > summary svg { transition: transform .15s ease-out; color: var(--mut); }
 .tier[open] > summary svg, .grp[open] > summary svg, .revs[open] > summary svg { transform: rotate(90deg); }
