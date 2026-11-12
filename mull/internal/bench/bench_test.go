@@ -106,7 +106,7 @@ func TestRun(t *testing.T) {
 		}
 	}
 	for _, want := range []string{"in-process overview", "http overview", "in-process tree", "http backlog",
-		"http projects (summary)", "in-process revision, 5 back", "http unmulled scan"} {
+		"http projects (summary)", "in-process revision, 5 back"} {
 		if !seen[want] {
 			t.Errorf("no result for %q", want)
 		}

@@ -3,7 +3,7 @@
 // reads one or two API pages (subsFor), which app.js loads into the
 // project's data.pages.
 
-import { esc, href, agoSpan, ago, needsTotal, needsBreakdown } from "./html.js";
+import { esc, href, agoSpan, needsTotal, needsBreakdown } from "./html.js";
 import { titleBlock, projectHead, liveField } from "./title.js";
 import { schedule } from "./needs.js";
 import { plansColumn } from "./plans.js";
@@ -65,24 +65,9 @@ export function projectSheet(state, pr, r) {
 
 const crumbHome = `<a href="${href.home()}">All projects</a>`;
 
-// notOnMull sorts what isn't on mull: repos with old mull data to convert,
-// recent repos with no mull branch (both from GET /api/unmulled, which
-// lists registered repos too), and registered repos that can't be read for
-// any other reason.
-export function notOnMull(state) {
-  const repos = state.unmulled?.repos || [];
-  const listed = new Set(repos.map(u => u.path));
-  return {
-    convert: repos.filter(u => u.kind === "old_mull"),
-    notYet: repos.filter(u => u.kind === "not_on_mull"),
-    broken: (state.projects || []).filter(p => p.error && !listed.has(p.path)),
-  };
-}
-
 export function pageHome(state) {
   const all = state.projects || [];
-  const ok = all.filter(p => !p.error);
-  const { convert, notYet, broken: bad } = notOnMull(state);
+  const ok = all.filter(p => !p.error), bad = all.filter(p => p.error);
   const sum = f => ok.reduce((n, p) => n + f(p.summary), 0);
   const fields = [
     ["Projects on mull", String(ok.length)],
@@ -90,15 +75,12 @@ export function pageHome(state) {
     ["Needs you", String(sum(s => needsTotal(s.needs_you)))],
     ["Agents working", String(sum(s => s.agents))],
     ["Status", liveField(state.live)],
-    ["Not on mull yet", String(convert.length + notYet.length)],
   ];
   const head = titleBlock({ title: "All projects", fields });
-  if (!all.length && !convert.length && !notYet.length) {
+  if (!all.length) {
     return head + `<div class="page"><p class="empty">No projects yet. Run any mull command in a repository with a mull branch to add it.</p></div>`;
   }
-  const group = (title, list, row) => list.length ? `<tr class="grp-h"><td colspan="8">${title}<em>${list.length}</em></td></tr>${list.map(row).join("")}` : "";
-  const rows = ok.map(pr => homeRow(pr, state.data.get(pr.id))).join("") + bad.map(errorRow).join("") +
-    group("Needs converting", convert, unmulledRow) + group("Not on mull yet", notYet, unmulledRow);
+  const rows = ok.map(pr => homeRow(pr, state.data.get(pr.id))).join("") + bad.map(errorRow).join("");
   return head + `<div class="page"><section><div class="hd"><h2>Projects</h2><span class="lab">Updates when any repo's mull branch moves</span></div>
     <div class="tbl-wrap"><table class="t"><thead><tr><th>Project</th><th>Active plans</th><th class="n">Blocking</th><th class="n nl">Needs you</th><th class="n w">Agents</th><th class="n w">Untriaged</th><th class="n w">Revision</th><th class="n w">Last change</th></tr></thead>
     <tbody>${rows}</tbody></table></div></section></div>`;
@@ -119,15 +101,6 @@ function homeRow(pr, data) {
     `<td>${plans}</td><td class="n">${s.blocking ? `<span class="stamp">${s.blocking}</span>` : "0"}</td><td class="n nl">${needsCell(s.needs_you, link)}</td>` +
     `<td class="n w">${s.agents}</td><td class="n w">${s.untriaged}</td><td class="n w">${rev ? `Rev ${rev.number}` : ""}</td>` +
     `<td class="n mut w">${agoSpan(s.last_change)}</td></tr>`;
-}
-
-// unmulledRow: a repo that isn't on mull, and what to do about it.
-function unmulledRow(u) {
-  const when = u.last_commit ? `Last commit ${esc(ago(u.last_commit))}. ` : "";
-  const what = u.kind === "old_mull"
-    ? `Old <code>.mull/</code> data. ${when}Convert it with an intake: an agent runs <code>mull guide intake</code> in it.`
-    : `No mull branch. ${when}Run <code>mull init</code> in it to start.`;
-  return `<tr class="waits"><td>${esc(u.name)}<span class="meta">${esc(u.path)}</span></td><td colspan="7">${what}</td></tr>`;
 }
 
 // needsCell: the count of what needs the human, and what it is.

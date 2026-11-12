@@ -349,7 +349,6 @@ func plan(repo string, back []int) (Shape, []target, error) {
 		}
 		ts = append(ts, target{name: fmt.Sprintf("revision endpoint, %d back", b), path: "/api/projects/{id}/revision"})
 	}
-	ts = append(ts, target{name: "unmulled scan", path: "/api/unmulled"})
 	return shape, ts, nil
 }
 
