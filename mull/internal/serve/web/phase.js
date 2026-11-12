@@ -1,11 +1,12 @@
 // A phase's sheet: where it stands, its items and what's captured for it,
-// what needs you about it, and its doc.
+// what needs you about it, and its doc, which is edited in place.
 
 import { esc, href, tag, cells, shortTitle } from "./html.js";
 import { titleBlock } from "./title.js";
 import { schedule } from "./needs.js";
 import { renderDoc } from "./doc.js";
 import { itemTable, col } from "./lists.js";
+import { editWrite } from "./write.js";
 
 // titleOf finds a phase's title in the project's tree (for needs, which the
 // API gives as IDs).
@@ -38,12 +39,15 @@ export function phaseSheet(pr, data, page) {
   const doc = ph.doc
     ? renderDoc(ph.doc, pid, page.doc_refs)
     : `<div class="prose"><p class="ph-empty">Not written yet. The agent drafts it with you when this phase comes up.</p></div>`;
+  const edit = editWrite({ pid, key: `edit-phasedoc:${pid}:${ph.id}`, ops: [{ op: "phase doc", id: ph.id }], field: "doc", long: true,
+    value: ph.doc, label: ph.doc ? "Edit the doc" : "Write the doc", save: "Save the doc", done: `Saved the phase doc of ${ph.title}.`,
+    placeholder: "Markdown. Its design and done-when: intent only, as status comes from the records." });
   return head + `<div class="page">
     ${ph.summary ? `<p class="lede">${esc(ph.summary)}</p>` : ""}${waits}
     <div class="cols">
       <section><div class="hd"><h2>Items</h2><span class="lab">One session each · unordered</span></div>${itemTable(pid, page.items, [col.id(), col.title(pid), col.stage()], { changes: ch, empty: "No items yet. They're written when this phase comes up." })}${captured}</section>
       <aside id="needs"><div class="hd"><h2>Needs you</h2><span class="lab">This phase</span></div>${schedule(page.needs_you, { pid, changes: ch, noPlan: true, noPhase: true })}</aside>
     </div>
-    <section><div class="hd"><h2><span class="${docCloud.trim()}">The phase doc</span></h2><span class="lab">Its design, shared with the agents</span></div><div class="doc-wrap">${doc}</div></section>
+    <section><div class="hd ed"><h2><span class="${docCloud.trim()}">The phase doc</span></h2><span class="lab">Its design, shared with the agents</span>${edit.button}</div><div class="doc-wrap">${edit.form || doc}</div></section>
   </div>`;
 }

@@ -5,13 +5,16 @@ import { within } from "./revision.js";
 
 // titleBlock: the sheet's name (large) with its breadcrumbs, then boxed
 // fields of [label, html]. Long names (plans, phases, items) get a wider
-// name box and a smaller face.
-export function titleBlock({ title, crumbs = [], fields = [], long = false, cloud = "" }) {
+// name box and a smaller face. edit is an editWrite for the name: its
+// button sits under the name, and its form, while open, takes the name's
+// place.
+export function titleBlock({ title, crumbs = [], fields = [], long = false, cloud = "", edit = null }) {
   const plain = String(title);
   const size = long ? (plain.length > 48 ? "xlong" : "long") : "";
   const nav = crumbs.length ? `<nav class="crumbs" aria-label="Breadcrumb">${crumbs.join(`<span class="faint">/</span>`)}</nav>` : "";
   const cls = ["tb", long && "wide", !fields.length && "bare"].filter(Boolean).join(" ");
-  return `<header class="${cls}"><div class="pj">${nav}<h1 class="${size}"><span class="${cloud.trim()}">${esc(plain)}</span></h1></div>` +
+  const name = edit?.form || `<h1 class="${size}"><span class="${cloud.trim()}">${esc(plain)}</span></h1>${edit ? `<div class="pj-edit">${edit.button}</div>` : ""}`;
+  return `<header class="${cls}"><div class="pj">${nav}${name}</div>` +
     fields.map(([label, v]) => `<div class="f"><span class="lab">${esc(label)}</span><div class="v">${v}</div></div>`).join("") + `</header>`;
 }
 

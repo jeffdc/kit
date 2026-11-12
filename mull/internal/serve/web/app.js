@@ -11,7 +11,7 @@ import { renderTree, expandFor, toggle, reveal } from "./tree.js";
 import { pageHome, projectSheet, subsFor, pageNotFound, pageUnreadable, notOnMull } from "./pages.js";
 import { filterOf, clearFilter } from "./lists.js";
 import { pageModel } from "./model.js";
-import { writeState, setWrite, disarm, toggleMore } from "./write.js";
+import { writeState, setWrite, disarm, toggleMore, canSave, discard } from "./write.js";
 import { openSearch } from "./search.js";
 
 const state = {
@@ -149,8 +149,9 @@ function focusKey() {
 function render() {
   const r = route();
   const focus = focusKey(), inTree = treeEl.contains(document.activeElement);
-  const caret = document.activeElement?.matches?.("textarea") ? [document.activeElement.selectionStart, document.activeElement.selectionEnd] : null;
+  const caret = document.activeElement?.matches?.("textarea, input[data-draft]") ? [document.activeElement.selectionStart, document.activeElement.selectionEnd] : null;
   main.innerHTML = page(r);
+  main.querySelectorAll("textarea[data-grow]").forEach(grow);
   document.title = title(r);
   for (const el of main.querySelectorAll("[data-open]")) {
     if (opened.has(el.dataset.open)) el.open = opened.get(el.dataset.open);
@@ -164,7 +165,7 @@ function render() {
   if (focus) {
     const el = (inTree ? treeEl : main).querySelector(focus);
     el?.focus({ preventScroll: true });
-    if (caret && el?.matches("textarea")) el.setSelectionRange(...caret); // typing survives a live re-render
+    if (caret && el?.matches("textarea, input[data-draft]")) el.setSelectionRange(...caret); // typing survives a live re-render
   }
   if (state.focusNeeds === location.hash) showNeeds();
   if (state.focusReview === location.hash) showReview();
@@ -322,17 +323,25 @@ function openForm(key) {
   disarm(key);
   setWrite(key, { ...writeState(key), open: true, error: "" });
   render();
-  const ta = main.querySelector(`textarea[data-draft="${CSS.escape(key)}"]`);
+  const ta = main.querySelector(`[data-draft="${CSS.escape(key)}"]`);
   ta?.focus();
   ta?.setSelectionRange(ta.value.length, ta.value.length);
 }
 
+// grow fits a long editor to its text, so notes and docs get room and the
+// page scrolls rather than the box.
+function grow(ta) {
+  ta.style.height = "auto";
+  ta.style.height = `${ta.scrollHeight + 2}px`;
+}
+
 function submitForm(form) {
   const key = form.dataset.form, s = writeState(key);
-  const text = form.querySelector("textarea").value.trim();
-  if (s.pending || !text) return;
+  const text = form.querySelector("[data-draft]").value.trim();
+  if (s.pending || !canSave(key, text)) return;
   const ops = JSON.parse(form.dataset.ops).map(op => ({ ...op, [form.dataset.field]: text }));
-  save(key, form.dataset.pid, ops, form.dataset.done, { open: true, draft: text });
+  const { pending, error, ...keep } = s; // an edit keeps what it began from, to tell if the text moves under it
+  save(key, form.dataset.pid, ops, form.dataset.done, { ...keep, open: true, draft: text });
 }
 
 document.addEventListener("submit", ev => {
@@ -341,12 +350,13 @@ document.addEventListener("submit", ev => {
 });
 
 document.addEventListener("input", ev => {
-  const ta = ev.target.closest("textarea[data-draft]");
+  const ta = ev.target.closest("[data-draft]");
   if (!ta) return;
   const s = writeState(ta.dataset.draft);
   setWrite(ta.dataset.draft, { ...s, draft: ta.value });
+  if ("grow" in ta.dataset) grow(ta);
   const btn = ta.form?.querySelector('button[type="submit"]');
-  if (btn && !s.pending) btn.disabled = !ta.value.trim();
+  if (btn && !s.pending) btn.disabled = !canSave(ta.dataset.draft, ta.value);
 });
 
 // showRows shows or hides the table rows a group's <details> folds.
@@ -390,6 +400,8 @@ document.addEventListener("click", ev => {
   }
   const fc = t.closest("[data-form-close]");
   if (fc) { disarm(); render(); return; }
+  const fd = t.closest("[data-form-discard]");
+  if (fd) { discard(fd.dataset.formDiscard); openForm(fd.dataset.formDiscard); return; }
   if (t.closest("form[data-form]")) return; // typing in a form, or its Save
   if (disarm()) render(); // a click anywhere else cancels an armed write or closes a form
   if (t.closest("#find")) { openSearch(); return; }
@@ -450,7 +462,7 @@ document.addEventListener("click", ev => {
 
 document.addEventListener("keydown", ev => {
   if (ev.key === "Escape" && disarm()) render();
-  if (ev.key === "Enter" && (ev.metaKey || ev.ctrlKey) && ev.target.matches("textarea[data-draft]")) {
+  if (ev.key === "Enter" && (ev.metaKey || ev.ctrlKey) && ev.target.matches("[data-draft]")) {
     ev.preventDefault();
     ev.target.form?.requestSubmit();
   }
