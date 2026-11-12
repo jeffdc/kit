@@ -102,7 +102,7 @@ func TestProjectIDs(t *testing.T) {
 
 func TestStaticAndUnknown(t *testing.T) {
 	h := Handler(func() ([]string, error) { return []string{}, nil })
-	for path, want := range map[string]string{"/": "<title>mull</title>", "/app.js": "/api/events", "/style.css": "--ground"} {
+	for path, want := range map[string]string{"/": "<title>mull</title>", "/app.js": "/api/events", "/style.css": "--ground", "/favicon.svg": "#2E58C2"} {
 		rec := get(t, h, path)
 		if rec.Code != 200 || !strings.Contains(rec.Body.String(), want) {
 			t.Errorf("GET %s: %d, want a body with %q", path, rec.Code, want)
