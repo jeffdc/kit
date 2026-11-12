@@ -6,4 +6,9 @@ item: 450e
 source: reports/450e-1.md
 by: /Users/jeff/dev/kit
 created: "2026-11-12T00:25:57Z"
+settled:
+  action: accept
+  by: /Users/jeff/dev/kit
+  on_request: true
+  at: "2026-11-12T00:25:57Z"
 ---
