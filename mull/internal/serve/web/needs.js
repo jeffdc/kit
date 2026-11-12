@@ -1,8 +1,8 @@
 // The Needs you schedule: questions, reviews and decisions, in numbered
 // tiers ranked by what an answer unblocks. The tiers and their order come
 // from the API; this only draws them. Approving, answering and deciding
-// write (see write.js); the other actions copy a prompt or a mull command
-// for the human to run.
+// write (see write.js); the rest copy a prompt that hands the entries to an
+// agent.
 
 import { esc, href, CHEVRON, itemStage, stageLabel, shortTitle, plural, clock } from "./html.js";
 import { within, runs } from "./revision.js";

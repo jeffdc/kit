@@ -27,7 +27,7 @@ export function disarm(keep = "") {
   return any;
 }
 
-const TICK = `<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 5.2 4 7.6 8.6 2.4" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>`;
+export const TICK = `<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 5.2 4 7.6 8.6 2.4" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>`;
 
 // writeButton draws a write action. key names it across renders; ops are
 // the batch lines it sends; label is what it says, ask what it says once

@@ -1,7 +1,8 @@
 // An item's sheet: its title block, what to do with a captured one, what
 // needs you about it, the review packet when it has a done report, and its
-// notes. Accepting or sending back a review, and deciding a decision
-// differently, write (write.js); the other actions copy the mull command.
+// notes. Dropping a captured item, accepting or sending back a review, and
+// deciding a decision differently, write (write.js); starting an item, which
+// hands it to an agent, copies the mull command.
 
 import { esc, href, tag, itemStage, shortTitle, plural, clock, ago, base } from "./html.js";
 import { titleBlock } from "./title.js";
@@ -35,8 +36,13 @@ export function itemSheet(pr, data, page) {
     ["Git", gitField(g)],
   ];
   const head = titleBlock({ title: it.title, crumbs, fields, long: true, cloud: ch ? ch.cls(c => c.type === "item" && c.id === it.id) : "" });
-  const acts = it.state === "captured"
-    ? `<div class="acts-row"><button class="btn p" data-cmd="mull start ${esc(it.id)}">Start it now</button><button class="btn" data-cmd="mull commit ${esc(it.id)} --plan …">Commit to a plan</button><button class="btn" data-cmd="mull drop ${esc(it.id)} --reason &quot;…&quot;">Drop</button><span class="sub">Starting it skips planning; it keeps this ID through review and done.</span></div>`
+  // A captured item: start it (a copy, as starting hands it to an agent) or
+  // drop it (a write). Committing it and triage happen with an agent.
+  const drop = it.state === "captured" ? textWrite({ pid, key: `dropitem:${pid}:${it.id}`, ops: [{ op: "drop", ids: [it.id] }], field: "reason", small: false,
+    label: "Drop", save: "Drop it for good", done: `Dropped ${it.id}.`,
+    placeholder: "Why it isn't needed. It goes into the item's notes; dropping can't be undone." }) : null;
+  const acts = drop
+    ? `<div><div class="acts-row"><button class="btn p" data-cmd="mull start ${esc(it.id)}">Start it now</button>${drop.button}<span class="sub">Starting it skips planning; it keeps this ID through review and done. Committing it to a plan, and triage, happen with an agent.</span></div>${drop.form}</div>`
     : "";
   const ny = page.needs_you.tiers.length
     ? `<section id="needs"><div class="hd"><h2>Needs you</h2><span class="lab">On this item</span></div>${schedule(page.needs_you, { pid, changes: ch, noPlan: true, noPhase: true })}</section>`

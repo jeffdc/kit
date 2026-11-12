@@ -2,6 +2,7 @@
 
 import { esc, href, agoSpan, clock, plural, needsTotal, needsBreakdown } from "./html.js";
 import { within } from "./revision.js";
+import { captureButton, captureBar } from "./capture.js";
 
 // titleBlock: the sheet's name (large) with its breadcrumbs, then boxed
 // fields of [label, html]. Long names (plans, phases, items) get a wider
@@ -49,7 +50,8 @@ function needsField(pr) {
 }
 
 // projectHead: a project's title block and tabs, shared by its Overview,
-// Unplanned and Backlog sheets.
+// Unplanned and Backlog sheets, with the Capture form under the tabs when
+// it's open.
 export function projectHead(pr, data, tab, live) {
   const pid = pr.id;
   const head = titleBlock({ title: pid, crumbs: [`<a href="${href.home()}">All projects</a>`], fields: projectFields(pr, live) });
@@ -66,5 +68,5 @@ export function projectHead(pr, data, tab, live) {
     t("unplanned", "Unplanned", href.unplanned(pid), counts?.unplanned, ch ? ch.cls(within.unplanned()) : "") +
     t("backlog", "Backlog", href.backlog(pid), backlog, ch ? ch.cls(within.backlog()) : "") +
     `<div class="acts"><button class="btn" data-seen="${esc(pid)}"${changes ? "" : " disabled"} title="${changes ? "Clear the clouds: everything up to this revision is seen" : "Nothing new since you last looked"}">Mark revision seen</button>` +
-    `<button class="btn p" data-cmd='mull idea "…" --detail "…"' data-say="Capture from a terminal or an agent session; use mull bug for something that's wrong.">Capture</button></div></nav>`;
+    `${captureButton(pid)}</div></nav>${captureBar(pid)}`;
 }
