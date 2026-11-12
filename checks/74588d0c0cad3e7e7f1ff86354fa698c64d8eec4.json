@@ -1,0 +1,14 @@
+{
+  "tree": "74588d0c0cad3e7e7f1ff86354fa698c64d8eec4",
+  "commit": "debee8c8cecee2b3043e0b46384319c4a32f9599",
+  "at": "2026-11-12T00:23:08Z",
+  "by": "/Users/jeff/dev/kit",
+  "passed": true,
+  "results": [
+    {
+      "command": "make done-checks",
+      "exit": 0,
+      "duration_ms": 3688
+    }
+  ]
+}
