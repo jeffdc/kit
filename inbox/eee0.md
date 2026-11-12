@@ -6,6 +6,11 @@ item: a622
 source: reports/a622-1.md
 by: /Users/jeff/dev/kit/.claude/worktrees/agent-a9f3f3e802d7e8bcb
 created: "2026-11-12T00:53:17Z"
+settled:
+  action: accept
+  by: jeffdc
+  human: true
+  at: "2026-11-12T01:05:16Z"
 decisions:
   - 98b3
   - 6d8b
