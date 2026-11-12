@@ -2,13 +2,13 @@
 // sheets, and a plan's backlog. Whole rows are links; the title stays the
 // keyboard target. Changed items are clouded.
 
-import { esc, href, tag, itemStage, shortTitle, day, base, ago, plural } from "./html.js";
+import { esc, href, tag, itemStage, shortTitle, day, base, ago, plural, copyId } from "./html.js";
 import { within } from "./revision.js";
 import { schedule } from "./needs.js";
 
 // Columns: each is [heading, cell(item), class]. Tables pick what they need.
 export const col = {
-  id: () => ["ID", it => `<code>${esc(it.id)}</code>`, "", "width:70px"],
+  id: () => ["ID", it => copyId(it.id), "", "width:70px"],
   title: (pid, label = "Item") => [label, it => {
     const link = href.item(pid, it.id);
     const claim = it.claim ? `<span class="meta">${esc(base(it.claim.worktree))}${it.claim.branch ? ` · ${esc(it.claim.branch)}` : ""} · since ${esc(ago(it.claim.at))}</span>` : "";

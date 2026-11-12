@@ -4,7 +4,7 @@
 // write (see write.js); the rest copy a prompt that hands the entries to an
 // agent.
 
-import { esc, href, CHEVRON, itemStage, stageLabel, shortTitle, plural, clock } from "./html.js";
+import { esc, href, CHEVRON, itemStage, stageLabel, shortTitle, plural, clock, copyId } from "./html.js";
 import { within, runs } from "./revision.js";
 import { writeButton, textWrite, failure, writeState, moreOpen, moreButton } from "./write.js";
 
@@ -62,7 +62,7 @@ function row(e, n, tierKey, opts) {
   const where = [
     !opts.noPlan && e.plan ? `<a href="${esc(href.plan(pid, e.plan))}">${esc(shortTitle(e.plan_title || e.plan))}</a>` : "",
     !opts.noPhase && e.phase ? `<a href="${esc(href.phase(pid, e.phase))}">${esc(e.phase_title || e.phase)}</a>` : "",
-    e.item && !review ? `on <a href="${esc(href.item(pid, e.item))}"><code>${esc(e.item)}</code></a> ${esc(stageLabel(itemStage({ state: e.item_state, ready: e.item_ready })))}` : "",
+    e.item && !review ? `on ${copyId(e.item, `<a href="${esc(href.item(pid, e.item))}"><code>${esc(e.item)}</code></a>`)} ${esc(stageLabel(itemStage({ state: e.item_state, ready: e.item_ready })))}` : "",
     review && e.decisions?.length ? `${plural(e.decisions.length, "decision")} inside` : "",
     review ? `in review since ${esc(clock(e.created))}` : "",
     e.source && !review ? `from ${esc(e.source)}` : "",
@@ -81,7 +81,7 @@ function row(e, n, tierKey, opts) {
     form = ans.form + rest.forms;
   }
   const code = review && e.item ? e.item : e.id;
-  return [`<div class="it"${link ? ` data-href="${esc(link)}"` : ""}${review && link ? " data-review" : ""}><span class="n">${esc(n)}</span><code>${esc(code)}</code>` +
+  return [`<div class="it"${link ? ` data-href="${esc(link)}"` : ""}${review && link ? " data-review" : ""}><span class="n">${esc(n)}</span>${copyId(code)}` +
     `<div><p${e.detail ? ` title="${esc(e.detail)}"` : ""}>${text}</p>${where ? `<span class="w">${where}</span>` : ""}</div><div class="act">${act}</div>${form}</div>`,
     cloudsOf(e, opts.changes)];
 }
@@ -94,7 +94,7 @@ function group(g, opts) {
   const ids = g.entries.map(e => e.id);
   const ch = opts.changes;
   const cloud = ch ? ch.cls(c => ids.includes(c.id) && c.type === "entry") : "";
-  const name = g.item ? `<code>${esc(g.item)}</code> ${esc(g.title)}` : esc(g.title);
+  const name = g.item ? `${copyId(g.item)} ${esc(g.title)}` : esc(g.title);
   const carried = g.review && g.item;
   const all = `approve:${pid}:${g.key}`;
   const act = carried
@@ -120,7 +120,7 @@ function decision(pid, e, approvable, carried) {
   const dd = decideDifferently(pid, e.id, "needs", carried);
   const rest = parkOrDrop(pid, e.id, "needs");
   const act = (approvable ? approve(pid, key, [e.id], "Approve", "Approve?", `Approved decision ${e.id}.`) : "") + dd.button + rest.buttons;
-  return `<li><code>${esc(e.id)}</code><span${e.detail ? ` title="${esc(e.detail)}"` : ""}>${esc(e.text)}</span><span class="li-acts">${act}</span>${failure(key, `Approving ${e.id}`)}${dd.form}${rest.forms}</li>`;
+  return `<li>${copyId(e.id)}<span${e.detail ? ` title="${esc(e.detail)}"` : ""}>${esc(e.text)}</span><span class="li-acts">${act}</span>${failure(key, `Approving ${e.id}`)}${dd.form}${rest.forms}</li>`;
 }
 
 // parkOrDrop are an entry's rarer writes, behind More: park sets it aside

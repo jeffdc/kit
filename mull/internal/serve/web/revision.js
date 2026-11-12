@@ -2,7 +2,7 @@
 // lists it. Changes decides what every sheet clouds; the revision schedule
 // lists the changes themselves.
 
-import { esc, href, stageLabel, clock, plural, base, CHEVRON } from "./html.js";
+import { esc, href, stageLabel, clock, plural, base, CHEVRON, copyId } from "./html.js";
 
 const captured = c => c.type === "item" && c.state === "captured";
 const identity = c => `${c.type}:${c.id}:${c.at}:${c.change}`;
@@ -72,7 +72,7 @@ export function revisionSchedule(pid, rev, entryHref) {
   const rows = changes.map(c => {
     const link = c.change === "removed" ? "" : target(pid, c, entryHref);
     const title = esc(recordTitle(c));
-    return `<tr${link ? ` data-href="${esc(link)}"` : ""}><td><code>${esc(c.type === "plan" || c.type === "plan_doc" ? "plan" : c.id)}</code></td>` +
+    return `<tr${link ? ` data-href="${esc(link)}"` : ""}><td>${c.type === "plan" || c.type === "plan_doc" ? "<code>plan</code>" : copyId(c.id)}</td>` +
       `<td class="ttl">${link ? `<a href="${esc(link)}">${title}</a>` : title}</td><td class="mut">${esc(describe(c))}</td><td class="n mono mut">${esc(clock(c.at))}</td></tr>`;
   }).join("");
   return `<section><details class="revs" data-open="revs:${esc(pid)}"><summary class="hd"><h2>${CHEVRON} Revision ${rev.tip.number}</h2><span class="lab">${plural(changes.length, "change")} since you last looked, at ${esc(clock(rev.seen_at))}</span></summary>

@@ -3,7 +3,7 @@
 // the shared doc with its status margin, and Backlog is what's captured for
 // it.
 
-import { esc, href, tag, cells, plural, itemStage, clock, CHEVRON } from "./html.js";
+import { esc, href, tag, cells, plural, itemStage, clock, CHEVRON, copyId } from "./html.js";
 import { titleBlock } from "./title.js";
 import { within } from "./revision.js";
 import { schedule } from "./needs.js";
@@ -86,11 +86,11 @@ function phaseTable(pid, slug, steps, ch) {
 function phaseRow(pid, ph, ch, group) {
   const link = href.phase(pid, ph.id), p = ph.progress, total = p.total - p.dropped;
   const cls = [ph.state !== "now" ? "waits" : "", ch ? ch.cls(within.phase(ph.id)).trim() : ""].filter(Boolean).join(" ");
-  return `<tr${cls ? ` class="${cls}"` : ""} data-href="${esc(link)}"${group ? ` data-group="${esc(group)}" hidden` : ""}><td><code>${esc(ph.id)}</code></td>` +
+  return `<tr${cls ? ` class="${cls}"` : ""} data-href="${esc(link)}"${group ? ` data-group="${esc(group)}" hidden` : ""}><td>${copyId(ph.id)}</td>` +
     `<td><a class="ttl" href="${esc(link)}">${esc(ph.title)}</a>${ph.go_live ? ` <span class="tag">Go live</span>` : ""}${ph.summary ? `<span class="meta">${esc(ph.summary)}</span>` : ""}</td>` +
     `<td>${tag(ph.state)}${stamp(ph.blocking)}</td><td class="w">${cells(p)}</td>` +
     `<td class="n">${total ? `<span class="mono">${p.done}/${total}</span>` : `<span class="mut">no items</span>`}</td><td class="n w">${ph.questions || ""}</td>` +
-    `<td class="mono">${ph.needs.map(n => `<a href="${esc(href.phase(pid, n))}">${esc(n)}</a>`).join(" ")}</td></tr>`;
+    `<td class="mono">${ph.needs.map(n => copyId(n, `<a href="${esc(href.phase(pid, n))}">${esc(n)}</a>`)).join(" ")}</td></tr>`;
 }
 
 // nextBlock: each phase that can start now, with its work in flight and
@@ -105,7 +105,7 @@ function nextBlock(pid, page, ch) {
     const more = open.length - show.length, p = ph.progress, total = p.total - p.dropped;
     const rows = show.map(i => {
       const link = href.item(pid, i.id);
-      return `<div class="ag nx${ch ? ch.cls(within.item(i.id)) : ""}" data-href="${esc(link)}"><a href="${esc(link)}"><code>${esc(i.id)}</code></a><a href="${esc(link)}" class="clip">${esc(i.title)}</a>${tag(itemStage(i))}</div>`;
+      return `<div class="ag nx${ch ? ch.cls(within.item(i.id)) : ""}" data-href="${esc(link)}">${copyId(i.id, `<a href="${esc(link)}"><code>${esc(i.id)}</code></a>`)}<a href="${esc(link)}" class="clip">${esc(i.title)}</a>${tag(itemStage(i))}</div>`;
     }).join("");
     return `<div class="plan"><div class="ph"><h3><a href="${esc(href.phase(pid, ph.id))}">${esc(ph.title)}</a>${stamp(ph.blocking)}</h3><span class="mono mut">${total ? `${p.done}/${total}` : ""}</span></div>
       <div class="nx-list">${rows || `<div class="sub">No open items.</div>`}${more ? `<div class="sub">and ${more} more ready</div>` : ""}</div></div>`;

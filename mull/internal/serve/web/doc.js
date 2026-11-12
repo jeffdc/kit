@@ -5,7 +5,7 @@
 // what it mentions: docs hold intent, status shows beside them.
 
 import { Marked } from "./vendor/marked.esm.js";
-import { esc, href, tag, cells, stageLabel, plural } from "./html.js";
+import { esc, href, tag, cells, stageLabel, plural, copyId } from "./html.js";
 
 const WEB = /^(https?:|mailto:|#)/i;
 const ID = /(^|[^0-9A-Za-z_])([0-9a-f]{4})(?![0-9A-Za-z_])/g;
@@ -73,6 +73,6 @@ function marginRow(pid, r) {
   const link = r.type === "phase" ? href.phase(pid, r.id) : href.item(pid, r.id);
   const p = r.progress, total = p ? p.total - p.dropped : 0;
   const state = tag(r.state);
-  return `<div class="co"><a href="${esc(link)}">${esc(r.title)}</a><code class="faint">${esc(r.id)}</code>` +
+  return `<div class="co"><a href="${esc(link)}">${esc(r.title)}</a>${copyId(r.id, `<code class="faint">${esc(r.id)}</code>`)}` +
     `<span class="row3">${state}${p ? cells(p) : ""}${total ? `<span class="mono">${p.done}/${total}</span>` : ""}${r.questions ? `<span>${plural(r.questions, "question")}</span>` : ""}</span></div>`;
 }

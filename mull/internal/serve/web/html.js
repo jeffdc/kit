@@ -6,6 +6,18 @@ export const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;"
 
 export const CHEVRON = `<svg class="ic" viewBox="0 0 10 10" aria-hidden="true"><path d="M3.5 1.5 7 5l-3.5 3.5"/></svg>`;
 
+// Copy the ID: a small button beside an ID that copies the bare ID
+// (data-copy-id; app.js copies it and confirms on the button and in the
+// toast). It's a copy action, quiet until its row is hovered or focused
+// (always shown on touch screens and in title blocks). copyId wraps an
+// ID as drawn (its <code>, or a link around it) and sets the button
+// beside it, outside any link, so the link stays a link and the ID's text
+// stays selectable on its own. copyButton is the button alone.
+const COPY = `<svg viewBox="0 0 10 10" aria-hidden="true"><path class="c" d="M3.5 3.5h5v5h-5zM1.5 6.5v-5h5"/><path class="k" d="M1.5 5.2 4 7.6 8.6 2.4"/></svg>`;
+export const copyButton = id =>
+  `<button type="button" class="cp" data-copy-id="${esc(id)}" title="Copy the ID ${esc(id)}" aria-label="Copy the ID ${esc(id)}">${COPY}</button>`;
+export const copyId = (id, html = `<code>${esc(id)}</code>`) => `<span class="cid">${html}${copyButton(id)}</span>`;
+
 // Routes mirror the API's paths under /api/projects/{id}.
 const seg = encodeURIComponent;
 export const href = {

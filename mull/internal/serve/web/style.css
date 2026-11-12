@@ -196,10 +196,28 @@ tr.cl.cl-cont.cl-open > td::after { background-size: 12px 0, 12px 0, 7px 12px; }
 .capbar .wform { margin: 0; max-width: 120ch; }
 .cap-line { display: flex; gap: 8px; align-items: stretch; }
 .cap-line .seg { flex: none; }
-.cap input[type=text] { flex: 1; min-width: 0; height: 30px; padding: 0 8px; border: 1px solid var(--ink); border-radius: 0; background: var(--ground); color: var(--ink); font: 550 14px var(--font); }
-.cap input[type=text]::placeholder { color: var(--faint); font-weight: 400; }
-.cap input[readonly] { background: var(--panel); }
+.wform.cap input[type=text] { flex: 1; min-width: 0; height: 30px; padding: 0 8px; border: 1px solid var(--ink); border-radius: 0; background: var(--ground); color: var(--ink); font: 550 14px var(--font); }
+.wform.cap input[type=text]::placeholder { color: var(--faint); font-weight: 400; }
+.wform.cap input[readonly] { background: var(--panel); }
 .cap-plan { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; }
+/* copy the ID (copyId in html.js): a bare icon button beside an ID, a copy
+   action. Quiet until its row is hovered or focused, and always shown on
+   touch screens and in title blocks. Copied, it ticks for a moment. */
+.cid { display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; max-width: 100%; vertical-align: baseline; }
+.cp { flex: none; width: 18px; height: 18px; margin: -2px 0; padding: 0; display: inline-grid; place-items: center; border: 0; background: none; color: var(--mut); cursor: pointer; user-select: none; overflow: hidden; transition: opacity .12s ease-out; }
+.cp svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.3; }
+.cp .k, .cp.ok .c { display: none; }
+.cp.ok .k { display: inline; }
+.cp:hover { color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.cp.ok { color: var(--ink); box-shadow: none; }
+@media (hover: hover) {
+  .cp:not(.ok) { opacity: 0; }
+  :is(tr, .it, .grp li, .grp > summary, .decn, .node, .ag, .co, .find li, .rv-note, .cid):is(:hover, :focus-within) .cp, .tb .cp { opacity: 1; }
+  /* in the sheet index no room is kept for it until its row is hovered or focused */
+  .node .cp:not(.ok) { width: 0; margin-left: -7px; }
+  .node:is(:hover, :focus-within) .cp { width: 18px; }
+}
+@media (pointer: coarse) { .cp, .node .cp { width: 24px; height: 24px; margin: -4px 0; } }
 .wfail b { display: inline-block; margin-right: 8px; padding: 1px 5px; background: var(--ink); color: var(--ground); font-size: 11px; font-weight: 700; font-stretch: 72%; letter-spacing: .08em; text-transform: uppercase; }
 /* a write that edits text already there: one line (a title) or a roomy
    markdown editor that grows with its text (notes, docs) */
@@ -227,10 +245,15 @@ main { min-width: 0; display: flex; flex-direction: column; }
 .find input::placeholder { color: var(--faint); }
 .find .hits { list-style: none; margin: 0; padding: 0; overflow-y: auto; }
 .find .hits li + li { border-top: 1px solid var(--line); }
-.find .hits a { display: grid; grid-template-columns: 84px minmax(0, 1fr) auto; gap: 12px; align-items: baseline; padding: 8px 14px; color: var(--ink); }
-.find .hits a:hover { background: var(--panel); text-decoration: none; }
-.find .hits li.on a { background: var(--sel); }
-.find .hits .id { font: 500 12px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* a hit: its ID (a link of its own, with the copy-ID button beside it),
+   then the row's link */
+.find .hits li:not(.none) { display: grid; grid-template-columns: 98px minmax(0, 1fr); align-items: baseline; }
+.find .hits li:not(.none):hover { background: var(--panel); }
+.find .hits li.on { background: var(--sel); }
+.find .hits .cid { padding-left: 14px; min-width: 0; }
+.find .hits .id { font: 500 12px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; padding-block: 8px; }
+.find .hits .hit { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: baseline; padding: 8px 14px 8px 12px; color: var(--ink); }
+.find .hits a:hover { text-decoration: none; }
 .find .hits .txt b { font-weight: 550; display: block; }
 .find .hits .txt small { display: block; color: var(--mut); font-size: 12px; margin-top: 2px; }
 .find .hits .none { padding: 12px 14px; color: var(--mut); }
@@ -286,7 +309,7 @@ main { min-width: 0; display: flex; flex-direction: column; }
 /* in a side column the tier hints would crowd the titles */
 .cols aside .tier > summary small { display: none; }
 .it .n { font: 400 11px var(--mono); color: var(--faint); padding: 2px 0 0 4px; }
-.it > code { padding-top: 2px; }
+.it > .cid { padding-top: 1px; }
 .it p { margin: 0; font-size: 13.5px; font-weight: 550; line-height: 1.38; overflow-wrap: anywhere; }
 .it .w { display: block; margin-top: 3px; font-size: 12px; color: var(--mut); }
 .it .w a { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 2px; }
@@ -346,7 +369,7 @@ tr[data-href]:hover > td, .it[data-href]:hover, .ag[data-href]:hover, .pr[data-h
 .pr em { font: 500 11px var(--mono); font-style: normal; text-align: right; }
 .pr.cl { margin: 9px 0 11px; }
 .sub { font-size: 12px; color: var(--mut); }
-.ag { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 10px; align-items: baseline; min-height: 22px; }
+.ag { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 10px; align-items: baseline; min-height: 22px; }
 .ag > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ag.cl { margin: 9px 0 11px; }
 .dl a.cl { display: inline-block; margin: 6px 0; }
@@ -428,7 +451,7 @@ table.t.files code { font-size: 11.5px; overflow-wrap: anywhere; }
 
 /* What's next rows */
 .nx-list { margin-top: 8px; display: flex; flex-direction: column; gap: 2px; }
-.ag.nx { grid-template-columns: 40px minmax(0, 1fr) auto; padding: 3px 0; }
+.ag.nx { grid-template-columns: 52px minmax(0, 1fr) auto; padding: 3px 0; }
 .ag .clip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* item actions and the review packet */
