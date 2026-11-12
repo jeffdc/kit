@@ -2,7 +2,7 @@
 // built, what can start now, what's next, the go-live phase and the agents
 // at work, as a labelled definition list.
 
-import { esc, href, tag, cells, plural, ago } from "./html.js";
+import { esc, href, tag, cells, plural, ago, copyId } from "./html.js";
 import { within } from "./revision.js";
 
 const stamp = n => n ? `<span class="stamp">${n} blocking</span>` : "";
@@ -55,6 +55,6 @@ function agent(pid, a, ch) {
   const link = href.item(pid, a.id);
   const since = a.claim?.at ? ago(a.claim.at).replace(/ ago$/, "") : "";
   const sub = [since, plural(a.commits, "commit")].filter(Boolean).join(" · ");
-  return `<div class="ag${ch ? ch.cls(within.item(a.id)) : ""}" data-href="${esc(link)}"><a href="${esc(link)}"><code>${esc(a.id)}</code></a>` +
+  return `<div class="ag${ch ? ch.cls(within.item(a.id)) : ""}" data-href="${esc(link)}">${copyId(a.id, `<a href="${esc(link)}"><code>${esc(a.id)}</code></a>`)}` +
     `<span title="${esc(a.phase_title ? `${a.phase_title}: ${a.title}` : a.title)}">${esc(a.title)}</span><span class="sub">${esc(sub)}</span></div>`;
 }

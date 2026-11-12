@@ -139,7 +139,7 @@ function focusKey() {
   const el = document.activeElement;
   if (!el || el === document.body) return null;
   if (el.tagName === "SUMMARY" && el.parentElement.dataset.open) return `[data-open="${CSS.escape(el.parentElement.dataset.open)}"] > summary`;
-  for (const attr of ["data-tg", "data-seen", "data-write", "data-draft", "data-form-open", "data-more", "data-copy", "data-cmd", "href"]) {
+  for (const attr of ["data-tg", "data-seen", "data-write", "data-draft", "data-form-open", "data-more", "data-copy", "data-copy-id", "data-cmd", "href"]) {
     const v = el.getAttribute(attr);
     if (v !== null) return `[${attr}="${CSS.escape(v)}"]`;
   }
@@ -242,8 +242,25 @@ async function copy(text, done, fallback) {
   try {
     await navigator.clipboard.writeText(text);
     toast(done);
+    return true;
   } catch {
     toast(fallback);
+    return false;
+  }
+}
+
+// copyID copies a bare ID from its copy-ID button (copyId in html.js). The
+// button turns to a tick for a moment, where it was clicked; if the
+// clipboard can't be reached, the ID is selected for ⌘C instead.
+async function copyID(btn) {
+  const id = btn.dataset.copyId;
+  if (await copy(id, `Copied the ID <code>${esc(id)}</code>.`, `Couldn't reach the clipboard. The ID <code>${esc(id)}</code> is selected: press ⌘C to copy it.`)) {
+    btn.classList.add("ok");
+    clearTimeout(btn.okTimer);
+    btn.okTimer = setTimeout(() => btn.classList.remove("ok"), 1600);
+  } else {
+    const el = btn.previousElementSibling, code = el?.matches("code, .id") ? el : el?.querySelector("code");
+    if (code) getSelection().selectAllChildren(code);
   }
 }
 
@@ -372,6 +389,10 @@ document.addEventListener("change", ev => {
 
 document.addEventListener("click", ev => {
   const t = ev.target;
+  // Copying an ID leaves the rest of the page as it is: an open form keeps
+  // its draft, ready for the ID to be pasted into it.
+  const ci = t.closest("[data-copy-id]");
+  if (ci) { ev.preventDefault(); copyID(ci); return; }
   const wb = t.closest("[data-write]");
   if (wb) { ev.preventDefault(); write(wb); return; }
   const mo = t.closest("[data-more]");

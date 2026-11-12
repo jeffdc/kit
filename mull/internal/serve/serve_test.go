@@ -159,6 +159,28 @@ func TestEmbeddedReferences(t *testing.T) {
 	}
 }
 
+// TestIDsCopy checks that the UI draws record IDs (a field ending in .id
+// or .item, as <code>) through copyId, so every one has its copy-ID
+// button (DESIGN.md, Copy the ID).
+func TestIDsCopy(t *testing.T) {
+	bare := regexp.MustCompile(`<code>\$\{esc\(\w+\.(id|item)\)\}</code>`)
+	files, err := fs.Glob(web, "web/*.js")
+	if err != nil || len(files) == 0 {
+		t.Fatalf("no embedded web/*.js: %v", err)
+	}
+	for _, f := range files {
+		src, err := fs.ReadFile(web, f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i, line := range strings.Split(string(src), "\n") {
+			if bare.MatchString(line) && !strings.Contains(line, "copyId(") {
+				t.Errorf("%s:%d draws an ID without copyId: %s", f, i+1, strings.TrimSpace(line))
+			}
+		}
+	}
+}
+
 func TestLocalOnly(t *testing.T) {
 	h := Handler(func() ([]string, error) { return []string{}, nil })
 	for host, want := range map[string]int{

@@ -4,7 +4,7 @@
 // of its open children shows the change. Consecutive clouded rows share
 // one cloud, as a drafter clouds a region.
 
-import { esc, href, CHEVRON, itemStage, stageLabel, plural, marks, needsTotal } from "./html.js";
+import { esc, href, CHEVRON, itemStage, stageLabel, plural, marks, needsTotal, copyButton } from "./html.js";
 import { within } from "./revision.js";
 
 const STORE = "mull.tree.v1";
@@ -173,7 +173,7 @@ export function renderTree(el, state, route) {
     const body = n.href
       ? `<a class="x" href="${esc(n.href)}"${n.key === cur ? ' aria-current="page"' : ""} title="${esc(n.label)}">${label}</a>`
       : `<button class="x" data-tg="${esc(n.key)}" aria-expanded="${open}">${label}</button>`;
-    const html = `<div class="node${n.top ? " top" : ""}${n.key === cur ? " cur" : ""}${n.waits ? " waits" : ""}" style="--d:${r.depth}"><span class="guides"></span>${tg}${body}${n.meta || ""}</div>`;
+    const html = `<div class="node${n.top ? " top" : ""}${n.key === cur ? " cur" : ""}${n.waits ? " waits" : ""}" style="--d:${r.depth}"><span class="guides"></span>${tg}${body}${n.code ? copyButton(n.code) : ""}${n.meta || ""}</div>`;
     if (run.length && run[0].pid !== r.pid) flush();
     if (r.clouds.length) {
       run.push({ html, pid: r.pid, fresh: !!r.changes?.clsOf(r.clouds.filter(c => c.type)).includes("fresh") });

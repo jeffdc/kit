@@ -1,7 +1,7 @@
 // A phase's sheet: where it stands, its items and what's captured for it,
 // what needs you about it, and its doc.
 
-import { esc, href, tag, cells, shortTitle } from "./html.js";
+import { esc, href, tag, cells, shortTitle, copyId } from "./html.js";
 import { titleBlock } from "./title.js";
 import { schedule } from "./needs.js";
 import { renderDoc } from "./doc.js";
@@ -21,7 +21,7 @@ export function phaseSheet(pr, data, page) {
   const fields = [
     ["State", `${tag(st.state)}${st.go_live ? ` <span class="tag">Go live</span>` : ""}${st.blocking ? ` <span class="stamp">${st.blocking} blocking</span>` : ""}`],
     ["Items", total ? `${cells(p)} <span class="mono">${p.done}/${total}</span>` : `<span class="mut">none yet</span>`],
-    ["ID", `<code>${esc(ph.id)}</code>`],
+    ["ID", copyId(ph.id)],
     ["Needs", ph.needs?.length ? `<span>${ph.needs.map(link).join(", ")}</span>` : `<span class="mut">nothing</span>`],
     ["Needed by", page.needed_by.length ? `<span>${page.needed_by.map(n => `<a href="${esc(href.phase(pid, n.id))}">${esc(n.title)}</a>`).join(", ")}</span>` : `<span class="mut">nothing</span>`],
     ["Open questions", String(st.questions)],

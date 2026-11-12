@@ -3,7 +3,7 @@
 // notes. Accepting or sending back a review, and deciding a decision
 // differently, write (write.js); the other actions copy the mull command.
 
-import { esc, href, tag, itemStage, shortTitle, plural, clock, ago, base } from "./html.js";
+import { esc, href, tag, itemStage, shortTitle, plural, clock, ago, base, copyId } from "./html.js";
 import { titleBlock } from "./title.js";
 import { schedule, decideDifferently } from "./needs.js";
 import { markdown } from "./doc.js";
@@ -25,10 +25,10 @@ export function itemSheet(pr, data, page) {
   if (it.plan) crumbs.push(`<a href="${esc(href.plan(pid, it.plan))}">${esc(shortTitle(page.plan_title || it.plan))}</a>`);
   else crumbs.push(it.state === "captured" ? `<a href="${esc(href.backlog(pid))}">Backlog</a>` : `<a href="${esc(href.unplanned(pid))}">Unplanned</a>`);
   if (it.phase) crumbs.push(`<a href="${esc(href.phase(pid, it.phase))}">${esc(page.phase_title || it.phase)}</a>`);
-  const waits = it.blocked_by?.length ? ` <small>waits for ${esc(it.blocked_by.join(", "))}</small>` : "";
+  const waits = it.blocked_by?.length ? ` <small>waits for ${it.blocked_by.map(id => copyId(id)).join(", ")}</small>` : "";
   const fields = [
     ["Stage", `${tag(itemStage(it))}${waits}`],
-    ["ID", `<code>${esc(it.id)}</code>`],
+    ["ID", copyId(it.id)],
     ["Kind", it.kind ? `${esc(it.kind)}${it.category ? ` <small>${esc(it.category)}</small>` : ""}` : `<span class="mut">work item</span>`],
     ["Claim", it.claim ? `<code>${esc(base(it.claim.worktree))}</code> <small>${it.claim.branch ? `${esc(it.claim.branch)} · ` : ""}since ${esc(ago(it.claim.at))}</small>` : `<span class="mut">none</span>`],
     ["From", it.source ? `<small>${esc(it.source)}</small>` : `<span class="mut">${it.state === "captured" ? "not given" : "planning"}</span>`],
@@ -72,7 +72,7 @@ function review(pid, it, page) {
       placeholder: "What's wrong. It goes into the item's notes for the next session; its decisions stay open." });
     state = back.button + accept;
     const ratifies = writeState(key).armed
-      ? `<p class="rv-note">${open.length ? `Accepting also ratifies ${open.map(d => `<code>${esc(d.id)}</code> ${esc(d.text)}`).join("; ")}. If one isn't right, decide it differently instead: the work goes back to an agent for the change.` : "Accepting marks it done; it carries no open decisions."}</p>`
+      ? `<p class="rv-note">${open.length ? `Accepting also ratifies ${open.map(d => `${copyId(d.id)} ${esc(d.text)}`).join("; ")}. If one isn't right, decide it differently instead: the work goes back to an agent for the change.` : "Accepting marks it done; it carries no open decisions."}</p>`
       : "";
     below = ratifies + failure(key, `Accepting ${it.id}`) + back.form;
   } else if (entry?.settled) {
@@ -96,7 +96,7 @@ function review(pid, it, page) {
     const ak = `approve:packet:${pid}:${d.id}`;
     const act = s ? tag(s.action === "accept" ? "done" : "committed", s.action === "accept" ? "approved" : SETTLED[s.action] || s.action)
       : `<span class="decn-acts">${writeButton({ pid, key: ak, ops: [{ op: "accept", ids: [d.id] }], label: "Approve", ask: "Approve?", done: `Approved decision ${d.id}.` })}${dd.button}</span>`;
-    return `<div class="decn"><code>${esc(d.id)}</code><span>${esc(d.text)}</span>${act}${d.detail ? `<span class="why">${esc(d.detail)}</span>` : ""}${s?.note && s.action !== "accept" ? `<span class="why">${esc(s.note)}</span>` : ""}${s ? "" : failure(ak, `Approving ${d.id}`)}${dd ? dd.form : ""}</div>`;
+    return `<div class="decn">${copyId(d.id)}<span>${esc(d.text)}</span>${act}${d.detail ? `<span class="why">${esc(d.detail)}</span>` : ""}${s?.note && s.action !== "accept" ? `<span class="why">${esc(s.note)}</span>` : ""}${s ? "" : failure(ak, `Approving ${d.id}`)}${dd ? dd.form : ""}</div>`;
   }).join("") : `<p class="sub" style="margin:6px 0 0">None.</p>`;
   const files = (r.changes || []).map(l => {
     const add = l.files.reduce((n, f) => n + f.added, 0), del = l.files.reduce((n, f) => n + f.removed, 0);

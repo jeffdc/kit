@@ -4,7 +4,7 @@
 // records first; the archive (closed plans and their records) only when
 // asked, from the foot, which says how many matches it holds.
 
-import { esc, href, tag } from "./html.js";
+import { esc, href, tag, copyId } from "./html.js";
 import { api } from "./api.js";
 
 const band = document.getElementById("search");
@@ -30,8 +30,11 @@ function row(h, i) {
   const what = h.type === "entry" ? h.kind : h.kind && h.state === "captured" ? h.kind : WHAT[h.type];
   const where = [h.project, what, h.type === "entry" && h.item ? `on ${h.item}` : "", h.archived ? "archive" : ""].filter(Boolean).map(esc).join(" · ");
   const state = h.state && h.type !== "entry" ? tag(h.state) : h.state && h.state !== "open" ? `<span class="lab">${esc(SETTLED[h.state] || h.state)}</span>` : "";
-  return `<li${i === sel ? ' class="on" aria-selected="true"' : ""} role="option"><a href="${esc(target(h))}" data-hit="${i}">` +
-    `<span class="id">${esc(h.id)}</span><span class="txt"><b>${esc(h.title)}</b><small>${where}</small></span><span class="st">${state}</span></a></li>`;
+  // The ID is its own link (out of the tab order: the row's link is the
+  // keyboard target), so its copy button can sit beside it, outside both.
+  const link = esc(target(h));
+  return `<li${i === sel ? ' class="on" aria-selected="true"' : ""} role="option">${copyId(h.id, `<a class="id" href="${link}" data-hit="${i}" tabindex="-1">${esc(h.id)}</a>`)}` +
+    `<a class="hit" href="${link}" data-hit="${i}"><span class="txt"><b>${esc(h.title)}</b><small>${where}</small></span><span class="st">${state}</span></a></li>`;
 }
 
 function draw(q) {
