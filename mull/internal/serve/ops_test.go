@@ -304,3 +304,76 @@ func TestOpsClosePlan(t *testing.T) {
 		t.Errorf("archive = %+v", tree.Archive)
 	}
 }
+
+// The page agrees a shaping plan as the human, with no on-request: only
+// the human agrees a plan, and a write from the page is theirs.
+func TestOpsAgreePlan(t *testing.T) {
+	dir := onMull(t)
+	gittest.Git(t, dir, "config", "user.name", "Jeff")
+	h := Handler(func() ([]string, error) { return []string{dir}, nil })
+	m, _ := mull.Open(dir)
+	if _, err := m.PlanNew("pilot", "Pilot", "", true); err != nil {
+		t.Fatal(err)
+	}
+	url := "/api/projects/" + filepath.Base(dir) + "/ops"
+	tip := tipOf(t, dir)
+	rec := post(t, h, url, opsBody(t, tip, map[string]any{"op": "plan agree", "slug": "pilot", "on-request": true}), nil)
+	wantMullError(t, "on-request", rec, 400, mull.CodeInvalid)
+	rec = post(t, h, url, opsBody(t, tip, map[string]any{"op": "plan agree", "slug": "pilot"}), nil)
+	if rec.Code != 200 {
+		t.Fatalf("POST ops: %d %s", rec.Code, rec.Body)
+	}
+	if v, _ := m.Show("pilot"); v.Plan == nil || v.Plan.State != model.PlanActive {
+		t.Errorf("agreed plan = %+v", v.Plan)
+	}
+}
+
+// The page captures bugs and ideas into the backlog as the human, said
+// to be from them in mull serve: untagged, or tagged to the plan it shows.
+func TestOpsCapture(t *testing.T) {
+	dir := onMull(t)
+	gittest.Git(t, dir, "config", "user.name", "Jeff")
+	h := Handler(func() ([]string, error) { return []string{dir}, nil })
+	m, _ := mull.Open(dir)
+	if _, err := m.PlanNew("pilot", "Pilot", "", true); err != nil {
+		t.Fatal(err)
+	}
+	rec := post(t, h, "/api/projects/"+filepath.Base(dir)+"/ops", opsBody(t, tipOf(t, dir),
+		map[string]any{"op": "bug", "text": "The footer overlaps on a phone", "detail": "Seen at 400px."},
+		map[string]any{"op": "idea", "text": "A digest by email", "plan": "pilot"}), nil)
+	if rec.Code != 200 {
+		t.Fatalf("POST ops: %d %s", rec.Code, rec.Body)
+	}
+	rep := decode[OpsReport](t, rec)
+	if len(rep.Results) != 2 || rep.Results[0].ID == "" || rep.Results[1].ID == "" {
+		t.Fatalf("results = %+v", rep.Results)
+	}
+	want := []struct{ kind, plan, notes string }{{model.ItemBug, "", "Seen at 400px."}, {model.ItemIdea, "pilot", ""}}
+	for i, r := range rep.Results {
+		v, err := m.Show(r.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		it := v.Item
+		if it.State != model.StateCaptured || it.Kind != want[i].kind || it.Plan != want[i].plan || it.Notes != want[i].notes || it.Source != "Jeff in mull serve" {
+			t.Errorf("captured %d = %+v, want a %s for plan %q, from Jeff in mull serve", i, it.Item, want[i].kind, want[i].plan)
+		}
+	}
+}
+
+// The page drops a captured item with a reason, recorded as the human's.
+func TestOpsDropCaptured(t *testing.T) {
+	dir := onMull(t)
+	gittest.Git(t, dir, "config", "user.name", "Jeff")
+	h := Handler(func() ([]string, error) { return []string{dir}, nil })
+	id := capture(t, dir, "Footer")
+	rec := post(t, h, "/api/projects/"+filepath.Base(dir)+"/ops", opsBody(t, tipOf(t, dir),
+		map[string]any{"op": "drop", "ids": []string{id}, "reason": "fixed by the redesign"}), nil)
+	if rec.Code != 200 {
+		t.Fatalf("POST ops: %d %s", rec.Code, rec.Body)
+	}
+	m, _ := mull.Open(dir)
+	if v, _ := m.Show(id); v.Item == nil || v.Item.State != model.StateDropped || !strings.Contains(v.Item.Notes, "Dropped by Jeff: fixed by the redesign") {
+		t.Errorf("dropped item = %+v", v.Item)
+	}
+}

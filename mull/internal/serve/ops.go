@@ -18,10 +18,13 @@ var uiOps = map[string]bool{
 	"accept": true, // approve decisions
 	"decide": true, // answer a question, or decide a decision differently
 	"do":     true, // send reviewed work back
-	"drop":   true, // drop a Needs you entry
+	"drop":   true, // drop a Needs you entry, or a captured item
 	"park":   true, // set one aside
+	"bug":    true, // capture something wrong
+	"idea":   true, // or a possibility
 	// close a plan, which archives it
 	"plan close": true,
+	"plan agree": true, // agree a shaping plan
 }
 
 // OpsReport is what POST …/ops returns: each op's result, as mull batch

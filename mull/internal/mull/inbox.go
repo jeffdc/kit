@@ -566,7 +566,11 @@ func (m *Mull) drop(s *state, refs []string, reason string, o SettleOpts) (DropR
 			}
 			i.State, i.Updated = model.StateDropped, m.now()
 			if reason != "" {
-				i.Notes = joinNotes(i.Notes, "Dropped: "+reason)
+				by := ""
+				if m.human != "" {
+					by = " by " + m.human // the human dropped it, from the page
+				}
+				i.Notes = joinNotes(i.Notes, "Dropped"+by+": "+reason)
 			}
 			if err := s.putItem(i); err != nil {
 				return out, err
