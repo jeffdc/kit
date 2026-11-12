@@ -24,6 +24,11 @@ m plan agree web --on-request
 m plan doc web - <<'EOF'
 The web app's search, mail and account pages. This doc is long enough to show how prose runs on the sheet, with the status margin beside it: search comes first because mail links into it.
 EOF
+# A phase with a doc, for the phase sheet.
+launch=$(id phase add "Launch" --plan web --summary "Turn the pages on for everyone.")
+m phase doc "$launch" - <<'EOF'
+Turn the flag on once search and mail are in. Done when the pages are live for everyone.
+EOF
 
 # A ready item with a question on it: the Blocking tier.
 mail=$(id add "Mailer" --plan web)

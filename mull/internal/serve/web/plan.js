@@ -9,7 +9,7 @@ import { within } from "./revision.js";
 import { schedule } from "./needs.js";
 import { renderDoc } from "./doc.js";
 import { itemTable, col, backlogBody } from "./lists.js";
-import { writeButton } from "./write.js";
+import { writeButton, editWrite } from "./write.js";
 
 const stamp = n => n ? ` <span class="stamp">${n} blocking</span>` : "";
 const crumbsFor = pid => [`<a href="${href.home()}">All projects</a>`, `<a href="${esc(href.project(pid))}">${esc(pid)}</a>`];
@@ -111,10 +111,14 @@ function nextBlock(pid, page, ch) {
 
 export function planDoc(pid, page) {
   const p = page.plan;
+  // The doc is edited in place, the editor taking its place while open.
+  const edit = editWrite({ pid, key: `edit-plandoc:${pid}:${p.slug}`, ops: [{ op: "plan doc", slug: p.slug }], field: "doc", long: true,
+    value: p.doc, label: p.doc ? "Edit the doc" : "Write the doc", save: "Save the doc", done: `Saved the plan doc of ${p.title}.`,
+    placeholder: "Markdown. The picture, done-when and why this order: intent only, as status comes from the records." });
   const body = p.doc
     ? renderDoc(p.doc, pid, page.doc_refs)
     : `<div class="prose"><p class="ph-empty">No plan doc yet.${p.summary ? ` The summary: ${esc(p.summary)}` : ""}</p></div>`;
-  return `<section><div class="hd"><h2>The plan</h2><span class="lab">Shared by you and the agents · intent only; status is in the margin</span></div><div class="doc-wrap">${body}</div></section>`;
+  return `<section><div class="hd ed"><h2>The plan</h2><span class="lab">Shared by you and the agents · intent only; status is in the margin</span>${edit.button}</div><div class="doc-wrap">${edit.form || body}</div></section>`;
 }
 
 export const planBacklog = (pid, slug, bl, ch) => backlogBody(pid, bl, ch, { key: `plan:${pid}:${slug}`, inPlan: slug });

@@ -1,13 +1,14 @@
 // An item's sheet: its title block, what to do with a captured one, what
 // needs you about it, the review packet when it has a done report, and its
-// notes. Accepting or sending back a review, and deciding a decision
-// differently, write (write.js); the other actions copy the mull command.
+// notes. Editing its title and notes, accepting or sending back a review,
+// and deciding a decision differently, write (write.js); the other actions
+// copy the mull command.
 
 import { esc, href, tag, itemStage, shortTitle, plural, clock, ago, base } from "./html.js";
 import { titleBlock } from "./title.js";
 import { schedule, decideDifferently } from "./needs.js";
 import { markdown } from "./doc.js";
-import { writeButton, writeState, textWrite, failure } from "./write.js";
+import { writeButton, writeState, textWrite, editWrite, failure } from "./write.js";
 
 const short = sha => esc(String(sha || "").slice(0, 7));
 
@@ -34,7 +35,11 @@ export function itemSheet(pr, data, page) {
     ["From", it.source ? `<small>${esc(it.source)}</small>` : `<span class="mut">${it.state === "captured" ? "not given" : "planning"}</span>`],
     ["Git", gitField(g)],
   ];
-  const head = titleBlock({ title: it.title, crumbs, fields, long: true, cloud: ch ? ch.cls(c => c.type === "item" && c.id === it.id) : "" });
+  // Its title and notes are edited in place, captured or committed: the
+  // backlog is where Jeff writes things down before an agent is involved.
+  const editTitle = editWrite({ pid, key: `edit-title:${pid}:${it.id}`, ops: [{ op: "set", id: it.id, field: "title" }], field: "value",
+    value: it.title, required: true, label: "Edit title", save: "Save title", placeholder: "What it is, in a line.", done: `Saved the title of ${it.id}.` });
+  const head = titleBlock({ title: it.title, crumbs, fields, long: true, edit: editTitle, cloud: ch ? ch.cls(c => c.type === "item" && c.id === it.id) : "" });
   const acts = it.state === "captured"
     ? `<div class="acts-row"><button class="btn p" data-cmd="mull start ${esc(it.id)}">Start it now</button><button class="btn" data-cmd="mull commit ${esc(it.id)} --plan …">Commit to a plan</button><button class="btn" data-cmd="mull drop ${esc(it.id)} --reason &quot;…&quot;">Drop</button><span class="sub">Starting it skips planning; it keeps this ID through review and done.</span></div>`
     : "";
@@ -42,8 +47,11 @@ export function itemSheet(pr, data, page) {
     ? `<section id="needs"><div class="hd"><h2>Needs you</h2><span class="lab">On this item</span></div>${schedule(page.needs_you, { pid, changes: ch, noPlan: true, noPhase: true })}</section>`
     : "";
   const docs = it.docs?.length ? `<p class="sub">Docs: ${it.docs.map(d => `<code>${esc(d)}</code>`).join(", ")}</p>` : "";
-  const notes = `<section><div class="hd"><h2>Notes</h2><span class="lab">The brief an agent works from</span></div>
-    <div class="prose notes">${it.notes ? markdown(it.notes, pid) : `<p class="ph-empty">${it.state === "captured" ? "One line is enough to capture. The agent who starts it writes what it needs here." : "No notes."}</p>`}</div>${docs}</section>`;
+  const editNotes = editWrite({ pid, key: `edit-notes:${pid}:${it.id}`, ops: [{ op: "set", id: it.id, field: "notes" }], field: "value", long: true,
+    value: it.notes, label: it.notes ? "Edit notes" : "Write notes", save: "Save notes", done: `Saved the notes of ${it.id}.`,
+    placeholder: "Markdown. What it is and why, and anything the agent who takes it on should know." });
+  const notes = `<section><div class="hd ed"><h2>Notes</h2><span class="lab">The brief an agent works from</span>${editNotes.button}</div>
+    ${editNotes.form || `<div class="prose notes">${it.notes ? markdown(it.notes, pid) : `<p class="ph-empty">${it.state === "captured" ? "One line is enough to capture. Write more here whenever you like, or leave it to the agent who starts it." : "No notes."}</p>`}</div>`}${docs}</section>`;
   return head + `<div class="page">${acts}${ny}${page.review ? review(pid, it, page) : ""}${notes}</div>`;
 }
 
