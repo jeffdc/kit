@@ -23,13 +23,20 @@ fmt-check:
 vet:
 	go vet ./...
 
+# The code-signing identity make install signs with on macOS: by default the first "Apple Development" identity in the keychain. Go's own signature is ad-hoc, a new identity every build, so macOS would announce the LaunchAgent as a new background item after each install; a real identity and a fixed identifier keep it the same item. Empty (none found, or SIGN_ID=) skips signing.
+SIGN_ID ?= $(shell security find-identity -v -p codesigning 2>/dev/null | awk '/"Apple Development/ {print $$2; exit}')
+
 install:
 	go install -ldflags "$(LDFLAGS)" .
-	@echo "Installed mull to $$(go env GOBIN || true)$$(test -n "$$(go env GOBIN)" || go env GOPATH)/bin"
-	@# mull serve running as a LaunchAgent restarts on the new binary; open pages reload themselves.
+	@bin="$$(go env GOBIN)"; [ -n "$$bin" ] || bin="$$(go env GOPATH)/bin"; \
+	echo "Installed mull to $$bin"; \
+	if [ -n "$(SIGN_ID)" ]; then \
+		codesign -f -s "$(SIGN_ID)" -i mull "$$bin/mull" 2>/dev/null && echo "Signed it as mull" || echo "Couldn't sign it; macOS may announce mull as a new background item"; \
+	fi
+	@# mull serve running as a LaunchAgent restarts on the new binary, without rewriting its plist; open pages reload themselves.
 	@if [ -f "$$HOME/Library/LaunchAgents/mull.serve.plist" ]; then \
 		bin="$$(go env GOBIN)"; [ -n "$$bin" ] || bin="$$(go env GOPATH)/bin"; \
-		"$$bin/mull" serve --install >/dev/null && echo "Restarted mull serve (LaunchAgent) on the new build"; \
+		{ launchctl kickstart -k "gui/$$(id -u)/mull.serve" 2>/dev/null || "$$bin/mull" serve --install >/dev/null; } && echo "Restarted mull serve (LaunchAgent) on the new build"; \
 	fi
 
 clean:
