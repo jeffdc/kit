@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"sort"
 
+	"mull/internal/guide"
 	"mull/internal/model"
 )
 
@@ -95,6 +96,13 @@ func (m *Mull) Context(itemID string) (Context, error) {
 		if err := s.writable(); err != nil {
 			c.Protocol = append([]string{"Writes are refused until the human migrates this repository's mull data (code migration_required): " +
 				"tell the human; mull migrate --dry-run shows what it would change, and the real run is theirs (mull migrate --on-request)."}, protocol...)
+		}
+		if name := s.config.Human; name != "" {
+			named := []string{guide.NameRule(name)}
+			for _, line := range c.Protocol {
+				named = append(named, guide.Personal(line, name))
+			}
+			c.Protocol = named
 		}
 		brief := func(i *model.Item) BriefItem {
 			b := BriefItem{ID: i.ID, Title: i.Title, Plan: i.Plan, Phase: i.Phase}

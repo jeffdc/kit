@@ -146,7 +146,7 @@ func configCmd(a *app) *cobra.Command {
 		},
 	}
 	set := &cobra.Command{
-		Use: "set <integration|release|remote> <value>", Short: "Set a branch or the remote", Args: exact(2),
+		Use: "set <integration|release|remote|human> <value>", Short: "Set a branch, the remote, or the human's name (mull's words and agents' writing use it; \"\" clears it)", Args: exact(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.write("config set", &mull.ConfigSetIn{Key: args[0], Value: args[1]})
 		},
@@ -793,7 +793,11 @@ func guideCmd(a *app) *cobra.Command {
 		Short: "A procedure or reference: agents (for AGENTS.md), supervisor, intake, triage (the backlog, with the human), json (output shapes)",
 		Args:  exact(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			g, err := guide.Get(args[0])
+			human := ""
+			if m, err := a.open(); err == nil {
+				human = m.Human() // outside a repository, or with no name, the guide is as written
+			}
+			g, err := guide.For(args[0], human)
 			if err != nil {
 				return &mull.Error{Code: mull.CodeNotFound, Msg: err.Error()}
 			}

@@ -813,7 +813,7 @@ func (m *Mull) start(s *state, id string) (StartResult, error) {
 			return out, err
 		}
 		// Committed work from before shaping plans refused it.
-		out.Warnings = append(out.Warnings, fmt.Sprintf("started while plan %q is shaping: the human hasn't agreed it", i.Plan))
+		out.Warnings = append(out.Warnings, m.personal(fmt.Sprintf("started while plan %q is shaping: the human hasn't agreed it", i.Plan)))
 	}
 	base, _ := m.repo.RefCommit("HEAD")
 	now := m.now()
