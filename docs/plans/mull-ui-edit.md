@@ -1,6 +1,6 @@
 mull serve becomes a place Jeff acts, not only reads. Every step that is Jeff's (approve, decide, answer, drop, park, accept or send back a review, capture a bug or idea, edit an item's text and plan and phase docs, agree and close a plan) can be taken from the page, and is recorded as Jeff's own. Steps that hand work to an agent (Start, the agent prompts) stay copy-to-clipboard, and any ID can be copied with one click to hand to an agent. Triage stays with Jeff and an agent: committing captured items to plans and phases, and building plans from them, isn't done by hand on the page.
 
-Done when Jeff can work through Needs you, the backlog and his plans from the UI without copying a command.
+Done when Jeff can work through Needs you, the backlog and the plans from the UI without copying a command.
 
 ## Foundations (all in the first phase)
 
