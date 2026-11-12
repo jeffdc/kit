@@ -47,16 +47,25 @@ func (m *Mull) Worktree() string { return m.repo.Worktree() }
 
 // AsHuman returns m acting for the human themselves, as mull serve does for a
 // write from its pages. What it settles is recorded as the human's, by their
-// name (the repository's git user.name), and the steps only the human takes
-// need no on-request. It fails when user.name isn't set.
+// name, and the steps only the human takes need no on-request. The name is
+// the one this machine goes by (mull name), or else the repository's git
+// user.name; it fails when neither is set.
 func (m *Mull) AsHuman() (*Mull, error) {
-	out, code, err := m.repo.RunStatus(nil, nil, "config", "user.name")
+	name, err := humanname.Name()
 	if err != nil {
 		return nil, err
 	}
-	name := strings.TrimSpace(string(out))
-	if code != 0 || name == "" {
-		return nil, errf(CodeNotAllowed, "set git user.name in %s: a write from mull serve is recorded by the human's name", m.repo.MainWorktree())
+	if name == "" {
+		out, code, err := m.repo.RunStatus(nil, nil, "config", "user.name")
+		if err != nil {
+			return nil, err
+		}
+		if code == 0 {
+			name = strings.TrimSpace(string(out))
+		}
+	}
+	if name == "" {
+		return nil, errf(CodeNotAllowed, "set a name with mull name (or git user.name in %s): a write from mull serve is recorded by the human's name", m.repo.MainWorktree())
 	}
 	h := *m
 	h.human = name

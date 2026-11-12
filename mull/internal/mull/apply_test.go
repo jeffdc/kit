@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"mull/internal/gittest"
+	humanname "mull/internal/human"
 	"mull/internal/model"
 )
 
@@ -32,10 +33,30 @@ func TestAsHumanNeedsAName(t *testing.T) {
 	m, dir := setup(t)
 	_, err := m.AsHuman()
 	wantCode(t, err, CodeNotAllowed)
-	wantErr(t, err, "git user.name")
+	wantErr(t, err, "mull name")
 	gittest.Git(t, dir, "config", "user.name", "  ")
 	_, err = m.AsHuman()
 	wantCode(t, err, CodeNotAllowed)
+}
+
+// The human's name is the one this machine goes by (mull name) when it's
+// set, ahead of the repository's git user.name.
+func TestAsHumanPrefersMullName(t *testing.T) {
+	m, dir := setup(t)
+	gittest.Git(t, dir, "config", "user.name", "jeffdc")
+	if h := must[*Mull](t)(m.AsHuman()); h.human != "jeffdc" {
+		t.Errorf("with only git user.name, human = %q", h.human)
+	}
+	if err := humanname.SetName("Jeff"); err != nil {
+		t.Fatal(err)
+	}
+	if h := must[*Mull](t)(m.AsHuman()); h.human != "Jeff" {
+		t.Errorf("with mull name set, human = %q", h.human)
+	}
+	gittest.Git(t, dir, "config", "--unset", "user.name")
+	if h := must[*Mull](t)(m.AsHuman()); h.human != "Jeff" {
+		t.Errorf("with mull name and no git user.name, human = %q", h.human)
+	}
 }
 
 // What the human settles is recorded by their name, as theirs, and not as
