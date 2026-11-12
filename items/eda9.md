@@ -1,5 +1,6 @@
 ---
 plan: mull-ui-edit
+phase: "7195"
 title: Audit every action in mull serve that copies a command instead of saving, then convert each of Jeff's own steps into a real write
 stage: active
 claim:
@@ -8,7 +9,7 @@ claim:
   at: "2026-11-12T00:36:57Z"
   base: 8274523c54be658ec9d48f55d15f4f2d1a5c5dd4
 created: "2026-11-12T00:05:13Z"
-updated: "2026-11-12T00:36:57Z"
+updated: "2026-11-12T00:38:57Z"
 ---
 
 Jeff's words, 2026-11-11: Drop in backlog is not an action, just a copy. This is getting frustrating as I had thought we agreed earlier that we convert all actions to real actions, not copying of commands. It needs to start with an audit of all actions that are NOT true actions, and then make sure we convert them all.
