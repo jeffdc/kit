@@ -287,7 +287,7 @@ main { min-width: 0; display: flex; flex-direction: column; }
 .grp li { display: grid; grid-template-columns: 54px 1fr auto; column-gap: 10px; align-items: center; font-size: 12.5px; color: var(--mut); }
 .grp li > .wfail, .grp li > .wform { grid-column: 2 / -1; }
 .grp li .li-acts { display: flex; gap: 6px; justify-content: flex-end; }
-.decn > .wform { grid-column: 2 / 4; }
+.decn > .wform, .decn > .wfail { grid-column: 2 / 4; }
 /* A decision's own actions show on its row's hover or focus (always, on
    touch screens), so a long group isn't a column of boxes. Opacity, not
    visibility, keeps it in the tab order. */
@@ -429,6 +429,7 @@ table.t.files code { font-size: 11.5px; overflow-wrap: anywhere; }
 .s-pass { background: var(--green); color: var(--ground); border-color: var(--green); }
 .decn { display: grid; grid-template-columns: 54px minmax(0, 1fr) auto; gap: 4px 8px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 13px; align-items: start; }
 .decn .why { grid-column: 2 / 4; color: var(--mut); font-size: 12px; }
+.decn-acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 
 /* the model: a help sheet */
 .model pre { font: 500 12.5px/1.7 var(--mono); margin: 0; padding: 14px 0; overflow-x: auto; white-space: pre; border-bottom: 1px solid var(--line); }

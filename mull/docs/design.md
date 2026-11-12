@@ -100,7 +100,7 @@ Most items are reviewed in the session that finished them, by you or by a superv
 - **Review entry.** `mull done` always files a `review` entry. Accepting it marks the item `done`, and `mull accept <item-id>` works directly on the item too.
 - **Review is what and how** (Model v2). The report holds what was built (summary, tour, checks) and how (design notes, the decisions made in the session, files by layer), and they're settled together:
   - the review carries every open decision on its item when `mull done` files it (unsettled and not parked), listed on the entry as `decisions`;
-  - accepting the review ratifies those still unsettled. To decide one differently, `mull decide <decision-id> "…"` before accepting; `mull accept <decision-id>` alone still ratifies just that one;
+  - accepting the review ratifies those still unsettled. Deciding one differently (`mull decide <decision-id> "…"`) while the work waits for review sends the work back: the item returns to committed with the decision in its notes, and it can't be accepted until an agent takes the decision in (saying how it makes the change with `mull decided`) and files it for review again. `mull accept <decision-id>` alone still ratifies just that one, without accepting the work;
   - sending the review back leaves them open, and the next `mull done` carries them again. Decisions captured while the item is in review aren't added to that review.
 - **In session:** you or the supervisor accept right after reviewing the done report and the tour, so the entry never lingers.
 - **Who may accept:**

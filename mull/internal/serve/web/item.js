@@ -72,7 +72,7 @@ function review(pid, it, page) {
       placeholder: "What's wrong. It goes into the item's notes for the next session; its decisions stay open." });
     state = back.button + accept;
     const ratifies = writeState(key).armed
-      ? `<p class="rv-note">${open.length ? `Accepting also ratifies ${open.map(d => `<code>${esc(d.id)}</code> ${esc(d.text)}`).join("; ")}. Decide one differently first if it isn't right.` : "Accepting marks it done; it carries no open decisions."}</p>`
+      ? `<p class="rv-note">${open.length ? `Accepting also ratifies ${open.map(d => `<code>${esc(d.id)}</code> ${esc(d.text)}`).join("; ")}. If one isn't right, decide it differently instead: the work goes back to an agent for the change.` : "Accepting marks it done; it carries no open decisions."}</p>`
       : "";
     below = ratifies + failure(key, `Accepting ${it.id}`) + back.form;
   } else if (entry?.settled) {
@@ -87,11 +87,16 @@ function review(pid, it, page) {
   const tour = r.tour?.length && !(r.tour.length === 1 && r.tour[0] === "none")
     ? `<div><span class="lab">Try it</span><ol class="tour">${r.tour.map(t => `<li>${esc(t)}</li>`).join("")}</ol></div>`
     : `<div><span class="lab">Try it</span><p class="sub" style="margin:6px 0 0">No UI tour: nothing visible changed.</p></div>`;
+  // Each open decision is approved on its own, apart from accepting the
+  // work; deciding one differently while the work waits sends it back.
+  const waiting = !!(entry && !entry.settled);
   const decs = decisions.length ? decisions.map(d => {
     const s = d.settled;
-    const dd = s ? null : decideDifferently(pid, d.id, "packet");
-    const act = s ? tag(s.action === "accept" ? "done" : "committed", s.action === "accept" ? "approved" : SETTLED[s.action] || s.action) : dd.button;
-    return `<div class="decn"><code>${esc(d.id)}</code><span>${esc(d.text)}</span>${act}${d.detail ? `<span class="why">${esc(d.detail)}</span>` : ""}${s?.note && s.action !== "accept" ? `<span class="why">${esc(s.note)}</span>` : ""}${dd ? dd.form : ""}</div>`;
+    const dd = s ? null : decideDifferently(pid, d.id, "packet", waiting);
+    const ak = `approve:packet:${pid}:${d.id}`;
+    const act = s ? tag(s.action === "accept" ? "done" : "committed", s.action === "accept" ? "approved" : SETTLED[s.action] || s.action)
+      : `<span class="decn-acts">${writeButton({ pid, key: ak, ops: [{ op: "accept", ids: [d.id] }], label: "Approve", ask: "Approve?", done: `Approved decision ${d.id}.` })}${dd.button}</span>`;
+    return `<div class="decn"><code>${esc(d.id)}</code><span>${esc(d.text)}</span>${act}${d.detail ? `<span class="why">${esc(d.detail)}</span>` : ""}${s?.note && s.action !== "accept" ? `<span class="why">${esc(s.note)}</span>` : ""}${s ? "" : failure(ak, `Approving ${d.id}`)}${dd ? dd.form : ""}</div>`;
   }).join("") : `<p class="sub" style="margin:6px 0 0">None.</p>`;
   const files = (r.changes || []).map(l => {
     const add = l.files.reduce((n, f) => n + f.added, 0), del = l.files.reduce((n, f) => n + f.removed, 0);

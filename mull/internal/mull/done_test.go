@@ -236,15 +236,22 @@ func TestReviewCarriesDecisions(t *testing.T) {
 		}
 	}
 
-	// Decide one differently, then accept the review: the rest are ratified with it.
+	// Decide one differently: the work goes back, so it can't be accepted
+	// until it's done again; the rest can still be ratified one by one.
 	must[*model.Entry](t)(m.Decide(d2.ID, "Retry five times", SettleOpts{}))
-	acc := must[AcceptResult](t)(m.Accept([]string{it.ID}, "", SettleOpts{OnRequest: true}))
+	if s := entry(t, m, res.Review).Settled; s == nil || s.Action != model.ActDo {
+		t.Fatalf("review after deciding a decision differently = %+v, want sent back", s)
+	}
+	if _, err := m.Accept([]string{it.ID}, "", SettleOpts{OnRequest: true}); err == nil {
+		t.Fatal("work was accepted after one of its decisions was decided differently")
+	}
+	acc := must[AcceptResult](t)(m.Accept([]string{d1.ID, d3.ID}, "", SettleOpts{OnRequest: true}))
 	settled := map[string]bool{}
 	for _, e := range acc.Entries {
 		settled[e.ID] = true
 	}
-	if len(acc.Entries) != 3 || !settled[res.Review] || !settled[d1.ID] || !settled[d3.ID] {
-		t.Fatalf("accept settled %v, want the review, %s and %s", settled, d1.ID, d3.ID)
+	if len(acc.Entries) != 2 || !settled[d1.ID] || !settled[d3.ID] {
+		t.Fatalf("accept settled %v, want %s and %s", settled, d1.ID, d3.ID)
 	}
 	if s := entry(t, m, d1.ID).Settled; s == nil || s.Action != model.ActAccept || !s.OnRequest {
 		t.Fatalf("carried decision settled as %+v", s)

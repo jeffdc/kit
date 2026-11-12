@@ -519,6 +519,10 @@ func TestItemPageReviewPacket(t *testing.T) {
 	if r == nil || r.Entry == nil || r.Entry.ID != res.Review || r.Report.N != 1 || r.Report.Summary != "Adds invoices." || r.Report.Design != "Plain structs." {
 		t.Fatalf("review = %+v", r)
 	}
+	// Deciding a decision differently sent the work back.
+	if r.Entry.Settled == nil || r.Entry.Settled.Action != model.ActDo {
+		t.Fatalf("review after deciding differently = %+v, want sent back", r.Entry.Settled)
+	}
 	if len(r.Decisions) != 2 {
 		t.Fatalf("decisions = %+v", r.Decisions)
 	}
@@ -538,14 +542,13 @@ func TestItemPageReviewPacket(t *testing.T) {
 		t.Errorf("reports = %+v", page.Reports)
 	}
 	ids := tierIDs(page.NeedsYou)
-	if !reflect.DeepEqual(ids[TierReview], []string{res.Review}) || !reflect.DeepEqual(ids[TierDecide], []string{keep.ID}) ||
-		len(ids[TierPlan]) != 1 || ids[TierPlan][0] != q.ID {
-		t.Errorf("item needs you = %v (a question on in-review work in no phase is about the plan)", ids)
+	if len(ids[TierReview]) != 0 || !reflect.DeepEqual(ids[TierDecide], []string{keep.ID}) ||
+		!reflect.DeepEqual(ids[TierBlocking], []string{q.ID}) {
+		t.Errorf("item needs you = %v (sent back, the work is ready again, so its question blocks it)", ids)
 	}
 
 	// Sent back, then a failed attempt: the packet is the latest attempt,
 	// with no review entry.
-	must[DoResult](t)(m.Do(DoInput{ID: res.Review, Reason: "Needs a test", SettleOpts: SettleOpts{OnRequest: true}}))
 	must[StartResult](t)(m.Start(it.ID))
 	must[model.Config](t)(m.ConfigChecks([]string{"exit 1"}))
 	gittest.Commit(t, dir, "lib/invoice_test.go", "package x\n", "Test", "Mull: "+it.ID)

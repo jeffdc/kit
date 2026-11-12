@@ -166,6 +166,17 @@ func copyEntry(e *model.Entry) *model.Entry {
 	return &c
 }
 
+// sendBack settles review r as sent back and reopens its item i for another
+// session, with the reason added to its notes. Its decisions stay open.
+func (m *Mull) sendBack(s *state, r *model.Entry, i *model.Item, reason string, o SettleOpts) error {
+	if err := m.settle(s, r, model.ActDo, reason, i.ID, o); err != nil {
+		return err
+	}
+	i.State, i.Claim, i.Updated = model.StateCommitted, nil, m.now()
+	i.Notes = joinNotes(i.Notes, fmt.Sprintf("Sent back on review (%s): %s", m.now(), reason))
+	return s.putItem(i)
+}
+
 func retiredKind(kind string) bool { return kind == model.KindLoose || kind == model.KindIdea }
 
 // SettleOpts are the common options for settling.
@@ -350,7 +361,24 @@ func (m *Mull) decide(s *state, id, decision string, o SettleOpts) (*model.Entry
 	if err != nil {
 		return nil, err
 	}
-	return e, m.settle(s, e, model.ActDecide, decision, "", o)
+	if err := m.settle(s, e, model.ActDecide, decision, "", o); err != nil {
+		return nil, err
+	}
+	// A decision decided differently while its work waits for review means
+	// the work isn't what the human accepts: it goes back, so an agent
+	// takes the decision in, decides how to make the change, and files the
+	// work for review again. Accepting can't happen meanwhile.
+	if e.Kind == model.KindDecision && e.Item != "" {
+		if i := s.items[e.Item]; i != nil && i.State == model.StateInReview {
+			if r := s.openReview(i.ID); r != nil {
+				reason := fmt.Sprintf("decision %s (%s) was decided differently: %s. Take it in (mull decided, saying how you'll make the change), make it, and finish again for review.", e.ID, e.Text, decision)
+				if err := m.sendBack(s, r, i, reason, o); err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+	return e, nil
 }
 
 // DoResult reports what do did: the settled entry and the item or phase it
@@ -409,12 +437,7 @@ func (m *Mull) do(s *state, in DoInput) (DoResult, error) {
 		if in.Reason == "" {
 			return DoResult{}, errf(CodeInvalid, "say why the work is sent back (--reason)")
 		}
-		if err := m.settle(s, e, model.ActDo, in.Reason, i.ID, in.SettleOpts); err != nil {
-			return DoResult{}, err
-		}
-		i.State, i.Claim, i.Updated = model.StateCommitted, nil, m.now()
-		i.Notes = joinNotes(i.Notes, fmt.Sprintf("Sent back on review (%s): %s", m.now(), in.Reason))
-		if err := s.putItem(i); err != nil {
+		if err := m.sendBack(s, e, i, in.Reason, in.SettleOpts); err != nil {
 			return DoResult{}, err
 		}
 		v := s.itemView(i)

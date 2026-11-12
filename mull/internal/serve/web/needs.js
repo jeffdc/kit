@@ -102,9 +102,10 @@ function group(g, opts) {
     : ids.length === 1
       ? approve(pid, all, ids, "Approve", "Approve?", `Approved decision ${ids[0]}.`)
       : approve(pid, all, ids, "Approve all", `Approve ${ids.length}?`, `Approved ${plural(ids.length, "decision")}.`);
-  // A group of one is approved from its header alone.
-  const own = !carried && ids.length > 1;
-  const items = runs(g.entries.map(e => [decision(pid, e, own), ch ? ch.cls(within.entry(e.id)) : ""]),
+  // A group of one is approved from its header alone; a review's
+  // decisions are each approved on their own, apart from accepting the work.
+  const own = carried || ids.length > 1;
+  const items = runs(g.entries.map(e => [decision(pid, e, own, carried), ch ? ch.cls(within.entry(e.id)) : ""]),
     (h, cl) => `<ul class="clrun${cl}">${h}</ul>`, h => `<ul>${h}</ul>`);
   // Closed, the group carries the cloud; open, its changed rows do.
   return `<details class="grp${cloud}" data-open="${esc(key)}"><summary>${CHEVRON}<span>${name}${carried ? ` <small>carried by its review</small>` : ""}</span><span class="sp"></span><span class="mono mut">${g.entries.length}</span>${act}</summary>${items}</details>` +
@@ -112,11 +113,11 @@ function group(g, opts) {
 }
 
 // decision is one decision in a group: decide it differently, and approve
-// it on its own if approvable (not carried by a review, and not alone in
-// its group).
-function decision(pid, e, approvable) {
+// it on its own if approvable (carried by a review, or not alone in its
+// group). Deciding a carried one differently sends its work back.
+function decision(pid, e, approvable, carried) {
   const key = `approve:${pid}:${e.id}`;
-  const dd = decideDifferently(pid, e.id, "needs");
+  const dd = decideDifferently(pid, e.id, "needs", carried);
   const rest = parkOrDrop(pid, e.id, "needs");
   const act = (approvable ? approve(pid, key, [e.id], "Approve", "Approve?", `Approved decision ${e.id}.`) : "") + dd.button + rest.buttons;
   return `<li><code>${esc(e.id)}</code><span${e.detail ? ` title="${esc(e.detail)}"` : ""}>${esc(e.text)}</span><span class="li-acts">${act}</span>${failure(key, `Approving ${e.id}`)}${dd.form}${rest.forms}</li>`;
@@ -140,9 +141,13 @@ function parkOrDrop(pid, id, where) {
 // decideDifferently settles a decision with the human's own, which joins
 // the decision log in its place. The review packet uses it too; where
 // keeps the two apart, as an item's sheet shows a decision in both.
-export const decideDifferently = (pid, id, where) => textWrite({ pid, key: `decide:${where}:${pid}:${id}`, ops: [{ op: "decide", id }], field: "decision",
-  label: "Decide differently", save: "Save decision", placeholder: "What you decide instead. It replaces the agent's in the decision log.",
-  done: `Decided ${id} differently. It's in the decision log.` });
+// inReview: the decision's work waits for review, so deciding differently
+// sends it back (mull does) until an agent takes the decision in.
+export const decideDifferently = (pid, id, where, inReview = false) => textWrite({ pid, key: `decide:${where}:${pid}:${id}`, ops: [{ op: "decide", id }], field: "decision",
+  label: "Decide differently", save: inReview ? "Save and send the work back" : "Save decision",
+  placeholder: inReview ? "What you decide instead. It replaces the agent's in the decision log, and the work goes back to an agent to make the change; it can't be accepted until then."
+    : "What you decide instead. It replaces the agent's in the decision log.",
+  done: inReview ? `Decided ${id} differently. The work goes back to an agent to take it in, then comes back for review.` : `Decided ${id} differently. It's in the decision log.` });
 
 const approve = (pid, key, ids, label, ask, done) =>
   writeButton({ pid, key, ops: [{ op: "accept", ids }], label, ask, done });
