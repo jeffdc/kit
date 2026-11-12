@@ -14,6 +14,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"mull/internal/guide"
 	"mull/internal/mull"
 	"mull/internal/registry"
 )
@@ -75,7 +76,17 @@ func Execute(args []string, dir string, stdin io.Reader, stdout, stderr io.Write
 	// so init counts). It is best effort and never fails the command.
 	_ = registry.Register(dir)
 	if err != nil {
-		b, _ := json.Marshal(classify(err))
+		e := *classify(err)
+		if m, oerr := mull.Open(dir); oerr == nil {
+			// mull's own words in the human's name (mull config set human).
+			human := m.Human()
+			e.Msg = guide.Personal(e.Msg, human)
+			e.Lines = append([]mull.LineError(nil), e.Lines...)
+			for i := range e.Lines {
+				e.Lines[i].Error = guide.Personal(e.Lines[i].Error, human)
+			}
+		}
+		b, _ := json.Marshal(&e)
 		fmt.Fprintln(stderr, string(b))
 		return 1
 	}

@@ -52,8 +52,11 @@ func (m *Mull) configSet(s *state, key, value string) (model.Config, error) {
 			c.Release = value
 		case "remote":
 			c.Remote = value
+		case "human":
+			c.Human = strings.TrimSpace(value)
+			return nil // empty clears it
 		default:
-			return errf(CodeInvalid, "settable keys are integration, release and remote (use 'config checks' and 'config layer' for the rest)")
+			return errf(CodeInvalid, "settable keys are integration, release, remote and human (use 'config checks' and 'config layer' for the rest)")
 		}
 		if value == "" {
 			return errf(CodeInvalid, "%s cannot be empty", key)
@@ -411,8 +414,8 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 	if !finished {
 		return out, &ErrChecksFailed{Report: out.ReportPath}
 	}
-	out.Reminder = "Show the human (or the supervisor) the report and the UI tour; they accept or send it back. " +
-		"Accepting the review also ratifies the decisions it carries. Capture anything out of scope you noticed with mull bug \"...\" or mull idea \"...\" --source \"item " + id + "\""
+	out.Reminder = m.personal("Show the human (or the supervisor) the report and the UI tour; they accept or send it back. " +
+		"Accepting the review also ratifies the decisions it carries. Capture anything out of scope you noticed with mull bug \"...\" or mull idea \"...\" --source \"item " + id + "\"")
 	return out, nil
 }
 

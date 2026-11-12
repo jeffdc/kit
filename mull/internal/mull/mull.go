@@ -14,6 +14,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"mull/internal/git"
+	"mull/internal/guide"
 	"mull/internal/model"
 	"mull/internal/store"
 )
@@ -460,6 +461,19 @@ func (m *Mull) updateAny(msg string, fn func(s *state) error) error {
 		return fn(s)
 	})
 }
+
+// Human is the name the repository's human goes by (mull config set human),
+// or "" when it isn't set or can't be read.
+func (m *Mull) Human() string {
+	cfg, err := m.Config()
+	if err != nil {
+		return ""
+	}
+	return cfg.Human
+}
+
+// personal puts mull's own text in the human's name (see guide.Personal).
+func (m *Mull) personal(text string) string { return guide.Personal(text, m.Human()) }
 
 // Config returns the repository's mull configuration.
 func (m *Mull) Config() (model.Config, error) {
