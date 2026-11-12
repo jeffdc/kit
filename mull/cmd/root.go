@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"mull/internal/guide"
+	"mull/internal/human"
 	"mull/internal/mull"
 	"mull/internal/registry"
 )
@@ -77,13 +78,12 @@ func Execute(args []string, dir string, stdin io.Reader, stdout, stderr io.Write
 	_ = registry.Register(dir)
 	if err != nil {
 		e := *classify(err)
-		if m, oerr := mull.Open(dir); oerr == nil {
-			// mull's own words in the human's name (mull config set human).
-			human := m.Human()
-			e.Msg = guide.Personal(e.Msg, human)
+		if name, herr := human.Name(); herr == nil && name != "" {
+			// mull's own words in this machine's name for the human (mull name).
+			e.Msg = guide.Personal(e.Msg, name)
 			e.Lines = append([]mull.LineError(nil), e.Lines...)
 			for i := range e.Lines {
-				e.Lines[i].Error = guide.Personal(e.Lines[i].Error, human)
+				e.Lines[i].Error = guide.Personal(e.Lines[i].Error, name)
 			}
 		}
 		b, _ := json.Marshal(&e)
@@ -118,7 +118,7 @@ Shapes and error codes: mull guide json. Many writes at once: mull batch.`,
 	}
 	root.SetFlagErrorFunc(func(c *cobra.Command, err error) error { return usage(err) })
 	root.AddCommand(
-		initCmd(a), versionCmd(a), syncCmd(a), migrateCmd(a), viewCmd(a), configCmd(a), batchCmd(a),
+		initCmd(a), versionCmd(a), nameCmd(a), syncCmd(a), migrateCmd(a), viewCmd(a), configCmd(a), batchCmd(a),
 		checkCmd(a), doneCmd(a), reportCmd(a), contextCmd(a), guideCmd(a),
 		planCmd(a), phaseCmd(a),
 		addCmd(a), showCmd(a), listCmd(a), setCmd(a), dropCmd(a),

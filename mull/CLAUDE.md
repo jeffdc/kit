@@ -29,7 +29,7 @@ Agents and humans use it only through the CLI. Data commands print JSON; errors 
 - `internal/model`: records and their file format (YAML frontmatter plus a markdown body).
 - `internal/mull`: operations: plans, phases, items, needs and readiness, claims, the inbox, the decision log.
 - `internal/gittest`: throwaway repos and worktrees for tests, isolated from global git config.
-- `internal/registry` and `internal/seen`: per-machine state in `~/.config/mull/` (the repositories on mull, and when the human last looked at each), never on the mull branch.
+- `internal/registry`, `internal/seen` and `internal/human`: per-machine state in `~/.config/mull/` (the repositories on mull, when the human last looked at each, and the name they go by: `mull name`), never on the mull branch.
 - `internal/launchagent`: `mull serve --install`, the macOS LaunchAgent.
 - `internal/bench` and `scripts/bench`: `make bench`. Seeds large repositories (through git fast-import, as mull's writes would have built them) and times every page mull serve shows, counting git calls.
 - `internal/serve`: `mull serve`, the human's web UI (Go server; plain JS modules, CSS and fonts in `web/`, embedded). Its design lives in `docs/serve/`: `direction.md` (the contract), `PRODUCT.md`, `prototype.html`, and `DESIGN.md`, the design system as built. Read `DESIGN.md` before changing the UI; it's there rather than at the project root, where impeccable looks first.
