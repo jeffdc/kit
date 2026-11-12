@@ -302,10 +302,6 @@ type Config struct {
 	Remote      string              `yaml:"remote" json:"remote"`
 	DoneChecks  []string            `yaml:"done_checks" json:"done_checks"`
 	Layers      map[string][]string `yaml:"layers" json:"layers"`
-	// Human is the name the repository's human goes by. Set, mull's own
-	// words (guides, the protocol, messages) use it for "the human", and
-	// agents are told to write it in what they write to mull.
-	Human string `yaml:"human,omitempty" json:"human,omitempty"`
 }
 
 // CheckResult is one hard-check command's outcome.

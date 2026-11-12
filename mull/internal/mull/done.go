@@ -52,11 +52,8 @@ func (m *Mull) configSet(s *state, key, value string) (model.Config, error) {
 			c.Release = value
 		case "remote":
 			c.Remote = value
-		case "human":
-			c.Human = strings.TrimSpace(value)
-			return nil // empty clears it
 		default:
-			return errf(CodeInvalid, "settable keys are integration, release, remote and human (use 'config checks' and 'config layer' for the rest)")
+			return errf(CodeInvalid, "settable keys are integration, release and remote (use 'config checks' and 'config layer' for the rest)")
 		}
 		if value == "" {
 			return errf(CodeInvalid, "%s cannot be empty", key)

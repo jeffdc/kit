@@ -97,7 +97,7 @@ func (m *Mull) Context(itemID string) (Context, error) {
 			c.Protocol = append([]string{"Writes are refused until the human migrates this repository's mull data (code migration_required): " +
 				"tell the human; mull migrate --dry-run shows what it would change, and the real run is theirs (mull migrate --on-request)."}, protocol...)
 		}
-		if name := s.config.Human; name != "" {
+		if name := m.Human(); name != "" {
 			named := []string{guide.NameRule(name)}
 			for _, line := range c.Protocol {
 				named = append(named, guide.Personal(line, name))

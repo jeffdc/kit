@@ -15,6 +15,7 @@ import (
 
 	"mull/internal/git"
 	"mull/internal/guide"
+	humanname "mull/internal/human"
 	"mull/internal/model"
 	"mull/internal/store"
 )
@@ -462,14 +463,15 @@ func (m *Mull) updateAny(msg string, fn func(s *state) error) error {
 	})
 }
 
-// Human is the name the repository's human goes by (mull config set human),
-// or "" when it isn't set or can't be read.
+// Human is the name the person using mull on this machine goes by (mull
+// name), or "" when it isn't set or can't be read. It's per machine, never
+// on the mull branch: everyone who works on a repository has their own.
 func (m *Mull) Human() string {
-	cfg, err := m.Config()
+	name, err := humanname.Name()
 	if err != nil {
 		return ""
 	}
-	return cfg.Human
+	return name
 }
 
 // personal puts mull's own text in the human's name (see guide.Personal).

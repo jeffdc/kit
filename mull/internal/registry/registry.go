@@ -12,22 +12,14 @@ import (
 	"path/filepath"
 	"strings"
 
+	"mull/internal/confdir"
 	"mull/internal/git"
 	"mull/internal/store"
 )
 
 // Dir is mull's per-machine config directory: $XDG_CONFIG_HOME/mull, or
 // ~/.config/mull (on macOS too).
-func Dir() (string, error) {
-	if x := os.Getenv("XDG_CONFIG_HOME"); filepath.IsAbs(x) {
-		return filepath.Join(x, "mull"), nil
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(home, ".config", "mull"), nil
-}
+func Dir() (string, error) { return confdir.Dir() }
 
 // File is the registry's path.
 func File() (string, error) {
