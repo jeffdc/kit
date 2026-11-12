@@ -376,8 +376,12 @@ func (m *Mull) captureItem(s *state, in NewCapture) (*model.Item, error) {
 	if plan == "" && in.Phase == "" {
 		plan = model.NoPlan // backlog needn't be tagged
 	}
+	from := in.Source
+	if from == "" && m.human != "" {
+		from = m.human + " in mull serve" // the human captured it from the page
+	}
 	return m.addItem(s, NewItem{Plan: plan, Phase: in.Phase, Title: in.Title, Notes: in.Detail,
-		kind: in.Kind, category: in.Category, source: in.Source, stage: model.StateCaptured})
+		kind: in.Kind, category: in.Category, source: from, stage: model.StateCaptured})
 }
 
 // CommitInput commits a captured item, optionally retagging its plan or

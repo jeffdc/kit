@@ -47,4 +47,6 @@ m done "$digest" --summary "A nightly digest job." --tour none --design "A cron 
 # A long title, and a captured bug for the backlog.
 m add "Drop or park a Needs you entry with a reason" --plan web
 m bug "The footer overlaps the last result on small screens" --plan web --source "demo"
+# A plan still shaping, for Agree this plan.
+m plan new pilot "Pilot with two teams" --summary "Try the web app with two teams before launch." --on-request
 echo "demo repo: $demo"

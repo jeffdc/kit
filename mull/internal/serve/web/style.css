@@ -191,6 +191,15 @@ tr.cl.cl-cont.cl-open > td::after { background-size: 12px 0, 12px 0, 7px 12px; }
 .wform-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .wform-acts .sub { font-size: 11.5px; color: var(--mut); }
 .wform .wfail { margin: 0; }
+/* Capture: a bug or idea, from under the tabs row */
+.capbar { padding: 14px clamp(16px, 2.4vw, 32px) 0; }
+.capbar .wform { margin: 0; max-width: 120ch; }
+.cap-line { display: flex; gap: 8px; align-items: stretch; }
+.cap-line .seg { flex: none; }
+.cap input[type=text] { flex: 1; min-width: 0; height: 30px; padding: 0 8px; border: 1px solid var(--ink); border-radius: 0; background: var(--ground); color: var(--ink); font: 550 14px var(--font); }
+.cap input[type=text]::placeholder { color: var(--faint); font-weight: 400; }
+.cap input[readonly] { background: var(--panel); }
+.cap-plan { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; }
 .wfail b { display: inline-block; margin-right: 8px; padding: 1px 5px; background: var(--ink); color: var(--ground); font-size: 11px; font-weight: 700; font-stretch: 72%; letter-spacing: .08em; text-transform: uppercase; }
 /* a write that edits text already there: one line (a title) or a roomy
    markdown editor that grows with its text (notes, docs) */
@@ -376,9 +385,9 @@ table.t.files code { font-size: 11.5px; overflow-wrap: anywhere; }
   background-image: linear-gradient(45deg, transparent 50%, var(--ink) 50% 62%, transparent 62%), linear-gradient(-45deg, transparent 50%, var(--ink) 50% 62%, transparent 62%);
   background-position: calc(100% - 13px) 50%, calc(100% - 9px) 50%; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; }
 .filters select:hover { background-color: var(--panel); }
-.filters input[type=checkbox] { appearance: none; width: 15px; height: 15px; margin: 0; border: 1px solid var(--ink); background: var(--ground); display: inline-grid; place-items: center; cursor: pointer; }
-.filters input[type=checkbox]::after { content: ""; width: 7px; height: 7px; background: var(--ink); transform: scale(0); transition: transform .12s ease-out; }
-.filters input[type=checkbox]:checked::after { transform: scale(1); }
+.filters input[type=checkbox], .cap-plan input[type=checkbox] { appearance: none; width: 15px; height: 15px; margin: 0; border: 1px solid var(--ink); background: var(--ground); display: inline-grid; place-items: center; cursor: pointer; }
+.filters input[type=checkbox]::after, .cap-plan input[type=checkbox]::after { content: ""; width: 7px; height: 7px; background: var(--ink); transform: scale(0); transition: transform .12s ease-out; }
+.filters input[type=checkbox]:checked::after, .cap-plan input[type=checkbox]:checked::after { transform: scale(1); }
 
 /* docs: markdown with a status margin */
 .lede { margin: 0; max-width: 120ch; font-size: 15px; }

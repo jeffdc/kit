@@ -16,11 +16,14 @@ import (
 // uiOps are the ops the UI offers. Each step of editing from the UI adds the
 // ops it needs; anything else is refused.
 var uiOps = map[string]bool{
-	"accept": true, // approve decisions
-	"decide": true, // answer a question, or decide a decision differently
-	"do":     true, // send reviewed work back
-	"drop":   true, // drop a Needs you entry
-	"park":   true, // set one aside
+	"accept":     true, // approve decisions
+	"decide":     true, // answer a question, or decide a decision differently
+	"do":         true, // send reviewed work back
+	"drop":       true, // drop a Needs you entry, or a captured item
+	"park":       true, // set one aside
+	"bug":        true, // capture something wrong
+	"idea":       true, // or a possibility
+	"plan agree": true, // agree a shaping plan
 	// close a plan, which archives it
 	"plan close": true,
 	// edit text in place: an item's title and notes (set, limited to

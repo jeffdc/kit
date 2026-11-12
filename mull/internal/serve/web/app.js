@@ -13,6 +13,7 @@ import { filterOf, clearFilter } from "./lists.js";
 import { pageModel } from "./model.js";
 import { writeState, setWrite, disarm, toggleMore, canSave, discard } from "./write.js";
 import { openSearch } from "./search.js";
+import { captureKey, draft, setDraft, keepDraft, captureOps } from "./capture.js";
 
 const state = {
   projects: null,    // GET /api/projects, once loaded
@@ -136,7 +137,7 @@ function focusKey() {
   const el = document.activeElement;
   if (!el || el === document.body) return null;
   if (el.tagName === "SUMMARY" && el.parentElement.dataset.open) return `[data-open="${CSS.escape(el.parentElement.dataset.open)}"] > summary`;
-  for (const attr of ["data-tg", "data-seen", "data-write", "data-draft", "data-form-open", "data-more", "data-copy", "data-cmd", "href"]) {
+  for (const attr of ["data-tg", "data-seen", "data-write", "data-draft", "data-form-open", "data-more", "data-cap", "data-cap-kind", "data-cap-plan", "data-capture-open", "data-copy", "data-cmd", "href"]) {
     const v = el.getAttribute(attr);
     if (v !== null) return `[${attr}="${CSS.escape(v)}"]`;
   }
@@ -146,7 +147,7 @@ function focusKey() {
 function render() {
   const r = route();
   const focus = focusKey(), inTree = treeEl.contains(document.activeElement);
-  const caret = document.activeElement?.matches?.("textarea, input[data-draft]") ? [document.activeElement.selectionStart, document.activeElement.selectionEnd] : null;
+  const caret = document.activeElement?.matches?.("textarea, input[data-draft], input[data-cap]") ? [document.activeElement.selectionStart, document.activeElement.selectionEnd] : null;
   main.innerHTML = page(r);
   main.querySelectorAll("textarea[data-grow]").forEach(grow);
   document.title = title(r);
@@ -162,7 +163,7 @@ function render() {
   if (focus) {
     const el = (inTree ? treeEl : main).querySelector(focus);
     el?.focus({ preventScroll: true });
-    if (caret && el?.matches("textarea, input[data-draft]")) el.setSelectionRange(...caret); // typing survives a live re-render
+    if (caret && el?.matches("textarea, input[data-draft], input[data-cap]")) el.setSelectionRange(...caret); // typing survives a live re-render
   }
   if (state.focusNeeds === location.hash) showNeeds();
   if (state.focusReview === location.hash) showReview();
@@ -278,7 +279,9 @@ async function write(btn) {
 }
 
 // save sends a write's ops from the revision the page shows. keep is what
-// stays of its state while it runs and if it fails (a form's draft).
+// stays of its state while it runs and if it fails (a form's draft). done
+// is what the toast says once written, or a function of the report giving
+// its HTML.
 async function save(key, pid, ops, done, keep) {
   const commit = state.data.get(pid)?.revision?.tip.commit;
   if (!commit) {
@@ -291,7 +294,8 @@ async function save(key, pid, ops, done, keep) {
   try {
     const rep = await api.ops(pid, commit, ops);
     setWrite(key, null);
-    toast(rep.ack_error ? `${esc(done)} It may still be clouded: ${esc(rep.ack_error.error)}` : esc(done));
+    const said = typeof done === "function" ? done(rep) : esc(done);
+    toast(rep.ack_error ? `${said} It may still be clouded: ${esc(rep.ack_error.error)}` : said);
   } catch (err) {
     if (err.code === "conflict") {
       setWrite(key, keep.open ? { ...keep } : null);
@@ -333,12 +337,47 @@ function submitForm(form) {
   save(key, form.dataset.pid, ops, form.dataset.done, { ...keep, open: true, draft: text });
 }
 
+// Capture: its form opens under the tabs; what's typed is its draft, kept
+// in the browser too (capture.js).
+function openCapture(pid) {
+  const key = captureKey(pid);
+  disarm(key);
+  setWrite(key, { ...draft(pid), open: true, error: "" });
+  render();
+  const input = main.querySelector('input[data-cap="title"]');
+  input?.focus();
+  input?.setSelectionRange(input.value.length, input.value.length);
+}
+
+function submitCapture(form) {
+  const pid = form.dataset.capture, key = captureKey(pid), s = draft(pid);
+  const ops = captureOps(form);
+  if (s.pending || !ops) return;
+  const kind = ops[0].op;
+  save(key, pid, ops, rep => {
+    setWrite(key, { kind, untag: s.untag, loaded: true }); // the next one starts empty, of the same kind
+    keepDraft(pid); // and the draft is gone from the browser too
+    const id = rep.results?.[0]?.id;
+    return `Captured ${kind}${id ? ` <code>${esc(id)}</code>` : ""}${ops[0].plan ? " for this plan" : ""}. It's in the backlog.`;
+  }, { ...s, open: true, error: "" });
+}
+
 document.addEventListener("submit", ev => {
   const form = ev.target.closest("form[data-form]");
   if (form) { ev.preventDefault(); submitForm(form); }
+  const cap = ev.target.closest("form[data-capture]");
+  if (cap) { ev.preventDefault(); submitCapture(cap); }
 });
 
 document.addEventListener("input", ev => {
+  const cf = ev.target.closest("[data-cap]");
+  if (cf) {
+    const pid = cf.form.dataset.capture;
+    setDraft(pid, cf.dataset.cap, cf.value);
+    const btn = cf.form.querySelector('button[type="submit"]');
+    if (btn && !draft(pid).pending) btn.disabled = !(draft(pid).title || "").trim();
+    return;
+  }
   const ta = ev.target.closest("[data-draft]");
   if (!ta) return;
   const s = writeState(ta.dataset.draft);
@@ -367,6 +406,9 @@ function setFilter(el) {
 }
 document.addEventListener("change", ev => {
   if (ev.target.matches("select[data-filter], input[data-filter]")) setFilter(ev.target);
+  // Capture on a plan's sheet: cleared, it goes to the backlog untagged.
+  const cp = ev.target.closest("input[data-cap-plan]");
+  if (cp) { setDraft(cp.form.dataset.capture, "untag", cp.checked ? "" : cp.dataset.capPlan); render(); }
 });
 
 document.addEventListener("click", ev => {
@@ -387,11 +429,24 @@ document.addEventListener("click", ev => {
     if (writeState(fo.dataset.formOpen).open) { disarm(); render(); } else openForm(fo.dataset.formOpen);
     return;
   }
-  const fc = t.closest("[data-form-close]");
+  const fc = t.closest("[data-form-close], [data-capture-close]");
   if (fc) { disarm(); render(); return; }
   const fd = t.closest("[data-form-discard]");
   if (fd) { discard(fd.dataset.formDiscard); openForm(fd.dataset.formDiscard); return; }
-  if (t.closest("form[data-form]")) return; // typing in a form, or its Save
+  const co = t.closest("[data-capture-open]");
+  if (co) {
+    ev.preventDefault();
+    if (draft(co.dataset.captureOpen).open) { disarm(); render(); } else openCapture(co.dataset.captureOpen);
+    return;
+  }
+  const ck = t.closest("[data-cap-kind]");
+  if (ck) {
+    setDraft(ck.form.dataset.capture, "kind", ck.dataset.capKind);
+    render();
+    main.querySelector('input[data-cap="title"]')?.focus();
+    return;
+  }
+  if (t.closest("form[data-form], form[data-capture]")) return; // typing in a form, or its Save
   if (disarm()) render(); // a click anywhere else cancels an armed write or closes a form
   if (t.closest("#find")) { openSearch(); return; }
   if (t.closest("#idx")) {
@@ -451,9 +506,19 @@ document.addEventListener("click", ev => {
 
 document.addEventListener("keydown", ev => {
   if (ev.key === "Escape" && disarm()) render();
-  if (ev.key === "Enter" && (ev.metaKey || ev.ctrlKey) && ev.target.matches("[data-draft]")) {
+  if (ev.key === "Enter" && (ev.metaKey || ev.ctrlKey) && ev.target.matches("[data-draft], [data-cap]")) {
     ev.preventDefault();
     ev.target.form?.requestSubmit();
+  }
+  // c opens Capture on a sheet that has it, from anywhere but a text field
+  // (and not while Find is open).
+  if (ev.key === "c" && !ev.metaKey && !ev.ctrlKey && !ev.altKey && !ev.target.closest?.("input, textarea, select, [contenteditable]") && $("search").hidden) {
+    const co = main.querySelector("[data-capture-open]");
+    if (co) {
+      ev.preventDefault();
+      if (!draft(co.dataset.captureOpen).open) openCapture(co.dataset.captureOpen);
+      else main.querySelector('input[data-cap="title"]')?.focus();
+    }
   }
 });
 

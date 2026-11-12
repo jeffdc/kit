@@ -10,6 +10,7 @@ import { schedule } from "./needs.js";
 import { renderDoc } from "./doc.js";
 import { itemTable, col, backlogBody } from "./lists.js";
 import { writeButton, editWrite } from "./write.js";
+import { captureButton, captureBar } from "./capture.js";
 
 const stamp = n => n ? ` <span class="stamp">${n} blocking</span>` : "";
 const crumbsFor = pid => [`<a href="${href.home()}">All projects</a>`, `<a href="${esc(href.project(pid))}">${esc(pid)}</a>`];
@@ -39,16 +40,18 @@ export function planSheet(pr, r, data, page, body) {
     return `<a class="${on ? "on" : ""}${cloud}" href="${esc(link)}"${on ? ' aria-current="page"' : ""}>${label}${count !== undefined ? ` <em>${esc(count)}</em>` : ""}</a>`;
   };
   const changes = data.revision?.changes.length || 0;
+  const closed = p.state === "done"; // in the Archive: capture from the project instead
   const nav = `<nav class="tabs" aria-label="Plan sections">` +
     t("status", "Status", base, st.questions ? plural(st.questions, "question") : undefined) +
     t("doc", "Plan doc", `${base}/doc`, undefined, docCloud) +
     t("backlog", "Backlog", `${base}/backlog`, `${page.backlog}${page.untriaged ? ` · ${page.untriaged} untriaged` : ""}`) +
-    `<div class="acts">${p.state === "shaping" ? `<button class="btn p" data-cmd="mull plan agree ${esc(slug)}" data-say="Agreeing a plan is yours to do.">Agree this plan</button>` : ""}` +
+    `<div class="acts">${p.state === "shaping" ? writeButton({ pid, key: `agree:${pid}:${slug}`, ops: [{ op: "plan agree", slug }], small: false,
+      label: "Agree this plan", ask: "Agree it?", done: `Agreed ${p.title}: it's active now, so it can have phases and work.` }) : ""}` +
     (p.state === "active" ? writeButton({ pid, key: `close:${pid}:${slug}`, ops: [{ op: "plan close", slug }], small: false,
       label: "Close and archive", ask: st.built < st.phases ? `Close with ${plural(st.phases - st.built, "phase")} not done?` : "Close it?",
       done: `Closed ${p.title}: it's in the Archive now.` }) : "") +
-    `<button class="btn" data-seen="${esc(pid)}"${changes ? "" : " disabled"}>Mark revision seen</button></div></nav>`;
-  return head + nav + `<div class="page">${body(tab)}</div>`;
+    `<button class="btn" data-seen="${esc(pid)}"${changes ? "" : " disabled"}>Mark revision seen</button>${closed ? "" : captureButton(pid)}</div></nav>`;
+  return head + nav + (closed ? "" : captureBar(pid, { slug, title: p.title })) + `<div class="page">${body(tab)}</div>`;
 }
 
 export function planStatus(pid, page, ch) {
