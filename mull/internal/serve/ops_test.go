@@ -304,3 +304,82 @@ func TestOpsClosePlan(t *testing.T) {
 		t.Errorf("archive = %+v", tree.Archive)
 	}
 }
+
+// The page edits text in place: a captured or committed item's title and
+// notes with set, and a plan's and a phase's doc. Set takes no other field
+// from the page.
+func TestOpsEditText(t *testing.T) {
+	dir := onMull(t)
+	gittest.Git(t, dir, "config", "user.name", "Jeff")
+	h := Handler(func() ([]string, error) { return []string{dir}, nil })
+	base := "/api/projects/" + filepath.Base(dir)
+	m, _ := mull.Open(dir)
+	if _, err := m.PlanNew("pilot", "Pilot", "", true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.PlanAgree("pilot", true); err != nil {
+		t.Fatal(err)
+	}
+	ph, err := m.PhaseAdd("pilot", "Ingest", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	it, err := m.ItemAdd(mull.NewItem{Plan: "pilot", Phase: ph.ID, Title: "Digest job"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bug := capture(t, dir, "Footer overlaps")
+	get(t, h, base+"/revision") // the baseline
+
+	notes := "## Why\n\nThe footer covers the last row on a phone.\n\n- one\n- two"
+	rec := post(t, h, base+"/ops", opsBody(t, tipOf(t, dir),
+		map[string]any{"op": "set", "id": bug, "field": "title", "value": "Footer overlaps the last row"},
+		map[string]any{"op": "set", "id": bug, "field": "notes", "value": notes},
+		map[string]any{"op": "set", "id": it.ID, "field": "notes", "value": "Daily, at 6."},
+		map[string]any{"op": "plan doc", "slug": "pilot", "doc": "# Pilot\n\nThe picture."},
+		map[string]any{"op": "phase doc", "id": ph.ID, "doc": "Ingest the feeds."}), nil)
+	if rec.Code != 200 {
+		t.Fatalf("POST ops: %d %s", rec.Code, rec.Body)
+	}
+	if v, _ := m.Show(bug); v.Item.Title != "Footer overlaps the last row" || v.Item.Notes != notes || v.Item.State != model.StateCaptured {
+		t.Errorf("captured item = %+v", v.Item)
+	}
+	if v, _ := m.Show(it.ID); v.Item.Notes != "Daily, at 6." {
+		t.Errorf("committed item = %+v", v.Item)
+	}
+	if d, _ := m.PlanDoc("pilot"); d.Doc != "# Pilot\n\nThe picture." {
+		t.Errorf("plan doc = %q", d.Doc)
+	}
+	if d, _ := m.PhaseDoc(ph.ID); d.Doc != "Ingest the feeds." {
+		t.Errorf("phase doc = %q", d.Doc)
+	}
+	// What was edited is acknowledged, so it isn't clouded as news.
+	if rev := decode[RevisionReport](t, get(t, h, base+"/revision")); len(rev.Changes) != 0 {
+		t.Errorf("clouded after editing: %+v", rev.Changes)
+	}
+
+	// Set from the page takes only an item's title and notes.
+	tip := tipOf(t, dir)
+	for _, field := range []string{"kind", "plan", "phase", "category", "doc", "summary", ""} {
+		rec := post(t, h, base+"/ops", opsBody(t, tip, map[string]any{"op": "set", "id": bug, "field": field, "value": "x"}), nil)
+		wantMullError(t, "set "+field, rec, http.StatusForbidden, mull.CodeNotAllowed)
+	}
+	if tipOf(t, dir) != tip {
+		t.Fatal("a refused set wrote")
+	}
+
+	// Notes an agent changed after the page drew them aren't overwritten;
+	// a record that didn't change since is still edited.
+	if _, err := m.Set(it.ID, "notes", "Daily, at 7."); err != nil {
+		t.Fatal(err)
+	}
+	rec = post(t, h, base+"/ops", opsBody(t, tip, map[string]any{"op": "set", "id": it.ID, "field": "notes", "value": "Hourly."}), nil)
+	wantMullError(t, "a stale edit", rec, http.StatusConflict, mull.CodeConflict)
+	if v, _ := m.Show(it.ID); v.Item.Notes != "Daily, at 7." {
+		t.Errorf("notes after a stale edit = %q", v.Item.Notes)
+	}
+	rec = post(t, h, base+"/ops", opsBody(t, tip, map[string]any{"op": "phase doc", "id": ph.ID, "doc": "Ingest the feeds daily."}), nil)
+	if rec.Code != 200 {
+		t.Errorf("an edit to a record that didn't change since: %d %s", rec.Code, rec.Body)
+	}
+}

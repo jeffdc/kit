@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 
 	"mull/internal/mull"
@@ -22,7 +23,18 @@ var uiOps = map[string]bool{
 	"park":   true, // set one aside
 	// close a plan, which archives it
 	"plan close": true,
+	// edit text in place: an item's title and notes (set, limited to
+	// uiSetFields), and a plan's or a phase's doc
+	"set":       true,
+	"plan doc":  true,
+	"phase doc": true,
 }
+
+// uiSetFields are the fields the UI sets with set: an item's title and
+// notes. (Plans and phases have a title too, which the UI doesn't edit
+// yet; no other field is let through: retagging, kinds and summaries stay
+// off the page.)
+var uiSetFields = map[string]bool{"title": true, "notes": true}
 
 // OpsReport is what POST …/ops returns: each op's result, as mull batch
 // prints it, the mull branch commit written ("" if nothing changed), and
@@ -113,12 +125,16 @@ func offered(ops []json.RawMessage) error {
 		var head struct {
 			Op        string          `json:"op"`
 			OnRequest json.RawMessage `json:"on-request"`
+			Field     string          `json:"field"`
 		}
 		if json.Unmarshal(raw, &head) != nil {
 			continue
 		}
 		if head.Op != "" && !uiOps[head.Op] {
 			return &mull.Error{Code: mull.CodeNotAllowed, Msg: "mull serve doesn't offer op " + head.Op + " (it offers: " + strings.Join(offeredOps(), ", ") + ")"}
+		}
+		if head.Op == "set" && !uiSetFields[head.Field] {
+			return &mull.Error{Code: mull.CodeNotAllowed, Msg: "mull serve sets only an item's title and notes, not " + strconv.Quote(head.Field)}
 		}
 		if head.OnRequest != nil {
 			return &mull.Error{Code: mull.CodeInvalid, Msg: "a write from mull serve is the human's own: leave out on-request, which is for an agent acting on the human's say"}
