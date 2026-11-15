@@ -288,16 +288,17 @@ async function markSeen(pid, btn) {
   }
 }
 
-// write runs a write button: the first click arms it, the second saves. It
-// sends the revision the page shows, so a page that's behind is refused
-// (a conflict) and redrawn rather than acting on what it no longer shows.
+// write runs a write button: the first click arms it, the second saves (a
+// button marked data-now saves on the first). It sends the revision the
+// page shows, so a page that's behind is refused (a conflict) and redrawn
+// rather than acting on what it no longer shows.
 let disarmTimer;
 async function write(btn) {
   const key = btn.dataset.write, pid = btn.dataset.pid, s = writeState(key);
   if (s.pending) return;
   disarm(key);
   clearTimeout(disarmTimer);
-  if (!s.armed) {
+  if (!s.armed && !("now" in btn.dataset)) {
     setWrite(key, { armed: true });
     render();
     disarmTimer = setTimeout(() => { if (disarm()) render(); }, 4000);

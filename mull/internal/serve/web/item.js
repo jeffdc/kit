@@ -109,7 +109,7 @@ function review(pid, it, page) {
     const dd = s ? null : decideDifferently(pid, d.id, "packet", waiting);
     const ak = `approve:packet:${pid}:${d.id}`;
     const act = s ? tag(s.action === "accept" ? "done" : "committed", s.action === "accept" ? "approved" : SETTLED[s.action] || s.action)
-      : `<span class="decn-acts">${writeButton({ pid, key: ak, ops: [{ op: "accept", ids: [d.id] }], label: "Approve", ask: "Approve?", done: `Approved decision ${d.id}.` })}${dd.button}</span>`;
+      : `<span class="decn-acts">${writeButton({ pid, key: ak, ops: [{ op: "accept", ids: [d.id] }], label: "Approve", ask: "Approve?", done: `Approved decision ${d.id}.`, confirm: false })}${dd.button}</span>`;
     return `<div class="decn">${copyId(d.id)}<span>${esc(d.text)}</span>${act}${d.detail ? `<span class="why">${esc(d.detail)}</span>` : ""}${s?.note && s.action !== "accept" ? `<span class="why">${esc(s.note)}</span>` : ""}${s ? "" : failure(ak, `Approving ${d.id}`)}${dd ? dd.form : ""}</div>`;
   }).join("") : `<p class="sub" style="margin:6px 0 0">None.</p>`;
   const files = (r.changes || []).map(l => {
