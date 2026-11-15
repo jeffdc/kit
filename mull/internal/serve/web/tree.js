@@ -63,13 +63,24 @@ function projectNode(pr, data) {
         meta: marks(tree.own.blocking, tree.own.needs_you, false, href.project(pid)) });
     }
     kids.push({ key: `bl:${pid}`, label: "Backlog", href: href.backlog(pid), match: within.backlog(), meta: em(`${c.backlog}${c.untriaged ? ` · ${c.untriaged} new` : ""}`) });
-    // Closed plans are archived: under Archive, collapsed, newest first.
-    if (tree.archive?.length) {
-      const inPlan = tree.archive.map(pl => within.plan(pl.slug));
+    // Closed plans and finished unplanned work are archived: under Archive,
+    // collapsed, newest first, the unplanned work in a group of its own.
+    const plans = tree.archive || [], items = tree.archived_unplanned || [];
+    if (plans.length || items.length) {
+      const inPlan = plans.map(pl => within.plan(pl.slug)), ids = new Set(items.map(it => it.id));
+      const arKids = plans.map(pl => ({ key: `pl:${pid}:${pl.slug}`, label: pl.title, href: href.plan(pid, pl.slug), match: within.plan(pl.slug), waits: true,
+        meta: em(`closed ${pl.closed.slice(0, 10)}`) }));
+      if (items.length) {
+        arKids.push({
+          key: `au:${pid}`, label: "Unplanned", waits: true, match: c => c.type === "item" && ids.has(c.id), meta: em(plural(items.length, "item")),
+          kids: items.map(it => ({ key: `it:${pid}:${it.id}`, label: it.title, code: it.id, href: href.item(pid, it.id), match: within.item(it.id), waits: true,
+            meta: em(`${stageLabel(it.state)} ${it.finished.slice(0, 10)}`) })),
+        });
+      }
+      const counts = [plans.length && plural(plans.length, "plan"), items.length && plural(items.length, "item")].filter(Boolean).join(" · ");
       kids.push({
-        key: `ar:${pid}`, label: "Archive", waits: true, match: c => inPlan.some(m => m(c)), meta: em(plural(tree.archive.length, "plan")),
-        kids: tree.archive.map(pl => ({ key: `pl:${pid}:${pl.slug}`, label: pl.title, href: href.plan(pid, pl.slug), match: within.plan(pl.slug), waits: true,
-          meta: em(`closed ${pl.closed.slice(0, 10)}`) })),
+        key: `ar:${pid}`, label: "Archive", waits: true, match: c => inPlan.some(m => m(c)) || (c.type === "item" && ids.has(c.id)), meta: em(counts),
+        kids: arKids,
       });
     }
   }
@@ -138,6 +149,10 @@ export function expandFor(route, state) {
   }
   if (kind === "plans") expanded.add(`pl:${pid}:${id}`);
   if (kind === "plans" && tree?.archive?.some(pl => pl.slug === id)) expanded.add(`ar:${pid}`);
+  if (kind === "items" && tree?.archived_unplanned?.some(it => it.id === id)) {
+    expanded.add(`ar:${pid}`);
+    expanded.add(`au:${pid}`);
+  }
   save();
 }
 

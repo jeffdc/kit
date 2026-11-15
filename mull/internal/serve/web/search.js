@@ -1,8 +1,9 @@
 // Find: s opens a command palette floating mid-screen over a scrim that
 // finds records by ID or title in every project. Up and Down move, Enter
 // (or a click) opens, Esc or a click outside closes. It searches open
-// records first; the archive (closed plans and their records) only when
-// asked, from the foot, which says how many matches it holds.
+// records first; the archive (closed plans and their records, finished
+// unplanned work and the entries on it) only when asked, from the foot,
+// which says how many matches it holds.
 
 import { esc, href, tag, copyId } from "./html.js";
 import { api } from "./api.js";

@@ -53,29 +53,53 @@ func (s *state) itemRow(i *model.Item) ItemRow {
 	return r
 }
 
-// doneShownFor is how long done and dropped work stays on the lists that
-// grow with it (the sheet index, Unplanned) after it last changed. Older
-// done work ages out of them: it's still in the record, on its phase's
-// sheet and its own.
+// doneShownFor is how long done and dropped work in a plan stays in the
+// sheet index after it last changed. Older done work ages out of it: it's
+// still in the record, on its phase's sheet and its own. Unplanned work
+// doesn't wait: once finished it's archived (see archivedUnplanned).
 const doneShownFor = 14 * 24 * time.Hour
 
-// agedOut reports whether item i has aged out of those lists: done or
-// dropped, last changed more than doneShownFor before now, and with nothing
-// open on it (an open entry keeps it listed where the entry is counted).
-func (s *state) agedOut(i *model.Item, now time.Time) bool {
-	if i.State != model.StateDone && i.State != model.StateDropped {
-		return false
-	}
-	up, ok := parseTime(i.Updated)
-	if !ok || now.Sub(up) <= doneShownFor {
-		return false
-	}
+// held reports whether something on item i is still open (or parked): an
+// entry keeps its item listed where the entry is counted, so it's never
+// hidden.
+func (s *state) held(i *model.Item) bool {
 	for _, e := range s.itemEntries(i.ID) {
 		if e.Settled == nil || e.Settled.Action == model.ActPark {
-			return false
+			return true
 		}
 	}
-	return true
+	return false
+}
+
+// archivedUnplanned reports whether item i is unplanned work in the
+// Archive: done or dropped, with nothing open on it. For unplanned work,
+// finished is archived; there's no plan to close.
+func (s *state) archivedUnplanned(i *model.Item) bool {
+	return unplanned(i) && finished(i) && !s.held(i)
+}
+
+// archived reports whether item i is in the Archive: in a closed plan, or
+// finished unplanned work.
+func (s *state) archived(i *model.Item) bool {
+	if p := s.plans[i.Plan]; p != nil && p.State == model.PlanDone {
+		return true
+	}
+	return s.archivedUnplanned(i)
+}
+
+// agedOut reports whether item i has left the lists that grow with done
+// work (the sheet index, Unplanned): archived unplanned work, or done or
+// dropped work in a plan last changed more than doneShownFor before now;
+// either way with nothing open on it.
+func (s *state) agedOut(i *model.Item, now time.Time) bool {
+	if !finished(i) || s.held(i) {
+		return false
+	}
+	if unplanned(i) {
+		return true
+	}
+	up, ok := parseTime(i.Updated)
+	return ok && now.Sub(up) > doneShownFor
 }
 
 // itemRows lists the items keep selects, by stage, then oldest first.
@@ -126,7 +150,7 @@ func unplanned(i *model.Item) bool { return i.Plan == "" && i.State != model.Sta
 
 // Counts are the project's tab counts.
 type Counts struct {
-	Unplanned  int    `json:"unplanned"` // committed items with no plan, any stage after captured, less done work aged out (as Unplanned lists them)
+	Unplanned  int    `json:"unplanned"` // committed items with no plan, any stage after captured, less archived ones (as Unplanned lists them)
 	Backlog    int    `json:"backlog"`   // captured items
 	Untriaged  int    `json:"untriaged"`
 	LastTriage string `json:"last_triage,omitempty"`
@@ -334,6 +358,9 @@ type ItemPage struct {
 	NeedsYou   NeedsYouTiers `json:"needs_you"`
 	Reports    []ReportRef   `json:"reports"` // every done attempt, oldest first
 	Review     *Review       `json:"review,omitempty"`
+	// Archived means it's in the Archive: in a closed plan, or finished
+	// unplanned work with nothing open on it.
+	Archived bool `json:"archived,omitempty"`
 }
 
 // ReportRef is one done attempt.
@@ -373,7 +400,7 @@ func (m *Mull) ItemPage(id string) (ItemPage, error) {
 		if err != nil {
 			return err
 		}
-		out = ItemPage{Item: s.itemView(i), Reports: []ReportRef{},
+		out = ItemPage{Item: s.itemView(i), Reports: []ReportRef{}, Archived: s.archived(i),
 			NeedsYou: s.needsYou(func(e *model.Entry) bool { return e.Item == id })}
 		if p := s.plans[i.Plan]; p != nil {
 			out.PlanTitle = p.Title
@@ -435,38 +462,36 @@ func (s *state) review(i *model.Item) (*Review, []ReportRef) {
 }
 
 // Unplanned is the project's unplanned work: committed items with no plan,
-// by stage, and what needs you about them. Done work that has aged out is
-// left out unless asked for, and counted.
+// by stage, and what needs you about them. Finished work is archived
+// (archivedUnplanned): left out unless asked for, and counted.
 type Unplanned struct {
 	Items    []ItemRow     `json:"items"`
 	NeedsYou NeedsYouTiers `json:"needs_you"`
-	AgedOut  int           `json:"aged_out"`        // done or dropped items left out
-	DoneDays int           `json:"done_shown_days"` // how long done work stays listed
+	Archived int           `json:"archived"` // archived items left out
 }
 
-// UnplannedPage reads the project's unplanned work; with all, done work
-// that has aged out too.
+// UnplannedPage reads the project's unplanned work; with all, the archived
+// work too.
 func (m *Mull) UnplannedPage(all bool) (Unplanned, error) {
 	var out Unplanned
-	now := m.Now()
 	err := m.view(func(s *state) error {
-		aged := 0
+		archived := 0
 		keep := func(i *model.Item) bool {
 			if !unplanned(i) {
 				return false
 			}
-			if s.agedOut(i, now) {
-				aged++
+			if s.archivedUnplanned(i) {
+				archived++
 				return all
 			}
 			return true
 		}
-		out = Unplanned{Items: s.itemRows(keep), DoneDays: int(doneShownFor / (24 * time.Hour)), NeedsYou: s.needsYou(func(e *model.Entry) bool {
+		out = Unplanned{Items: s.itemRows(keep), NeedsYou: s.needsYou(func(e *model.Entry) bool {
 			i := s.items[e.Item]
 			return i != nil && unplanned(i)
 		})}
 		if !all {
-			out.AgedOut = aged
+			out.Archived = archived
 		}
 		return nil
 	})
@@ -547,7 +572,8 @@ func (m *Mull) BacklogPage(plan string) (Backlog, error) {
 
 // Tree is the project's sheet index: every plan not done, its phases in
 // schedule order and their committed items (less done work that has aged
-// out: see agedOut), then unplanned work and the backlog, counted.
+// out: see agedOut), then unplanned work and the backlog, counted, and the
+// Archive: closed plans and finished unplanned work.
 type Tree struct {
 	Plans    []TreePlan `json:"plans"`
 	Counts   Counts     `json:"counts"`
@@ -562,6 +588,17 @@ type Tree struct {
 	// Archive is the closed plans, most recently closed first: closing a
 	// plan archives it.
 	Archive []ArchivedPlan `json:"archive"`
+	// ArchivedUnplanned is the unplanned work in the Archive (done or
+	// dropped, nothing open on it), most recently finished first.
+	ArchivedUnplanned []ArchivedItem `json:"archived_unplanned"`
+}
+
+// ArchivedItem is finished unplanned work in the tree's Archive.
+type ArchivedItem struct {
+	ID       string `json:"id"`
+	Title    string `json:"title"`
+	State    string `json:"state"`    // done or dropped
+	Finished string `json:"finished"` // when it was finished (its last change)
 }
 
 // ArchivedPlan is a closed plan in the tree's Archive.
@@ -625,13 +662,22 @@ func (m *Mull) TreePage() (Tree, error) {
 				a.Blocking++
 			}
 		}
-		out = Tree{Plans: []TreePlan{}, Counts: s.counts(now), Blocking: s.countBlocking(nil), NeedsYou: len(open), Archive: []ArchivedPlan{}}
+		out = Tree{Plans: []TreePlan{}, Counts: s.counts(now), Blocking: s.countBlocking(nil), NeedsYou: len(open),
+			Archive: []ArchivedPlan{}, ArchivedUnplanned: []ArchivedItem{}}
 		for _, slug := range sortedKeys(s.plans) {
 			if p := s.plans[slug]; p.State == model.PlanDone {
 				out.Archive = append(out.Archive, ArchivedPlan{Slug: slug, Title: p.Title, Closed: p.Updated})
 			}
 		}
 		sort.SliceStable(out.Archive, func(a, b int) bool { return out.Archive[a].Closed > out.Archive[b].Closed })
+		for _, id := range sortedKeys(s.items) {
+			if i := s.items[id]; s.archivedUnplanned(i) {
+				out.ArchivedUnplanned = append(out.ArchivedUnplanned, ArchivedItem{ID: id, Title: i.Title, State: i.State, Finished: i.Updated})
+			}
+		}
+		sort.SliceStable(out.ArchivedUnplanned, func(a, b int) bool {
+			return out.ArchivedUnplanned[a].Finished > out.ArchivedUnplanned[b].Finished
+		})
 		row := func(ir ItemRow) TreeItem {
 			listed[ir.ID] = true
 			return TreeItem{ID: ir.ID, Title: ir.Title, State: ir.State, Ready: ir.Ready}

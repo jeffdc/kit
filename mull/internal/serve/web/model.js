@@ -70,6 +70,7 @@ export function pageModel() {
     <dt>Needs you is attention only</dt><dd>Questions, reviews and decisions. Nothing else nags.</dd>
     <dt>Triage is a process</dt><dd>Run with an agent (<code>mull guide triage</code>). mull stamps when it happened; the UI shows only how much is untriaged.</dd>
     <dt>Anyone captures, you commit</dt><dd>Agents file bugs and ideas with where they came from. You decide what becomes work, and what becomes a plan.</dd>
+    <dt>Finished work is archived</dt><dd>Closing a plan archives it and everything in it. Unplanned work is archived as soon as it's done or dropped, unless something on it is still open. The Archive sits at the foot of each project in the sheet index, and Find leaves it out unless you ask.</dd>
     <dt>Revisions</dt><dd>Whatever changed since you last looked is clouded in red. What you do from a page isn't clouded. Mark revision seen clears the clouds; the last look is kept on this machine, never on the mull branch.</dd>
   </dl></section>
 

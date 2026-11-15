@@ -17,7 +17,8 @@ type Hit struct {
 	Kind  string `json:"kind,omitempty"` // an entry's kind, or a captured item's
 	State string `json:"state,omitempty"`
 	Rank  int    `json:"rank"` // lower is better: 0 the ID, 1 starts the ID, 2 starts words of the title, 3 inside it
-	// Archived means it's in the archive: a closed plan, or a record in one.
+	// Archived means it's in the archive: a closed plan, or a record in one;
+	// finished unplanned work (archivedUnplanned), or an entry on it.
 	Archived bool   `json:"archived,omitempty"`
 	at       string // last change, newest first among equal ranks
 }
@@ -47,6 +48,9 @@ func (s *state) searchDocs() []searchDoc {
 		if p := s.plans[h.Plan]; p != nil && p.State == model.PlanDone {
 			h.Archived = true
 		}
+		if i := s.items[h.Item]; i != nil && s.archivedUnplanned(i) {
+			h.Archived = true // an entry on archived unplanned work
+		}
 		out = append(out, searchDoc{hit: h, id: strings.ToLower(h.ID), title: strings.ToLower(h.Title)})
 	}
 	for _, slug := range sortedKeys(s.plans) {
@@ -59,7 +63,7 @@ func (s *state) searchDocs() []searchDoc {
 	}
 	for _, id := range sortedKeys(s.items) {
 		i := s.items[id]
-		add(Hit{Type: RecordItem, ID: id, Title: i.Title, Plan: i.Plan, Kind: i.Kind, State: i.State, at: i.Updated})
+		add(Hit{Type: RecordItem, ID: id, Title: i.Title, Plan: i.Plan, Kind: i.Kind, State: i.State, at: i.Updated, Archived: s.archivedUnplanned(i)})
 	}
 	for _, id := range sortedKeys(s.entries) {
 		e := s.entries[id]
@@ -79,8 +83,9 @@ func (s *state) searchDocs() []searchDoc {
 // appear in the title. Best first: the ID itself, then IDs it starts, then
 // titles whose words start with q's, then titles containing them; among
 // equals, the most recently changed first. At most limit hits. The archive
-// (closed plans and what's in them) is searched only with archive; without
-// it, Found counts the matches it holds.
+// (closed plans and what's in them, and finished unplanned work and the
+// entries on it) is searched only with archive; without it, Found counts
+// the matches it holds.
 func (m *Mull) Search(q string, limit int, archive bool) (Found, error) {
 	found := Found{Hits: []Hit{}}
 	words := strings.Fields(strings.ToLower(q))

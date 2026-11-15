@@ -128,13 +128,13 @@ func (s *state) index() {
 		i := s.items[id]
 		s.byPhase[i.Phase] = append(s.byPhase[i.Phase], i)
 	}
-	s.search = s.searchDocs()
 	s.byItem = map[string][]*model.Entry{}
 	for _, id := range sortedKeys(s.entries) {
 		if e := s.entries[id]; e.Item != "" {
 			s.byItem[e.Item] = append(s.byItem[e.Item], e)
 		}
 	}
+	s.search = s.searchDocs() // after byItem: whether an item is archived reads its entries
 }
 
 // itemEntries are the inbox entries on item id, in ID order.

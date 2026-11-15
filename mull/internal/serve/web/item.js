@@ -29,7 +29,7 @@ export function itemSheet(pr, data, page) {
   if (it.phase) crumbs.push(`<a href="${esc(href.phase(pid, it.phase))}">${esc(page.phase_title || it.phase)}</a>`);
   const waits = it.blocked_by?.length ? ` <small>waits for ${it.blocked_by.map(id => copyId(id)).join(", ")}</small>` : "";
   const fields = [
-    ["Stage", `${tag(itemStage(it))}${waits}`],
+    ["Stage", `${tag(itemStage(it))}${waits}${page.archived ? ` <small>in the Archive</small>` : ""}`],
     ["ID", copyId(it.id)],
     ["Kind", it.kind ? `${esc(it.kind)}${it.category ? ` <small>${esc(it.category)}</small>` : ""}` : `<span class="mut">work item</span>`],
     ["Claim", it.claim ? `<code>${esc(base(it.claim.worktree))}</code> <small>${it.claim.branch ? `${esc(it.claim.branch)} · ` : ""}since ${esc(ago(it.claim.at))}</small>` : `<span class="mut">none</span>`],
