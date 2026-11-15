@@ -220,14 +220,18 @@ setInterval(() => {
 
 // ---- actions
 
+// A toast with a link stays while the pointer is on it, so it can be
+// clicked.
 let toastTimer;
+const hideToast = () => { clearTimeout(toastTimer); toastTimer = setTimeout(() => ($("toast").hidden = true), 5000); };
 function toast(html) {
   const t = $("toast");
   t.innerHTML = html;
   t.hidden = false;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (t.hidden = true), 5000);
+  hideToast();
 }
+$("toast").addEventListener("mouseenter", () => clearTimeout(toastTimer));
+$("toast").addEventListener("mouseleave", hideToast);
 
 async function copy(text, done, fallback) {
   try {
@@ -375,7 +379,8 @@ function submitCapture(form) {
     setWrite(key, { kind, untag: s.untag, loaded: true }); // the next one starts empty, of the same kind
     keepDraft(pid); // and the draft is gone from the browser too
     const id = rep.results?.[0]?.id;
-    return `Captured ${kind}${id ? ` <code>${esc(id)}</code>` : ""}${ops[0].plan ? " for this plan" : ""}. It's in the backlog.`;
+    const bl = ops[0].plan ? `${href.plan(pid, ops[0].plan)}/backlog` : href.backlog(pid);
+    return `Captured ${kind}${id ? ` <a href="${esc(href.item(pid, id))}"><code>${esc(id)}</code></a>` : ""}${ops[0].plan ? " for this plan" : ""}. It's at the top of the <a href="${esc(bl)}">backlog</a>.`;
   }, { ...s, open: true, error: "" });
 }
 

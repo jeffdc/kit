@@ -473,8 +473,9 @@ func (m *Mull) UnplannedPage(all bool) (Unplanned, error) {
 	return out, err
 }
 
-// Backlog is the captured items, untriaged first, then by category and
-// age, with what the UI filters by.
+// Backlog is the captured items, newest first (so what was just captured
+// is at the top), untriaged ahead of triaged when captured together, with
+// what the UI filters by.
 type Backlog struct {
 	Items      []ItemRow     `json:"items"`
 	Bugs       int           `json:"bugs"`
@@ -510,10 +511,10 @@ func (m *Mull) BacklogPage(plan string) (Backlog, error) {
 		out = Backlog{Items: s.itemRows(keep), Categories: []string{}, Plans: []SummaryPlan{}}
 		sort.SliceStable(out.Items, func(a, b int) bool {
 			x, y := out.Items[a], out.Items[b]
-			if x.Untriaged != y.Untriaged {
-				return x.Untriaged
+			if x.Created != y.Created {
+				return x.Created > y.Created
 			}
-			return x.Category < y.Category
+			return x.Untriaged && !y.Untriaged
 		})
 		cats, plans := map[string]bool{}, map[string]bool{}
 		for _, r := range out.Items {
