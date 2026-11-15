@@ -149,5 +149,7 @@ export const decideDifferently = (pid, id, where, inReview = false) => textWrite
     : "What you decide instead. It replaces the agent's in the decision log.",
   done: inReview ? `Decided ${id} differently. The work goes back to an agent to take it in, then comes back for review.` : `Decided ${id} differently. It's in the decision log.` });
 
+// Approving one decision takes one click; approving several at once still
+// asks first.
 const approve = (pid, key, ids, label, ask, done) =>
-  writeButton({ pid, key, ops: [{ op: "accept", ids }], label, ask, done });
+  writeButton({ pid, key, ops: [{ op: "accept", ids }], label, ask, done, confirm: ids.length > 1 });

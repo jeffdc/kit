@@ -32,13 +32,14 @@ export const TICK = `<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden
 
 // writeButton draws a write action. key names it across renders; ops are
 // the batch lines it sends; label is what it says, ask what it says once
-// armed, and done what the toast says once written.
-export function writeButton({ pid, key, ops, label, ask, done, small = true }) {
+// armed, and done what the toast says once written. confirm false saves on
+// the first click, without arming (approving one decision: Jeff's call).
+export function writeButton({ pid, key, ops, label, ask, done, small = true, confirm = true }) {
   const s = writeState(key);
   const cls = `btn wr${small ? " s" : ""}${s.armed ? " armed" : ""}${s.pending ? " pending" : ""}`;
   const text = s.pending ? "Saving…" : s.armed ? ask : label;
-  const title = s.armed ? "Click again to save it: it can't be undone. Esc to cancel." : "Saves to mull: asks once more first.";
-  return `<button class="${cls}" data-write="${esc(key)}" data-pid="${esc(pid)}" data-ops="${esc(JSON.stringify(ops))}" data-done="${esc(done)}" title="${esc(title)}"${s.pending ? " disabled" : ""}>${TICK}${esc(text)}</button>`;
+  const title = !confirm ? "Saves to mull in one click." : s.armed ? "Click again to save it: it can't be undone. Esc to cancel." : "Saves to mull: asks once more first.";
+  return `<button class="${cls}" data-write="${esc(key)}" data-pid="${esc(pid)}" data-ops="${esc(JSON.stringify(ops))}" data-done="${esc(done)}"${confirm ? "" : ' data-now=""'} title="${esc(title)}"${s.pending ? " disabled" : ""}>${TICK}${esc(text)}</button>`;
 }
 
 // textWrite draws a write that takes text: the button that opens its form,
