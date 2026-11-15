@@ -1,0 +1,15 @@
+{
+  "tree": "bf68e5a4f84f971deb23384837ba758ce61b7a28",
+  "commit": "2adf194f09ebd26be885d1c4b263b51605b62547",
+  "at": "2026-11-15T18:44:45Z",
+  "by": "/Users/jeff/dev/kit",
+  "passed": false,
+  "results": [
+    {
+      "command": "make done-checks",
+      "exit": 2,
+      "duration_ms": 101868,
+      "tail": "# Subtest: sellers: used first, Amazon last; ISBN where the URL wants it\nok 9 - sellers: used first, Amazon last; ISBN where the URL wants it\n  ---\n  duration_ms: 0.320958\n  type: 'test'\n  ...\n1..9\n# tests 9\n# suites 0\n# pass 9\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 59.159042\n== mull\ngo vet ./...\ngo test ./...\n?   \tmull\t[no test files]\nok  \tmull/cmd\t19.103s\nok  \tmull/internal/bench\t2.310s\n?   \tmull/internal/confdir\t[no test files]\n?   \tmull/internal/git\t[no test files]\n?   \tmull/internal/gittest\t[no test files]\nok  \tmull/internal/guide\t(cached)\nok  \tmull/internal/human\t(cached)\nok  \tmull/internal/launchagent\t(cached)\nok  \tmull/internal/model\t(cached)\n--- FAIL: TestOverviewTreeAndLists (2.70s)\n    pages_test.go:453: backlog order = [{ID:f2e5 Title:Typo State:captured Ready:false Kind:bug Category:docs Source: Plan:launch Phase: PhaseTitle: Claim:\u003cnil\u003e Untriaged:true Triaged: Questions:0 Created:2026-11-15T18:45:56Z Updated:2026-11-15T18:45:56Z} {ID:bb7d Title:Footer bug State:captured Ready:false Kind:bug Category: Source: Plan: Phase: PhaseTitle: Claim:\u003cnil\u003e Untriaged:false Triaged:2026-11-15T18:45:56Z Questions:1 Created:2026-11-15T18:45:55Z Updated:2026-11-15T18:45:56Z} {ID:ca7c Title:Later idea State:captured Ready:false Kind:idea Category: Source: Plan:launch Phase:b4ff PhaseTitle:Billing Claim:\u003cnil\u003e Untriaged:true Triaged: Questions:1 Created:2026-11-15T18:45:54Z Updated:2026-11-15T18:45:54Z}] (untriaged first)\nFAIL\nFAIL\tmull/internal/mull\t100.103s\nok  \tmull/internal/registry\t(cached)\nok  \tmull/internal/seen\t(cached)\nok  \tmull/internal/serve\t13.608s\nok  \tmull/internal/store\t(cached)\n?   \tmull/scripts/bench\t[no test files]\nFAIL\nmake[1]: *** [test] Error 1\nmake: *** [done-checks] Error 2"
+    }
+  ]
+}
