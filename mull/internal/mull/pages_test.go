@@ -449,8 +449,11 @@ func TestOverviewTreeAndLists(t *testing.T) {
 	if len(bl.Items) != 3 || bl.Bugs != 2 || bl.Ideas != 1 || bl.Untriaged != 2 || bl.LastTriage == "" {
 		t.Fatalf("backlog = %+v", bl)
 	}
-	if bl.Items[2].ID != f.unplannedBug.ID {
-		t.Errorf("backlog order = %+v (untriaged first)", bl.Items)
+	for i := 1; i < len(bl.Items); i++ {
+		x, y := bl.Items[i-1], bl.Items[i]
+		if x.Created < y.Created || x.Created == y.Created && !x.Untriaged && y.Untriaged {
+			t.Errorf("backlog order = %+v (newest first, untriaged first within a moment)", bl.Items)
+		}
 	}
 	if !reflect.DeepEqual(bl.Categories, []string{"", "docs"}) || len(bl.Plans) != 1 || bl.Plans[0].Slug != "launch" {
 		t.Errorf("facets: categories %q, plans %+v", bl.Categories, bl.Plans)
