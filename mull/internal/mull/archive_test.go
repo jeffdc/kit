@@ -60,16 +60,18 @@ func TestUnplannedWorkArchives(t *testing.T) {
 		}
 	}
 
-	// Search leaves the archived work out, and the decision on it, counted.
-	found := must[Found](t)(m.Search("export", 20, false))
+	// Search's Open filter leaves out the archived work and the decision on
+	// it, and the finished work that isn't archived too: just the live work
+	// and what's open on finished work.
+	found := must[Found](t)(m.Search("export", 20, SearchOpen))
 	hits := map[string]bool{}
 	for _, h := range found.Hits {
 		hits[h.ID] = true
 	}
-	if hits[done] || hits[dropped] || hits[decision.ID] || !hits[asked] || !hits[question.ID] || !hits[parked] || !hits[open] || found.Archived != 4 {
-		t.Errorf("search export = %+v; want the live work and its entries; 4 archived (the done and dropped work, the review and the decision on it)", found)
+	if len(found.Hits) != 3 || !hits[open] || !hits[question.ID] || !hits[park.ID] || found.Open != 3 || found.Finished != 8 {
+		t.Errorf("search export = %+v; want the committed work, the open question and the parked one; 8 finished", found)
 	}
-	found = must[Found](t)(m.Search("export", 20, true))
+	found = must[Found](t)(m.Search("export", 20, SearchAll))
 	archived := map[string]bool{}
 	for _, h := range found.Hits {
 		archived[h.ID] = h.Archived

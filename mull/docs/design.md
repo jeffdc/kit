@@ -44,7 +44,7 @@ New mull is the record of a program: its plans, where they stand, and everything
 
 **Structure rules:**
 - Every phase belongs to a plan. An item belongs to a plan or to none: committed work with no plan is **unplanned** (`--plan none`), and a captured item with no plan is backlog not tagged to a plan.
-- **The Archive** is finished work, derived, never stored: a done (closed) plan and everything in it, and unplanned work that's done or dropped with no entry on it open or parked. Unplanned work has no plan to close, so finishing it archives it. `mull serve` lists the Archive at the foot of each project and leaves it out of Find unless asked; the CLI shows it as it always has. Done work in a plan that isn't done isn't archived.
+- **The Archive** is finished work, derived, never stored: a done (closed) plan and everything in it, and unplanned work that's done or dropped with no entry on it open or parked. Unplanned work has no plan to close, so finishing it archives it. `mull serve` lists the Archive at the foot of each project; the CLI shows it as it always has. Done work in a plan that isn't done isn't archived. Find (in `mull serve`) doesn't tell the two apart: its status filter has Open (live work) and Finished, which is done, dropped and settled records and the whole Archive alike.
 - An item in a plan may sit directly under it with no phase. The view shows those as "(no phase)" in that plan.
 - Before Model v2, `mull init` created one standing plan, `general`, for work outside any big effort. Model v2 has unplanned work instead, and `mull migrate` retires `general`.
 - No docket, no sessions, no free-floating phases.
