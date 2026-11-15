@@ -1,7 +1,7 @@
 // Find: s opens a command palette floating mid-screen over a scrim that
 // finds records by ID or title. Up and Down move, Enter (or a click) opens,
 // Esc or a click outside closes. On a project's sheet it searches that
-// project (⌥P switches to every project and back); elsewhere, every
+// project (→ picks every project, ← the project again); elsewhere, every
 // project. Tab (Shift+Tab back) cycles the status filter: Open (live
 // work), Finished (done, dropped, settled or archived) and All. The foot
 // says how many matches the filter left out, so nothing seems missing.
@@ -49,11 +49,11 @@ function row(h, i) {
 
 // opts draws the filters in the head: the status, and the scope when Find
 // opened on a project's sheet. Their buttons stay out of the tab order:
-// Tab cycles the status and ⌥P the scope, and focus stays in the input.
+// Tab cycles the status and ← → pick the scope, and focus stays in the input.
 function opts() {
   const btn = (attr, v, label, on) => `<button type="button" ${attr}="${esc(v)}" aria-pressed="${on}" tabindex="-1">${esc(label)}</button>`;
   const st = `<span class="seg" role="group" aria-label="Status (Tab)" title="Tab cycles, Shift+Tab goes back">${STATUSES.map(([v, label]) => btn("data-find-status", v, label, status === v)).join("")}</span>`;
-  const sc = home ? `<span class="seg" role="group" aria-label="Scope (⌥P)" title="⌥P switches">${btn("data-find-scope", "project", home, scoped)}${btn("data-find-scope", "every", "Every project", !scoped)}</span>` : "";
+  const sc = home ? `<span class="seg" role="group" aria-label="Scope (← →)" title="← this project · → every project">${btn("data-find-scope", "project", home, scoped)}${btn("data-find-scope", "every", "Every project", !scoped)}</span>` : "";
   band.querySelector(".opts").innerHTML = st + sc;
 }
 
@@ -70,7 +70,7 @@ function draw(q) {
 
 // foot gives the keys, and how many matches the status filter left out.
 function foot(q) {
-  const keys = ["↑↓ move", "Enter opens", "Tab status", home ? "⌥P scope" : "every project", "Esc closes"].join(" · ");
+  const keys = ["↑↓ move", "Enter opens", "Tab status", home ? "←→ scope" : "every project", "Esc closes"].join(" · ");
   const left = !q.trim() ? 0 : status === "open" ? counts.finished : status === "finished" ? counts.open : 0;
   const more = left ? `<span class="more">${left} more ${status === "open" ? "finished" : "open"}</span>` : "";
   band.querySelector(".keys").innerHTML = `<span>${keys}</span>${more}`;
@@ -136,9 +136,13 @@ export function openSearch() {
       ev.preventDefault();
       if (ev.target === input) cycle(ev.shiftKey);
       else input.focus();
-    } else if (ev.altKey && !ev.metaKey && !ev.ctrlKey && ev.code === "KeyP") {
-      ev.preventDefault(); // not π
-      if (home) { scoped = !scoped; refilter(); }
+    } else if (home && ev.target === input && (ev.key === "ArrowLeft" || ev.key === "ArrowRight") && !ev.altKey && !ev.metaKey && !ev.ctrlKey && !ev.shiftKey) {
+      // Plain ← and → pick the scope, laid out as the control is: the
+      // project on the left, every project on the right. With ⌥ or ⌘ (or
+      // Shift, to select) they still move the caret.
+      ev.preventDefault();
+      const want = ev.key === "ArrowLeft";
+      if (scoped !== want) { scoped = want; refilter(); }
     } else if (ev.target !== input) {
       if (ev.key === "Escape") { ev.preventDefault(); closeSearch(); }
     } else if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
