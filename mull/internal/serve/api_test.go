@@ -30,6 +30,9 @@ func TestAPIPages(t *testing.T) {
 	ok(m.Capture(mull.CaptureInput{Kind: model.KindQuestion, Text: "Which processor?", Item: item.ID}))
 	ok(m.CaptureItem(mull.NewCapture{Kind: model.ItemBug, Title: "Footer", Plan: "launch"}))
 	ok(m.ItemAdd(mull.NewItem{Plan: model.NoPlan, Title: "Unplanned fix"}))
+	dropped, err := m.ItemAdd(mull.NewItem{Plan: model.NoPlan, Title: "Unplanned fix, not needed"})
+	ok(dropped, err)
+	ok(m.Drop([]string{dropped.ID}, "not needed", mull.SettleOpts{OnRequest: true}))
 
 	gone := filepath.Join(t.TempDir(), "gone")
 	repos := []string{dir, gone}
@@ -74,8 +77,32 @@ func TestAPIPages(t *testing.T) {
 	}
 	var un mull.Unplanned
 	decode("/api/projects/"+id+"/unplanned", &un)
-	if len(un.Items) != 1 {
+	if len(un.Items) != 1 || un.Archived != 1 {
 		t.Errorf("unplanned = %+v", un)
+	}
+	// Finished unplanned work is archived: the wire shape of Unplanned's
+	// count, the tree's Archive and the item's sheet.
+	var raw struct {
+		Archived          int `json:"archived"`
+		ArchivedUnplanned []struct {
+			ID, Title, State, Finished string
+		} `json:"archived_unplanned"`
+	}
+	decode("/api/projects/"+id+"/unplanned", &raw)
+	decode("/api/projects/"+id+"/tree", &raw)
+	if a := raw.ArchivedUnplanned; raw.Archived != 1 || len(a) != 1 || a[0].ID != dropped.ID || a[0].State != model.StateDropped || a[0].Finished == "" {
+		t.Errorf("archived = %d, archived_unplanned = %+v", raw.Archived, a)
+	}
+	var sheet struct {
+		Archived bool `json:"archived"`
+	}
+	decode("/api/projects/"+id+"/items/"+dropped.ID, &sheet)
+	if !sheet.Archived {
+		t.Errorf("the dropped unplanned item's sheet isn't archived")
+	}
+	decode("/api/projects/"+id+"/unplanned?done=all", &un)
+	if len(un.Items) != 2 || un.Archived != 0 {
+		t.Errorf("unplanned with done=all = %+v", un)
 	}
 	var bl mull.Backlog
 	decode("/api/projects/"+id+"/backlog", &bl)

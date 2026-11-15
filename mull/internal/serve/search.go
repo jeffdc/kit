@@ -27,8 +27,9 @@ type SearchResult struct {
 const searchLimit = 30
 
 // registerSearch adds GET /api/search?q=: records whose ID or title matches
-// q, in every project mull serve reads; with archive=1, closed plans and
-// their records too. A project that can't be read is left out.
+// q, in every project mull serve reads; with archive=1, the archive too
+// (closed plans and their records, finished unplanned work and the entries
+// on it). A project that can't be read is left out.
 func registerSearch(mux *http.ServeMux, repos Repos) {
 	mux.HandleFunc("GET /api/search", func(w http.ResponseWriter, r *http.Request) {
 		q, archive := r.URL.Query().Get("q"), r.URL.Query().Get("archive") == "1"

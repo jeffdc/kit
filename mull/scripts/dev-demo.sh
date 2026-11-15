@@ -47,6 +47,15 @@ m done "$digest" --summary "A nightly digest job." --tour none --design "A cron 
 # A long title, and a captured bug for the backlog.
 m add "Drop or park a Needs you entry with a reason" --plan web
 m bug "The footer overlaps the last result on small screens" --plan web --source "demo"
+# Unplanned work: one open, and two finished (done, and dropped), which are
+# archived at once, under the sheet index's Archive.
+m add "Fix the login redirect" --plan none
+fav=$(id add "Add a favicon" --plan none)
+m start "$fav"
+m done "$fav" --summary "A favicon." --tour none --design "An SVG in the page head."
+m accept "$fav" --on-request
+old=$(id add "Rename the settings page" --plan none)
+m drop "$old" --reason "Not needed after all" --on-request
 # A plan still shaping, for Agree this plan.
 m plan new pilot "Pilot with two teams" --summary "Try the web app with two teams before launch." --on-request
 echo "demo repo: $demo"
