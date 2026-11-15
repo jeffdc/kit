@@ -5,6 +5,12 @@ plan: ""
 item: f7ca
 by: /Users/jeff/dev/kit/.claude/worktrees/agent-ae1ab27c30f2363f1
 created: "2026-11-15T19:09:36Z"
+settled:
+  action: accept
+  note: with review 420d
+  by: Jeff
+  human: true
+  at: "2026-11-15T20:04:58Z"
 ---
 
 So the hits' copy-ID buttons are now pointer-only in Find (an idea is captured for a key to copy the selected hit's ID)

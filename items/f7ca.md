@@ -1,6 +1,6 @@
 ---
 title: Search Needs to be Smarter
-stage: in-review
+stage: done
 kind: idea
 source: Jeff in mull serve
 claim:
@@ -9,7 +9,7 @@ claim:
   at: "2026-11-15T19:30:00Z"
   base: 3d11f51ad207dfb24f1dc493b02e9b63f214d5e7
 created: "2026-11-15T18:31:15Z"
-updated: "2026-11-15T19:31:03Z"
+updated: "2026-11-15T20:04:58Z"
 ---
 
 If I am in a project, then Search should default to only showing results for that project. A quick way to rotate through a filter on status (open, done, archived) is needed. In many ways I question do we need both done and archived status.
