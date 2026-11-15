@@ -5,7 +5,7 @@
 // (write.js); starting an item, which hands it to an agent, copies the mull
 // command.
 
-import { esc, href, tag, itemStage, shortTitle, plural, clock, ago, base, copyId } from "./html.js";
+import { esc, href, tag, itemStage, shortTitle, plural, clock, ago, base, copyId, day } from "./html.js";
 import { titleBlock } from "./title.js";
 import { schedule, decideDifferently } from "./needs.js";
 import { markdown } from "./doc.js";
@@ -32,7 +32,7 @@ export function itemSheet(pr, data, page) {
     ["Stage", `${tag(itemStage(it))}${waits}${page.archived ? ` <small>in the Archive</small>` : ""}`],
     ["ID", copyId(it.id)],
     ["Kind", it.kind ? `${esc(it.kind)}${it.category ? ` <small>${esc(it.category)}</small>` : ""}` : `<span class="mut">work item</span>`],
-    ["Claim", it.claim ? `<code>${esc(base(it.claim.worktree))}</code> <small>${it.claim.branch ? `${esc(it.claim.branch)} · ` : ""}since ${esc(ago(it.claim.at))}</small>` : `<span class="mut">none</span>`],
+    claimField(it),
     ["From", it.source ? `<small>${esc(it.source)}</small>` : `<span class="mut">${it.state === "captured" ? "not given" : "planning"}</span>`],
     ["Git", gitField(g)],
   ];
@@ -59,6 +59,18 @@ export function itemSheet(pr, data, page) {
   const notes = `<section><div class="hd ed"><h2>Notes</h2><span class="lab">The brief an agent works from</span>${editNotes.button}</div>
     ${editNotes.form || `<div class="prose notes">${it.notes ? markdown(it.notes, pid) : `<p class="ph-empty">${it.state === "captured" ? "One line is enough to capture. Write more here whenever you like, or leave it to the agent who starts it." : "No notes."}</p>`}</div>`}${docs}</section>`;
   return head + `<div class="page">${acts}${ny}${page.review ? review(pid, it, page) : ""}${notes}</div>`;
+}
+
+// claimField: who holds the item while it's active; once the work is in
+// review, done or dropped, the claim stays on the record (its done report
+// is measured from it) but no one holds it, so it reads as where the work
+// was done.
+function claimField(it) {
+  const c = it.claim;
+  if (!c) return ["Claim", `<span class="mut">none</span>`];
+  const where = `<code>${esc(base(c.worktree))}</code>`, branch = c.branch ? `${esc(c.branch)} · ` : "";
+  if (it.state === "active") return ["Claim", `${where} <small>${branch}since ${esc(ago(c.at))}</small>`];
+  return ["Worked in", `${where} <small>${branch}from ${esc(day(c.at))}</small>`];
 }
 
 function gitField(g) {

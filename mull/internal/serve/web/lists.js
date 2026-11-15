@@ -11,7 +11,8 @@ export const col = {
   id: () => ["ID", it => copyId(it.id), "", "width:70px"],
   title: (pid, label = "Item") => [label, it => {
     const link = href.item(pid, it.id);
-    const claim = it.claim ? `<span class="meta">${esc(base(it.claim.worktree))}${it.claim.branch ? ` · ${esc(it.claim.branch)}` : ""} · since ${esc(ago(it.claim.at))}</span>` : "";
+    // Only a live claim: once the work is in review or finished, no one holds it.
+    const claim = it.claim && it.state === "active" ? `<span class="meta">${esc(base(it.claim.worktree))}${it.claim.branch ? ` · ${esc(it.claim.branch)}` : ""} · since ${esc(ago(it.claim.at))}</span>` : "";
     const qs = it.questions ? ` <span class="mut">· ${it.questions} open question${it.questions > 1 ? "s" : ""}</span>` : "";
     return `<a class="ttl" href="${esc(link)}">${esc(it.title)}</a>${it.untriaged ? ` <span class="tag">untriaged</span>` : ""}${qs}${claim}`;
   }],
