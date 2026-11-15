@@ -13,21 +13,34 @@ type Hit struct {
 	ID    string `json:"id"`   // a plan's slug, or the record's ID
 	Title string `json:"title"`
 	Plan  string `json:"plan,omitempty"`
-	Item  string `json:"item,omitempty"` // an entry's item
-	Kind  string `json:"kind,omitempty"` // an entry's kind, or a captured item's
-	State string `json:"state,omitempty"`
-	Rank  int    `json:"rank"` // lower is better: 0 the ID, 1 starts the ID, 2 starts words of the title, 3 inside it
+	Item  string `json:"item,omitempty"`  // an entry's item
+	Kind  string `json:"kind,omitempty"`  // an entry's kind, or a captured item's
+	State string `json:"state,omitempty"` // an item's stage, a plan's state, a phase's (done, now, waits), an entry's settle action or "open"
+	Rank  int    `json:"rank"`            // lower is better: 0 the ID, 1 starts the ID, 2 starts words of the title, 3 inside it
 	// Archived means it's in the archive: a closed plan, or a record in one;
 	// finished unplanned work (archivedUnplanned), or an entry on it.
-	Archived bool   `json:"archived,omitempty"`
+	Archived bool `json:"archived,omitempty"`
+	// Finished means it isn't live work: it's archived, or a done or
+	// dropped item, a done phase or plan, or an entry settled other than by
+	// parking (a parked entry still waits for the human).
+	Finished bool   `json:"finished,omitempty"`
 	at       string // last change, newest first among equal ranks
 }
 
-// Found is what Search found: the hits, and how many more matches the
-// archive holds when it wasn't searched.
+// What Search looks through, by status: open records (live work), finished
+// ones (Hit.Finished), or both.
+const (
+	SearchOpen     = "open"
+	SearchFinished = "finished"
+	SearchAll      = "all"
+)
+
+// Found is what Search found: the hits, and how many records match in each
+// status, the limit aside, so a page can say what its filter left out.
 type Found struct {
 	Hits     []Hit `json:"hits"`
-	Archived int   `json:"archived"` // matches in the archive left out
+	Open     int   `json:"open"`     // every open record that matches
+	Finished int   `json:"finished"` // every finished record that matches
 }
 
 // searchDoc is one record as search reads it: its hit, and the ID and title
@@ -51,25 +64,28 @@ func (s *state) searchDocs() []searchDoc {
 		if i := s.items[h.Item]; i != nil && s.archivedUnplanned(i) {
 			h.Archived = true // an entry on archived unplanned work
 		}
+		h.Finished = h.Finished || h.Archived
 		out = append(out, searchDoc{hit: h, id: strings.ToLower(h.ID), title: strings.ToLower(h.Title)})
 	}
 	for _, slug := range sortedKeys(s.plans) {
 		p := s.plans[slug]
-		add(Hit{Type: RecordPlan, ID: slug, Title: p.Title, Plan: slug, State: p.State, at: p.Updated})
+		add(Hit{Type: RecordPlan, ID: slug, Title: p.Title, Plan: slug, State: p.State, at: p.Updated, Finished: p.State == model.PlanDone})
 	}
 	for _, id := range sortedKeys(s.phases) {
 		p := s.phases[id]
-		add(Hit{Type: RecordPhase, ID: id, Title: p.Title, Plan: p.Plan, at: p.Updated})
+		st := s.phaseState(p)
+		add(Hit{Type: RecordPhase, ID: id, Title: p.Title, Plan: p.Plan, State: st, at: p.Updated, Finished: st == PhaseDone})
 	}
 	for _, id := range sortedKeys(s.items) {
 		i := s.items[id]
-		add(Hit{Type: RecordItem, ID: id, Title: i.Title, Plan: i.Plan, Kind: i.Kind, State: i.State, at: i.Updated, Archived: s.archivedUnplanned(i)})
+		add(Hit{Type: RecordItem, ID: id, Title: i.Title, Plan: i.Plan, Kind: i.Kind, State: i.State, at: i.Updated, Archived: s.archivedUnplanned(i), Finished: finished(i)})
 	}
 	for _, id := range sortedKeys(s.entries) {
 		e := s.entries[id]
 		h := Hit{Type: RecordEntry, ID: id, Title: e.Text, Plan: e.Plan, Item: e.Item, Kind: e.Kind, State: "open", at: e.Created}
 		if e.Settled != nil {
 			h.State, h.at = e.Settled.Action, later(e.Created, e.Settled.At)
+			h.Finished = e.Settled.Action != model.ActPark
 		}
 		if i := s.items[e.Item]; i != nil && h.Plan == "" {
 			h.Plan = i.Plan
@@ -82,12 +98,19 @@ func (s *state) searchDocs() []searchDoc {
 // Search finds records by ID or title: every word of q must start the ID or
 // appear in the title. Best first: the ID itself, then IDs it starts, then
 // titles whose words start with q's, then titles containing them; among
-// equals, the most recently changed first. At most limit hits. The archive
-// (closed plans and what's in them, and finished unplanned work and the
-// entries on it) is searched only with archive; without it, Found counts
-// the matches it holds.
-func (m *Mull) Search(q string, limit int, archive bool) (Found, error) {
+// equals, the most recently changed first. At most limit hits. status
+// picks the records: SearchOpen (live work; "" means it too),
+// SearchFinished (done, dropped, settled or archived: Hit.Finished) or
+// SearchAll. Found counts every match in each status either way.
+func (m *Mull) Search(q string, limit int, status string) (Found, error) {
 	found := Found{Hits: []Hit{}}
+	switch status {
+	case "":
+		status = SearchOpen
+	case SearchOpen, SearchFinished, SearchAll:
+	default:
+		return found, errf(CodeInvalid, "no search status %q: open, finished or all", status)
+	}
 	words := strings.Fields(strings.ToLower(q))
 	if len(words) == 0 || limit <= 0 {
 		return found, nil
@@ -99,8 +122,12 @@ func (m *Mull) Search(q string, limit int, archive bool) (Found, error) {
 			if !ok {
 				continue
 			}
-			if d.hit.Archived && !archive {
-				found.Archived++
+			if d.hit.Finished {
+				found.Finished++
+			} else {
+				found.Open++
+			}
+			if status == SearchOpen && d.hit.Finished || status == SearchFinished && !d.hit.Finished {
 				continue
 			}
 			h := d.hit

@@ -47,8 +47,15 @@ func TestDoneWorkAgesOut(t *testing.T) {
 		t.Errorf("the phase sheet lists %v; want every item", got)
 	}
 	// Done work in an open plan isn't archived, however old.
-	if found := must[Found](t)(m.Search("billing", 10, false)); len(found.Hits) != 5 || found.Archived != 0 {
-		t.Errorf("search billing = %+v; want the phase, its done items and their reviews, none archived", found)
+	// It's finished, though, so Find's Open filter leaves it out.
+	found := must[Found](t)(m.Search("billing", 10, SearchAll))
+	if len(found.Hits) != 5 || found.Open != 0 || found.Finished != 5 {
+		t.Errorf("search billing = %+v; want the phase, its done items and their reviews, all finished", found)
+	}
+	for _, h := range found.Hits {
+		if h.Archived || !h.Finished {
+			t.Errorf("hit %+v; want finished, not archived", h)
+		}
 	}
 }
 

@@ -12,7 +12,7 @@ import { pageHome, projectSheet, subsFor, pageNotFound, pageUnreadable } from ".
 import { filterOf, clearFilter } from "./lists.js";
 import { pageModel } from "./model.js";
 import { writeState, setWrite, disarm, toggleMore, canSave, discard } from "./write.js";
-import { openSearch } from "./search.js";
+import { openSearch, findScope } from "./search.js";
 import { captureKey, draft, setDraft, keepDraft, captureOps } from "./capture.js";
 
 const state = {
@@ -62,6 +62,13 @@ function coalesce(key, fn) {
 }
 
 const readable = id => (state.projects || []).some(p => p.id === id && !p.error);
+
+// Find searches the project whose sheet is showing; off a project (the
+// project list, the model), every project.
+findScope(() => {
+  const { pid } = route();
+  return pid && pid !== "-" && readable(pid) ? pid : null;
+});
 
 function loadList() {
   return coalesce("list", async () => {

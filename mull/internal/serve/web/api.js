@@ -32,9 +32,10 @@ export const api = {
   // overview.
   page: (id, sub) => call(sub ? `${p(id)}/${sub}` : p(id)),
   tree: id => call(`${p(id)}/tree`),
-  // search finds records by ID or title in every project.
-  // archive: closed plans and their records too.
-  search: (q, archive = false) => call(`/api/search?q=${encodeURIComponent(q)}${archive ? "&archive=1" : ""}`),
+  // search finds records by ID or title: status is open, finished or all,
+  // and project (an ID) searches just that one, else every project.
+  search: (q, status = "open", project = "") =>
+    call(`/api/search?q=${encodeURIComponent(q)}&status=${encodeURIComponent(status)}${project ? `&project=${encodeURIComponent(project)}` : ""}`),
   revision: id => call(`${p(id)}/revision`),
   // seen marks the revision the page showed as seen; changes after it stay
   // new.
