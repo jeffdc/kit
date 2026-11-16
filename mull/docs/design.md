@@ -48,6 +48,7 @@ New mull is the record of a program: its plans, where they stand, and everything
 - An item in a plan may sit directly under it with no phase. The view shows those as "(no phase)" in that plan.
 - Before Model v2, `mull init` created one standing plan, `general`, for work outside any big effort. Model v2 has unplanned work instead, and `mull migrate` retires `general`.
 - No docket, no sessions, no free-floating phases.
+- **A phase no longer needed is deleted** (`mull phase delete <id>`, the human's call), not dropped: only one with no committed work in any stage, so nothing done is lost, and the mull branch's history keeps it. Captured items tagged to it move up to its plan, and other phases' needs on it are removed. A phase whose items are all done or dropped is complete, not unneeded, and stays.
 
 **Plan states** (Model v2): `shaping → active → done`.
 - `mull plan new` creates a plan `shaping`, and only on your explicit ask (`--on-request`): its doc and questions are being worked out with you. It takes captures and inbox entries, but refuses phases and committed items (and starting a capture tagged to it) until you agree it.
@@ -361,7 +362,7 @@ The ops are every write except `init`, `sync`, `migrate`, `check` and `done`.
 |---|---|
 | Setup | `mull init [--integration b] [--release b]` · `mull config [set\|checks\|layer …]` · `mull sync [--dry-run]` · `mull migrate [--dry-run] [--text] [--on-request]` |
 | Plans (you) | `mull plan new <slug> "title" [--summary -] --on-request` · `plan agree <slug> --on-request` · `plan list` · `plan show <slug>` · `plan doc <slug> [-] [--log]` · `plan close <slug>` |
-| Phases | `mull phase add "title" --plan <slug> [--needs …] [--summary -]` · `phase list [--plan]` · `phase doc <id> [-] [--log]` · `show <id>` |
+| Phases | `mull phase add "title" --plan <slug> [--needs …] [--summary -]` · `phase list [--plan]` · `phase doc <id> [-] [--log]` · `phase delete <id> --on-request` · `show <id>` |
 | Items | `mull add "title" (--plan <slug> \| --phase <id> \| --plan none) [--notes -] [--doc path]` · `show` · `list [--plan] [--phase] [--state] [--kind] [--untriaged]` · `set` · `drop` |
 | Dependencies | `mull need <phase> <phase…>` · `mull unneed <phase> <phase…>` · `mull ready [--plan]` |
 | Work (agents) | `mull start <id>` · `release <id>` · `check` (run the hard checks, cache the result) · `done <id> --summary "…" --tour "…" --design -` |

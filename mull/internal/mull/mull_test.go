@@ -222,6 +222,63 @@ func TestPhaseNeeds(t *testing.T) {
 	}
 }
 
+func TestPhaseDelete(t *testing.T) {
+	m, _ := setup(t)
+	gone := must[*model.Phase](t)(m.PhaseAdd("general", "Existing sources", "", nil))
+	later := must[*model.Phase](t)(m.PhaseAdd("general", "Later", "", []string{gone.ID}))
+	must[DocResult](t)(m.SetPhaseDoc(gone.ID, "Merged into Later."))
+	idea := must[ItemView](t)(m.CaptureItem(NewCapture{Kind: model.ItemIdea, Title: "Maybe", Phase: gone.ID}))
+
+	// Only the human deletes a phase.
+	_, err := m.PhaseDelete(gone.ID, false)
+	wantCode(t, err, CodeNotAllowed)
+	_, err = m.PhaseDelete("ffff", true)
+	wantCode(t, err, CodeNotFound)
+
+	// A phase holding committed work, in any stage, isn't deleted.
+	x := must[ItemView](t)(m.ItemAdd(NewItem{Phase: gone.ID, Title: "x"}))
+	_, err = m.PhaseDelete(gone.ID, true)
+	wantCode(t, err, CodeState)
+	wantErr(t, err, x.ID+" (committed)")
+	must[DropResult](t)(m.Drop([]string{x.ID}, "not needed", SettleOpts{}))
+	_, err = m.PhaseDelete(gone.ID, true)
+	wantErr(t, err, x.ID+" (dropped)")
+	must[SetResult](t)(m.Set(x.ID, "phase", later.ID))
+
+	res := must[PhaseDeleteResult](t)(m.PhaseDelete(gone.ID, true))
+	if res.Phase == nil || res.Phase.ID != gone.ID ||
+		strings.Join(res.Untagged, ",") != idea.ID || strings.Join(res.Unneeded, ",") != later.ID {
+		t.Fatalf("delete = %+v", res)
+	}
+	_, err = m.Show(gone.ID)
+	wantCode(t, err, CodeNotFound)
+	if v := item(t, m, idea.ID); v.Phase != "" || v.Plan != "general" {
+		t.Fatalf("captured item = plan %q phase %q, want general and no phase", v.Plan, v.Phase)
+	}
+	if sh := must[Shown](t)(m.Show(later.ID)); len(sh.Phase.Needs) != 0 {
+		t.Fatalf("later still needs %v", sh.Phase.Needs)
+	}
+	err = m.view(func(s *state) error {
+		for _, p := range []string{model.PhasePath(gone.ID), model.PhaseDocPath(gone.ID)} {
+			if _, ok := s.tx.Get(p); ok {
+				t.Errorf("%s is still on the branch", p)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The batch op does the same.
+	empty := must[*model.Phase](t)(m.PhaseAdd("general", "Empty", "", nil))
+	_, err = m.Exec("phase delete", &PhaseDeleteIn{ID: empty.ID})
+	wantCode(t, err, CodeNotAllowed)
+	must[any](t)(m.Exec("phase delete", &PhaseDeleteIn{ID: empty.ID, OnRequest: true}))
+	_, err = m.Show(empty.ID)
+	wantCode(t, err, CodeNotFound)
+}
+
 func TestNeedsBetweenPhasesOnly(t *testing.T) {
 	m, _ := setup(t)
 	p1 := must[*model.Phase](t)(m.PhaseAdd("general", "Phase 1", "", nil))

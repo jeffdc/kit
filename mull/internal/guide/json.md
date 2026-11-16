@@ -90,6 +90,7 @@ Times are RFC 3339 in UTC. IDs are 4 hex characters; plans use their slug.
 | `plan list` | `{plans: [Plan + {progress}]}` |
 | `plan show` | Plan + `{progress, phases: [PhaseView], items: [ItemView]}` |
 | `phase add` | Phase |
+| `phase delete` | `{phase, untagged, unneeded}`: `phase` is the deleted Phase as it was, `untagged` the captured items moved up to its plan and `unneeded` the phases whose need on it was removed. Only a phase with no committed work in any stage (committed, active, in review, done or dropped) can be deleted: otherwise `invalid_state`, naming the items. Only the human deletes a phase (`not_allowed` without `--on-request`). Its record and doc are removed from the mull branch, whose history still has them |
 | `phase list` | `{phases: [PhaseView]}` |
 | `plan doc`, `phase doc` | `{type: "plan"\|"phase", id, doc}`: `id` is the plan's slug or the phase's ID, and `doc` is `""` when there is none. `<slug\|id> -` replaces the doc from stdin, and empty stdin removes it. `--text` prints the doc as markdown. `--log` prints `{type, id, versions: [{commit, at, doc}]}`, newest first: one version per commit that changed the doc, `doc` `""` where it was removed |
 | `add`, `release`, `bug`, `idea`, `commit` | ItemView |
@@ -179,6 +180,7 @@ An unknown project, plan, phase or item is 404 `not_found`; a registered project
 | `plan doc` | `slug`, `doc` (required: the whole new doc; `""` removes it) |
 | `phase add` | `title`, `plan`, `summary`, `needs` |
 | `phase doc` | `id`, `doc` (required: the whole new doc; `""` removes it) |
+| `phase delete` | `id`, `on-request` |
 | `add` | `title`, `plan` (optional with `phase`; `none` for unplanned work), `phase`, `notes`, `doc` |
 | `set` | `id`, `field`, `value` |
 | `need`, `unneed` | `id` (a phase), `needs` (phases) |

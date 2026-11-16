@@ -82,6 +82,7 @@ var ops = map[string]opDef{
 	"plan doc":      {func() Input { return &PlanDocIn{} }, "slug, doc"},
 	"phase add":     {func() Input { return &PhaseAddIn{} }, "title, plan, summary, needs"},
 	"phase doc":     {func() Input { return &PhaseDocIn{} }, "id, doc"},
+	"phase delete":  {func() Input { return &PhaseDeleteIn{} }, "id, on-request"},
 	"add":           {func() Input { return &AddIn{} }, "title, plan, phase, notes, doc"},
 	"set":           {func() Input { return &SetIn{} }, "id, field, value"},
 	"need":          {func() Input { return &NeedIn{add: true} }, "id, needs"},
@@ -196,6 +197,17 @@ func (in *PhaseAddIn) run(m *Mull, s *state) (any, string, error) {
 		return nil, "", err
 	}
 	return e, e.ID, nil
+}
+
+type PhaseDeleteIn struct {
+	ID        string `json:"id"`
+	OnRequest bool   `json:"on-request"`
+}
+
+func (in *PhaseDeleteIn) refFields() ([]*string, []*IDList) { return []*string{&in.ID}, nil }
+func (in *PhaseDeleteIn) run(m *Mull, s *state) (any, string, error) {
+	r, err := m.phaseDelete(s, in.ID, in.OnRequest)
+	return r, "", err
 }
 
 // PlanDocIn replaces a plan's doc. Doc is required ("" removes the doc), so
