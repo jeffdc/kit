@@ -380,7 +380,18 @@ func phaseCmd(a *app) *cobra.Command {
 		func(m *mull.Mull, id string) (mull.DocResult, error) { return m.PhaseDoc(id) },
 		func(m *mull.Mull, id string) (mull.DocLog, error) { return m.PhaseDocLog(id) },
 		func(ref, doc string) mull.Input { return &mull.PhaseDocIn{ID: ref, Doc: &doc} })
-	c.AddCommand(add, list, doc)
+	var del mull.PhaseDeleteIn
+	deleteCmd := &cobra.Command{
+		Use:   "delete <id>",
+		Short: "Delete a phase no longer needed: only one with no committed work (captured items tagged to it move to its plan; needs on it are removed). Only the human deletes a phase",
+		Args:  exact(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			del.ID = args[0]
+			return a.write("phase delete", &del)
+		},
+	}
+	onRequestFlag(deleteCmd, &del.OnRequest)
+	c.AddCommand(add, list, doc, deleteCmd)
 	return c
 }
 

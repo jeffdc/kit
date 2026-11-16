@@ -192,6 +192,75 @@ func (m *Mull) phaseAdd(s *state, plan, title, summary string, needs []string, f
 	return e, s.checkCycles()
 }
 
+// PhaseDeleteResult reports what deleting a phase did besides removing it.
+type PhaseDeleteResult struct {
+	Phase    *model.Phase `json:"phase"`    // the phase as it was
+	Untagged []string     `json:"untagged"` // captured items moved up to the phase's plan
+	Unneeded []string     `json:"unneeded"` // phases whose need on it was removed
+}
+
+// PhaseDelete removes a phase nobody needs any more: its record and its doc.
+// Only an empty phase can go, one with no committed work in any stage, so
+// nothing done is lost; the mull branch's history still has it. Captured
+// items tagged to it move up to its plan, and other phases' needs on it are
+// removed. Only the human deletes a phase, so onRequest must record that
+// they asked.
+func (m *Mull) PhaseDelete(id string, onRequest bool) (PhaseDeleteResult, error) {
+	var out PhaseDeleteResult
+	err := m.update("phase delete "+id, func(s *state) error {
+		var err error
+		out, err = m.phaseDelete(s, id, onRequest)
+		return err
+	})
+	return out, err
+}
+
+func (m *Mull) phaseDelete(s *state, id string, onRequest bool) (PhaseDeleteResult, error) {
+	out := PhaseDeleteResult{Untagged: []string{}, Unneeded: []string{}}
+	e, err := s.phase(id)
+	if err != nil {
+		return out, err
+	}
+	var work []string
+	for _, iid := range sortedKeys(s.items) {
+		if i := s.items[iid]; i.Phase == id && i.State != model.StateCaptured {
+			work = append(work, iid+" ("+i.State+")")
+		}
+	}
+	if len(work) > 0 {
+		return out, errf(CodeState, "phase %s still holds work, so it can't be deleted: %s. Move it to another phase (mull set <id> phase <phase>) first; a phase whose items are all done or dropped is complete, not unneeded",
+			id, strings.Join(work, ", "))
+	}
+	if !m.asked(onRequest) {
+		return out, errf(CodeNotAllowed, "only the human deletes a phase: pass --on-request when the human has asked for %s to be deleted", id)
+	}
+	now := m.now()
+	for _, iid := range sortedKeys(s.items) {
+		if i := s.items[iid]; i.Phase == id {
+			i.Phase, i.Updated = "", now
+			if err := s.putItem(i); err != nil {
+				return out, err
+			}
+			out.Untagged = append(out.Untagged, iid)
+		}
+	}
+	for _, pid := range sortedKeys(s.phases) {
+		if p := s.phases[pid]; slices.Contains(p.Needs, id) {
+			p.Needs = slices.DeleteFunc(p.Needs, func(n string) bool { return n == id })
+			p.Updated = now
+			if err := s.putPhase(p); err != nil {
+				return out, err
+			}
+			out.Unneeded = append(out.Unneeded, pid)
+		}
+	}
+	s.putDoc(phaseDocPath(e), "")
+	s.tx.Delete(model.PhasePath(id))
+	delete(s.phases, id)
+	out.Phase = e
+	return out, nil
+}
+
 // PhaseDetail is a phase with its items.
 type PhaseDetail struct {
 	PhaseView
