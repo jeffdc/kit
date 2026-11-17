@@ -295,6 +295,9 @@ type NewItem struct {
 	Plan, Phase, Title, Notes string
 	Docs                      []string
 	From                      string // the inbox entry it was made from
+	// Before or After places committed work just before or after that open
+	// item in its group; neither puts it at the end.
+	Before, After string
 
 	// A captured item's kind, category and source; stage is set by capture.
 	kind, category, source, stage string
@@ -369,6 +372,13 @@ func (m *Mull) addItem(s *state, in NewItem) (*model.Item, error) {
 	i := &model.Item{
 		ID: id, Plan: plan, Phase: in.Phase, Title: in.Title, State: stage,
 		Kind: in.kind, Category: in.category, Source: in.source, Docs: dedupe(in.Docs), From: in.From, Created: now, Updated: now, Notes: in.Notes,
+	}
+	if stage == model.StateCaptured {
+		if in.Before != "" || in.After != "" {
+			return nil, errf(CodeInvalid, "a captured item has no rank: --before and --after place committed work")
+		}
+	} else if err := s.place(i, in.Before, in.After, now); err != nil {
+		return nil, err
 	}
 	if err := s.putItem(i); err != nil {
 		return nil, err
@@ -499,6 +509,9 @@ func (m *Mull) commit(s *state, in CommitInput) (ItemView, error) {
 	}
 	i.Plan, i.Phase = plan, phase
 	i.State, i.Updated = model.StateCommitted, m.now()
+	if err := s.place(i, "", "", i.Updated); err != nil {
+		return ItemView{}, err
+	}
 	if err := s.putItem(i); err != nil {
 		return ItemView{}, err
 	}
@@ -718,7 +731,13 @@ func (m *Mull) set(s *state, ref, field, value string) (SetResult, error) {
 					i.Plan = e.Plan
 				}
 			}
+			moved := value != i.Phase
 			i.Phase = value
+			if moved && openWork(i) { // it joins the new group's open work, last
+				if err := s.place(i, "", "", now); err != nil {
+					return SetResult{}, err
+				}
+			}
 		case "plan":
 			if i.State != model.StateCaptured {
 				return SetResult{}, errf(CodeState, "item %s is %s; only a captured item's plan can be changed", i.ID, i.State)
@@ -890,6 +909,11 @@ func (m *Mull) start(s *state, id string) (StartResult, error) {
 	}
 	base, _ := m.repo.RefCommit("HEAD")
 	now := m.now()
+	if i.State == model.StateCaptured { // committing it: it joins its group's open work, last
+		if err := s.place(i, "", "", now); err != nil {
+			return out, err
+		}
+	}
 	i.State, i.Updated = model.StateActive, now
 	i.Claim = &model.Claim{Worktree: wt, Branch: branch, At: now, Base: base}
 	if err := s.putItem(i); err != nil {

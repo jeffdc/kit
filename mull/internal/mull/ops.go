@@ -83,7 +83,8 @@ var ops = map[string]opDef{
 	"phase add":     {func() Input { return &PhaseAddIn{} }, "title, plan, summary, needs"},
 	"phase doc":     {func() Input { return &PhaseDocIn{} }, "id, doc"},
 	"phase delete":  {func() Input { return &PhaseDeleteIn{} }, "id, on-request"},
-	"add":           {func() Input { return &AddIn{} }, "title, plan, phase, notes, doc"},
+	"add":           {func() Input { return &AddIn{} }, "title, plan, phase, notes, doc, before, after"},
+	"rank":          {func() Input { return &RankIn{} }, "group, ids"},
 	"set":           {func() Input { return &SetIn{} }, "id, field, value"},
 	"need":          {func() Input { return &NeedIn{add: true} }, "id, needs"},
 	"unneed":        {func() Input { return &NeedIn{} }, "id, needs"},
@@ -242,26 +243,43 @@ func (in *PhaseDocIn) run(m *Mull, s *state) (any, string, error) {
 }
 
 type AddIn struct {
-	Title string  `json:"title"`
-	Plan  string  `json:"plan"`
-	Phase string  `json:"phase"`
-	Needs IDList  `json:"needs"` // refused: items have no needs
-	Notes string  `json:"notes"`
-	Doc   StrList `json:"doc"`
+	Title  string  `json:"title"`
+	Plan   string  `json:"plan"`
+	Phase  string  `json:"phase"`
+	Needs  IDList  `json:"needs"` // refused: items have no needs
+	Notes  string  `json:"notes"`
+	Doc    StrList `json:"doc"`
+	Before string  `json:"before"`
+	After  string  `json:"after"`
 }
 
 func (in *AddIn) refFields() ([]*string, []*IDList) {
-	return []*string{&in.Plan, &in.Phase}, nil
+	return []*string{&in.Plan, &in.Phase, &in.Before, &in.After}, nil
 }
 func (in *AddIn) run(m *Mull, s *state) (any, string, error) {
 	if len(in.Needs) > 0 {
 		return nil, "", errItemNeeds("add takes no needs")
 	}
-	i, err := m.addItem(s, NewItem{Plan: in.Plan, Phase: in.Phase, Title: in.Title, Notes: in.Notes, Docs: in.Doc})
+	i, err := m.addItem(s, NewItem{Plan: in.Plan, Phase: in.Phase, Title: in.Title, Notes: in.Notes, Docs: in.Doc,
+		Before: in.Before, After: in.After})
 	if err != nil {
 		return nil, "", err
 	}
 	return s.itemView(i), i.ID, nil
+}
+
+// RankIn sets a group's order: Group is a phase ID, a plan slug or none.
+type RankIn struct {
+	Group string `json:"group"`
+	IDs   IDList `json:"ids"`
+}
+
+func (in *RankIn) refFields() ([]*string, []*IDList) {
+	return []*string{&in.Group}, []*IDList{&in.IDs}
+}
+func (in *RankIn) run(m *Mull, s *state) (any, string, error) {
+	r, err := m.rank(s, in.Group, in.IDs)
+	return r, "", err
 }
 
 type SetIn struct {

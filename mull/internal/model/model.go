@@ -189,6 +189,7 @@ type Item struct {
 	ID       string   `yaml:"-" json:"id"`
 	Plan     string   `yaml:"plan,omitempty" json:"plan,omitempty"`
 	Phase    string   `yaml:"phase,omitempty" json:"phase,omitempty"`
+	Rank     int      `yaml:"rank,omitempty" json:"rank,omitempty"` // order in its group, lower first; 0 is unranked (see mull rank)
 	Title    string   `yaml:"title" json:"title"`
 	State    string   `yaml:"stage" json:"state"`
 	Kind     string   `yaml:"kind,omitempty" json:"kind,omitempty"`

@@ -22,7 +22,7 @@ func (k keys) plus(o keys) keys {
 var (
 	planKeys      = keys{[]string{"slug", "title", "state", "created", "updated"}, []string{"summary", "doc"}}
 	phaseKeys     = keys{[]string{"id", "plan", "title", "created", "updated"}, []string{"needs", "from", "summary", "doc"}}
-	itemKeys      = keys{[]string{"id", "title", "state", "created", "updated"}, []string{"plan", "phase", "kind", "category", "source", "needs", "docs", "claim", "from", "triaged", "notes"}}
+	itemKeys      = keys{[]string{"id", "title", "state", "created", "updated"}, []string{"plan", "phase", "rank", "kind", "category", "source", "needs", "docs", "claim", "from", "triaged", "notes"}}
 	itemViewKeys  = itemKeys.plus(keys{[]string{"ready"}, []string{"blocked_by"}})
 	phaseViewKeys = phaseKeys.plus(keys{[]string{"progress", "complete"}, []string{"blocked_by"}})
 	entryKeys     = keys{[]string{"id", "kind", "text", "plan", "by", "created"}, []string{"item", "source", "settled", "decisions", "detail"}}
@@ -115,6 +115,8 @@ func TestOutputShapes(t *testing.T) {
 
 	a := shape(itemViewKeys, "add", "Webhook", "--phase", id(phase), "--doc", "docs/a.md")
 	b := shape(itemViewKeys, "add", "Invoices", "--phase", id(phase))
+	rk := shape(keys{[]string{"items"}, []string{"plan", "phase"}}, "rank", id(phase), id(b), id(a))
+	checkKeys(t, "rank.items[0]", first(t, "items", rk["items"]), keys{[]string{"id", "title", "state", "rank"}, nil})
 	ps := shape(planKeys.plus(keys{[]string{"progress", "phases", "items"}, nil}), "plan", "show", "launch")
 	checkKeys(t, "plan show.progress", ps["progress"], progressKeys)
 	checkKeys(t, "plan show.phases[0]", first(t, "phases", ps["phases"]), phaseViewKeys)

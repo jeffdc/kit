@@ -36,7 +36,7 @@ New mull is the record of a program: its plans, where they stand, and everything
 |---|---|---|---|
 | **Plan** | A large effort, such as `taxogall`. High-level only. | id (plain-English slug, e.g. `taxogall`, `general`), title, summary, doc, state `shaping`, `active` or `done` | You |
 | **Phase** | A big piece of a plan; a set of items. Called an epic before Model v2. | id (4-hex), plan (required), title, summary, doc, needs (phases only), from | You, or agents on your instruction |
-| **Item** | A unit of work **one agent completes in one session.** | id (4-hex), plan (optional), phase (optional), title, notes, docs (paths), stage, claim, from (no needs: see "Ordering") | Agents and you |
+| **Item** | A unit of work **one agent completes in one session.** | id (4-hex), plan (optional), phase (optional), rank, title, notes, docs (paths), stage, claim, from (no needs: see "Ordering") | Agents and you |
 | **Captured item** | The backlog: a bug or an idea, not work until you commit it (see "The backlog") | an item at stage `captured`, plus kind (`bug` or `idea`), category, source, triaged; a short note as its notes; optionally tagged to a plan or phase | Anyone captures; only you commit |
 | **Inbox entry** | Something that needs you | id, kind (`decision`, `question` or `review`), one-line text, detail, item, plan, source, by, created; a review also lists the decisions it carries; when settled: action, note, what it made, by, time | Agents capture; you settle |
 | **Done report** | The record of a finished item | item, commit SHA, tree hash, summary, UI tour, check results, design notes, decisions made in the session, system context | Agent plus mull |
@@ -77,8 +77,9 @@ Because `start` works from captured, a small bug can go from the backlog to done
 
 ### Ordering: loose, with dependencies between phases
 
-There is no priority list and no ordering field. Order only where it matters (Model v2):
-- A phase may **need** other phases. That is the only ordering: items have no needs, and items inside a phase are unordered. A phase's need is met when the needed phase is complete.
+There is no priority list. Order only where it matters (Model v2):
+- **Rank** (plan `item-order`) orders open work within its group: a phase, a plan's items with no phase, or Unplanned. It sorts and never holds work back. `mull rank <group> <ids…>` sets a group's order (every open item in it, first to last) and mull writes the numbers; committed work joins its group last, or `--before`/`--after` an open item.
+- A phase may **need** other phases. That is the only dependency: items have no needs. A phase's need is met when the needed phase is complete.
 - "Can start now" is derived: the phases whose needs are done.
 - **Ready** means committed, in a phase whose needs are done (or in no phase), in a plan that isn't shaping.
 - **Blocked** means committed, in a phase with at least one need not done.
@@ -364,7 +365,7 @@ The ops are every write except `init`, `sync`, `migrate`, `check` and `done`.
 | Plans (you) | `mull plan new <slug> "title" [--summary -] --on-request` · `plan agree <slug> --on-request` · `plan list` · `plan show <slug>` · `plan doc <slug> [-] [--log]` · `plan close <slug>` |
 | Phases | `mull phase add "title" --plan <slug> [--needs …] [--summary -]` · `phase list [--plan]` · `phase doc <id> [-] [--log]` · `phase delete <id> --on-request` · `show <id>` |
 | Items | `mull add "title" (--plan <slug> \| --phase <id> \| --plan none) [--notes -] [--doc path]` · `show` · `list [--plan] [--phase] [--state] [--kind] [--untriaged]` · `set` · `drop` |
-| Dependencies | `mull need <phase> <phase…>` · `mull unneed <phase> <phase…>` · `mull ready [--plan]` |
+| Dependencies and order | `mull need <phase> <phase…>` · `mull unneed <phase> <phase…>` · `mull rank <phase\|plan\|none> <ids…>` · `mull ready [--plan]` |
 | Work (agents) | `mull start <id>` · `release <id>` · `check` (run the hard checks, cache the result) · `done <id> --summary "…" --tour "…" --design -` |
 | Capture (agents) | `mull decided "text"`, `ask "question"`, each with `--item <id>` or `--plan <slug>`, plus `[--detail -] [--source …]` |
 | Backlog | `mull bug "title"` · `idea "title"`, each with `[--detail -] [--source …] [--plan \| --phase] [--category …]` · `commit <id> [--plan \| --phase \| --plan none] --on-request` · `triage <id…> --on-request` (or `--all [--plan <slug>\|none]`) |
