@@ -61,12 +61,13 @@ A `batch_invalid` error also lists every failed line:
 - **Plan:** `{slug, title, state ("shaping"|"active"|"done"), created, updated, summary?, doc?}`. A new plan is `shaping`; `plan agree` (the human) makes it `active`, and `plan close` makes it `done`. A shaping plan takes captures and inbox entries but refuses phases and committed items (`invalid_state`) until it is agreed.
 - **Phase:** `{id, plan, title, needs?, from?, created, updated, summary?, doc?}`. `from` is the inbox entry (e.g. an idea) it was promoted from. `needs` are the phases it waits for: needs exist between phases only. (A need on an item, from before Model v2, still counts until `mull migrate` makes it a need on that item's phase.)
 - **Docs:** `doc` is a plan's or phase's doc, in markdown: a plan's picture, done-when and why the order; a phase's design and done-when. Docs hold intent only, never status: status comes from the records. A doc is kept apart from its record, so changing the record (`summary` included) never makes a new version of the doc. `plan doc` and `phase doc` print it, replace it (`-`) and list its versions (`--log`).
-- **Item:** `{id, plan?, phase?, title, state ("captured"|"committed"|"active"|"in-review"|"done"|"dropped"), kind?, category?, source?, needs?, docs?, claim?, from?, triaged?, created, updated, notes?}`. `from` is the inbox entry (idea, question or loose end) it was made from.
+- **Item:** `{id, plan?, phase?, rank?, title, state ("captured"|"committed"|"active"|"in-review"|"done"|"dropped"), kind?, category?, source?, needs?, docs?, claim?, from?, triaged?, created, updated, notes?}`. `from` is the inbox entry (idea, question or loose end) it was made from. `rank` is its order in its group, lower first (see Rank).
   - **No `plan`** means unplanned work, or (captured) backlog not tagged to a plan.
   - **Captured items** (`mull bug`, `mull idea`) carry `kind` (`"bug"`|`"idea"`), and `category` and `source` when given; `notes` holds the `--detail`. They keep them once committed.
   - **triaged** is when the item was last triaged with the human (`mull triage`). A captured item with no `triaged` is untriaged.
   - **claim:** `{worktree, branch, at, base?}`
-  - **Items have no needs;** items inside a phase are unordered. An item's `needs`, from before Model v2, is kept and shown until `mull migrate` drops it, but no longer affects readiness.
+  - **Items have no needs.** An item's `needs`, from before Model v2, is kept and shown until `mull migrate` drops it, but no longer affects readiness.
+- **Rank:** the order of open work (committed, active, in review) within its group: a phase, a plan's items with no phase, or Unplanned. It sorts and never affects readiness. Agents never write the numbers: `mull rank` sets a group's order, and mull writes ranks a step of 10 apart. Committed work joins its group last (`add`, `commit`, `start` of a captured item, `set <id> phase` to another group), or just `--before`/`--after` an open item in the group; when there's no gap there, the group's open work is renumbered in order. Captured items have no rank, and done and dropped items keep theirs. An item without a rank (from before ranks) sorts after ranked ones, oldest first, until its group is next ranked or joined.
 - **ItemView:** Item plus `{ready, blocked_by?}`. Ready means committed, in a phase whose needs are done (or in no phase), in a plan that isn't shaping; `blocked_by` lists the phase's needs that aren't done.
 - **PhaseView:** Phase plus `{progress, complete, blocked_by?}`.
 - **Progress:** `{total, captured, untriaged, committed, active, in_review, done, dropped, ready}`. `total` counts committed work (every stage but captured); captured items tagged to the phase or plan are counted only in `captured`, and `untriaged` counts those of them not triaged yet.
@@ -99,6 +100,7 @@ Times are RFC 3339 in UTC. IDs are 4 hex characters; plans use their slug.
 | `list`, `ready` | `{items: [ItemView]}`. `list --plan none` selects items with no plan; `--kind bug\|idea` selects captured kinds; `--untriaged` selects captured items not triaged yet |
 | `set` | `{type: "plan"\|"phase"\|"item", plan?: Plan, phase?: PhaseView, item?: ItemView}`. Item fields: `title`, `notes`, `category`, `phase`, `doc`, and for a captured item `plan` (`none` untags it; a new plan leaves the old phase behind) and `kind` (`bug` or `idea`). A captured item set to a phase in another plan moves to that plan; `plan` or `kind` on any other item fails with `invalid_state` |
 | `need`, `unneed` | `{type: "phase", phase: PhaseView}`. Only a phase has needs, and only on phases; on an item they fail with `not_allowed` |
+| `rank` | `{plan?, phase?, items: [{id, title, state, rank}]}`: the group (neither for Unplanned) and its open work in the new order. `mull rank <phase\|plan\|none> <ids...>` names the group by phase ID, plan slug (its items with no phase) or `none` (Unplanned), and must list every open item in it, first to last: a missing one, or one that isn't open work in the group, fails with `invalid_argument` naming it |
 | `start` | `{item: ItemView, warnings: []}`. Starting a blocked item is allowed with a warning. A captured item tagged to a shaping plan can't be started (`invalid_state`), since starting commits it |
 | `decided`, `ask` | Entry |
 | `inbox` | `{entries: [Entry]}`, oldest first: questions, decisions and reviews. Loose ends and ideas only with `--kind loose-end\|idea`. `--plan none` for entries with no plan |
@@ -181,7 +183,8 @@ An unknown project, plan, phase or item is 404 `not_found`; a registered project
 | `phase add` | `title`, `plan`, `summary`, `needs` |
 | `phase doc` | `id`, `doc` (required: the whole new doc; `""` removes it) |
 | `phase delete` | `id`, `on-request` |
-| `add` | `title`, `plan` (optional with `phase`; `none` for unplanned work), `phase`, `notes`, `doc` |
+| `add` | `title`, `plan` (optional with `phase`; `none` for unplanned work), `phase`, `notes`, `doc`, `before` or `after` (an open item in its group to rank it next to; default last) |
+| `rank` | `group` (a phase ID, plan slug or `none`), `ids` (every open item in it, first to last) |
 | `set` | `id`, `field`, `value` |
 | `need`, `unneed` | `id` (a phase), `needs` (phases) |
 | `decided`, `ask` | `text`, `item`, `plan`, `source`, `detail` |

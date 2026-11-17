@@ -575,6 +575,14 @@ func claimOf(i *model.Item) string {
 	return i.Claim.Worktree
 }
 
+// rankOf is an item's rank as a short field: "" when unranked.
+func rankOf(i *model.Item) string {
+	if i.Rank == 0 {
+		return ""
+	}
+	return strconv.Itoa(i.Rank)
+}
+
 func itemChange(a, b *model.Item) (Change, bool) {
 	return change(a, b, func(a, b *model.Item) fields {
 		var f fields
@@ -582,6 +590,7 @@ func itemChange(a, b *model.Item) (Change, bool) {
 		f.short("title", a.Title, b.Title)
 		f.short("plan", a.Plan, b.Plan)
 		f.short("phase", a.Phase, b.Phase)
+		f.short("rank", rankOf(a), rankOf(b))
 		f.short("kind", a.Kind, b.Kind)
 		f.short("category", a.Category, b.Category)
 		f.short("source", a.Source, b.Source)

@@ -418,8 +418,22 @@ func addCmd(a *app) *cobra.Command {
 	c.Flags().StringSliceVar(&needs, "needs", nil, "refused: items have no needs; phases need phases")
 	c.Flags().StringVar(&in.Notes, "notes", "", "short notes (- reads stdin)")
 	c.Flags().StringArrayVar(&docs, "doc", nil, "path of a related document (repeatable)")
+	c.Flags().StringVar(&in.Before, "before", "", "rank it just before this open item in its group (default: last)")
+	c.Flags().StringVar(&in.After, "after", "", "rank it just after this open item in its group (default: last)")
 	_ = c.Flags().MarkHidden("needs") // kept only to refuse it with a clear message
 	return c
+}
+
+func rankCmd(a *app) *cobra.Command {
+	return &cobra.Command{
+		Use: "rank <phase|plan|none> <ids...>",
+		Short: "Set the order of a group's open work: a phase, a plan's items with no phase, or none (Unplanned). " +
+			"List every committed, active and in-review item in it, first to last; mull writes the ranks",
+		Args: atLeast(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.write("rank", &mull.RankIn{Group: args[0], IDs: mull.SplitIDs(args[1:])})
+		},
+	}
 }
 
 func showCmd(a *app) *cobra.Command {
