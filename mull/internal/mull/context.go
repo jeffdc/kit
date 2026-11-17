@@ -125,11 +125,16 @@ func (m *Mull) Context(itemID string) (Context, error) {
 			}
 			c.Plans = append(c.Plans, bp)
 		}
+		var items []*model.Item
 		for _, id := range sortedKeys(s.items) {
 			i := s.items[id]
 			if p := s.plans[i.Plan]; i.Plan != "" && (p == nil || p.State == model.PlanDone) {
 				continue // unplanned work is always in view
 			}
+			items = append(items, i)
+		}
+		s.workOrder(items) // so the ready list, cut at its limit, keeps what comes first
+		for _, i := range items {
 			switch {
 			case i.State == model.StateActive:
 				c.Active = append(c.Active, brief(i))

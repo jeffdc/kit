@@ -12,7 +12,7 @@ When you settle or file more than a couple of records at once, use `mull batch`.
 - Read `mull decisions`. Workers must not re-decide what's settled, and neither must you.
 
 ## Handing out work
-- Pick from `mull ready`. These items are committed, in agreed plans, in phases whose needs are done. Items inside a phase are unordered; only phases need other phases.
+- Pick from `mull ready`. These items are committed, in agreed plans, in phases whose needs are done. They're in order: by phase schedule, then by rank within each group, so hand out work from the top; only phases need other phases, and rank never holds work back.
 - Don't hand out two items likely to touch the same files at the same time.
 - Give each worker exactly one item ID, its worktree, and this instruction: "Follow `mull guide agents`. Your item is `<id>`."
 - A captured item the human wants done now can go straight to a worker: `mull start` commits it. Only on the human's word.

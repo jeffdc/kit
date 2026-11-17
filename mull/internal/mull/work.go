@@ -91,8 +91,11 @@ func (s *state) planView(p *model.Plan) PlanView {
 	for _, id := range sortedKeys(s.items) {
 		if i := s.items[id]; i.Plan == p.Slug {
 			items = append(items, i)
-			v.Items = append(v.Items, s.itemView(i))
 		}
+	}
+	s.workOrder(items)
+	for _, i := range items {
+		v.Items = append(v.Items, s.itemView(i))
 	}
 	v.Progress = s.progress(items)
 	for _, id := range sortedKeys(s.phases) {
@@ -409,6 +412,7 @@ func (m *Mull) ItemList(f ItemFilter) ([]ItemView, error) {
 				return err
 			}
 		}
+		var items []*model.Item
 		for _, id := range sortedKeys(s.items) {
 			i := s.items[id]
 			if (f.Plan != "" && i.Plan != plan) || (f.Phase != "" && i.Phase != f.Phase) ||
@@ -416,6 +420,10 @@ func (m *Mull) ItemList(f ItemFilter) ([]ItemView, error) {
 				(f.Untriaged && !untriaged(i)) {
 				continue
 			}
+			items = append(items, i)
+		}
+		s.workOrder(items)
+		for _, i := range items {
 			v := s.itemView(i)
 			if f.ReadyOnly && !v.Ready {
 				continue
@@ -622,7 +630,9 @@ func (m *Mull) Show(ref string) (Shown, error) {
 		case s.phases[ref] != nil:
 			e := s.phases[ref]
 			d := PhaseDetail{PhaseView: s.phaseView(e), Items: []ItemView{}}
-			for _, i := range s.phaseItems(e.ID) {
+			items := s.phaseItems(e.ID)
+			s.workOrder(items)
+			for _, i := range items {
 				d.Items = append(d.Items, s.itemView(i))
 			}
 			out = Shown{Type: "phase", Phase: &d}
@@ -912,6 +922,20 @@ func (m *Mull) start(s *state, id string) (StartResult, error) {
 	if i.State == model.StateCaptured { // committing it: it joins its group's open work, last
 		if err := s.place(i, "", "", now); err != nil {
 			return out, err
+		}
+	}
+	if i.State == model.StateCommitted { // a capture started now has no order anyone gave it
+		if ahead := s.rankedAhead(i); len(ahead) > 0 {
+			var names []string
+			for _, o := range ahead {
+				names = append(names, fmt.Sprintf("%s %q (%s)", o.ID, o.Title, o.State))
+			}
+			verb := "is"
+			if len(names) > 1 {
+				verb = "are"
+			}
+			out.Warnings = append(out.Warnings, fmt.Sprintf("started out of rank order: in %s, %s %s ranked before it (mull rank changes the order)",
+				groupOf(i), strings.Join(names, ", "), verb))
 		}
 	}
 	i.State, i.Updated = model.StateActive, now

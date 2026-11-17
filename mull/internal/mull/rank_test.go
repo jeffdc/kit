@@ -164,3 +164,146 @@ func TestJoiningAGroupRanksLast(t *testing.T) {
 	must[SetResult](t)(m.Set(bug.ID, "phase", ph.ID))
 	wantOrder(t, m, ph.ID, "a:10 b:20 bug:40")
 }
+
+func titles[T any](rows []T, title func(T) string) string {
+	var out []string
+	for _, r := range rows {
+		out = append(out, title(r))
+	}
+	return strings.Join(out, " ")
+}
+
+func viewTitle(v ItemView) string { return v.Title }
+
+func TestListsFollowRank(t *testing.T) {
+	m, _ := setup(t)
+	// later is older but needs first, so the schedule puts first ahead.
+	later := must[*model.Phase](t)(m.PhaseAdd("general", "Later", "", nil))
+	first := must[*model.Phase](t)(m.PhaseAdd("general", "First", "", nil))
+	must[NeedResult](t)(m.Need(later.ID, []string{first.ID}))
+	add := func(in NewItem) string { t.Helper(); return must[ItemView](t)(m.ItemAdd(in)).ID }
+	add(NewItem{Phase: later.ID, Title: "z1"})
+	add(NewItem{Phase: later.ID, Title: "z2"})
+	a := add(NewItem{Phase: first.ID, Title: "a"})
+	b := add(NewItem{Phase: first.ID, Title: "b"})
+	c := add(NewItem{Phase: first.ID, Title: "c"})
+	gone := add(NewItem{Phase: first.ID, Title: "gone"})
+	must[DropResult](t)(m.Drop([]string{gone}, "not needed", SettleOpts{OnRequest: true}))
+	must[ItemView](t)(m.CaptureItem(NewCapture{Kind: model.ItemIdea, Title: "cap", Phase: first.ID}))
+	add(NewItem{Plan: "general", Title: "u"})
+	add(NewItem{Plan: model.NoPlan, Title: "n"})
+	agreedPlan(t, m, "alpha", "Alpha", "")
+	add(NewItem{Plan: "alpha", Title: "al"})
+	must[RankResult](t)(m.Rank(first.ID, []string{c, a, b}))
+
+	// Plans by slug, Unplanned last; phases by schedule, then the plan's
+	// items with no phase; open work by rank, then the rest.
+	all := must[[]ItemView](t)(m.ItemList(ItemFilter{}))
+	if got, want := titles(all, viewTitle), "al c a b gone cap z1 z2 u n"; got != want {
+		t.Fatalf("list = %q, want %q", got, want)
+	}
+	ready := must[[]ItemView](t)(m.ItemList(ItemFilter{ReadyOnly: true}))
+	if got, want := titles(ready, viewTitle), "al c a b u n"; got != want {
+		t.Fatalf("ready = %q, want %q", got, want)
+	}
+	ctx := must[Context](t)(m.Context(""))
+	if got, want := titles(ctx.Ready, func(b BriefItem) string { return b.Title }), "al c a b u n"; got != want {
+		t.Fatalf("context ready = %q, want %q", got, want)
+	}
+	shown := must[Shown](t)(m.Show(first.ID))
+	if got, want := titles(shown.Phase.Items, viewTitle), "c a b gone cap"; got != want {
+		t.Fatalf("show phase = %q, want %q", got, want)
+	}
+	shown = must[Shown](t)(m.Show("general"))
+	if got, want := titles(shown.Plan.Items, viewTitle), "c a b gone cap z1 z2 u"; got != want {
+		t.Fatalf("show plan = %q, want %q", got, want)
+	}
+
+	// Once first is done, later can start, and its work joins the ready list.
+	for _, id := range []string{c, a, b} {
+		finish(t, m, id)
+	}
+	ready = must[[]ItemView](t)(m.ItemList(ItemFilter{ReadyOnly: true}))
+	if got, want := titles(ready, viewTitle), "al z1 z2 u n"; got != want {
+		t.Fatalf("ready = %q, want %q", got, want)
+	}
+}
+
+func TestBoardInFlightFollowsRank(t *testing.T) {
+	m, _ := setup(t)
+	ph := must[*model.Phase](t)(m.PhaseAdd("general", "P", "", nil))
+	var ids []string
+	for _, title := range []string{"a", "b", "c"} {
+		ids = append(ids, must[ItemView](t)(m.ItemAdd(NewItem{Phase: ph.ID, Title: title})).ID)
+	}
+	must[RankResult](t)(m.Rank(ph.ID, []string{ids[2], ids[0], ids[1]}))
+	for _, id := range ids {
+		must[StartResult](t)(m.Start(id))
+	}
+	v := must[View](t)(m.Board("general"))
+	if got, want := titles(v.Plans[0].InFlight, func(f FlightLine) string { return f.Title }), "c a b"; got != want {
+		t.Fatalf("in flight = %q, want %q", got, want)
+	}
+}
+
+func TestStartWarnsAheadOfRank(t *testing.T) {
+	m, _ := setup(t)
+	ph := must[*model.Phase](t)(m.PhaseAdd("general", "P", "", nil))
+	add := func(title string) string {
+		t.Helper()
+		return must[ItemView](t)(m.ItemAdd(NewItem{Phase: ph.ID, Title: title})).ID
+	}
+	a, b, c, d := add("a"), add("b"), add("c"), add("d")
+	must[RankResult](t)(m.Rank(ph.ID, []string{c, a, b, d}))
+
+	// The first in rank starts quietly.
+	if r := must[StartResult](t)(m.Start(c)); len(r.Warnings) != 0 {
+		t.Fatalf("warnings = %v", r.Warnings)
+	}
+	// Starting later work warns, naming every open item ranked before it.
+	r := must[StartResult](t)(m.Start(b))
+	if len(r.Warnings) != 1 {
+		t.Fatalf("warnings = %v, want one", r.Warnings)
+	}
+	for _, want := range []string{c, a, `"c" (active)`, `"a" (committed)`, "are ranked before it", "phase " + ph.ID} {
+		if !strings.Contains(r.Warnings[0], want) {
+			t.Fatalf("warning %q doesn't say %q", r.Warnings[0], want)
+		}
+	}
+	// Finished work no longer comes first.
+	finish(t, m, c)
+	r = must[StartResult](t)(m.Start(d))
+	if len(r.Warnings) != 1 || strings.Contains(r.Warnings[0], c) || !strings.Contains(r.Warnings[0], a+` "a" (committed), `+b) {
+		t.Fatalf("warnings = %v, want a and b only", r.Warnings)
+	}
+
+	// A capture started now joins last, but nobody ranked it: no warning.
+	bug := must[ItemView](t)(m.CaptureItem(NewCapture{Kind: model.ItemBug, Title: "bug", Phase: ph.ID}))
+	if r := must[StartResult](t)(m.Start(bug.ID)); len(r.Warnings) != 0 {
+		t.Fatalf("warnings = %v", r.Warnings)
+	}
+
+	// Equal ranks, and unranked items, have no order between them.
+	other := must[*model.Phase](t)(m.PhaseAdd("general", "Other", "", nil))
+	x := must[ItemView](t)(m.ItemAdd(NewItem{Phase: other.ID, Title: "x"})).ID
+	y := must[ItemView](t)(m.ItemAdd(NewItem{Phase: other.ID, Title: "y"})).ID
+	z := must[ItemView](t)(m.ItemAdd(NewItem{Phase: other.ID, Title: "z"})).ID
+	err := m.update("rerank", func(s *state) error {
+		for id, rank := range map[string]int{x: 10, y: 10, z: 0} {
+			i := s.items[id]
+			i.Rank = rank
+			if err := s.putItem(i); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{y, z} {
+		if r := must[StartResult](t)(m.Start(id)); len(r.Warnings) != 0 {
+			t.Fatalf("starting %s: warnings = %v", id, r.Warnings)
+		}
+	}
+}

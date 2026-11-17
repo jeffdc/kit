@@ -189,6 +189,7 @@ func (s *state) board(p *model.Plan, g *gitState, now time.Time) PlanBoard {
 	}
 	b.Progress = s.progress(items)
 	b.Unfiled = s.progress(unfiled)
+	s.workOrder(items) // work in flight, in rank order
 
 	var phases []*model.Phase
 	for _, id := range sortedKeys(s.phases) {
