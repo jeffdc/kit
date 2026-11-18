@@ -205,6 +205,9 @@ export function renderTree(el, state, route) {
 export function reveal(el) {
   const c = el.querySelector(".node.cur");
   if (!c || el.scrollHeight <= el.clientHeight) return;
-  const top = c.offsetTop - el.offsetTop;
+  // From the boxes, not offsetTop: a row in a cloud (.cl, positioned)
+  // measures offsetTop from its cloud, which read as near the top and
+  // scrolled the tree back up.
+  const top = c.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop;
   if (top < el.scrollTop || top > el.scrollTop + el.clientHeight - 30) el.scrollTop = top - el.clientHeight / 2;
 }
