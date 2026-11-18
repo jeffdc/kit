@@ -336,6 +336,10 @@ async function save(key, pid, ops, done, keep) {
   await loadProject(pid);
   expandFor(route(), state); // a write can move the sheet's row (closing a plan archives it)
   render();
+  // A pending button is disabled, so focus fell off it: give it back to
+  // the button, if the write left one (a move's arrow, so the keyboard can
+  // move the item again).
+  if (document.activeElement === document.body) main.querySelector(`[data-write="${CSS.escape(key)}"]`)?.focus({ preventScroll: true });
 }
 
 // A write that takes text: its button opens the form in place (closing any

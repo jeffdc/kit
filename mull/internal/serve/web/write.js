@@ -42,6 +42,19 @@ export function writeButton({ pid, key, ops, label, ask, done, small = true, con
   return `<button class="${cls}" data-write="${esc(key)}" data-pid="${esc(pid)}" data-ops="${esc(JSON.stringify(ops))}" data-done="${esc(done)}"${confirm ? "" : ' data-now=""'} title="${esc(title)}"${s.pending ? " disabled" : ""}>${TICK}${esc(text)}</button>`;
 }
 
+// moveButton draws an up or down move in a ranked list: a write drawn as
+// an arrow, labelled for screen readers, that saves on its first click (a
+// move is undone by moving back). busy disables it while another move in
+// its list saves.
+const ARROWS = {
+  up: `<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 6.5 5 3l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>`,
+  down: `<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.5 5 7l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>`,
+};
+export function moveButton({ pid, key, ops, dir, label, done, busy = false }) {
+  const s = writeState(key);
+  return `<button class="btn wr mv${s.pending ? " pending" : ""}" data-write="${esc(key)}" data-pid="${esc(pid)}" data-ops="${esc(JSON.stringify(ops))}" data-done="${esc(done)}" data-now="" aria-label="${esc(label)}" title="${esc(label)}: saves to mull in one click."${s.pending || busy ? " disabled" : ""}>${ARROWS[dir]}</button>`;
+}
+
 // textWrite draws a write that takes text: the button that opens its form,
 // and the form (empty while closed), for the caller to place. ops are the
 // batch lines it sends, with the text set as field on each; label opens

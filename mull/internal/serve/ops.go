@@ -31,6 +31,9 @@ var uiOps = map[string]bool{
 	"set":       true,
 	"plan doc":  true,
 	"phase doc": true,
+	// reorder a group's open work (an item moved up or down): the page
+	// sends the whole new order, as mull rank needs
+	"rank": true,
 }
 
 // uiSetFields are the fields the UI sets with set: an item's title and

@@ -8,7 +8,7 @@ import { titleBlock } from "./title.js";
 import { within } from "./revision.js";
 import { schedule } from "./needs.js";
 import { renderDoc } from "./doc.js";
-import { itemTable, col, backlogBody } from "./lists.js";
+import { rankTable, col, backlogBody } from "./lists.js";
 import { writeButton, editWrite } from "./write.js";
 import { captureButton, captureBar } from "./capture.js";
 
@@ -59,7 +59,7 @@ export function planStatus(pid, page, ch) {
   const intro = p.state === "shaping" ? `<p class="sub" style="margin:0">A shaping plan has no phases until you agree it. Read and shape it in the Plan doc tab.</p>` : "";
   const table = phaseTable(pid, slug, page.schedule, ch);
   const unfiled = page.unfiled.length
-    ? `<section><div class="hd"><h2>Not in a phase</h2><span class="lab">Committed to this plan without a phase · in rank order</span></div>${itemTable(pid, page.unfiled, [col.pos(), col.id(), col.title(pid), col.stage()], { changes: ch })}</section>`
+    ? `<section><div class="hd"><h2>Not in a phase</h2><span class="lab">Committed to this plan without a phase · in rank order</span></div>${rankTable(pid, page.unfiled, page.plan.slug, [col.id(), col.title(pid), col.stage()], { changes: ch })}</section>`
     : "";
   return `${intro}${table}<div class="cols">
     <section id="needs"><div class="hd"><h2>Needs you</h2><span class="lab">This plan · ranked</span></div>${schedule(page.needs_you, { pid, changes: ch, noPlan: true })}</section>
