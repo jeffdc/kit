@@ -5,12 +5,10 @@
 import { esc, href, tag, itemStage, shortTitle, day, base, ago, plural, copyId } from "./html.js";
 import { within } from "./revision.js";
 import { schedule } from "./needs.js";
+import { moveButton, writeState, failure } from "./write.js";
 
 // Columns: each is [heading, cell(item), class]. Tables pick what they need.
 export const col = {
-  // pos: an open item's place in its group's rank order (1, 2, 3; equal
-  // ranks share one); finished and unranked items have none.
-  pos: () => ["#", it => it.position ? `<span class="mono">${it.position}</span>` : "", "n", "width:34px"],
   id: () => ["ID", it => copyId(it.id), "", "width:70px"],
   title: (pid, label = "Item") => [label, it => {
     const link = href.item(pid, it.id);
@@ -34,6 +32,35 @@ export const col = {
 // cell closes a clouded row's cloud.
 export const wide = ([th, td, cls = "", style]) => [th, td, `${cls} w`.trim(), style];
 
+const OPEN = new Set(["committed", "active", "in-review"]);
+const moveKey = (pid, id, dir) => `move:${pid}:${id}:${dir}`;
+
+// rankTable is the item table of one group (group: a phase ID, a plan
+// slug, or none for Unplanned), in rank order. Its first column is an open
+// item's position (1, 2, 3; equal ranks share one; finished and unranked
+// items have none) with the item's moves: up and down a place among the
+// group's open work, each sending the whole new order as a rank write.
+// A move that fails says so under the table.
+export function rankTable(pid, items, group, cols, opts) {
+  const ids = items.filter(it => OPEN.has(it.state)).map(it => it.id);
+  const busy = ids.some(id => writeState(moveKey(pid, id, "up")).pending || writeState(moveKey(pid, id, "down")).pending);
+  const move = (it, k, dir, to) => {
+    const order = ids.filter(id => id !== it.id);
+    order.splice(to, 0, it.id);
+    return moveButton({ pid, key: moveKey(pid, it.id, dir), ops: [{ op: "rank", group, ids: order }], dir, busy,
+      label: `Move ${it.id} ${dir}`, done: `Moved ${it.id} ${dir}: it's ${to + 1} of ${ids.length} now.` });
+  };
+  const pos = ["#", it => {
+    const n = `<span class="mono">${it.position || ""}</span>`;
+    const k = ids.indexOf(it.id);
+    if (k < 0 || ids.length < 2) return `<span class="pos">${n}</span>`;
+    const gap = `<span class="mv-gap"></span>`;
+    return `<span class="pos">${n}<span class="mvs">${k > 0 ? move(it, k, "up", k - 1) : gap}${k < ids.length - 1 ? move(it, k, "down", k + 1) : gap}</span></span>`;
+  }, "", "width:84px"];
+  const failed = items.flatMap(it => ["up", "down"].map(dir => failure(moveKey(pid, it.id, dir), `Moving ${it.id} ${dir}`))).join("");
+  return itemTable(pid, items, [pos, ...cols], opts) + failed;
+}
+
 export function itemTable(pid, items, cols, { changes, empty = "None." } = {}) {
   if (!items.length) return `<p class="empty">${esc(empty)}</p>`;
   const head = cols.map(([th, , cls, style]) => `<th${cls ? ` class="${cls}"` : ""}${style ? ` style="${style}"` : ""}>${th}</th>`).join("");
@@ -49,7 +76,7 @@ export function itemTable(pid, items, cols, { changes, empty = "None." } = {}) {
 // all shows it too.
 export function unplannedBody(pid, page, changes, all = false) {
   const n = page.archived;
-  const table = itemTable(pid, page.items, [col.pos(), col.id(), col.title(pid), col.kind(), col.stage(), col.category()],
+  const table = rankTable(pid, page.items, "none", [col.id(), col.title(pid), col.kind(), col.stage(), col.category()],
     { changes, empty: n ? "Nothing unplanned is open." : "Nothing unplanned is committed." }) +
     (n
       ? `<p class="empty">${plural(n, "done or dropped item")} ${n === 1 ? "is" : "are"} in the Archive, at the foot of the sheet index. <a href="${esc(href.unplanned(pid, true))}">Show ${n === 1 ? "it" : "them"} here too</a></p>`

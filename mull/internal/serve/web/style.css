@@ -396,6 +396,18 @@ table.t th { text-align: left; padding: 8px 10px; border-bottom: 1.5px solid var
 table.t td { padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
 table.t td.n, table.t th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 table.t tr.waits td { color: var(--mut); }
+/* A ranked table's first cell: the position, then the item's moves. */
+table.t .pos { display: flex; align-items: center; gap: 6px; }
+table.t .pos .mono { min-width: 2ch; text-align: right; font-variant-numeric: tabular-nums; }
+.mvs { display: inline-flex; gap: 3px; }
+.btn.wr.mv, .mv-gap { width: 20px; height: 20px; padding: 0; justify-content: center; flex: none; }
+/* Moves show on their row's hover or focus (always, on touch screens), so
+   a table isn't a column of arrows. Opacity keeps them in the tab order. */
+@media (hover: hover) {
+  tr .btn.wr.mv:not(.pending) { opacity: 0; }
+  tr:is(:hover, :focus-within) .btn.wr.mv:not([disabled]) { opacity: 1; }
+  tr:is(:hover, :focus-within) .btn.wr.mv[disabled]:not(.pending) { opacity: .45; }
+}
 table.t .ttl { font-weight: 600; }
 table.t .meta { display: block; font-size: 12px; color: var(--mut); font-weight: 400; margin-top: 2px; }
 .empty { padding: 18px 0; color: var(--mut); margin: 0; }

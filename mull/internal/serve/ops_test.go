@@ -456,3 +456,39 @@ func TestOpsDropCaptured(t *testing.T) {
 		t.Errorf("dropped item = %+v", v.Item)
 	}
 }
+
+// The page reorders a group's open work with rank, sending the whole new
+// order; Jeff's own move isn't clouded.
+func TestOpsRank(t *testing.T) {
+	dir := onMull(t)
+	gittest.Git(t, dir, "config", "user.name", "Jeff")
+	h := Handler(func() ([]string, error) { return []string{dir}, nil })
+	m, _ := mull.Open(dir)
+	var ids []string
+	for _, title := range []string{"a", "b", "c"} {
+		v, err := m.ItemAdd(mull.NewItem{Plan: model.NoPlan, Title: title})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, v.ID)
+	}
+	url := "/api/projects/" + filepath.Base(dir) + "/ops"
+	moved := []string{ids[0], ids[2], ids[1]} // c up one
+	rec := post(t, h, url, opsBody(t, tipOf(t, dir), map[string]any{"op": "rank", "group": "none", "ids": moved}), nil)
+	rep := decode[OpsReport](t, rec)
+	if rec.Code != 200 || len(rep.Acknowledged) != 2 {
+		t.Fatalf("POST ops: %d %s (want b and c acknowledged)", rec.Code, rec.Body)
+	}
+	got, _ := m.ItemList(mull.ItemFilter{Plan: model.NoPlan})
+	var order []string
+	for _, v := range got {
+		order = append(order, v.ID)
+	}
+	if strings.Join(order, " ") != strings.Join(moved, " ") {
+		t.Errorf("order = %v, want %v", order, moved)
+	}
+
+	// A list missing open work is refused, as mull rank refuses it.
+	rec = post(t, h, url, opsBody(t, tipOf(t, dir), map[string]any{"op": "rank", "group": "none", "ids": ids[:2]}), nil)
+	wantMullError(t, "a partial order", rec, 400, mull.CodeBatchInvalid)
+}
