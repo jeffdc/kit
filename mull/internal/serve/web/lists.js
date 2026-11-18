@@ -8,6 +8,9 @@ import { schedule } from "./needs.js";
 
 // Columns: each is [heading, cell(item), class]. Tables pick what they need.
 export const col = {
+  // pos: an open item's place in its group's rank order (1, 2, 3; equal
+  // ranks share one); finished and unranked items have none.
+  pos: () => ["#", it => it.position ? `<span class="mono">${it.position}</span>` : "", "n", "width:34px"],
   id: () => ["ID", it => copyId(it.id), "", "width:70px"],
   title: (pid, label = "Item") => [label, it => {
     const link = href.item(pid, it.id);
@@ -46,7 +49,7 @@ export function itemTable(pid, items, cols, { changes, empty = "None." } = {}) {
 // all shows it too.
 export function unplannedBody(pid, page, changes, all = false) {
   const n = page.archived;
-  const table = itemTable(pid, page.items, [col.id(), col.title(pid), col.kind(), col.stage(), col.category()],
+  const table = itemTable(pid, page.items, [col.pos(), col.id(), col.title(pid), col.kind(), col.stage(), col.category()],
     { changes, empty: n ? "Nothing unplanned is open." : "Nothing unplanned is committed." }) +
     (n
       ? `<p class="empty">${plural(n, "done or dropped item")} ${n === 1 ? "is" : "are"} in the Archive, at the foot of the sheet index. <a href="${esc(href.unplanned(pid, true))}">Show ${n === 1 ? "it" : "them"} here too</a></p>`
@@ -54,7 +57,7 @@ export function unplannedBody(pid, page, changes, all = false) {
   const ny = page.needs_you.tiers.length
     ? `<section id="needs"><div class="hd"><h2>Needs you</h2><span class="lab">On unplanned work</span></div>${schedule(page.needs_you, { pid, changes, noPlan: true })}</section>`
     : "";
-  return `<section><div class="hd"><h2>Unplanned work</h2><span class="lab">Committed, no plan · a bug or idea started straight from the backlog lands here</span></div>${table}</section>${ny}`;
+  return `<section><div class="hd"><h2>Unplanned work</h2><span class="lab">Committed, no plan, in rank order · a bug or idea started straight from the backlog lands here</span></div>${table}</section>${ny}`;
 }
 
 // Backlog filters, per page (project or plan), kept while the page is open.

@@ -343,6 +343,7 @@ IDs are how Jeff hands things to an agent, so every item, entry (question, decis
 - Numeric columns are right-aligned with tabular figures. Titles are 600 with an optional muted meta line below.
 - Group header rows use Panel Grey, and the "now" group uses Blueline Wash with blue text.
 - Whole rows link via `data-href` and fill Panel Grey on hover. The title link stays the keyboard target.
+- Item tables of one group (a phase's Items, a plan's Not in a phase, Unplanned) list in rank order and start with a `#` column: an open item's position, 1, 2, 3, equal ranks sharing one (Jeff's choice, 2026-11-18). Done and dropped rows follow, unnumbered, as do unranked items from before ranks. The sheet index and What's next keep the same order without numbers; What's next shows the work under way and the first two ready items, in rank order.
 
 ### Docs
 - Markdown is rendered with vendored marked 16.1.1. Raw HTML in a doc is shown as escaped text. Only `http(s):`, `mailto:` and `#` links stay links, and anything else becomes a dotted-underline span. Images become `[alt]` text.

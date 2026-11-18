@@ -59,7 +59,7 @@ export function planStatus(pid, page, ch) {
   const intro = p.state === "shaping" ? `<p class="sub" style="margin:0">A shaping plan has no phases until you agree it. Read and shape it in the Plan doc tab.</p>` : "";
   const table = phaseTable(pid, slug, page.schedule, ch);
   const unfiled = page.unfiled.length
-    ? `<section><div class="hd"><h2>Not in a phase</h2><span class="lab">Committed to this plan without a phase</span></div>${itemTable(pid, page.unfiled, [col.id(), col.title(pid), col.stage()], { changes: ch })}</section>`
+    ? `<section><div class="hd"><h2>Not in a phase</h2><span class="lab">Committed to this plan without a phase · in rank order</span></div>${itemTable(pid, page.unfiled, [col.pos(), col.id(), col.title(pid), col.stage()], { changes: ch })}</section>`
     : "";
   return `${intro}${table}<div class="cols">
     <section id="needs"><div class="hd"><h2>Needs you</h2><span class="lab">This plan · ranked</span></div>${schedule(page.needs_you, { pid, changes: ch, noPlan: true })}</section>
@@ -100,8 +100,10 @@ function nextBlock(pid, page, ch) {
     return `<p class="empty">${page.plan.state === "shaping" ? "No phases yet. When you agree the plan, its phases appear here." : "Nothing can start."}</p>`;
   }
   return page.next.map(ph => {
+    // Work under way, and the first two to start, all in rank order.
     const open = ph.items.filter(i => i.state !== "done" && i.state !== "dropped");
-    const show = open.filter(i => i.state !== "committed").concat(open.filter(i => i.state === "committed").slice(0, 2));
+    const first = new Set(open.filter(i => i.state === "committed").slice(0, 2));
+    const show = open.filter(i => i.state !== "committed" || first.has(i));
     const more = open.length - show.length, p = ph.progress, total = p.total - p.dropped;
     const rows = show.map(i => {
       const link = href.item(pid, i.id);

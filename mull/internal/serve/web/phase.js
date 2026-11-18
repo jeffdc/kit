@@ -45,7 +45,7 @@ export function phaseSheet(pr, data, page) {
   return head + `<div class="page">
     ${ph.summary ? `<p class="lede">${esc(ph.summary)}</p>` : ""}${waits}
     <div class="cols">
-      <section><div class="hd"><h2>Items</h2><span class="lab">One session each · unordered</span></div>${itemTable(pid, page.items, [col.id(), col.title(pid), col.stage()], { changes: ch, empty: "No items yet. They're written when this phase comes up." })}${captured}</section>
+      <section><div class="hd"><h2>Items</h2><span class="lab">One session each · in rank order</span></div>${itemTable(pid, page.items, [col.pos(), col.id(), col.title(pid), col.stage()], { changes: ch, empty: "No items yet. They're written when this phase comes up." })}${captured}</section>
       <aside id="needs"><div class="hd"><h2>Needs you</h2><span class="lab">This phase</span></div>${schedule(page.needs_you, { pid, changes: ch, noPlan: true, noPhase: true })}</aside>
     </div>
     <section><div class="hd ed"><h2><span class="${docCloud.trim()}">The phase doc</span></h2><span class="lab">Its design, shared with the agents</span>${edit.button}</div><div class="doc-wrap">${edit.form || doc}</div></section>
