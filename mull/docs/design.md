@@ -75,17 +75,20 @@ Because `start` works from captured, a small bug can go from the backlog to done
 
 **Triage** (Model v2) is a process the human runs with an agent (`mull guide triage`), not a screen. Each captured item is committed, tagged to a plan or phase (`mull set <id> plan|phase`, captured items only, so tagging never commits), started, dropped or left. `mull triage <id…> --on-request` (or `--all [--plan <slug>|none]`) stamps an item's `triaged` time; a captured item with no stamp is untriaged. The view shows only the untriaged count: for the project, on each board, and in each progress line.
 
-### Ordering: loose, with dependencies between phases
+### Ordering: phases need phases, items are ranked
 
-There is no priority list. Order only where it matters (Model v2):
-- **Rank** (plan `item-order`) orders open work within its group: a phase, a plan's items with no phase, or Unplanned. It sorts and never holds work back. `mull rank <group> <ids…>` sets a group's order (every open item in it, first to last) and mull writes the numbers; committed work joins its group last, or `--before`/`--after` an open item.
+Two kinds of order, and only one of them holds work back (Model v2, and plan `item-order` for rank):
 - A phase may **need** other phases. That is the only dependency: items have no needs. A phase's need is met when the needed phase is complete.
 - "Can start now" is derived: the phases whose needs are done.
 - **Ready** means committed, in a phase whose needs are done (or in no phase), in a plan that isn't shaping.
 - **Blocked** means committed, in a phase with at least one need not done.
 - Cycles are refused when written.
 - Needs from before Model v2 are kept until `mull migrate` converts them: an item's needs are shown but ignored (migrate drops them), and a phase's needs on items still count (migrate makes each a need on that item's phase).
-- `mull ready [--plan p]` lists ready items. A supervisor agent uses it to hand out work.
+- **Rank** orders open work (committed, active, in review) within its **group**: a phase, a plan's items with no phase, or Unplanned. Ranks never compare across groups. It's an item's `rank`, a sparse integer (10, 20, 30…), lower first; equal ranks mean no order between them. It sorts and warns, and never changes readiness.
+- **Agents give an order, not numbers.** `mull rank <phase|plan|none> <ids…>` sets a group's whole order in one commit: it must list every open item in the group, first to last, and refuses with the missing IDs otherwise. mull writes ranks 10 apart. Committed work joins its group last (`add`, `commit`, starting a captured item, `set <id> phase` to another group), or `add --before`/`--after` an open item, slotted into the gap or renumbering the group when there is none. Agents reorder only when the human says what comes first, without `--on-request`; a reorder files no decision, and mull serve's change cloud shows it.
+- **Captured items** have no rank; **done and dropped** items keep theirs and list after open work. **Unranked** items exist only from before ranks: they sort after ranked ones, oldest first, and their group's next placement ranks them all in that order. No migration.
+- **Work order** is how every CLI list goes: plan by plan (by slug, Unplanned last); within a plan, its phases in schedule order (by depth of needs not yet done, then age; done phases last), then its items with no phase; within a group, open work by rank, then the rest. `mull ready [--plan p]`, `mull context` (whose ready list is cut at 15, so the top is what's kept), `mull list`, `mull show <phase|plan>`, `mull plan show` and the view's work in flight all use it. A supervisor agent hands out work from the top of `mull ready`.
+- **Rank is loud.** `mull start` on committed work while open work ranked before it in its group isn't done (committed, active or in review) still succeeds, with a warning naming each of those items and its stage. Equal ranks and unranked items don't warn, and nor does a captured item started now, since nobody ranked it.
 - The view sorts phases by readiness (can start, blocked, complete), then by age.
 
 ### Claims (several agents at once)

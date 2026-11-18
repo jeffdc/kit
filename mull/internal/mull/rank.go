@@ -218,3 +218,94 @@ func (m *Mull) rank(s *state, ref string, ids []string) (RankResult, error) {
 	}
 	return out, nil
 }
+
+// workOrder sorts items the way the CLI lists work: by group, then by rank
+// within it. Groups go plan by plan (by slug, Unplanned last); within a
+// plan, its phases in schedule order (by depth of needs not yet done, then
+// age, done phases last), then its items with no phase. Within a group,
+// open work comes first in rank order, then the rest (captured, done and
+// dropped) by rank, unranked last.
+func (s *state) workOrder(items []*model.Item) {
+	pos := s.phaseOrder()
+	key := func(i *model.Item) (bool, string, int) {
+		p, ok := pos[i.Phase]
+		switch {
+		case i.Phase == "":
+			p = len(pos) + 1
+		case !ok:
+			p = len(pos) // a phase that's gone: after the plan's others
+		}
+		return i.Plan == "", i.Plan, p
+	}
+	sort.SliceStable(items, func(a, b int) bool {
+		x, y := items[a], items[b]
+		xu, xp, xe := key(x)
+		yu, yp, ye := key(y)
+		switch {
+		case xu != yu:
+			return yu
+		case xp != yp:
+			return xp < yp
+		case xe != ye:
+			return xe < ye
+		case x.Phase != y.Phase:
+			return x.Phase < y.Phase
+		case openWork(x) != openWork(y):
+			return openWork(x)
+		}
+		return rankLess(x, y)
+	})
+}
+
+// phaseOrder numbers every phase by its place in its plan's schedule:
+// unfinished phases by depth of needs not yet done, then age; done phases
+// after them.
+func (s *state) phaseOrder() map[string]int {
+	type row struct {
+		id      string
+		done    bool
+		depth   int
+		created string
+	}
+	memo := map[string]int{}
+	var rows []row
+	for _, id := range sortedKeys(s.phases) {
+		e := s.phases[id]
+		r := row{id: id, created: e.Created, done: s.phaseComplete(id)}
+		if !r.done {
+			r.depth = s.depth(id, true, memo)
+		}
+		rows = append(rows, r)
+	}
+	sort.SliceStable(rows, func(a, b int) bool {
+		x, y := rows[a], rows[b]
+		switch {
+		case x.done != y.done:
+			return y.done
+		case x.depth != y.depth:
+			return x.depth < y.depth
+		}
+		return x.created < y.created
+	})
+	out := make(map[string]int, len(rows))
+	for k, r := range rows {
+		out[r.id] = k
+	}
+	return out
+}
+
+// rankedAhead is the open work ranked before i in its group, for start's
+// warning. Only ranks someone gave count: an unranked item, or one with an
+// equal rank, has no order against i.
+func (s *state) rankedAhead(i *model.Item) []*model.Item {
+	if i.Rank == 0 {
+		return nil
+	}
+	var out []*model.Item
+	for _, o := range s.ranked(groupOf(i), i.ID) {
+		if o.Rank != 0 && o.Rank < i.Rank {
+			out = append(out, o)
+		}
+	}
+	return out
+}
