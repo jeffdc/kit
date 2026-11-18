@@ -307,3 +307,63 @@ func TestStartWarnsAheadOfRank(t *testing.T) {
 		}
 	}
 }
+
+func rowTitle(r ItemRow) string { return fmt.Sprintf("%s:%d", r.Title, r.Position) }
+
+func TestServePagesFollowRank(t *testing.T) {
+	m, _ := setup(t)
+	ph := must[*model.Phase](t)(m.PhaseAdd("general", "P", "", nil))
+	add := func(in NewItem) string { t.Helper(); return must[ItemView](t)(m.ItemAdd(in)).ID }
+	a := add(NewItem{Phase: ph.ID, Title: "a"})
+	b := add(NewItem{Phase: ph.ID, Title: "b"})
+	c := add(NewItem{Phase: ph.ID, Title: "c"})
+	d := add(NewItem{Phase: ph.ID, Title: "d"})
+	gone := add(NewItem{Phase: ph.ID, Title: "gone"})
+	must[DropResult](t)(m.Drop([]string{gone}, "not needed", SettleOpts{OnRequest: true}))
+	must[RankResult](t)(m.Rank(ph.ID, []string{c, a, b, d}))
+	must[StartResult](t)(m.Start(b))
+	must[StartResult](t)(m.Start(d))
+	finish(t, m, a)
+
+	// Open work in rank order, numbered among itself; finished work after,
+	// with no number.
+	page := must[PhasePage](t)(m.PhasePage(ph.ID))
+	if got, want := titles(page.Items, rowTitle), "c:1 b:2 d:3 a:0 gone:0"; got != want {
+		t.Fatalf("phase items = %q, want %q", got, want)
+	}
+	plan := must[PlanPage](t)(m.PlanPage("general"))
+	if got, want := titles(plan.Next[0].Items, rowTitle), "c:1 b:2 d:3"; got != want {
+		t.Fatalf("what's next = %q, want %q", got, want)
+	}
+	if got, want := titles(plan.Status.Agents, func(r AgentRow) string { return r.Title }), "b d"; got != want {
+		t.Fatalf("agents = %q, want %q", got, want)
+	}
+	tree := must[Tree](t)(m.TreePage())
+	if got, want := titles(tree.Plans[0].Phases[0].Items, func(r TreeItem) string { return r.Title }), "c b d a gone"; got != want {
+		t.Fatalf("tree = %q, want %q", got, want)
+	}
+
+	// Equal ranks share a position; unranked items (from before ranks) have
+	// none and come last, as do the plan's unfiled and Unplanned lists.
+	u1 := add(NewItem{Plan: model.NoPlan, Title: "u1"})
+	u2 := add(NewItem{Plan: model.NoPlan, Title: "u2"})
+	u3 := add(NewItem{Plan: model.NoPlan, Title: "u3"})
+	u4 := add(NewItem{Plan: model.NoPlan, Title: "u4"})
+	err := m.update("rerank", func(s *state) error {
+		for k, id := range []string{u1, u2, u3, u4} {
+			i := s.items[id]
+			i.Rank, i.Created = []int{20, 10, 10, 0}[k], fmt.Sprintf("2026-01-0%dT00:00:00Z", k+1)
+			if err := s.putItem(i); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	un := must[Unplanned](t)(m.UnplannedPage(false))
+	if got, want := titles(un.Items, rowTitle), "u2:1 u3:1 u1:3 u4:0"; got != want {
+		t.Fatalf("unplanned = %q, want %q", got, want)
+	}
+}

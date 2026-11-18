@@ -241,14 +241,18 @@ type PlanStatus struct {
 func (s *state) planStatus(p *model.Plan, g *gitState) PlanStatus {
 	out := PlanStatus{Slug: p.Slug, Title: p.Title, State: p.State, Summary: p.Summary,
 		Now: []PhaseRow{}, Next: []PhaseRow{}, Agents: []AgentRow{}}
-	var items []*model.Item
+	var items, active []*model.Item
 	for _, id := range sortedKeys(s.items) {
 		if i := s.items[id]; i.Plan == p.Slug {
 			items = append(items, i)
 			if i.State == model.StateActive {
-				out.Agents = append(out.Agents, s.agentRow(i, g))
+				active = append(active, i)
 			}
 		}
+	}
+	s.workOrder(active) // by phase schedule, then rank
+	for _, i := range active {
+		out.Agents = append(out.Agents, s.agentRow(i, g))
 	}
 	out.Progress = s.progress(items)
 	goLive := s.goLive(p.Slug)

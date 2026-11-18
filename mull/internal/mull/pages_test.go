@@ -397,8 +397,8 @@ func TestOverviewTreeAndLists(t *testing.T) {
 	if first.ID != f.first.ID || first.State != PhaseNow || first.Blocking != 2 || len(first.Items) != 2 {
 		t.Errorf("tree's first phase = %+v (captured items are backlog, not listed)", first)
 	}
-	if first.Items[0].ID != f.active.ID || !first.Items[1].Ready {
-		t.Errorf("tree items = %+v (active first)", first.Items)
+	if first.Items[1].ID != f.active.ID || !first.Items[0].Ready {
+		t.Errorf("tree items = %+v (in rank order: the ready work was added first)", first.Items)
 	}
 	if tree.Plans[1].Blocking != 2 || tree.Counts != ov.Counts {
 		t.Errorf("tree plan blocking = %d, counts = %+v", tree.Plans[1].Blocking, tree.Counts)

@@ -250,11 +250,18 @@ func (s *state) workOrder(items []*model.Item) {
 			return xe < ye
 		case x.Phase != y.Phase:
 			return x.Phase < y.Phase
-		case openWork(x) != openWork(y):
-			return openWork(x)
 		}
-		return rankLess(x, y)
+		return workLess(x, y)
 	})
+}
+
+// workLess orders items within a group: open work first, in rank order,
+// then the rest (captured, done, dropped) by rank, unranked last.
+func workLess(a, b *model.Item) bool {
+	if openWork(a) != openWork(b) {
+		return openWork(a)
+	}
+	return rankLess(a, b)
 }
 
 // phaseOrder numbers every phase by its place in its plan's schedule:

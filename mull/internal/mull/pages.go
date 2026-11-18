@@ -11,13 +11,6 @@ import (
 // The pages of mull serve's UI, each read from one snapshot of the mull
 // branch. They only read.
 
-// stageOrder sorts items in a list: work in flight first, then what waits
-// for review, what's left to do, and what's finished.
-var stageOrder = map[string]int{
-	model.StateActive: 0, model.StateInReview: 1, model.StateCommitted: 2,
-	model.StateDone: 3, model.StateDropped: 4, model.StateCaptured: 5,
-}
-
 // ItemRow is an item in a list: everything but its notes.
 type ItemRow struct {
 	ID         string       `json:"id"`
@@ -33,7 +26,8 @@ type ItemRow struct {
 	Claim      *model.Claim `json:"claim,omitempty"`
 	Untriaged  bool         `json:"untriaged,omitempty"`
 	Triaged    string       `json:"triaged,omitempty"`
-	Questions  int          `json:"questions"` // open questions on it
+	Questions  int          `json:"questions"`          // open questions on it
+	Position   int          `json:"position,omitempty"` // its place in its group's rank order, open work only (see rowsOf)
 	Created    string       `json:"created"`
 	Updated    string       `json:"updated"`
 }
@@ -102,7 +96,7 @@ func (s *state) agedOut(i *model.Item, now time.Time) bool {
 	return ok && now.Sub(up) > doneShownFor
 }
 
-// itemRows lists the items keep selects, by stage, then oldest first.
+// itemRows lists the items keep selects, in rank order (see rowsOf).
 func (s *state) itemRows(keep func(*model.Item) bool) []ItemRow {
 	all := make([]*model.Item, 0, len(s.items))
 	for _, id := range sortedKeys(s.items) {
@@ -112,6 +106,11 @@ func (s *state) itemRows(keep func(*model.Item) bool) []ItemRow {
 }
 
 // rowsOf is itemRows over candidates (in ID order) rather than every item.
+// Rows go as within a group (workLess): open work in rank order, then the
+// rest. Each list mull serve draws from it holds one group's work, open
+// work all of it, so an open ranked row's position is counted from the
+// list itself: one more than the open rows ranked before it, so equal
+// ranks share one. Unranked rows have none.
 func (s *state) rowsOf(candidates []*model.Item, keep func(*model.Item) bool) []ItemRow {
 	var items []*model.Item
 	for _, i := range candidates {
@@ -119,15 +118,25 @@ func (s *state) rowsOf(candidates []*model.Item, keep func(*model.Item) bool) []
 			items = append(items, i)
 		}
 	}
-	sort.SliceStable(items, func(a, b int) bool {
-		if oa, ob := stageOrder[items[a].State], stageOrder[items[b].State]; oa != ob {
-			return oa < ob
-		}
-		return items[a].Created < items[b].Created
-	})
+	sort.SliceStable(items, func(a, b int) bool { return workLess(items[a], items[b]) })
+	type run struct{ n, rank, pos int } // open ranked rows seen, the last one's rank and position
+	runs := map[group]*run{}
 	out := []ItemRow{}
 	for _, i := range items {
-		out = append(out, s.itemRow(i))
+		r := s.itemRow(i)
+		if openWork(i) && i.Rank != 0 {
+			g := runs[groupOf(i)]
+			if g == nil {
+				g = &run{}
+				runs[groupOf(i)] = g
+			}
+			g.n++
+			if i.Rank != g.rank {
+				g.rank, g.pos = i.Rank, g.n
+			}
+			r.Position = g.pos
+		}
+		out = append(out, r)
 	}
 	return out
 }
@@ -204,10 +213,15 @@ func (m *Mull) Overview() (Overview, error) {
 		for _, p := range s.notDonePlans() {
 			out.Plans = append(out.Plans, s.planStatus(p, g))
 		}
+		var active []*model.Item
 		for _, id := range sortedKeys(s.items) {
 			if i := s.items[id]; i.State == model.StateActive {
-				out.Agents = append(out.Agents, s.agentRow(i, g))
+				active = append(active, i)
 			}
+		}
+		s.workOrder(active)
+		for _, i := range active {
+			out.Agents = append(out.Agents, s.agentRow(i, g))
 		}
 		return nil
 	})
@@ -312,7 +326,7 @@ type PhasePage struct {
 	PlanState string        `json:"plan_state"`
 	Status    PhaseRow      `json:"status"`
 	NeededBy  []PhaseRef    `json:"needed_by"`
-	Items     []ItemRow     `json:"items"`    // committed work, by stage
+	Items     []ItemRow     `json:"items"`    // committed work, in rank order
 	Captured  []ItemRow     `json:"captured"` // backlog tagged to the phase
 	NeedsYou  NeedsYouTiers `json:"needs_you"`
 	DocRefs   []DocRef      `json:"doc_refs"`
