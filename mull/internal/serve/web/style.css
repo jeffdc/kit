@@ -294,7 +294,7 @@ main { min-width: 0; display: flex; flex-direction: column; }
 .note code { font-size: 12px; }
 
 /* the Needs you schedule */
-.sch { display: flex; flex-direction: column; }
+.sch { display: flex; flex-direction: column; container-type: inline-size; }
 .tier { border-bottom: 1px solid var(--line); }
 .tier > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 34px 16px auto 1fr; align-items: center; gap: 8px; min-height: 32px; background: var(--panel); padding-right: 10px; }
 .tier > summary::-webkit-details-marker { display: none; }
@@ -336,6 +336,16 @@ main { min-width: 0; display: flex; flex-direction: column; }
 .grp li { display: grid; grid-template-columns: 54px 1fr auto; column-gap: 10px; align-items: center; font-size: 12.5px; color: var(--mut); }
 .grp li > .wfail, .grp li > .wform { grid-column: 2 / -1; }
 .grp li .li-acts { display: flex; gap: 6px; justify-content: flex-end; }
+/* A narrow schedule (a page's side column) puts each row's actions under
+   its text, whatever the viewport: beside it, they'd squeeze the text to a
+   letter a line. */
+@container (max-width: 600px) {
+  .it { grid-template-columns: 26px 56px minmax(0, 1fr); }
+  .it .act { grid-column: 3; padding-top: 8px; justify-content: flex-start; max-width: none; }
+  .tier > summary small { display: none; }
+  .grp li { grid-template-columns: 54px minmax(0, 1fr); }
+  .grp li .li-acts { grid-column: 2; justify-content: flex-start; flex-wrap: wrap; }
+}
 .decn > .wform, .decn > .wfail { grid-column: 2 / 4; }
 /* A decision's own actions show on its row's hover or focus (always, on
    touch screens), so a long group isn't a column of boxes. Opacity, not
