@@ -261,7 +261,7 @@ Both families are self-hosted woff2 under `/fonts/`: Archivo variable (wdth 62�
 
 **Breakpoints.**
 - **≤1180px.** The title block reflows to three columns, with the name box spanning the full width on top. Needs you and Plans stack, and so do doc blocks and their margin and the review packet's two columns. The tabs become a grid, and the actions move to their own row under a construction line.
-- **≤860px.** The rail collapses into a top bar. The brand row shows a "Sheet index" toggle, and the tree (capped at 60vh) and the rail footer appear only when it's open. The title block goes to two columns. Needs you rows put their action under the text. Tier hints hide. Table cells marked `.w` (wide-only) hide. The last visible column must never be a `.w` column, because the last cell closes a clouded row. A cell marked `.nl` draws the cloud's right edge once the `.w` columns after it are hidden.
+- **≤860px.** The rail collapses into a top bar. The brand row shows a "Sheet index" toggle, and the tree (capped at 60vh) and the rail footer appear only when it's open. The title block goes to two columns. Needs you rows put their action under the text. Tier hints hide. The same happens at any viewport width when the Needs you list itself is 600px wide or less (a container query on `.sch`), as in a phase page's side column: actions beside the text there would squeeze it to a letter a line. Table cells marked `.w` (wide-only) hide. The last visible column must never be a `.w` column, because the last cell closes a clouded row. A cell marked `.nl` draws the cloud's right edge once the `.w` columns after it are hidden.
 - **Phone (about 400px)** runs on the ≤860 layout. Tables keep a horizontal scroll wrapper as a fallback.
 
 ## Elevation & Depth
