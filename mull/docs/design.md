@@ -407,7 +407,7 @@ The ops are every write except `init`, `sync`, `migrate`, `check` and `done`.
 
 This is a short block pasted into the project's `AGENTS.md`. In outline:
 1. At session start, run `mull context --item <id>`. Read the decision log before deciding anything it may already settle, and read the item's docs and its phase's doc. Follow its plan's rules, then its phase's.
-2. **One item per session.** It's committed work from `mull ready`, or a captured item the human wants done now. Claim it with `mull start`, which commits a captured item. Name the branch `<id>-…`. End every commit message with `Mull: <id>`.
+2. **One item per session.** It's committed work from `mull ready`, or a captured item the human wants done now. Claim it with `mull start`, which commits a captured item. Name the branch `<id>-…`, and make it from the tip of the item's plan's target before `mull start`, so the claim records it and its base. When the item gets its own worktree, set it up as the plan's rules (or the project's `AGENTS.md`) say. End every commit message with `Mull: <id>`.
 3. Capture as you go, one line each:
    - `mull decided` for any choice you made that the human didn't, and with `--human --on-request` for one the human made in conversation;
    - `mull ask` for anything you need from the human;
@@ -427,7 +427,10 @@ This is a short block pasted into the project's `AGENTS.md`. In outline:
 - review each finished item's done report and diff, then `accept` (with `--follow-up` for small leftovers), or send it back with `do <review> --reason`;
 - watch `mull view`, acting on problems first;
 - route questions and decisions to the human instead of answering them;
-- keep the backlog from workers until the human commits it, and go through it with the human when they ask (`mull guide triage`).
+- keep the backlog from workers until the human commits it, and go through it with the human when they ask (`mull guide triage`);
+- remove an item's worktree and its merged branch (`git worktree remove`, `git branch -d`, never forced) once the item is accepted and its work is on its plan's target.
+
+**Worktrees are the guides' business, not mull's.** mull never creates, sets up or removes a worktree: not every item needs one, and making one in `mull start` would force it (decided on question c6c0). The guides say how: a worktree's branch is `<id>-<short-name>` from the plan's target, its project-specific setup (dependencies to copy, dev and test databases) lives in the plan's rules or the project's `AGENTS.md` rather than in mull's config, and the supervisor removes it once its item is done and merged.
 
 ## Intake (`mull guide intake`)
 
