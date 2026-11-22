@@ -181,7 +181,7 @@ There's one file per record, so concurrent writes and merges rarely conflict.
 - `mull plan doc <slug> [-]` and `mull phase doc <id> [-]` print a doc or replace it from stdin; empty stdin removes it. `--log` lists its versions, newest first, read from the commits that changed the file.
 - A plan's or phase's `summary` is separate and unchanged. `mull migrate` turned summaries into doc stubs.
 
-**Rules.** A plan, and optionally a phase, may have rules: the human's standing rules for the agents working in it (how to set up a worktree, what to use and reuse, what not to touch, skills to load). They're what a supervisor would otherwise repeat in every worker's prompt, so they live where every worker reads them.
+**Rules.** A plan, and optionally a phase, may have rules: the human's standing rules for the agents working in it (how to set up a worktree, what to use and reuse, what not to touch, skills to load). They're what a supervisor would otherwise repeat in every worker's prompt, so they live where every worker reads them, and the supervisor's hand-off stays one line (`mull guide supervisor`).
 - Rules are kept as a doc is: plain markdown in their own file, at `rules/` plus the record's path, so writing them touches neither the record nor the doc, and their history is their own. Only format 2 has them.
 - `mull plan rules <slug> [-]` and `mull phase rules <id> [-]` print or replace them, as `plan doc` does a doc, with `--log` and `--text`. Like docs, they're the human's: agents change them only when asked.
 - `mull context --item` gives the item's plan's rules, then its phase's (`plan_rules`, `phase_rules`), in full, and its protocol then ends with a line saying to follow them. mull never checks that they're followed: anything harness-specific, such as a required skill, is only text in the rules.
@@ -411,7 +411,8 @@ This is a short block pasted into the project's `AGENTS.md`. In outline:
 
 `mull guide supervisor` covers coordinating several agents:
 - pick from `mull ready`;
-- give each worker one item ID;
+- give each worker a one-line hand-off, its item ID and nothing else: anything a worker needs goes in its plan's or phase's rules or the item's notes, never in a prompt, so it reaches every worker through `mull context --item`;
+- propose missing or contradictory rules to the human with `mull ask`, since rules are theirs, and propose a phase for shared foundations (layout, components, helpers) that the phases using them need, rather than letting parallel workers each build their own;
 - review each finished item's done report and diff, then `accept` (with `--follow-up` for small leftovers), or send it back with `do <review> --reason`;
 - watch `mull view`, acting on problems first;
 - route questions and decisions to the human instead of answering them;
