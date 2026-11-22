@@ -5,6 +5,11 @@ plan: supervised-work
 item: bcea
 by: /Users/jeff/dev/kit/.claude/worktrees/agent-ab627294f89289eee
 created: "2026-11-22T16:38:47Z"
+settled:
+  action: accept
+  by: Jeff
+  human: true
+  at: "2026-11-22T16:39:30Z"
 ---
 
 They're a short list read by done, not prose with its own history; plan show and plan list carry them, and the change feed reports a checks field (as text, no from/to)
