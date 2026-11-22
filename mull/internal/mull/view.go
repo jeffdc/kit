@@ -13,7 +13,7 @@ import (
 // Thresholds for problems.
 const (
 	idleClaimAfter   = 24 * time.Hour
-	notInGitAfter    = 3 * 24 * time.Hour
+	notInGitAfter    = 3 * 24 * time.Hour // in review; accepted (done) is a problem at once
 	recentActivity   = 7 * 24 * time.Hour
 	olderInboxAfter  = 7 * 24 * time.Hour
 	unlinkedListSize = 5
@@ -254,8 +254,16 @@ func (s *state) board(p *model.Plan, g *gitState, now time.Time) PlanBoard {
 					Text: fmt.Sprintf("accepted, but %s carrying its trailer came after (last %s ago); later work needs its own item: mull add --follow-up %s",
 						plural(ig.afterAccept, "commit"), ago(now, ig.lastAfterAccept), i.ID)})
 			}
+			// Accepted work belongs on the target, so a done item with none
+			// there is a problem at once; in review it may not be merged
+			// yet, so that waits notInGitAfter.
 			if !ig.SeenInGit {
-				if up, ok := parseTime(i.Updated); ok && now.Sub(up) > notInGitAfter {
+				up, ok := parseTime(i.Updated)
+				switch {
+				case i.State == model.StateDone:
+					b.Problems = append(b.Problems, Problem{Kind: "done-not-in-git", Item: i.ID,
+						Text: fmt.Sprintf("accepted, but none of its work is on %s", ig.Target)})
+				case ok && now.Sub(up) > notInGitAfter:
 					b.Problems = append(b.Problems, Problem{Kind: "done-not-in-git", Item: i.ID,
 						Text: fmt.Sprintf("%s %s ago, but none of its work is on %s", i.State, ago(now, up), ig.Target)})
 				}

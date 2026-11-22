@@ -201,3 +201,51 @@ func TestBroughtIn(t *testing.T) {
 		}
 	}
 }
+
+// Accepted work with nothing on its plan's target is a problem at once; in
+// review it waits three days, and merged work is never one.
+func TestAcceptedNotInTarget(t *testing.T) {
+	m, dir := setup(t)
+	agreedPlan(t, m, "site", "The site", "")
+	must[SetResult](t)(m.Set("site", "target", "site-shell"))
+	gittest.Git(t, dir, "branch", "-q", "site-shell")
+	add := func(title string) ItemView {
+		return must[ItemView](t)(m.ItemAdd(NewItem{Plan: "site", Title: title}))
+	}
+	a, b, c, d := add("A accepted, on main only"), add("B in review, unmerged"), add("C accepted, merged"), add("D in review, merged")
+
+	// A's work went to main, not the target; B's sits on its branch.
+	gittest.Commit(t, dir, "a", "a", "Do A", "Mull: "+a.ID)
+	gittest.Git(t, dir, "checkout", "-q", "-b", b.ID+"-work")
+	gittest.Commit(t, dir, "b", "b", "Do B")
+	// C and D are merged into the target.
+	gittest.Git(t, dir, "checkout", "-q", "site-shell")
+	gittest.Commit(t, dir, "c", "c", "Do C", "Mull: "+c.ID)
+	gittest.Commit(t, dir, "d", "d", "Do D", "Mull: "+d.ID)
+	gittest.Git(t, dir, "checkout", "-q", "main")
+	for _, id := range []string{a.ID, b.ID, c.ID, d.ID} {
+		markInReview(t, m, id)
+	}
+	must[AcceptResult](t)(m.Accept([]string{a.ID, c.ID}, "", SettleOpts{}))
+
+	board := func() PlanBoard {
+		t.Helper()
+		return must[View](t)(m.Board("site")).Plans[0]
+	}
+	probs := problemsByItem(board())
+	if probs[a.ID] != "done-not-in-git" || len(probs) != 1 {
+		t.Errorf("just accepted: problems %v, want only A's done-not-in-git", probs)
+	}
+	for _, p := range board().Problems {
+		if p.Item == a.ID && p.Text != "accepted, but none of its work is on site-shell" {
+			t.Errorf("A's problem text: %q", p.Text)
+		}
+	}
+
+	// Three days on, B (still in review, still unmerged) is one too.
+	m.Now = func() time.Time { return time.Now().Add(4 * 24 * time.Hour) }
+	probs = problemsByItem(board())
+	if probs[a.ID] != "done-not-in-git" || probs[b.ID] != "done-not-in-git" || len(probs) != 2 {
+		t.Errorf("three days on: problems %v, want A's and B's", probs)
+	}
+}

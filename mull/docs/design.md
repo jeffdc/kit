@@ -260,7 +260,7 @@ mull derives from git:
 | **Linked commits** | Commits with the trailer, or reached through a branch or merge carrying the ID |
 | **Seen in git** | The item's linked commits are reachable from its plan's target branch, so its work has landed. Shown next to `done`, never a gate |
 | **Merged at** | When the work came into the target: the date of the target's first-parent commit that brought in the item's latest linked commit (the merge, or the commit itself when it was made on the target). Derived each time, never stored |
-| **Problems** | An active claim with no linked commits for a day; an item in review or done with nothing seen in git on its target after three days; a failed done attempt; recent commits on an item nobody has claimed; commits carrying a done item's trailer, on any branch, written after it was accepted (see "Follow-ups"); commits on the integration branch with no link, shown as a count |
+| **Problems** | An active claim with no linked commits for a day; an item in review with nothing seen in git on its target after three days, or accepted (done) with nothing there at once (work in review may not be merged yet, but accepted work belongs on the target); a failed done attempt; recent commits on an item nobody has claimed; commits carrying a done item's trailer, on any branch, written after it was accepted (see "Follow-ups"); commits on the integration branch with no link, shown as a count |
 
 Bare 4-hex mentions in commit prose are not counted, because they collide with hashes.
 

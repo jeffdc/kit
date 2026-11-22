@@ -29,6 +29,7 @@ When you settle or file more than a couple of records at once, use `mull batch`.
   - **failed-done:** the worker's checks failed. It should fix the problem or release the item.
   - **idle-claim:** the worker has stalled. Find out why, or `mull release` the item.
   - **unclaimed-work:** someone is committing to an item's branch without having claimed it.
+  - **done-not-in-git:** none of the item's work is on its plan's target: it was accepted (flagged at once), or has been in review three days. Merge its branch into the target.
   - **work-after-accept:** commits under a done item's trailer came after it was accepted. Later work needs its own item: `mull add "<title>" --follow-up <done-id>` (on the human's word, if they didn't ask for the change), and new commits go under that ID.
 - Route questions and decisions to the human. Don't answer them yourself. When a worker's question is one its rules should have answered, propose the rule with `mull ask` as well, so the next worker doesn't ask it again. `mull inbox` shows what needs them: questions, decisions and reviews only.
 - A decision the human makes in conversation, not in answer to an inbox entry, goes in with `mull decided "<their decision>" --human --on-request` (with `--item` or `--plan`): settled at once as theirs, into the decision log. To answer an entry, use `mull decide <entry-id>` instead.
