@@ -32,7 +32,7 @@ function plan(pid, ps, ch, release) {
     if (ps.now.length) {
       rows.push([`Now · ${ps.now.length}`, `<div>${ps.now.map(ph => {
         const p = ph.progress, total = p.total - p.dropped, link = href.phase(pid, ph.id);
-        return `<div class="pr${cl(within.phase(ph.id))}" data-href="${esc(link)}"><a href="${esc(link)}"><span>${esc(ph.title)}</span>${stamp(ph.blocking)}</a>${cells(p)}<em>${total ? `${p.done}/${total}` : ""}</em></div>`;
+        return `<div class="pr${cl(within.phase(ph.id))}" data-href="${esc(link)}"><a href="${esc(link)}"><span>${esc(ph.title)}</span>${stamp(ph.blocking)}</a>${cells(p)}<em${ph.state === "awaiting-review" ? ` title="awaiting integration review"` : ""}>${ph.state === "awaiting-review" ? "review" : total ? `${p.done}/${total}` : ""}</em></div>`;
       }).join("")}</div>`]);
     }
     if (ps.next.length) {

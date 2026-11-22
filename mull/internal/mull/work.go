@@ -705,7 +705,7 @@ type SetResult struct {
 // Set changes one field of a plan, phase or item.
 //
 //	plan: title, summary, target (a branch; "" falls back to config integration)
-//	phase: title, summary
+//	phase: title, summary, and integration-review on or off (the human's: see PhaseSet)
 //	item: title, notes, category, phase ("" to unfile), doc (adds a path), and for a
 //	captured item plan ("none" to untag; a phase in another plan retags it) and kind (bug or idea)
 func (m *Mull) Set(ref, field, value string) (SetResult, error) {
@@ -716,6 +716,57 @@ func (m *Mull) Set(ref, field, value string) (SetResult, error) {
 		return err
 	})
 	return out, err
+}
+
+// PhaseSet is set for a phase only (mull phase set): title, summary, or
+// integration-review on or off. Whether a phase needs an integration review
+// is the human's call, so an agent must say they asked (onRequest).
+func (m *Mull) PhaseSet(id, field, value string, onRequest bool) (SetResult, error) {
+	var out SetResult
+	err := m.update(fmt.Sprintf("phase set %s %s", id, field), func(s *state) error {
+		e, err := s.phase(id)
+		if err != nil {
+			return err
+		}
+		out, err = m.setPhase(s, e, field, value, onRequest)
+		return err
+	})
+	return out, err
+}
+
+func (m *Mull) setPhase(s *state, e *model.Phase, field, value string, onRequest bool) (SetResult, error) {
+	switch field {
+	case "title":
+		e.Title = value
+	case "summary":
+		e.Summary = value
+	case "integration-review":
+		var on bool
+		switch value {
+		case "on":
+			on = true
+		case "off":
+		default:
+			return SetResult{}, errf(CodeInvalid, "integration-review is on or off, not %q", value)
+		}
+		if !m.asked(onRequest) {
+			return SetResult{}, errf(CodeNotAllowed, "only the human decides whether a phase needs an integration review: "+
+				"when they have asked for this change, run mull phase set %s integration-review %s --on-request", e.ID, value)
+		}
+		if on == e.IntegrationReview {
+			v := s.phaseView(e) // unchanged: write nothing
+			return SetResult{Type: "phase", Phase: &v}, nil
+		}
+		e.IntegrationReview = on
+	default:
+		return SetResult{}, errf(CodeInvalid, "a phase's settable fields are title, summary and integration-review")
+	}
+	e.Updated = m.now()
+	if err := s.putPhase(e); err != nil {
+		return SetResult{}, err
+	}
+	v := s.phaseView(e)
+	return SetResult{Type: "phase", Phase: &v}, nil
 }
 
 func (m *Mull) set(s *state, ref, field, value string) (SetResult, error) {
@@ -740,21 +791,7 @@ func (m *Mull) set(s *state, ref, field, value string) (SetResult, error) {
 		p.Updated = now
 		return SetResult{Type: "plan", Plan: p}, s.putPlan(p)
 	case s.phases[ref] != nil:
-		e := s.phases[ref]
-		switch field {
-		case "title":
-			e.Title = value
-		case "summary":
-			e.Summary = value
-		default:
-			return SetResult{}, errf(CodeInvalid, "a phase's settable fields are title and summary")
-		}
-		e.Updated = now
-		if err := s.putPhase(e); err != nil {
-			return SetResult{}, err
-		}
-		v := s.phaseView(e)
-		return SetResult{Type: "phase", Phase: &v}, nil
+		return m.setPhase(s, s.phases[ref], field, value, false)
 	case s.items[ref] != nil:
 		i := s.items[ref]
 		switch field {

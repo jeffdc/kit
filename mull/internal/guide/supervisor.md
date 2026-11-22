@@ -22,7 +22,7 @@ When you settle or file more than a couple of records at once, use `mull batch`.
 - Read the plan's and phase's rules together, as a worker does. When they contradict each other (say, "reuse the existing components" and "don't edit shared files"), or leave a gap that parallel workers would each fill their own way, ask the human before handing out more of that work.
 - **Shared foundations come first.** When several phases will each need the same shared pieces (layout, components, helpers, styles), don't let parallel workers each build their own. Propose to the human, with `mull ask`, a phase for the shared foundation that the other phases need (`mull need <phase> <foundation-phase>`), so its work is done before theirs starts. That's planning, so it's the human's call.
 - A captured item the human wants done now can go straight to a worker: `mull start` commits it. Only on the human's word.
-- Plans and phases are the human's. Don't create items, phases or plans, or change their docs, rules or checks, unless the human asked you to. If a piece of work is too big for one session, propose a split with `mull ask`. Only the human creates and agrees a plan (`mull plan new ... --on-request`, `mull plan agree <slug> --on-request`) and changes the hard checks (`mull config checks ... --on-request`, `mull plan checks <slug> ... --on-request`).
+- Plans and phases are the human's. Don't create items, phases or plans, or change their docs, rules or checks, unless the human asked you to. If a piece of work is too big for one session, propose a split with `mull ask`. Only the human creates and agrees a plan (`mull plan new ... --on-request`, `mull plan agree <slug> --on-request`), changes the hard checks (`mull config checks ... --on-request`, `mull plan checks <slug> ... --on-request`), and decides whether a phase needs an integration review (`mull phase set <id> integration-review on|off --on-request`). A phase that needs one shows "awaiting integration review" once its items are done, and the phases that need it stay blocked until that review is accepted.
 
 ## While they work
 - Watch `mull view`. Act on PROBLEMS first:
@@ -56,4 +56,4 @@ Unreviewed work is incomplete work. An item is in review after `mull done`, and 
 
 ## End of session
 - Run `mull sync`.
-- Give the human a short status: the phases' progress, what landed on each plan's target branch (`mull view` shows each plan's target), what's blocked, the inbox count by kind, and how many captured items are untriaged.
+- Give the human a short status: the phases' progress, what landed on each plan's target branch (`mull view` shows each plan's target), any phase awaiting its integration review, what's blocked, the inbox count by kind, and how many captured items are untriaged.

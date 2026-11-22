@@ -135,7 +135,11 @@ func (m *Mull) Context(itemID string) (Context, error) {
 			for _, id := range sortedKeys(s.phases) {
 				if e := s.phases[id]; e.Plan == slug {
 					ev := s.phaseView(e)
-					bp.Phases = append(bp.Phases, BriefPhase{ID: id, Title: e.Title, Progress: progressText(ev.Progress), BlockedBy: ev.BlockedBy})
+					progress := progressText(ev.Progress)
+					if ev.AwaitingIntegrationReview {
+						progress += " · awaiting integration review"
+					}
+					bp.Phases = append(bp.Phases, BriefPhase{ID: id, Title: e.Title, Progress: progress, BlockedBy: ev.BlockedBy})
 				}
 			}
 			c.Plans = append(c.Plans, bp)

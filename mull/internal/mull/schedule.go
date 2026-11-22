@@ -9,23 +9,30 @@ import (
 // What "now" and "next" mean is derived from phases and their needs only:
 //
 //   - a phase is done once it is complete (every committed item done or
-//     dropped, and at least one);
+//     dropped, and at least one, and, when the phase needs an integration
+//     review, an accepted one that covers its done items);
+//   - a phase that is built but still needs its integration review is
+//     awaiting review: not done, so phases that need it wait;
 //   - otherwise it can start now when every phase it needs is done (and its
 //     plan isn't shaping), and it waits otherwise;
 //   - next are the waiting phases one step away: some phase they need can
-//     start now;
+//     start now or is awaiting review;
 //   - go live is the phase a plan ends with: the one phase deepest in its
 //     needs, when that is deeper than the first step. A plan whose phases
 //     need nothing, or that ends in several phases at once, has none.
 const (
-	PhaseDone  = "done"
-	PhaseNow   = "now"
-	PhaseWaits = "waits"
+	PhaseDone     = "done"
+	PhaseAwaiting = "awaiting-review"
+	PhaseNow      = "now"
+	PhaseWaits    = "waits"
 )
 
 func (s *state) phaseState(e *model.Phase) string {
 	switch {
-	case s.phaseComplete(e.ID):
+	case s.phaseBuilt(e.ID):
+		if s.awaitsIntegrationReview(e.ID) {
+			return PhaseAwaiting
+		}
 		return PhaseDone
 	case len(s.blockedBy(e.Needs)) > 0:
 		return PhaseWaits
@@ -91,7 +98,7 @@ func (s *state) goLive(slug string) *model.Phase {
 type PhaseRef struct {
 	ID    string `json:"id"`
 	Title string `json:"title"`
-	State string `json:"state"` // done, now or waits
+	State string `json:"state"` // done, awaiting-review, now or waits
 }
 
 func (s *state) phaseRef(id string) PhaseRef {
@@ -121,7 +128,7 @@ type PhaseRow struct {
 	ID        string     `json:"id"`
 	Title     string     `json:"title"`
 	Summary   string     `json:"summary,omitempty"`
-	State     string     `json:"state"` // done, now or waits
+	State     string     `json:"state"` // done, awaiting-review, now or waits
 	GoLive    bool       `json:"go_live,omitempty"`
 	Progress  Progress   `json:"progress"`
 	Questions int        `json:"questions"` // open questions on its items
@@ -145,10 +152,11 @@ func (s *state) phaseRow(e *model.Phase, goLive *model.Phase) PhaseRow {
 	return r
 }
 
-// ScheduleGroup is a step of a plan's schedule: the done phases, then the
-// unfinished ones in the order their needs allow, a step per depth of
-// needs not yet done. Key is done, now (the first step: can start now),
-// then, or go_live (the step holding the go-live phase).
+// ScheduleGroup is a step of a plan's schedule: the done phases, then those
+// awaiting their integration review, then the unfinished ones in the order
+// their needs allow, a step per depth of needs not yet done. Key is done,
+// review (awaiting integration review), now (the first step: can start
+// now), then, or go_live (the step holding the go-live phase).
 type ScheduleGroup struct {
 	Key    string     `json:"key"`
 	Title  string     `json:"title"`
@@ -160,12 +168,16 @@ type ScheduleGroup struct {
 func (s *state) schedule(slug string) []ScheduleGroup {
 	goLive := s.goLive(slug)
 	memo := map[string]int{}
-	var done []PhaseRow
+	var done, awaiting []PhaseRow
 	steps := map[int][]PhaseRow{}
 	for _, e := range s.planPhases(slug) {
 		r := s.phaseRow(e, goLive)
-		if r.State == PhaseDone {
+		switch r.State {
+		case PhaseDone:
 			done = append(done, r)
+			continue
+		case PhaseAwaiting:
+			awaiting = append(awaiting, r)
 			continue
 		}
 		d := s.depth(e.ID, true, memo)
@@ -174,6 +186,9 @@ func (s *state) schedule(slug string) []ScheduleGroup {
 	out := []ScheduleGroup{}
 	if len(done) > 0 {
 		out = append(out, ScheduleGroup{Key: "done", Title: "Done", Step: -1, Phases: done})
+	}
+	if len(awaiting) > 0 {
+		out = append(out, ScheduleGroup{Key: "review", Title: "Awaiting integration review", Step: 0, Phases: awaiting})
 	}
 	var ds []int
 	for d := range steps {
@@ -233,7 +248,7 @@ type PlanStatus struct {
 	Built     int        `json:"built"`     // phases done
 	Questions int        `json:"questions"` // open questions anywhere in the plan
 	Blocking  int        `json:"blocking"`
-	Now       []PhaseRow `json:"now"`     // phases that can start now
+	Now       []PhaseRow `json:"now"`     // phases that can start now, and those awaiting their integration review
 	Next      []PhaseRow `json:"next"`    // waiting phases one step away (not go live)
 	GoLive    *PhaseRow  `json:"go_live"` // the phase the plan ends with, if it has one
 	Agents    []AgentRow `json:"agents"`
@@ -263,12 +278,12 @@ func (s *state) planStatus(p *model.Plan, g *gitState) PlanStatus {
 		switch {
 		case r.State == PhaseDone:
 			out.Built++
-		case r.State == PhaseNow:
+		case r.State == PhaseNow || r.State == PhaseAwaiting:
 			out.Now = append(out.Now, r)
 		case r.GoLive:
 		default:
 			for _, w := range r.WaitsFor {
-				if w.State == PhaseNow {
+				if w.State == PhaseNow || w.State == PhaseAwaiting {
 					out.Next = append(out.Next, r)
 					break
 				}

@@ -349,6 +349,25 @@ func TestPlanChecksCommands(t *testing.T) {
 	}
 }
 
+func TestPhaseSetIntegrationReview(t *testing.T) {
+	r := run{t: t, dir: gittest.NewRepo(t)}
+	r.ok("init")
+	r.ok("plan", "new", "launch", "Launch", "--on-request")
+	r.ok("plan", "agree", "launch", "--on-request")
+	ph := r.ok("phase", "add", "Pages", "--plan", "launch")["id"].(string)
+	r.fails("not_allowed", "phase", "set", ph, "integration-review", "on")
+	r.fails("not_allowed", "set", ph, "integration-review", "on")
+	r.fails("invalid_argument", "phase", "set", ph, "integration-review", "maybe", "--on-request")
+	r.fails("not_found", "phase", "set", "launch", "title", "Launch")
+	set := r.ok("phase", "set", ph, "integration-review", "on", "--on-request")
+	if p := set["phase"].(map[string]any); set["type"] != "phase" || p["integration_review"] != true || p["complete"] != false {
+		t.Fatalf("phase set = %v", set)
+	}
+	if p := r.ok("phase", "set", ph, "integration-review", "off", "--on-request")["phase"].(map[string]any); p["integration_review"] != nil {
+		t.Fatalf("phase set off = %v", p)
+	}
+}
+
 func TestScopeRules(t *testing.T) {
 	r := run{t: t, dir: gittest.NewRepo(t)}
 	r.ok("init")

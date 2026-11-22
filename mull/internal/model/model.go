@@ -177,6 +177,11 @@ type Phase struct {
 	// Rules are the phase's standing rules for its workers, after its
 	// plan's: their own file (PhaseRulesPath), like the doc.
 	Rules string `yaml:"-" json:"rules,omitempty"`
+	// IntegrationReview means the phase needs an integration review (the
+	// human's call): once all its items are done, it isn't complete, and
+	// phases that need it stay blocked, until an integration review of it
+	// is accepted.
+	IntegrationReview bool `yaml:"integration_review,omitempty" json:"integration_review,omitempty"`
 	// Legacy means the record was read in format 1, from epics/ (see Format).
 	Legacy bool `yaml:"-" json:"-"`
 }
@@ -303,7 +308,14 @@ type Entry struct {
 	// item's open decisions when mull done filed it. Accepting the review
 	// ratifies those still unsettled.
 	Decisions []string `yaml:"decisions,omitempty" json:"decisions,omitempty"`
-	Detail    string   `yaml:"-" json:"detail,omitempty"`
+	// Phase, on a review, makes it an integration review of that phase
+	// rather than of an item, and Items are the done items it covers.
+	// Accepted, it completes the phase while every done item in the phase
+	// is among them; a done item it doesn't cover (a fix-up, a follow-up)
+	// needs a new one.
+	Phase  string   `yaml:"phase,omitempty" json:"phase,omitempty"`
+	Items  []string `yaml:"items,omitempty" json:"items,omitempty"`
+	Detail string   `yaml:"-" json:"detail,omitempty"`
 }
 
 // Config is per-repository configuration.

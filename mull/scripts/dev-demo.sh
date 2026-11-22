@@ -65,6 +65,18 @@ git checkout -q web-next
 git merge -q --no-ff --no-edit "$digest-job"
 git checkout -q main
 m plan set web target web-next
+# A phase that needs an integration review, its one item done and merged:
+# it awaits that review, and Launch, which needs it, waits.
+pass=$(id phase add "Design pass" --plan web --summary "One look across every page.")
+m phase set "$pass" integration-review on --on-request
+header=$(id add "Shared page header" --phase "$pass")
+m start "$header"
+git checkout -q web-next
+git commit -q --allow-empty -m "Shared page header" -m "Mull: $header"
+git checkout -q main
+m done "$header" --summary "One header for every page." --tour none --design "A shared partial."
+m accept "$header" --on-request
+m need "$launch" "$pass"
 # A plan still shaping, for Agree this plan.
 m plan new pilot "Pilot with two teams" --summary "Try the web app with two teams before launch." --on-request
 echo "demo repo: $demo"
