@@ -1,8 +1,9 @@
 // The Plans column of a project's overview: for each plan not done, what's
-// built, what can start now, what's next, the go-live phase and the agents
-// at work, as a labelled definition list.
+// built, what can start now, what's next, the go-live phase, the agents
+// at work and the work in flight that overlaps, as a labelled definition
+// list.
 
-import { esc, href, tag, cells, plural, ago, copyId } from "./html.js";
+import { esc, href, tag, cells, plural, ago, copyId, stageLabel } from "./html.js";
 import { within } from "./revision.js";
 import { targetField } from "./title.js";
 
@@ -11,11 +12,15 @@ const stamp = n => n ? `<span class="stamp">${n} blocking</span>` : "";
 export function plansColumn(pid, overview, changes) {
   const plans = overview.plans || [];
   const loose = (overview.agents || []).filter(a => !a.plan);
+  const looseOverlaps = (overview.overlaps || []).filter(o => o.items.some(i => !i.plan));
   const release = overview.summary?.release;
   const blocks = plans.map(ps => plan(pid, ps, changes, release));
-  if (loose.length) {
+  if (loose.length || looseOverlaps.length) {
+    const rows = [];
+    if (loose.length) rows.push(["Agents", `<div>${loose.map(a => agent(pid, a, changes)).join("")}</div>`]);
+    if (looseOverlaps.length) rows.push(["Overlap", `<div>${looseOverlaps.map(o => overlap(pid, o)).join("")}</div>`]);
     blocks.push(`<div class="plan"><div class="ph"><h3><a href="${esc(href.unplanned(pid))}">Unplanned work</a></h3></div>
-      <div class="dl"><span class="lab">Agents</span><div>${loose.map(a => agent(pid, a, changes)).join("")}</div></div></div>`);
+      <div class="dl">${rows.map(([l, v]) => `<span class="lab">${esc(l)}</span>${v}`).join("")}</div></div>`);
   }
   const body = blocks.length ? blocks.join("") : `<p class="empty">No plans in progress.</p>`;
   return `<div class="hd"><h2>Plans</h2><span class="lab">${plural(plans.length, "plan")} in progress</span></div>${body}`;
@@ -49,6 +54,7 @@ function plan(pid, ps, ch, release) {
     else if (!ps.now.length && !ps.next.length && !gl && ps.built < ps.phases) rows.push(["Now", `<div class="sub">nothing can start</div>`]);
   }
   if (ps.agents.length) rows.push(["Agents", `<div>${ps.agents.map(a => agent(pid, a, ch)).join("")}</div>`]);
+  if (ps.overlaps?.length) rows.push(["Overlap", `<div>${ps.overlaps.map(o => overlap(pid, o)).join("")}</div>`]);
   const state = ps.state === "active" ? tag("now", "active") : tag(ps.state);
   return `<div class="plan"><div class="ph"><h3><a class="${cl(within.planRecord(ps.slug)).trim()}" href="${esc(href.plan(pid, ps.slug))}">${esc(ps.title)}</a></h3>${state}</div>
     <div class="dl">${rows.map(([l, v]) => `<span class="lab">${esc(l)}</span>${v}`).join("")}</div></div>`;
@@ -60,4 +66,16 @@ function agent(pid, a, ch) {
   const sub = [since, plural(a.commits, "commit")].filter(Boolean).join(" · ");
   return `<div class="ag${ch ? ch.cls(within.item(a.id)) : ""}" data-href="${esc(link)}">${copyId(a.id, `<a href="${esc(link)}"><code>${esc(a.id)}</code></a>`)}` +
     `<span title="${esc(a.phase_title ? `${a.phase_title}: ${a.title}` : a.title)}">${esc(a.title)}</span><span class="sub">${esc(sub)}</span></div>`;
+}
+
+// overlap: two items in flight whose branches changed the same files, and
+// the first few of those files (all of them on hover). Derived from git,
+// not a record, so it's never clouded.
+const overlapShown = 3;
+function overlap(pid, o) {
+  const ids = o.items.map(i => copyId(i.id, `<a href="${esc(href.item(pid, i.id))}" title="${esc(`${i.title} (${stageLabel(i.state)})`)}"><code>${esc(i.id)}</code></a>`));
+  const shown = o.files.slice(0, overlapShown).map(f => `<code>${esc(f)}</code>`).join(", ");
+  const more = o.files.length > overlapShown ? ` and ${o.files.length - overlapShown} more` : "";
+  return `<div class="ov"><div>${ids.join(` <span class="mut">and</span> `)} <span class="sub">both change ${plural(o.files.length, "file")}</span></div>` +
+    `<div class="sub" title="${esc(o.files.join("\n"))}">${shown}${more}</div></div>`;
 }

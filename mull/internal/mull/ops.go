@@ -187,7 +187,7 @@ func (in *PlanCloseIn) run(m *Mull, s *state) (any, string, error) {
 	return p, p.Slug, nil
 }
 
-// PlanSetIn is set, for plans only: title, summary or target.
+// PlanSetIn is set, for plans only: title, summary, target or preview.
 type PlanSetIn struct {
 	Slug  string `json:"slug"`
 	Field string `json:"field"`

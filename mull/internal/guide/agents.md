@@ -10,9 +10,11 @@ This project's plans, work items, backlog and open questions live in **mull**: a
    - Read the decisions it lists, and don't re-decide anything the log already settles.
    - Read the item's `docs` and its `phase_doc` (the phase's design and when it's done). Docs hold intent only. Status comes from mull, never from a doc.
    - Follow its `plan_rules`, then its `phase_rules`, when it has them: the human's standing rules for work in that plan and phase (how to set up, what to use, what not to touch). They come in full with the item, so nothing else needs to repeat them.
+   - Its `target` is the branch your work lands on. Its `preview`, when the plan gives one, is the URL that serves that branch, where the human sees your work once it's merged there. mull only records the preview, and never runs or checks the server.
 2. **One item per session.**
    - Claim it with `mull start <id>`. Your item is committed work (`mull ready`), or a captured item the human wants done now: starting commits it.
-   - Work on a branch named `<id>-<short-name>`.
+   - Work on a branch named `<id>-<short-name>`, made from the tip of the item's plan's target branch (`target.branch` on its plan in `mull context`; the integration branch for unplanned work). Make it before `mull start`, so the claim records the branch and the commit it started from.
+   - **Your own worktree,** when the item gets one: if none was made for you, make it with `git worktree add -b <id>-<short-name> <path> <target>`. Set it up as the plan's rules (or the project's `AGENTS.md`) say, such as copying dependencies and the dev and test databases, before `mull start`. mull never creates or removes worktrees. Don't remove yours when you finish: the supervisor does, once the item is accepted and its work is on the target.
    - End every commit message with the trailer line `Mull: <id>`.
 3. **Capture as you go,** one line each, without waiting for the end. Anyone captures; only the human commits.
    - `mull decided "<what you chose>" --item <id> --detail "<why, one line>"`: any choice the human didn't make for you.

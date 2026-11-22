@@ -27,6 +27,11 @@ type ContextItem struct {
 	PhaseTitle   string `json:"phase_title,omitempty"`
 	PhaseSummary string `json:"phase_summary,omitempty"`
 	PhaseDoc     string `json:"phase_doc,omitempty"`
+	// Target is the branch the item's work lands on (its plan's, or
+	// integration), and Preview the URL its plan says serves that branch:
+	// recorded, never run or checked by mull.
+	Target  Target `json:"target"`
+	Preview string `json:"preview,omitempty"`
 	// PlanRules and PhaseRules are the human's standing rules for work in
 	// the item's plan and phase, in full: the worker follows the plan's,
 	// then the phase's.
@@ -48,11 +53,12 @@ type BriefItem struct {
 }
 
 type BriefPlan struct {
-	Slug   string       `json:"slug"`
-	Title  string       `json:"title"`
-	State  string       `json:"state"`  // shaping or active
-	Target Target       `json:"target"` // where its work lands
-	Phases []BriefPhase `json:"phases,omitempty"`
+	Slug    string       `json:"slug"`
+	Title   string       `json:"title"`
+	State   string       `json:"state"`             // shaping or active
+	Target  Target       `json:"target"`            // where its work lands
+	Preview string       `json:"preview,omitempty"` // the URL that serves the target
+	Phases  []BriefPhase `json:"phases,omitempty"`
 }
 
 type BriefPhase struct {
@@ -131,7 +137,7 @@ func (m *Mull) Context(itemID string) (Context, error) {
 			if p.State == model.PlanDone {
 				continue
 			}
-			bp := BriefPlan{Slug: slug, Title: p.Title, State: p.State, Target: s.target(slug, targets)}
+			bp := BriefPlan{Slug: slug, Title: p.Title, State: p.State, Target: s.target(slug, targets), Preview: p.Preview}
 			for _, id := range sortedKeys(s.phases) {
 				if e := s.phases[id]; e.Plan == slug {
 					ev := s.phaseView(e)
@@ -169,9 +175,9 @@ func (m *Mull) Context(itemID string) (Context, error) {
 			if err != nil {
 				return err
 			}
-			ci := &ContextItem{ItemView: s.itemView(i)}
+			ci := &ContextItem{ItemView: s.itemView(i), Target: s.target(i.Plan, targets)}
 			if p := s.plans[i.Plan]; p != nil {
-				ci.PlanRules = p.Rules
+				ci.PlanRules, ci.Preview = p.Rules, p.Preview
 			}
 			if e := s.phases[i.Phase]; e != nil {
 				ci.PhaseTitle, ci.PhaseSummary, ci.PhaseDoc, ci.PhaseRules = e.Title, e.Summary, e.Doc, e.Rules

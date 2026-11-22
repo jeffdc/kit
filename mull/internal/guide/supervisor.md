@@ -11,10 +11,12 @@ When you settle or file more than a couple of records at once, use `mull batch`.
 - Read the docs of the plans and phases you're working in (`mull plan doc <slug>`, `mull phase doc <id>`): the picture, when each is done, and why the order. Docs hold intent only; status comes from mull.
 - Read their rules too (`mull plan rules <slug>`, `mull phase rules <id>`): what every worker there is told. You review against them.
 - Read `mull decisions`. Workers must not re-decide what's settled, and neither must you.
+- Know where each plan's work lands and where it can be seen: `mull view` shows each plan's target and, when it has one, its preview (the URL serving that target, which workers get from `mull context --item`). mull never runs the preview server. A plan with a server but no `preview` is a gap to propose to the human with `mull ask`: setting it (`mull plan set <slug> preview <url>`) is theirs, like the plan's other fields.
 
 ## Handing out work
 - Pick from `mull ready`. These items are committed, in agreed plans, in phases whose needs are done. They're in order: by phase schedule, then by rank within each group, so hand out work from the top; only phases need other phases, and rank never holds work back.
 - Don't hand out two items likely to touch the same files at the same time.
+- **Worktrees.** mull never creates or removes them: you (or your harness) do, and only when an item needs one. An item's worktree gets the branch `<id>-<short-name>`, from the tip of its plan's target (the integration branch for unplanned work): `git worktree add -b <id>-<short-name> <path> <target>`. It's set up as the plan's rules or the project's `AGENTS.md` say (copying dependencies, the dev and test databases); when they don't say how, propose the rule with `mull ask` rather than putting it in the hand-off. The worker makes the branch, and the worktree if none was made for it, before `mull start`.
 - **The hand-off is one line.** Give each worker its worktree and this instruction, and nothing else: "Follow `mull guide agents`. Your item is `<id>`." Never add rules, context or reminders to the prompt. Prompts aren't kept, the next worker doesn't see them, and two of them can contradict each other without anyone noticing.
 - Everything a worker needs comes from `mull context --item <id>`: the item's notes and docs, its phase's doc, the decision log, and its plan's rules, then its phase's, in full. Before you hand out an item, read that output as the worker will. What's missing goes in one of two places:
   - **The plan's or phase's rules,** for what every worker there must follow: how to set up a worktree, what to use and reuse, what not to touch, the skills to load, the checks to run. Skills, and anything else that depends on a harness, are only text in the rules. Rules are the human's, like docs: when they're missing or wrong, propose them with `mull ask` (which plan or phase, and the wording you'd add), and write them (`mull plan rules <slug> -`, `mull phase rules <id> -`) only on the human's word. Hold back the work that needs them until then, and keep handing out what doesn't.
@@ -30,6 +32,7 @@ When you settle or file more than a couple of records at once, use `mull batch`.
   - **idle-claim:** the worker has stalled. Find out why, or `mull release` the item.
   - **unclaimed-work:** someone is committing to an item's branch without having claimed it.
   - **done-not-in-git:** none of the item's work is on its plan's target: it was accepted (flagged at once), or has been in review three days. Merge its branch into the target.
+  - **overlap:** two items in flight have changed the same files on their branches, so they're likely to conflict or to build the same thing twice. Look at both diffs. Tell the later worker what the other is doing (or hold it until the other lands), merge the first that's ready before the other goes on, and when the overlap is a shared piece both need, propose a shared foundation to the human (above).
   - **work-after-accept:** commits under a done item's trailer came after it was accepted. Later work needs its own item: `mull add "<title>" --follow-up <done-id>` (on the human's word, if they didn't ask for the change), and new commits go under that ID.
 - Route questions and decisions to the human. Don't answer them yourself. When a worker's question is one its rules should have answered, propose the rule with `mull ask` as well, so the next worker doesn't ask it again. `mull inbox` shows what needs them: questions, decisions and reviews only.
 - A decision the human makes in conversation, not in answer to an inbox entry, goes in with `mull decided "<their decision>" --human --on-request` (with `--item` or `--plan`): settled at once as theirs, into the decision log. To answer an entry, use `mull decide <entry-id>` instead.
@@ -53,6 +56,18 @@ When a worker runs `mull done`, you review before the human sees it:
 5. Tell the human what you accepted and what you sent back, with the UI tour for anything they should click through themselves.
 
 Unreviewed work is incomplete work. An item is in review after `mull done`, and done only once its review is accepted.
+
+## Removing worktrees
+Worktrees left behind pile up (dependencies and databases make each one big), and mull never removes them. You do, once both hold:
+- the item is done (its review accepted), not just in review;
+- its work is on its plan's target: the view shows no done-not-in-git problem for it.
+
+Then, with the worktree and branch from its claim (`mull show <id>`), from a checkout of the target:
+```
+git worktree remove <path>
+git branch -d <id>-<short-name>
+```
+Both refuse when something would be lost: `git worktree remove` a worktree with uncommitted or untracked changes, and `git branch -d` a branch not merged into its upstream (or into the branch you're on, when it has none). A refusal means there's work to look at, so find out what it is. Never force either (`--force`, `-D`) without the human's word. Leave alone a worktree whose item is still active or in review, or was sent back.
 
 ## End of session
 - Run `mull sync`.

@@ -132,6 +132,10 @@ type Plan struct {
 	// Target is the branch the plan's work lands on: where seen in git is
 	// measured. Empty means config's integration branch.
 	Target string `yaml:"target,omitempty" json:"target,omitempty"`
+	// Preview is the URL that serves the plan's target branch, handed to
+	// workers by context --item. mull only records it: it never runs or
+	// checks the server.
+	Preview string `yaml:"preview,omitempty" json:"preview,omitempty"`
 	// Doc is the plan's doc: the picture, done-when and why the order;
 	// intent only, never status. It is its own file (PlanDocPath), not part
 	// of the record.
