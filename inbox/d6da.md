@@ -5,6 +5,12 @@ plan: supervised-work
 item: f82a
 by: /Users/jeff/dev/kit/.claude/worktrees/agent-a0906409e8bc99ba4
 created: "2026-11-22T16:26:28Z"
+settled:
+  action: accept
+  note: with review 4496
+  by: Jeff
+  human: true
+  at: "2026-11-22T16:34:57Z"
 ---
 
 Beside the docs, as the item asked, without a new tab; a separate record type lets a rules edit cloud apart from a doc edit
