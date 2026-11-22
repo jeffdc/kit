@@ -258,6 +258,7 @@ func (m *Mull) phaseDelete(s *state, id string, onRequest bool) (PhaseDeleteResu
 		}
 	}
 	s.putDoc(phaseDocPath(e), "")
+	s.putDoc(model.PhaseRulesPath(id), "")
 	s.tx.Delete(model.PhasePath(id))
 	delete(s.phases, id)
 	out.Phase = e

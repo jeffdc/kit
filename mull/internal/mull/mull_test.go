@@ -227,6 +227,7 @@ func TestPhaseDelete(t *testing.T) {
 	gone := must[*model.Phase](t)(m.PhaseAdd("general", "Existing sources", "", nil))
 	later := must[*model.Phase](t)(m.PhaseAdd("general", "Later", "", []string{gone.ID}))
 	must[DocResult](t)(m.SetPhaseDoc(gone.ID, "Merged into Later."))
+	must[RulesResult](t)(m.SetPhaseRules(gone.ID, "Use the old importer."))
 	idea := must[ItemView](t)(m.CaptureItem(NewCapture{Kind: model.ItemIdea, Title: "Maybe", Phase: gone.ID}))
 
 	// Only the human deletes a phase.
@@ -259,7 +260,7 @@ func TestPhaseDelete(t *testing.T) {
 		t.Fatalf("later still needs %v", sh.Phase.Needs)
 	}
 	err = m.view(func(s *state) error {
-		for _, p := range []string{model.PhasePath(gone.ID), model.PhaseDocPath(gone.ID)} {
+		for _, p := range []string{model.PhasePath(gone.ID), model.PhaseDocPath(gone.ID), model.PhaseRulesPath(gone.ID)} {
 			if _, ok := s.tx.Get(p); ok {
 				t.Errorf("%s is still on the branch", p)
 			}

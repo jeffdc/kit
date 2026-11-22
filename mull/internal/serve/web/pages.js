@@ -54,7 +54,7 @@ export function projectSheet(state, pr, r) {
       return projectHead(pr, data, "backlog", state.live) + `<div class="page">${need(data, sub, p => backlogBody(pid, p, ch, { key: `project:${pid}` }))}</div>`;
     case "plans":
       return need(data, sub, page => planSheet(pr, r, data, page, tab =>
-        tab === "doc" ? planDoc(pid, page)
+        tab === "doc" ? planDoc(pid, page, ch)
           : tab === "backlog" ? need(data, sub2, bl => planBacklog(pid, r.id, bl, ch))
             : planStatus(pid, page, ch)), true);
     case "phases": return need(data, sub, page => phaseSheet(pr, data, page), true);

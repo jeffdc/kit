@@ -296,7 +296,7 @@ func (m *Mull) PlanPage(slug string) (PlanPage, error) {
 		}
 		out = PlanPage{Plan: *p, Status: s.planStatus(p, g), Schedule: s.schedule(slug),
 			NeedsYou: s.needsYou(func(e *model.Entry) bool { return e.Plan == slug }),
-			Next:     []NextPhase{}, DocRefs: s.docRefs(p.Doc),
+			Next:     []NextPhase{}, DocRefs: s.docRefs(p.Doc + "\n" + p.Rules),
 			Unfiled: s.itemRows(func(i *model.Item) bool {
 				return i.Plan == slug && i.Phase == "" && i.State != model.StateCaptured
 			})}
@@ -344,7 +344,7 @@ func (m *Mull) PhasePage(id string) (PhasePage, error) {
 			Items:    s.itemRows(func(i *model.Item) bool { return i.Phase == id && i.State != model.StateCaptured }),
 			Captured: s.itemRows(func(i *model.Item) bool { return i.Phase == id && i.State == model.StateCaptured }),
 			NeedsYou: s.needsYou(func(x *model.Entry) bool { return s.entryPhase(x) == id }),
-			DocRefs:  s.docRefs(e.Doc)}
+			DocRefs:  s.docRefs(e.Doc + "\n" + e.Rules)}
 		if p := s.plans[e.Plan]; p != nil {
 			out.PlanTitle, out.PlanState = p.Title, p.State
 		}

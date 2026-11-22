@@ -63,6 +63,7 @@ func TestRevisionChanges(t *testing.T) {
 	bug := must[ItemView](t)(m.CaptureItem(NewCapture{Kind: model.ItemBug, Title: "Footer"}))
 	q := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindQuestion, Text: "Which provider?", Item: it.ID}))
 	must[DocResult](t)(m.SetPlanDoc("general", "## The picture\nOne.\n"))
+	must[RulesResult](t)(m.SetPhaseRules(ph.ID, "Stripe test mode only."))
 	// A change undone before you look is no change.
 	must[SetResult](t)(m.Set(bug.ID, "title", "Footer links"))
 	must[SetResult](t)(m.Set(bug.ID, "title", "Footer"))
@@ -73,11 +74,12 @@ func TestRevisionChanges(t *testing.T) {
 	}
 	got := byRecord(r.Changes)
 	want := map[string]Change{
-		"phase:" + ph.ID:   {Type: RecordPhase, ID: ph.ID, Title: "Billing", Plan: "general", Change: ChangeAdded},
-		"item:" + it.ID:    {Type: RecordItem, ID: it.ID, Title: "Webhook", Plan: "general", Phase: ph.ID, Change: ChangeAdded, State: model.StateActive},
-		"item:" + bug.ID:   {Type: RecordItem, ID: bug.ID, Title: "Footer", Kind: model.ItemBug, Change: ChangeAdded, State: model.StateCaptured},
-		"entry:" + q.ID:    {Type: RecordEntry, ID: q.ID, Title: "Which provider?", Plan: "general", Kind: model.KindQuestion, Change: ChangeAdded, State: "open"},
-		"plan_doc:general": {Type: RecordPlanDoc, ID: "general", Title: "General", Plan: "general", Change: ChangeAdded},
+		"phase:" + ph.ID:       {Type: RecordPhase, ID: ph.ID, Title: "Billing", Plan: "general", Change: ChangeAdded},
+		"item:" + it.ID:        {Type: RecordItem, ID: it.ID, Title: "Webhook", Plan: "general", Phase: ph.ID, Change: ChangeAdded, State: model.StateActive},
+		"item:" + bug.ID:       {Type: RecordItem, ID: bug.ID, Title: "Footer", Kind: model.ItemBug, Change: ChangeAdded, State: model.StateCaptured},
+		"entry:" + q.ID:        {Type: RecordEntry, ID: q.ID, Title: "Which provider?", Plan: "general", Kind: model.KindQuestion, Change: ChangeAdded, State: "open"},
+		"plan_doc:general":     {Type: RecordPlanDoc, ID: "general", Title: "General", Plan: "general", Change: ChangeAdded},
+		"phase_rules:" + ph.ID: {Type: RecordPhaseRules, ID: ph.ID, Title: "Billing", Plan: "general", Change: ChangeAdded},
 	}
 	if len(got) != len(want) {
 		t.Errorf("changes = %+v, want %d", r.Changes, len(want))
@@ -108,13 +110,14 @@ func TestRevisionChanges(t *testing.T) {
 	must[*model.Entry](t)(m.Decide(q.ID, "Stripe", SettleOpts{}))
 	must[DocResult](t)(m.SetPhaseDoc(ph.ID, "Webhooks first."))
 	must[DocResult](t)(m.SetPlanDoc("general", ""))
+	must[RulesResult](t)(m.SetPlanRules("general", "Branch from main."))
 	must[SetResult](t)(m.Set(it.ID, "notes", "Long notes."))
 	must[SetResult](t)(m.Set(ph.ID, "title", "Payments"))
 
 	r = must[Revision](t)(m.Revision(seen))
 	got = byRecord(r.Changes)
-	if len(got) != 5 {
-		t.Errorf("changes = %+v, want 5", r.Changes)
+	if len(got) != 6 {
+		t.Errorf("changes = %+v, want 6", r.Changes)
 	}
 	item := got["item:"+it.ID]
 	if item.Change != ChangeChanged || item.State != model.StateCommitted {
@@ -144,6 +147,9 @@ func TestRevisionChanges(t *testing.T) {
 	}
 	if c := got["plan_doc:general"]; c.Change != ChangeRemoved {
 		t.Errorf("plan doc = %+v", c)
+	}
+	if c := got["plan_rules:general"]; c.Change != ChangeAdded || c.Title != "General" || c.Plan != "general" || c.At == "" {
+		t.Errorf("plan rules = %+v", c)
 	}
 }
 

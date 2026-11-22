@@ -1,5 +1,5 @@
 // A phase's sheet: where it stands, its items and what's captured for it,
-// what needs you about it, and its doc, which is edited in place.
+// what needs you about it, and its doc and rules, which are edited in place.
 
 import { esc, href, tag, cells, shortTitle, copyId } from "./html.js";
 import { titleBlock } from "./title.js";
@@ -7,6 +7,7 @@ import { schedule } from "./needs.js";
 import { renderDoc } from "./doc.js";
 import { itemTable, rankTable, col } from "./lists.js";
 import { editWrite } from "./write.js";
+import { rulesSection } from "./rules.js";
 
 // titleOf finds a phase's title in the project's tree (for needs, which the
 // API gives as IDs).
@@ -49,5 +50,7 @@ export function phaseSheet(pr, data, page) {
       <aside id="needs"><div class="hd"><h2>Needs you</h2><span class="lab">This phase</span></div>${schedule(page.needs_you, { pid, changes: ch, noPlan: true, noPhase: true })}</aside>
     </div>
     <section><div class="hd ed"><h2><span class="${docCloud.trim()}">The phase doc</span></h2><span class="lab">Its design, shared with the agents</span>${edit.button}</div><div class="doc-wrap">${edit.form || doc}</div></section>
+    ${rulesSection({ pid, kind: "phase", key: `edit-phaserules:${pid}:${ph.id}`, op: { op: "phase rules", id: ph.id }, rules: ph.rules, title: ph.title,
+      refs: page.doc_refs, cloud: ch ? ch.cls(c => c.type === "phase_rules" && c.id === ph.id) : "" })}
   </div>`;
 }

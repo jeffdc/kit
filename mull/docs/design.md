@@ -34,8 +34,8 @@ New mull is the record of a program: its plans, where they stand, and everything
 
 | Record | What it is | Fields | Who writes it |
 |---|---|---|---|
-| **Plan** | A large effort, such as `taxogall`. High-level only. | id (plain-English slug, e.g. `taxogall`, `general`), title, summary, doc, state `shaping`, `active` or `done` | You |
-| **Phase** | A big piece of a plan; a set of items. Called an epic before Model v2. | id (4-hex), plan (required), title, summary, doc, needs (phases only), from | You, or agents on your instruction |
+| **Plan** | A large effort, such as `taxogall`. High-level only. | id (plain-English slug, e.g. `taxogall`, `general`), title, summary, doc, rules, state `shaping`, `active` or `done` | You |
+| **Phase** | A big piece of a plan; a set of items. Called an epic before Model v2. | id (4-hex), plan (required), title, summary, doc, rules, needs (phases only), from | You, or agents on your instruction |
 | **Item** | A unit of work **one agent completes in one session.** | id (4-hex), plan (optional), phase (optional), rank, title, notes, docs (paths), stage, claim, from (the inbox entry it was made from, or the done item it follows up; no needs: see "Ordering") | Agents and you |
 | **Captured item** | The backlog: a bug or an idea, not work until you commit it (see "The backlog") | an item at stage `captured`, plus kind (`bug` or `idea`), category, source, triaged; a short note as its notes; optionally tagged to a plan or phase | Anyone captures; only you commit |
 | **Inbox entry** | Something that needs you | id, kind (`decision`, `question` or `review`), one-line text, detail, item, plan, source, by, created; a review also lists the decisions it carries; when settled: action, note, what it made, by, time | Agents capture; you settle |
@@ -170,6 +170,8 @@ reports/<item>-<n>.md
 checks/<tree-hash>.json        # cached hard-check results
 docs/plans/<slug>.md           # a plan's doc
 docs/phases/<id>.md            # a phase's doc (docs/epics/ before Model v2)
+rules/plans/<slug>.md          # a plan's rules
+rules/phases/<id>.md           # a phase's rules
 ```
 
 There's one file per record, so concurrent writes and merges rarely conflict.
@@ -178,6 +180,12 @@ There's one file per record, so concurrent writes and merges rarely conflict.
 - A doc is plain markdown with no frontmatter, in its own file at `docs/` plus its record's path. Writing it never touches the record, and changing the record never touches the doc, so the doc's history is exactly its own versions.
 - `mull plan doc <slug> [-]` and `mull phase doc <id> [-]` print a doc or replace it from stdin; empty stdin removes it. `--log` lists its versions, newest first, read from the commits that changed the file.
 - A plan's or phase's `summary` is separate and unchanged. `mull migrate` turned summaries into doc stubs.
+
+**Rules.** A plan, and optionally a phase, may have rules: the human's standing rules for the agents working in it (how to set up a worktree, what to use and reuse, what not to touch, skills to load). They're what a supervisor would otherwise repeat in every worker's prompt, so they live where every worker reads them.
+- Rules are kept as a doc is: plain markdown in their own file, at `rules/` plus the record's path, so writing them touches neither the record nor the doc, and their history is their own. Only format 2 has them.
+- `mull plan rules <slug> [-]` and `mull phase rules <id> [-]` print or replace them, as `plan doc` does a doc, with `--log` and `--text`. Like docs, they're the human's: agents change them only when asked.
+- `mull context --item` gives the item's plan's rules, then its phase's (`plan_rules`, `phase_rules`), in full, and its protocol then ends with a line saying to follow them. mull never checks that they're followed: anything harness-specific, such as a required skill, is only text in the rules.
+- `mull serve` shows and edits them under the doc: a plan's on its Plan doc tab, a phase's on its sheet.
 
 **Writes:**
 - Git plumbing: a temporary index, `write-tree`, `commit-tree`, then `update-ref refs/heads/mull <new> <old>`.
@@ -352,7 +360,7 @@ Its design is in `serve/`: who it's for and its principles in `serve/PRODUCT.md`
 ## The CLI
 
 The CLI is used by agents. The human sees its data through an agent, or in `mull serve` (see above).
-- **Output.** Every command prints JSON to stdout. `view`, `inbox`, `report`, `guide`, `migrate`, `plan doc` and `phase doc` also have `--text`, so an agent can show its human a rendering.
+- **Output.** Every command prints JSON to stdout. `view`, `inbox`, `report`, `guide`, `migrate`, `plan doc`, `phase doc`, `plan rules` and `phase rules` also have `--text`, so an agent can show its human a rendering.
 - **Errors.** An error prints `{"code", "error"}` to stderr and exits 1. The codes are stable.
 - **The contract.** The shapes and codes are in `mull guide json`, and tests check every command's output against it.
 - **Long text** is read from stdin with `-`.
@@ -371,8 +379,8 @@ The ops are every write except `init`, `sync`, `migrate`, `check` and `done`.
 | Group | Commands |
 |---|---|
 | Setup | `mull init [--integration b] [--release b]` · `mull config [set\|checks\|layer …]` · `mull sync [--dry-run]` · `mull migrate [--dry-run] [--text] [--on-request]` |
-| Plans (you) | `mull plan new <slug> "title" [--summary -] --on-request` · `plan agree <slug> --on-request` · `plan list` · `plan show <slug>` · `plan doc <slug> [-] [--log]` · `plan close <slug>` |
-| Phases | `mull phase add "title" --plan <slug> [--needs …] [--summary -]` · `phase list [--plan]` · `phase doc <id> [-] [--log]` · `phase delete <id> --on-request` · `show <id>` |
+| Plans (you) | `mull plan new <slug> "title" [--summary -] --on-request` · `plan agree <slug> --on-request` · `plan list` · `plan show <slug>` · `plan doc <slug> [-] [--log]` · `plan rules <slug> [-] [--log]` · `plan close <slug>` |
+| Phases | `mull phase add "title" --plan <slug> [--needs …] [--summary -]` · `phase list [--plan]` · `phase doc <id> [-] [--log]` · `phase rules <id> [-] [--log]` · `phase delete <id> --on-request` · `show <id>` |
 | Items | `mull add "title" (--plan <slug> \| --phase <id> \| --plan none \| --follow-up <done-id>) [--notes -] [--doc path]` · `show` · `list [--plan] [--phase] [--state] [--kind] [--untriaged]` · `set` · `drop` |
 | Dependencies and order | `mull need <phase> <phase…>` · `mull unneed <phase> <phase…>` · `mull rank <phase\|plan\|none> <ids…>` · `mull ready [--plan]` |
 | Work (agents) | `mull start <id>` · `release <id>` · `check` (run the hard checks, cache the result) · `done <id> --summary "…" --tour "…" --design -` |
@@ -380,14 +388,14 @@ The ops are every write except `init`, `sync`, `migrate`, `check` and `done`.
 | Backlog | `mull bug "title"` · `idea "title"`, each with `[--detail -] [--source …] [--plan \| --phase] [--category …]` · `commit <id> [--plan \| --phase \| --plan none] --on-request` · `triage <id…> --on-request` (or `--all [--plan <slug>\|none]`) |
 | Batch | `mull batch [--dry-run] < ops.jsonl` |
 | Settle (you, or an agent on your request) | `mull inbox [--kind] [--plan] [--parked]` · `accept <id…> [--follow-up "…"]` · `decide <id> "text"` · `do <id> [--plan] [--phase] [--as phase] [--reason "…"]` · `drop <id…> [--reason "…"]` · `park <id> "reason"` |
-| Read (agents) | `mull view [--plan] [--text]` · `mull context [--item <id>]` (compact JSON for the start of a session: the protocol reminder, the shaping and active plans with their phases, ready and active items, your claims, recent decisions, and for the item its phase's doc, open questions and last report) · `decisions [--plan]` · `report <id> [--n] [--text]` |
+| Read (agents) | `mull view [--plan] [--text]` · `mull context [--item <id>]` (compact JSON for the start of a session: the protocol reminder, the shaping and active plans with their phases, ready and active items, your claims, recent decisions, and for the item its phase's doc, its plan's and phase's rules, open questions and last report) · `decisions [--plan]` · `report <id> [--n] [--text]` |
 | Guides | `mull guide agents` · `mull guide intake` · `mull guide supervisor` · `mull guide triage` · `mull guide json` (the output shapes and error codes) |
 | The human's view | `mull serve [--port n]` · `mull serve --install` · `mull serve --uninstall` |
 
 ## The agent protocol (`mull guide agents`)
 
 This is a short block pasted into the project's `AGENTS.md`. In outline:
-1. At session start, run `mull context --item <id>`. Read the decision log before deciding anything it may already settle, and read the item's docs and its phase's doc.
+1. At session start, run `mull context --item <id>`. Read the decision log before deciding anything it may already settle, and read the item's docs and its phase's doc. Follow its plan's rules, then its phase's.
 2. **One item per session.** It's committed work from `mull ready`, or a captured item the human wants done now. Claim it with `mull start`, which commits a captured item. Name the branch `<id>-…`. End every commit message with `Mull: <id>`.
 3. Capture as you go, one line each:
    - `mull decided` for any choice you made that the human didn't, and with `--human --on-request` for one the human made in conversation;

@@ -157,7 +157,7 @@ func loadFrom(tx *store.Tx, prev *state) (*state, error) {
 		return nil, errf(CodeUnsupportedFormat, "this repository's mull data is format %d, newer than this mull understands (%d): update mull", s.config.Format, model.Format)
 	}
 	for _, p := range tx.List("plans/") {
-		if slug := baseName(p); same(p, model.PlanDocPath(slug)) && prev.plans[slug] != nil {
+		if slug := baseName(p); same(p, model.PlanDocPath(slug), model.PlanRulesPath(slug)) && prev.plans[slug] != nil {
 			s.plans[slug] = prev.plans[slug]
 			continue
 		}
@@ -168,13 +168,14 @@ func loadFrom(tx *store.Tx, prev *state) (*state, error) {
 		}
 		v.Slug, v.Summary = baseName(p), body
 		v.Doc = getDoc(tx, model.PlanDocPath(v.Slug))
+		v.Rules = getDoc(tx, model.PlanRulesPath(v.Slug))
 		s.plans[v.Slug] = &v
 	}
 	// Phases are under phases/, or under epics/ in format 1. A phase in
 	// both (a format 1 straggler) is read from phases/.
 	for _, dir := range []string{"epics/", "phases/"} {
 		for _, p := range tx.List(dir) {
-			if old := prevPhase(prev, baseName(p), dir); old != nil && same(p, phaseDocPath(old)) {
+			if old := prevPhase(prev, baseName(p), dir); old != nil && same(p, phaseDocPath(old), model.PhaseRulesPath(old.ID)) {
 				s.phases[old.ID] = old
 				continue
 			}
@@ -185,6 +186,7 @@ func loadFrom(tx *store.Tx, prev *state) (*state, error) {
 			}
 			v.ID, v.Summary, v.Legacy = baseName(p), body, dir == "epics/"
 			v.Doc = getDoc(tx, phaseDocPath(&v))
+			v.Rules = getDoc(tx, model.PhaseRulesPath(v.ID))
 			s.phases[v.ID] = &v
 		}
 	}

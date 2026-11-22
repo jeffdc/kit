@@ -20,6 +20,7 @@ This project's plans, work items, backlog and open questions live in **mull**: a
 1. **Start of session:** run `mull context --item <id>`, or `mull context` if you have no item yet.
    - Read the decisions it lists, and don't re-decide anything the log already settles.
    - Read the item's `docs` and its `phase_doc` (the phase's design and when it's done). Docs hold intent only. Status comes from mull, never from a doc.
+   - Follow its `plan_rules`, then its `phase_rules`, when it has them: the human's standing rules for work in that plan and phase (how to set up, what to use, what not to touch). They come in full with the item, so nothing else needs to repeat them.
 2. **One item per session.**
    - Claim it with `mull start <id>`. Your item is committed work (`mull ready`), or a captured item the human wants done now: starting commits it.
    - Work on a branch named `<id>-<short-name>`.
@@ -39,9 +40,9 @@ This project's plans, work items, backlog and open questions live in **mull**: a
      - File it when it's given. Don't hold it for the end of the session.
      - Don't act on it in your current work unless the human says to, and never drop it.
      - It's feedback if it judges or asks to change existing work. It's an idea if it's a possibility that isn't work yet. If you can't tell which, ask the human.
-4. **Don't change plans or phases (or their docs), and don't add items,** unless the human asks. Propose changes with `mull ask`.
+4. **Don't change plans or phases (or their docs or rules), and don't add items,** unless the human asks. Propose changes with `mull ask`.
    - Only the human creates and agrees a plan (`mull plan new ... --on-request`, `mull plan agree <slug> --on-request`). A plan that's still shaping takes captures and questions, but no phases or committed work.
-   - Read a plan's or phase's doc with `mull plan doc <slug>` or `mull phase doc <id>`.
+   - Read a plan's or phase's doc with `mull plan doc <slug>` or `mull phase doc <id>`, and its rules with `mull plan rules <slug>` or `mull phase rules <id>`.
    - Phases need other phases (`mull need <phase> <phase>`); that's the only dependency. Items are ranked within their group (a phase, a plan's items with no phase, or Unplanned): `mull ready` lists them first to last, and `mull start` warns when open work ranked before yours isn't done.
    - When the human says what comes first ("do X first", "Y before Z"), reorder with one `mull rank <phase|plan|none> <id…>`, listing every open item in the group first to last; `mull add --before`/`--after <id>` places a new item. You give the order, never numbers. Reorder only when the human says to.
    - Never commit a captured item (`mull commit <id>`) on your own. When the human tells you to, add `--on-request`, with `--plan`, `--phase` or `--plan none` if they say where it goes. Retag a capture (`mull set <id> plan|phase <value>`) only on their word too.
