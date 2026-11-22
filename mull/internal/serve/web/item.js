@@ -88,6 +88,24 @@ function gitField(g) {
   return `${parts.join(" · ")}${notes.length ? ` <small>${notes.join(" · ")}</small>` : ""}`;
 }
 
+// tour: the report's steps, each path in them a link to the plan's
+// preview, which serves the target the work lands on (the server splits
+// the steps: review.tour). Opened in a new tab, so the packet stays put
+// while Jeff walks it. Done's warnings about the tour (a local URL that
+// isn't the preview) follow it, in ink.
+function tour(r, rv, g) {
+  const warns = (r.warnings || []).map(w => `<p class="rv-note tour-warn"><b>Warning:</b> ${esc(w)}</p>`).join("");
+  if (!r.tour?.length || (r.tour.length === 1 && r.tour[0] === "none"))
+    return `<div><span class="lab">Try it</span><p class="sub" style="margin:6px 0 0">No UI tour: nothing visible changed.</p>${warns}</div>`;
+  const steps = rv.tour || r.tour.map(text => [{ text }]);
+  const step = parts => parts.map(p => p.url ? `<a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.text)}</a>` : esc(p.text)).join("");
+  const linked = steps.some(parts => parts.some(p => p.url));
+  const where = rv.preview
+    ? `<p class="sub" style="margin:6px 0 0">${linked ? "Paths open on" : "On"} the preview, <a class="pv" href="${esc(rv.preview)}" target="_blank" rel="noopener">${esc(rv.preview)}</a>, which serves <code>${esc(g.target)}</code>${g.seen_in_git ? "" : `: this work isn't on it yet`}.</p>`
+    : "";
+  return `<div><span class="lab">Try it</span><ol class="tour">${steps.map(parts => `<li>${step(parts)}</li>`).join("")}</ol>${where}${warns}</div>`;
+}
+
 // review: the packet, what was built (does it work?) beside how (was it
 // built well?).
 function review(pid, it, page) {
@@ -117,9 +135,6 @@ function review(pid, it, page) {
   const earlier = page.reports.length > 1 ? `<span class="sub">${page.reports.map(x => `report ${x.n} ${x.passed ? "passed" : "failed"} ${esc(clock(x.at))}`).join(" · ")}</span>` : "";
   const checks = (r.checks?.results || []).map(c => `<div class="check${c.exit ? " bad" : ""}">${tag(c.exit ? "committed" : "pass", c.exit ? `exit ${c.exit}` : "passed")}<code>${esc(c.command)}</code><span class="sub">${esc(duration(c.duration_ms))}</span></div>`).join("")
     || `<div class="check">${tag(r.passed ? "pass" : "committed", r.passed ? "passed" : "failed")}<span class="sub">no checks configured</span></div>`;
-  const tour = r.tour?.length && !(r.tour.length === 1 && r.tour[0] === "none")
-    ? `<div><span class="lab">Try it</span><ol class="tour">${r.tour.map(t => `<li>${esc(t)}</li>`).join("")}</ol></div>`
-    : `<div><span class="lab">Try it</span><p class="sub" style="margin:6px 0 0">No UI tour: nothing visible changed.</p></div>`;
   // Each open decision is approved on its own, apart from accepting the
   // work; deciding one differently while the work waits sends it back.
   const waiting = !!(entry && !entry.settled);
@@ -141,7 +156,7 @@ function review(pid, it, page) {
     <div class="pk">
       <section><div class="hd"><h2>What was built</h2><span class="lab">Does it work?</span></div>
         <div class="prose">${markdown(r.summary, pid)}</div>
-        ${tour}
+        ${tour(r, page.review, page.git)}
         ${checks}
         <span class="sub">Report ${r.n} · <code>${short(r.commit)}</code> from <code>${short(r.base)}</code> · ${esc(clock(r.at))}</span>${earlier}</section>
       <section><div class="hd"><h2>How it was built</h2><span class="lab">Sound design?</span></div>

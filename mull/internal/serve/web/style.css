@@ -494,6 +494,8 @@ table.t.files code { font-size: 11.5px; overflow-wrap: anywhere; }
 .pk .prose { font-size: 15px; }
 .tour { margin: 8px 0 0; padding-left: 26px; display: flex; flex-direction: column; gap: 6px; }
 .tour li::marker { font: 600 12px var(--mono); color: var(--mut); }
+.tour a, a.pv { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; overflow-wrap: anywhere; }
+.tour-warn { margin: 6px 0 0; }
 .check { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--green); font-size: 12.5px; }
 .check.bad { border-color: var(--ink); }
 .check .sub { text-align: right; }

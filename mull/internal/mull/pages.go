@@ -389,10 +389,17 @@ type ReportRef struct {
 // they stand now, and files by layer). Entry is the review entry, settled
 // or not; a packet with no entry is a done attempt that wasn't filed for
 // review (its checks failed).
+//
+// Tour is the report's tour, each step split into text and the paths in it,
+// resolved against Preview: the item's plan's preview as it is now, which
+// serves its target (the page's git.target). With no preview, each step is
+// one part with no URL.
 type Review struct {
 	Entry     *model.Entry     `json:"entry,omitempty"`
 	Report    model.Report     `json:"report"`
 	Decisions []ReviewDecision `json:"decisions"`
+	Tour      [][]TourPart     `json:"tour,omitempty"`
+	Preview   string           `json:"preview,omitempty"`
 }
 
 // ReviewDecision is a decision the review carries, with what has become of
@@ -463,6 +470,10 @@ func (s *state) review(i *model.Item) (*Review, []ReportRef) {
 	}
 	rep := reports[latest]
 	out := &Review{Entry: entry, Report: rep, Decisions: []ReviewDecision{}}
+	if p := s.plans[i.Plan]; p != nil {
+		out.Preview = p.Preview
+	}
+	out.Tour = resolveTour(rep.Tour, out.Preview)
 	for _, d := range rep.Decisions {
 		rd := ReviewDecision{ReportDecision: d}
 		if e := s.entries[d.ID]; e != nil {

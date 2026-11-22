@@ -71,7 +71,8 @@ func TestDoneHappyPathCacheAndTour(t *testing.T) {
 		t.Fatalf("layers = %v", layers)
 	}
 
-	text, rep, err := m.ReportText(it.ID, 0)
+	out, err := m.ReportText(it.ID, 0)
+	text, rep := out.Text, out.Report
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +111,8 @@ func TestDoneFailureKeepsItemActive(t *testing.T) {
 	if st := item(t, m, it.ID).State; st != model.StateActive {
 		t.Fatalf("item is %s after failed checks, want active", st)
 	}
-	text, rep, err := m.ReportText(it.ID, 1)
+	out, err := m.ReportText(it.ID, 1)
+	text, rep := out.Text, out.Report
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +174,8 @@ func TestDoneOverrideWithoutChecks(t *testing.T) {
 	if res.Item.State != model.StateInReview || res.Report.Passed || res.Report.Override == "" {
 		t.Fatalf("override done = %+v", res)
 	}
-	text, _, _ := m.ReportText(it.ID, 0)
+	out, _ := m.ReportText(it.ID, 0)
+	text := out.Text
 	if !strings.Contains(text, "OVERRIDDEN") {
 		t.Fatalf("report:\n%s", text)
 	}
@@ -229,7 +232,8 @@ func TestReviewCarriesDecisions(t *testing.T) {
 	if sameIDs(review.Decisions...) != want {
 		t.Fatalf("review carries %v, want %v", review.Decisions, want)
 	}
-	text, _, _ := m.ReportText(it.ID, 0)
+	out, _ := m.ReportText(it.ID, 0)
+	text := out.Text
 	for _, s := range []string{"One handler, retries in a loop.", "**" + d2.ID + "** Retry three times", "Why: why Retry three times"} {
 		if !strings.Contains(text, s) {
 			t.Errorf("report lacks %q:\n%s", s, text)

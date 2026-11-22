@@ -1024,15 +1024,15 @@ func reportCmd(a *app) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			text, rep, err := m.ReportText(args[0], n)
+			out, err := m.ReportText(args[0], n)
 			if err != nil {
 				return err
 			}
 			if asText {
-				_, err = fmt.Fprintln(a.stdout, text)
+				_, err = fmt.Fprintln(a.stdout, out.Text)
 				return err
 			}
-			return a.json(map[string]any{"report": rep, "text": text})
+			return a.json(out)
 		},
 	}
 	c.Flags().IntVar(&n, "n", 0, "which attempt (default: latest)")
