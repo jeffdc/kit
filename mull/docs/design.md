@@ -34,12 +34,12 @@ New mull is the record of a program: its plans, where they stand, and everything
 
 | Record | What it is | Fields | Who writes it |
 |---|---|---|---|
-| **Plan** | A large effort, such as `taxogall`. High-level only. | id (plain-English slug, e.g. `taxogall`, `general`), title, summary, doc, rules, its own hard checks, state `shaping`, `active` or `done`, target (the branch its work lands on; config's integration branch when unset), preview (the URL that serves its target) | You |
+| **Plan** | A large effort, such as `taxogall`. High-level only. | id (plain-English slug, e.g. `taxogall`, `general`), title, summary, doc, rules, its own hard checks, state `shaping`, `active` or `done`, target (the branch its work lands on; config's integration branch when unset), preview (the URL that serves its target), shared globs (files its parallel work shares, flagged by done) | You |
 | **Phase** | A big piece of a plan; a set of items. Called an epic before Model v2. | id (4-hex), plan (required), title, summary, doc, rules, needs (phases only), from | You, or agents on your instruction |
 | **Item** | A unit of work **one agent completes in one session.** | id (4-hex), plan (optional), phase (optional), rank, title, notes, docs (paths), stage, claim, from (the inbox entry it was made from, or the done item it follows up; no needs: see "Ordering") | Agents and you |
 | **Captured item** | The backlog: a bug or an idea, not work until you commit it (see "The backlog") | an item at stage `captured`, plus kind (`bug` or `idea`), category, source, triaged; a short note as its notes; optionally tagged to a plan or phase | Anyone captures; only you commit |
 | **Inbox entry** | Something that needs you | id, kind (`decision`, `question` or `review`), one-line text, detail, item, plan, source, by, created; a review also lists the decisions it carries; when settled: action, note, what it made, by, time | Agents capture; you settle |
-| **Done report** | The record of a finished item | item, commit SHA, tree hash, summary, UI tour, check results, design notes, decisions made in the session, system context | Agent plus mull |
+| **Done report** | The record of a finished item | item, commit SHA, tree hash, summary, UI tour, check results, design notes, decisions made in the session, system context, changes to the plan's shared files | Agent plus mull |
 | **Config** | Per repo | integration branch, release branch, hard checks, layers, remote, storage format | You |
 
 **Structure rules:**
@@ -288,6 +288,11 @@ Bare 4-hex mentions in commit prose are not counted, because they collide with h
 - **Shown** as an `overlap` problem in `mull view`, on each plan's side of the pair (on the first in ID order when both are in the plan), naming the other item and the files both changed; and in `mull serve`, as an Overlap row in the plan's block on the project overview and an Overlap field on the plan's sheet. It's every pair across the project, so items in different plans show in both.
 - **Cost.** Each item in flight costs up to three git calls (the merge base, whether the claim's base is on it, and the diff), cached by those commit IDs, so a read recomputes only the items whose branch or target moved.
 
+**Shared files** (plan `supervised-work`). Some files are meant to be shared by a plan's parallel work (the layout, the components, the stylesheet), and a change to one affects every item that uses it, though each item's review sees only its own work. So a plan may list them, and `done` flags changes to them:
+- `mull plan shared <slug> <glob...>` replaces the plan's `shared` globs, and no globs removes them. They're matched as config layers' are (against paths from the repository's root: `*` within a path segment, `**` across segments, `?` one character), so a glob can't start with `/` or `./`. Blanks and repeats are dropped. Like the plan's doc and rules, they're the human's, and they take no `--on-request` gate: they flag work for a closer look, but don't decide whether it gets through, as the checks do.
+- `done` matches each changed file in the report (the same files as Changes by layer) against the item's plan's globs, as they are when it's done, and lists those that match in the report's `shared`, each with its status and the first glob it matched. The markdown says how many under the status lines and lists them in a "Shared files changed" section before Changes by layer. It flags only: `done` never refuses for it. Unplanned work has no shared globs, and there's no config fallback.
+- `mull serve`'s review packet shows them as a "Shared files changed" box (ink only, like the overlap, since it needs a look, not an answer) under the design notes, and marks those rows "shared" in Files by layer.
+
 ## Done: deterministic, with mull as the only path
 
 The agent runs `mull done <id> --summary "…" --tour "…" --design -` when it says it's finished. mull then works through these steps:
@@ -298,7 +303,7 @@ The agent runs `mull done <id> --summary "…" --tour "…" --design -` when it 
 4. **If a check fails:** the item stays `active`. The failed attempt is saved and shown as a problem, and the command exits non-zero, so the agent knows it isn't done.
 5. **If all checks pass,** mull:
    - marks the item `in-review`;
-   - writes the done report: the agent's summary, UI tour and design notes (required: how it was built and why), the decisions the review carries, the check results, and system context from the diff (files added, changed and deleted, grouped by the layers in config, with test files and code files counted separately);
+   - writes the done report: the agent's summary, UI tour and design notes (required: how it was built and why), the decisions the review carries, the check results, and system context from the diff (files added, changed and deleted, grouped by the layers in config, with test files and code files counted separately, and the changes to the plan's shared files flagged: see "Shared files");
    - files a **review** entry in your inbox.
 
 You then read the report and explore the tour. Settling the review is how an item becomes `done`:
@@ -410,7 +415,7 @@ The ops are every write except `init`, `sync`, `migrate`, `check` and `done`.
 | Group | Commands |
 |---|---|
 | Setup | `mull init [--integration b] [--release b]` · `mull config [set\|checks … --on-request\|layer …]` · `mull sync [--dry-run]` · `mull migrate [--dry-run] [--text] [--on-request]` |
-| Plans (you) | `mull plan new <slug> "title" [--summary -] --on-request` · `plan agree <slug> --on-request` · `plan list` · `plan show <slug>` · `plan set <slug> title\|summary\|target\|preview <value>` · `plan doc <slug> [-] [--log]` · `plan rules <slug> [-] [--log]` · `plan checks <slug> ["<cmd>" …] --on-request` · `plan close <slug>` |
+| Plans (you) | `mull plan new <slug> "title" [--summary -] --on-request` · `plan agree <slug> --on-request` · `plan list` · `plan show <slug>` · `plan set <slug> title\|summary\|target\|preview <value>` · `plan doc <slug> [-] [--log]` · `plan rules <slug> [-] [--log]` · `plan checks <slug> ["<cmd>" …] --on-request` · `plan shared <slug> [<glob> …]` · `plan close <slug>` |
 | Phases | `mull phase add "title" --plan <slug> [--needs …] [--summary -]` · `phase list [--plan]` · `phase set <id> title\|summary\|integration-review <value>` (`integration-review on\|off`: yours, `--on-request` for an agent) · `phase doc <id> [-] [--log]` · `phase rules <id> [-] [--log]` · `phase delete <id> --on-request` · `show <id>` |
 | Items | `mull add "title" (--plan <slug> \| --phase <id> \| --plan none \| --follow-up <done-id>) [--notes -] [--doc path]` · `show` · `list [--plan] [--phase] [--state] [--kind] [--untriaged]` · `set` · `drop` |
 | Dependencies and order | `mull need <phase> <phase…>` · `mull unneed <phase> <phase…>` · `mull rank <phase\|plan\|none> <ids…>` · `mull ready [--plan]` |

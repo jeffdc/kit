@@ -115,6 +115,70 @@ func (m *Mull) planChecks(s *state, slug string, commands []string, onRequest bo
 	return p, s.putPlan(p)
 }
 
+// PlanShared replaces a plan's shared globs: the files its parallel work
+// shares, whose changes done flags in the report. No globs removes them.
+func (m *Mull) PlanShared(slug string, globs []string) (*model.Plan, error) {
+	var out *model.Plan
+	err := m.update("plan shared "+slug, func(s *state) error {
+		var err error
+		out, err = m.planShared(s, slug, globs)
+		return err
+	})
+	return out, err
+}
+
+func (m *Mull) planShared(s *state, slug string, globs []string) (*model.Plan, error) {
+	p, err := s.plan(slug)
+	if err != nil {
+		return nil, err
+	}
+	var shared []string
+	for _, g := range globs {
+		g = strings.TrimSpace(g)
+		switch {
+		case g == "" || slices.Contains(shared, g):
+			continue
+		case strings.HasPrefix(g, "/") || strings.HasPrefix(g, "./"):
+			return nil, errf(CodeInvalid, "shared glob %q: give it relative to the repository's root, without a leading / or ./ (such as app/layout.css or assets/css/**)", g)
+		}
+		shared = append(shared, g)
+	}
+	if slices.Equal(shared, p.Shared) {
+		return p, nil // unchanged: write nothing
+	}
+	p.Shared, p.Updated = shared, m.now()
+	return p, s.putPlan(p)
+}
+
+// sharedChanges lists the changed files that match one of globs, by path,
+// each with the first glob it matches.
+func sharedChanges(changes []model.LayerChanges, globs []string) []model.SharedChange {
+	if len(globs) == 0 {
+		return nil
+	}
+	var res []*regexp.Regexp
+	for _, g := range globs {
+		re, err := globRegexp(g)
+		if err != nil {
+			return nil
+		}
+		res = append(res, re)
+	}
+	var out []model.SharedChange
+	for _, lc := range changes {
+		for _, f := range lc.Files {
+			for k, re := range res {
+				if re.MatchString(f.Path) {
+					out = append(out, model.SharedChange{Status: f.Status, Path: f.Path, Glob: globs[k]})
+					break
+				}
+			}
+		}
+	}
+	sort.Slice(out, func(a, b int) bool { return out[a].Path < out[b].Path })
+	return out
+}
+
 // hardChecks is the commands done runs for an item in plan p (nil for an
 // item with no plan): config's, then the plan's own, leaving out any that
 // config already runs.
@@ -458,6 +522,9 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 			At: m.now(), By: wt, Summary: strings.TrimSpace(in.Summary), Tour: in.Tour, Checks: checks,
 			Design: design, Changes: changes, Warnings: warnings,
 		}
+		if p := s.plans[i.Plan]; p != nil {
+			rep.Shared = sharedChanges(changes, p.Shared)
+		}
 		for _, d := range decisions {
 			rep.Decisions = append(rep.Decisions, model.ReportDecision{ID: d.ID, Text: d.Text, Detail: d.Detail})
 		}
@@ -583,6 +650,9 @@ func renderReport(r model.Report, title string) string {
 	}
 	fmt.Fprintf(&b, "# Done report %d: %s (%s)\n\n", r.N, title, r.Item)
 	fmt.Fprintf(&b, "**Status:** %s  \n**Commit:** %s  \n**By:** %s at %s\n\n", status, short(r.Commit), r.By, r.At)
+	if n := len(r.Shared); n > 0 {
+		fmt.Fprintf(&b, "**Shared files:** %d changed that the plan lists as shared (see Shared files changed, below).\n\n", n)
+	}
 	b.WriteString("## What was built\n\n")
 	fmt.Fprintf(&b, "### Summary\n\n%s\n\n", r.Summary)
 	b.WriteString("### UI tour\n\n")
@@ -627,6 +697,13 @@ func renderReport(r model.Report, title string) string {
 			if d.Detail != "" {
 				fmt.Fprintf(&b, "  Why: %s\n", d.Detail)
 			}
+		}
+		b.WriteString("\n")
+	}
+	if len(r.Shared) > 0 {
+		b.WriteString("### Shared files changed\n\n")
+		for _, f := range r.Shared {
+			fmt.Fprintf(&b, "- %s %s (shared: `%s`)\n", f.Status, f.Path, f.Glob)
 		}
 		b.WriteString("\n")
 	}

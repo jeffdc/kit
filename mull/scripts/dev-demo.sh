@@ -43,13 +43,22 @@ m decided "Results page 25 per page" --item "$search"
 m decided "Keep the API on /v2" --plan web --source "planning call"
 # An item in review carrying decisions: the Review tier and a packet. Its
 # tour gives a path (linked to the preview) and a stray local URL (which
-# done warns about).
+# done warns about). Its work, on its own branch, changes the page layout,
+# which the web plan lists as shared, so the packet flags it.
+m plan shared web "app/layout.css" "app/components/**"
 digest=$(id add "Digest job" --plan web)
+git checkout -q -b "$digest-job"
 m start "$digest"
 m decided "Digests skip users with no activity" --item "$digest"
 m decided "One digest per timezone batch" --item "$digest"
-m done "$digest" --summary "A nightly digest job." --design "A cron job reading the activity table." --tour "Open /settings/digest and turn the digest on
+mkdir -p app jobs
+echo "/* digest banner */" >app/layout.css
+echo "# nightly digest" >jobs/digest.sh
+git add app jobs
+git commit -q -m "Nightly digest job" -m "Mull: $digest"
+m done "$digest" --summary "A nightly digest job." --design "A cron job reading the activity table, and a banner slot in the layout for the digest notice." --tour "Open /settings/digest and turn the digest on
 Then http://localhost:4001/digests/today: see today's digest"
+git checkout -q main
 # A long title, and a captured bug for the backlog.
 m add "Drop or park a Needs you entry with a reason" --plan web
 m bug "The footer overlaps the last result on small screens" --plan web --source "demo"
@@ -65,9 +74,6 @@ m drop "$old" --reason "Not needed after all" --on-request
 # The web plan lands on its own target branch, a commit ahead of main, with
 # the digest job's work merged into it.
 git checkout -q -b web-next
-git checkout -q -b "$digest-job"
-git commit -q --allow-empty -m "Nightly digest job" -m "Mull: $digest"
-git checkout -q web-next
 git merge -q --no-ff --no-edit "$digest-job"
 git checkout -q main
 m plan set web target web-next
