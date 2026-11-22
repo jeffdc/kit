@@ -167,6 +167,10 @@ var gitLogs = newLRU[[]commitInfo](64)
 
 var gitCounts = newLRU[int](64)
 
+// targetHistories are target branches' histories, indexed (see history),
+// keyed by tip like gitLogs. Shared, so never changed once built.
+var targetHistories = newLRU[*history](16)
+
 // Preload reads the state at commit, a full commit ID on the mull branch,
 // into the read cache, so the next read of it is answered from memory. The
 // cache is keyed by commit, so a ref (whose commit moves) is refused.

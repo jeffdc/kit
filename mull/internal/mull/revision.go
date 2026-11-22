@@ -547,6 +547,7 @@ func planChange(a, b *model.Plan) (Change, bool) {
 		var f fields
 		f.short("title", a.Title, b.Title)
 		f.short("state", a.State, b.State)
+		f.short("target", a.Target, b.Target)
 		f.text("summary", a.Summary, b.Summary)
 		return f
 	}, func(p *model.Plan, c *Change) {

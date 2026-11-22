@@ -20,7 +20,8 @@ func (k keys) plus(o keys) keys {
 }
 
 var (
-	planKeys      = keys{[]string{"slug", "title", "state", "created", "updated"}, []string{"summary", "doc"}}
+	planKeys      = keys{[]string{"slug", "title", "state", "created", "updated"}, []string{"summary", "target", "doc"}}
+	targetKeys    = keys{[]string{"branch", "from", "found", "ahead_of_release"}, nil}
 	phaseKeys     = keys{[]string{"id", "plan", "title", "created", "updated"}, []string{"needs", "from", "summary", "doc"}}
 	itemKeys      = keys{[]string{"id", "title", "state", "created", "updated"}, []string{"plan", "phase", "rank", "kind", "category", "source", "needs", "docs", "claim", "from", "triaged", "notes"}}
 	itemViewKeys  = itemKeys.plus(keys{[]string{"ready"}, []string{"blocked_by"}})
@@ -140,6 +141,10 @@ func TestOutputShapes(t *testing.T) {
 	checkKeys(t, "set.item", set["item"], itemViewKeys)
 	set = shape(keys{[]string{"type"}, []string{"plan", "phase", "item"}}, "set", "launch", "title", "Public launch")
 	checkKeys(t, "set.plan", set["plan"], planKeys)
+	set = shape(keys{[]string{"type"}, []string{"plan", "phase", "item"}}, "plan", "set", "launch", "target", "launch-site")
+	if checkKeys(t, "plan set.plan", set["plan"], planKeys); set["plan"].(map[string]any)["target"] != "launch-site" {
+		t.Errorf("plan set target: %v", set["plan"])
+	}
 	set = shape(keys{[]string{"type"}, []string{"plan", "phase", "item"}}, "set", id(phase), "summary", "Stripe first")
 	checkKeys(t, "set.phase", set["phase"], phaseViewKeys)
 
@@ -207,12 +212,16 @@ func TestOutputShapes(t *testing.T) {
 	v := shape(keys{[]string{"generated", "integration", "integration_found", "release", "ahead_of_release", "plans", "unlinked_commits_this_week", "untriaged", "format"},
 		[]string{"unlinked_recent", "unplanned", "legacy", "last_triage", "migration_required"}}, "view")
 	board := first(t, "view.plans", v["plans"])
-	boardKeys := keys{[]string{"slug", "title", "progress", "phases", "unfiled", "problems", "in_flight", "needs_you"}, []string{"state"}}
+	boardKeys := keys{[]string{"slug", "title", "target", "progress", "phases", "unfiled", "problems", "in_flight", "needs_you"}, []string{"state"}}
 	checkKeys(t, "view.plans[0]", board, boardKeys)
+	checkKeys(t, "view.plans[0].target", board.(map[string]any)["target"], targetKeys)
 	checkKeys(t, "view.unplanned", v["unplanned"], boardKeys)
 	checkKeys(t, "view.needs_you", board.(map[string]any)["needs_you"],
 		keys{[]string{"reviews", "decisions", "questions", "older_than_a_week", "parked"}, nil})
-	shape(keys{[]string{"worktree", "branch", "protocol", "my_claims", "plans", "ready", "active", "decisions"}, []string{"item"}}, "context")
+	cx := shape(keys{[]string{"worktree", "branch", "protocol", "my_claims", "plans", "ready", "active", "decisions"}, []string{"item"}}, "context")
+	cp := first(t, "context.plans", cx["plans"])
+	checkKeys(t, "context.plans[0]", cp, keys{[]string{"slug", "title", "state", "target"}, []string{"phases"}})
+	checkKeys(t, "context.plans[0].target", cp.(map[string]any)["target"], targetKeys)
 	shape(keys{[]string{"guide", "text"}, nil}, "guide", "json")
 
 	remote := t.TempDir() + "/remote.git"

@@ -227,6 +227,7 @@ type PlanStatus struct {
 	Title     string     `json:"title"`
 	State     string     `json:"state"`
 	Summary   string     `json:"summary,omitempty"`
+	Target    Target     `json:"target"` // where its work lands
 	Progress  Progress   `json:"progress"`
 	Phases    int        `json:"phases"`
 	Built     int        `json:"built"`     // phases done
@@ -239,7 +240,7 @@ type PlanStatus struct {
 }
 
 func (s *state) planStatus(p *model.Plan, g *gitState) PlanStatus {
-	out := PlanStatus{Slug: p.Slug, Title: p.Title, State: p.State, Summary: p.Summary,
+	out := PlanStatus{Slug: p.Slug, Title: p.Title, State: p.State, Summary: p.Summary, Target: s.target(p.Slug, g.Targets),
 		Now: []PhaseRow{}, Next: []PhaseRow{}, Agents: []AgentRow{}}
 	var items, active []*model.Item
 	for _, id := range sortedKeys(s.items) {

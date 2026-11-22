@@ -25,6 +25,10 @@ type Size struct {
 	PhasesPerPlan int
 	Items         int // planned, unplanned and untagged captures together
 	Span          time.Duration
+	// Targets is how many of the active plans (at most two) get a target
+	// branch of their own, cut from main when the plan starts; 0 in the
+	// named sizes, so every plan lands on integration.
+	Targets int
 }
 
 // Sizes are the named sizes Seed accepts.
@@ -104,6 +108,8 @@ type event struct {
 	msg   string
 	apply func(c *commit)
 	work  string // main: the item whose work this commit carries
+	// branch, when set, is no commit: it creates that branch where main is.
+	branch string
 }
 
 // commit collects one mull commit's file writes.
@@ -205,6 +211,7 @@ type planSlot struct {
 	slug, area string
 	from, to   time.Time
 	state      string // its state at the end
+	target     string // its own target branch, if it has one
 	phases     []string
 	items      int
 }
@@ -233,6 +240,10 @@ func (g *gen) plan() {
 			st = model.PlanActive
 		}
 		slots[k] = &planSlot{slug: fmt.Sprintf("%s-%d", area, k+1), area: area, from: from, to: from.Add(window), state: st}
+		if st == model.PlanActive && k >= s.Plans-1-s.Targets {
+			slots[k].target = slots[k].slug + "-next"
+			g.events = append(g.events, event{at: from, seq: len(g.events), branch: slots[k].target})
+		}
 		g.planEvents(slots[k])
 	}
 	// Items: 90% planned (to the plans that take work), 5% unplanned work, 5% untagged captures.
@@ -264,7 +275,7 @@ func (g *gen) plan() {
 }
 
 func (g *gen) putPlan(c *commit, p *planSlot, state string, at time.Time) {
-	c.put(model.PlanPath(p.slug), &model.Plan{Title: "The " + p.area + " plan", State: state,
+	c.put(model.PlanPath(p.slug), &model.Plan{Title: "The " + p.area + " plan", State: state, Target: p.target,
 		Created: ts(p.from), Updated: ts(at)}, "Make "+p.area+" ready for the next year of growth.")
 }
 
@@ -524,6 +535,10 @@ func (g *gen) write(w *bufio.Writer) error {
 	}
 	commitMain(g.start, "Start the project", "README.md", "# bench\n")
 	for _, ev := range g.events {
+		if ev.branch != "" {
+			fmt.Fprintf(w, "reset refs/heads/%s\nfrom refs/heads/main\n\n", ev.branch)
+			continue
+		}
 		if ev.work != "" {
 			commitMain(ev.at, ev.msg+"\n\nMull: "+ev.work, "work/"+ev.work+".txt", ev.msg+"\n")
 			continue

@@ -4,7 +4,7 @@
 // it.
 
 import { esc, href, tag, cells, plural, itemStage, clock, CHEVRON, copyId } from "./html.js";
-import { titleBlock } from "./title.js";
+import { titleBlock, targetField } from "./title.js";
 import { within } from "./revision.js";
 import { schedule } from "./needs.js";
 import { renderDoc } from "./doc.js";
@@ -26,6 +26,7 @@ export function planSheet(pr, r, data, page, body) {
   const fields = [
     ["State", p.state === "shaping" ? `${tag("shaping")} <small>not agreed yet</small>` : p.state === "active" ? tag("now", "active")
       : p.state === "done" ? `${tag("done", "closed")} <small>in the Archive</small>` : tag(p.state)],
+    ["Target", targetField(st.target, pr.summary?.release)],
     ["Phases", st.phases ? `${st.built} of ${st.phases} done` : `<span class="mut">none yet</span>`],
     ["Can start now", st.now.length ? plural(st.now.length, "phase") : `<span class="mut">none</span>`],
     ["Go live", st.go_live ? `<a href="${esc(href.phase(pid, st.go_live.id))}">${esc(st.go_live.title)}</a>` : `<span class="mut">not set</span>`],

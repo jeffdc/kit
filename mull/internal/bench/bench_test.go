@@ -88,6 +88,37 @@ func TestSeedIsDeterministic(t *testing.T) {
 	}
 }
 
+// Targets gives active plans a target branch of their own, cut from main.
+func TestSeedTargets(t *testing.T) {
+	gittest.Isolate(t)
+	dir := filepath.Join(t.TempDir(), "repo")
+	size := Sizes["small"]
+	size.Targets = 1
+	if err := Seed(dir, size, 1, end); err != nil {
+		t.Fatal(err)
+	}
+	m, err := mull.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	view, err := m.Board("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	own := 0
+	for _, b := range view.Plans {
+		if b.Target.From == mull.TargetFromPlan {
+			own++
+			if !b.Target.Found || b.Target.Branch != b.Slug+"-next" {
+				t.Errorf("%s: target %+v", b.Slug, b.Target)
+			}
+		}
+	}
+	if own != 1 {
+		t.Errorf("%d plans with their own target, want 1", own)
+	}
+}
+
 // Run times every target in-process and over HTTP without errors.
 func TestRun(t *testing.T) {
 	dir := seedSmall(t, 1)
