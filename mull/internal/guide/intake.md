@@ -31,7 +31,7 @@ Propose, and wait for approval:
 
 Then run `mull init --integration <branch> --release <branch>` (unless the repo already has a `mull` branch). Config can go in the first batch:
 ```
-{"op": "config checks", "commands": ["make done-checks"]}
+{"op": "config checks", "commands": ["make done-checks"], "on-request": true}
 {"op": "config layer", "name": "ui", "globs": ["lib/app_web/**", "assets/**"]}
 {"op": "config layer", "name": "tests", "globs": ["test/**"]}
 ```

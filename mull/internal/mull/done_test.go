@@ -37,7 +37,7 @@ func startWork(t *testing.T, m *Mull, dir, title string) ItemView {
 func TestDoneHappyPathCacheAndTour(t *testing.T) {
 	m, dir := setup(t)
 	check, runs := counterCheck(t, 0)
-	must[model.Config](t)(m.ConfigChecks([]string{check}))
+	must[model.Config](t)(m.ConfigChecks([]string{check}, true))
 	must[model.Config](t)(m.ConfigLayer("ui", []string{"web/**"}))
 	must[model.Config](t)(m.ConfigLayer("tests", []string{"test/**", "**/*_test.go"}))
 
@@ -98,7 +98,7 @@ func TestDoneHappyPathCacheAndTour(t *testing.T) {
 func TestDoneFailureKeepsItemActive(t *testing.T) {
 	m, dir := setup(t)
 	failing, _ := counterCheck(t, 3)
-	must[model.Config](t)(m.ConfigChecks([]string{failing}))
+	must[model.Config](t)(m.ConfigChecks([]string{failing}, true))
 	it := startWork(t, m, dir, "Webhook")
 	gittest.Commit(t, dir, "hook.go", "package x\n", "Webhook", "Mull: "+it.ID)
 
@@ -126,7 +126,7 @@ func TestDoneFailureKeepsItemActive(t *testing.T) {
 	}
 
 	// Fix the check; a new command list means the old result is not reused.
-	must[model.Config](t)(m.ConfigChecks([]string{"true"}))
+	must[model.Config](t)(m.ConfigChecks([]string{"true"}, true))
 	res := must[DoneResult](t)(m.Done(it.ID, DoneInput{Summary: "Webhook handler.", Design: "One handler."}))
 	if res.Report.N != 2 || !res.Report.Passed {
 		t.Fatalf("second attempt = %+v", res.Report)
@@ -150,7 +150,7 @@ func TestDoneGuards(t *testing.T) {
 	_, err = m.Done(it.ID, DoneInput{Summary: "x", Design: "y"})
 	wantErr(t, err, "no hard checks configured")
 
-	must[model.Config](t)(m.ConfigChecks([]string{"true"}))
+	must[model.Config](t)(m.ConfigChecks([]string{"true"}, true))
 	if err := os.WriteFile(filepath.Join(dir, "dirty.txt"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -202,7 +202,7 @@ func entry(t *testing.T, m *Mull, id string) *model.Entry {
 
 func TestReviewCarriesDecisions(t *testing.T) {
 	m, dir := setup(t)
-	must[model.Config](t)(m.ConfigChecks([]string{"true"}))
+	must[model.Config](t)(m.ConfigChecks([]string{"true"}, true))
 	it := startWork(t, m, dir, "Webhook")
 	other := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "general", Title: "Other"}))
 	d1 := decision(t, m, it.ID, "Store raw payloads")
@@ -276,7 +276,7 @@ func TestReviewCarriesDecisions(t *testing.T) {
 
 func TestSentBackDecisionsStayOpen(t *testing.T) {
 	m, dir := setup(t)
-	must[model.Config](t)(m.ConfigChecks([]string{"true"}))
+	must[model.Config](t)(m.ConfigChecks([]string{"true"}, true))
 	it := startWork(t, m, dir, "Webhook")
 	d1 := decision(t, m, it.ID, "Store raw payloads")
 	first := must[DoneResult](t)(m.Done(it.ID, DoneInput{Summary: "Webhook handler.", Design: "One handler."}))
@@ -301,7 +301,7 @@ func TestSentBackDecisionsStayOpen(t *testing.T) {
 func TestCheckRecordsAndReuses(t *testing.T) {
 	m, _ := setup(t)
 	check, runs := counterCheck(t, 0)
-	must[model.Config](t)(m.ConfigChecks([]string{check}))
+	must[model.Config](t)(m.ConfigChecks([]string{check}, true))
 	first := must[CheckOutcome](t)(m.Check(""))
 	second := must[CheckOutcome](t)(m.Check(""))
 	if !first.Passed || first.Cached || !second.Cached || runs() != 1 {

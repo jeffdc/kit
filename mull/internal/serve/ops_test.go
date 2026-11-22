@@ -192,7 +192,7 @@ func inReview(t *testing.T, dir string) (item, review, dec string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := m.Batch(strings.NewReader(`{"op": "config checks", "commands": ["true"]}`), false); err != nil {
+	if _, err := m.Batch(strings.NewReader(`{"op": "config checks", "commands": ["true"], "on-request": true}`), false); err != nil {
 		t.Fatal(err)
 	}
 	it, err := m.ItemAdd(mull.NewItem{Plan: model.NoPlan, Title: "Digest job"})

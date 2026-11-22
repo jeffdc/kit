@@ -18,7 +18,7 @@ m() { "$mull" "$@" >/dev/null; }
 id() { "$mull" "$@" | sed -n 's/^  "id": "\([0-9a-f]*\)".*/\1/p' | head -1; }
 
 m init
-echo '{"op": "config checks", "commands": ["true"]}' | "$mull" batch >/dev/null
+echo '{"op": "config checks", "commands": ["true"], "on-request": true}' | "$mull" batch >/dev/null
 m plan new web "Web app" --summary "Search, mail and the account pages." --on-request
 m plan agree web --on-request
 m plan doc web - <<'EOF'

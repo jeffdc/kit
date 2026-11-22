@@ -502,7 +502,7 @@ func TestDocRefs(t *testing.T) {
 func TestItemPageReviewPacket(t *testing.T) {
 	m, dir := setup(t)
 	check, _ := counterCheck(t, 0)
-	must[model.Config](t)(m.ConfigChecks([]string{check}))
+	must[model.Config](t)(m.ConfigChecks([]string{check}, true))
 	it := startWork(t, m, dir, "Invoices page")
 	gittest.Commit(t, dir, "lib/invoice.go", "package x\n", "Model", "Mull: "+it.ID)
 	keep := must[*model.Entry](t)(m.Capture(CaptureInput{Kind: model.KindDecision, Text: "Plain structs", Item: it.ID}))
@@ -553,7 +553,7 @@ func TestItemPageReviewPacket(t *testing.T) {
 	// Sent back, then a failed attempt: the packet is the latest attempt,
 	// with no review entry.
 	must[StartResult](t)(m.Start(it.ID))
-	must[model.Config](t)(m.ConfigChecks([]string{"exit 1"}))
+	must[model.Config](t)(m.ConfigChecks([]string{"exit 1"}, true))
 	gittest.Commit(t, dir, "lib/invoice_test.go", "package x\n", "Test", "Mull: "+it.ID)
 	_, err := m.Done(it.ID, DoneInput{Summary: "Adds invoices, tested.", Design: "Plain structs."})
 	wantCode(t, err, CodeChecksFailed)

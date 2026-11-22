@@ -26,7 +26,7 @@ On failure, mull prints nothing to stdout, prints this to stderr, and exits 1:
 | `invalid_state` | the record is in the wrong state (e.g. accepting an item that isn't done) |
 | `claimed` | the item is claimed by another worktree |
 | `already_settled` | the inbox entry is already settled |
-| `not_allowed` | not allowed (kind rules; a worker accepting its own work; promoting an idea, committing a captured item, triaging, creating a plan, agreeing one, migrating or recording the human's own decision (`decided --human`) without `--on-request`; a `mull serve` write with no `mull name` or git `user.name`, or of an op its pages don't offer; needs on an item, or a phase needing an item) |
+| `not_allowed` | not allowed (kind rules; a worker accepting its own work; promoting an idea, committing a captured item, triaging, creating a plan, agreeing one, changing the hard checks (`config checks`, `plan checks`), migrating or recording the human's own decision (`decided --human`) without `--on-request`; a `mull serve` write with no `mull name` or git `user.name`, or of an op its pages don't offer; needs on an item, or a phase needing an item) |
 | `dependency_cycle` | the needs would form a cycle |
 | `scope_required` | say which plan or item: `--plan` or `--item` (or `--phase`, or `--plan none` for unplanned work, for `add`) |
 | `tour_required` | UI files changed and no `--tour` was given |
@@ -90,7 +90,7 @@ Times are RFC 3339 in UTC. IDs are 4 hex characters; plans use their slug.
 | `version` | `{version}` |
 | `name` | `{name, file}`: the name this machine's human goes by (`""` when unset) and the file it's kept in. `name <name>` sets it, and `name ""` clears it. It's per machine, never on the mull branch. |
 | `plan new`, `plan agree`, `plan close` | Plan |
-| `plan checks` | Plan. `plan checks <slug> [command...]` replaces the plan's own hard checks, each argument one shell command (trimmed; empty ones left out), and no commands removes them |
+| `plan checks` | Plan. `plan checks <slug> [command...] --on-request` replaces the plan's own hard checks, each argument one shell command (trimmed; empty ones left out), and no commands removes them. Only the human changes them, since they judge agents' work: `not_allowed` without `--on-request`, as for `config checks` |
 | `plan set` | As `set`, for a plan only (`not_found` for anything else): `<slug> title\|summary\|target <value>`. `target` takes a branch name (a leading `refs/heads/` is dropped; `""` clears it); one git refuses, or `mull`, fails with `invalid_argument`. The branch needn't exist yet |
 | `plan list` | `{plans: [Plan + {progress}]}` |
 | `plan show` | Plan + `{progress, phases: [PhaseView], items: [ItemView]}` |
@@ -188,7 +188,7 @@ An unknown project, plan, phase or item is 404 `not_found`; a registered project
 | `plan set` | `slug`, `field`, `value` |
 | `plan doc` | `slug`, `doc` (required: the whole new doc; `""` removes it) |
 | `plan rules` | `slug`, `rules` (required: the whole new rules; `""` removes them) |
-| `plan checks` | `slug`, `commands` (none removes them) |
+| `plan checks` | `slug`, `commands` (none removes them), `on-request` (required: only the human changes the checks) |
 | `phase add` | `title`, `plan`, `summary`, `needs` |
 | `phase doc` | `id`, `doc` (required: the whole new doc; `""` removes it) |
 | `phase rules` | `id`, `rules` (required: the whole new rules; `""` removes them) |
@@ -210,7 +210,7 @@ An unknown project, plan, phase or item is 404 `not_found`; a registered project
 | `drop` | `ids`, `reason`, `on-request` |
 | `park` | `id`, `reason`, `on-request` |
 | `config set` | `key`, `value` |
-| `config checks` | `commands` |
+| `config checks` | `commands`, `on-request` (required: only the human changes the checks) |
 | `config layer` | `name`, `globs` |
 
 `init`, `sync`, `check` and `done` are not batch ops: they reach outside the mull branch. Nor is `migrate`, which reaches across every record.

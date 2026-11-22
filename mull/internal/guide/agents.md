@@ -34,6 +34,7 @@ This project's plans, work items, backlog and open questions live in **mull**: a
    - Read a plan's or phase's doc with `mull plan doc <slug>` or `mull phase doc <id>`, and its rules with `mull plan rules <slug>` or `mull phase rules <id>`.
    - Phases need other phases (`mull need <phase> <phase>`); that's the only dependency. Items are ranked within their group (a phase, a plan's items with no phase, or Unplanned): `mull ready` lists them first to last, and `mull start` warns when open work ranked before yours isn't done.
    - When the human says what comes first ("do X first", "Y before Z"), reorder with one `mull rank <phase|plan|none> <id…>`, listing every open item in the group first to last; `mull add --before`/`--after <id>` places a new item. You give the order, never numbers. Reorder only when the human says to.
+   - Never change the hard checks (`mull config checks`, `mull plan checks`) on your own: they judge your work. When the human tells you to, add `--on-request`.
    - Never commit a captured item (`mull commit <id>`) on your own. When the human tells you to, add `--on-request`, with `--plan`, `--phase` or `--plan none` if they say where it goes. Retag a capture (`mull set <id> plan|phase <value>`) only on their word too.
    - When the human asks for a change to work that's already done (accepted), it's a new item, never the done one: `mull add "<title>" --follow-up <done-id>` puts it in the same plan and phase. Work it under the new item's ID; never commit under a done item's trailer.
 5. **Finish only with `mull done`:**

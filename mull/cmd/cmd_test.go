@@ -142,7 +142,7 @@ func TestCLIEndToEnd(t *testing.T) {
 	r.fails("not_allowed", "add", "Docs", "--phase", release, "--needs", phase)
 
 	// Finish the item: config, done, report, review.
-	r.ok("config", "checks", "true")
+	r.ok("config", "checks", "true", "--on-request")
 	r.ok("config", "layer", "ui", "web/**")
 	gittest.Commit(t, r.dir, "web/tree.html", "x\n", "Tree edits", "Mull: "+item)
 	r.fails("design_required", "done", item, "--summary", "Tree edits become Facts.", "--tour", "Open the tree")
@@ -323,7 +323,10 @@ func TestPlanChecksCommands(t *testing.T) {
 	r.ok("start", it)
 	// Only the plan has checks: check without --item has none to run.
 	r.fails("no_checks", "check")
-	p := r.ok("plan", "checks", "launch", "true", "exit 0")
+	// An agent may not change the checks that judge its work unasked.
+	r.fails("not_allowed", "plan", "checks", "launch", "true", "exit 0")
+	r.fails("not_allowed", "config", "checks", "true")
+	p := r.ok("plan", "checks", "launch", "true", "exit 0", "--on-request")
 	if got := p["checks"].([]any); len(got) != 2 || got[0] != "true" || got[1] != "exit 0" {
 		t.Fatalf("plan checks = %v", p)
 	}
@@ -332,16 +335,16 @@ func TestPlanChecksCommands(t *testing.T) {
 	if res := ck["results"].([]any); len(res) != 2 || ck["passed"] != true {
 		t.Fatalf("check --item = %v", ck)
 	}
-	r.ok("config", "checks", "true")
+	r.ok("config", "checks", "true", "--on-request")
 	// Config's run first, and the plan's "true" is already among them, so
 	// the command list is the same and the pass is reused.
 	ck = r.ok("check", "--item", it)
 	if res := ck["results"].([]any); len(res) != 2 || res[1].(map[string]any)["command"] != "exit 0" || ck["cached"] != true {
 		t.Fatalf("check --item with config = %v", ck)
 	}
-	r.fails("not_found", "plan", "checks", "nope", "true")
+	r.fails("not_found", "plan", "checks", "nope", "true", "--on-request")
 	r.fails("not_found", "check", "--item", "ffff")
-	if p := r.ok("plan", "checks", "launch"); p["checks"] != nil {
+	if p := r.ok("plan", "checks", "launch", "--on-request"); p["checks"] != nil {
 		t.Fatalf("cleared plan checks = %v", p)
 	}
 }

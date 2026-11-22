@@ -82,7 +82,7 @@ var ops = map[string]opDef{
 	"plan doc":      {func() Input { return &PlanDocIn{} }, "slug, doc"},
 	"plan set":      {func() Input { return &PlanSetIn{} }, "slug, field, value"},
 	"plan rules":    {func() Input { return &PlanRulesIn{} }, "slug, rules"},
-	"plan checks":   {func() Input { return &PlanChecksIn{} }, "slug, commands"},
+	"plan checks":   {func() Input { return &PlanChecksIn{} }, "slug, commands, on-request"},
 	"phase add":     {func() Input { return &PhaseAddIn{} }, "title, plan, summary, needs"},
 	"phase doc":     {func() Input { return &PhaseDocIn{} }, "id, doc"},
 	"phase rules":   {func() Input { return &PhaseRulesIn{} }, "id, rules"},
@@ -107,7 +107,7 @@ var ops = map[string]opDef{
 	"drop":          {func() Input { return &DropIn{} }, "ids, reason, on-request"},
 	"park":          {func() Input { return &ParkIn{} }, "id, reason, on-request"},
 	"config set":    {func() Input { return &ConfigSetIn{} }, "key, value"},
-	"config checks": {func() Input { return &ConfigChecksIn{} }, "commands"},
+	"config checks": {func() Input { return &ConfigChecksIn{} }, "commands, on-request"},
 	"config layer":  {func() Input { return &ConfigLayerIn{} }, "name, globs"},
 }
 
@@ -280,13 +280,14 @@ func (in *PlanRulesIn) run(m *Mull, s *state) (any, string, error) {
 
 // PlanChecksIn replaces a plan's own hard checks; no commands removes them.
 type PlanChecksIn struct {
-	Slug     string  `json:"slug"`
-	Commands StrList `json:"commands"`
+	Slug      string  `json:"slug"`
+	Commands  StrList `json:"commands"`
+	OnRequest bool    `json:"on-request"`
 }
 
 func (in *PlanChecksIn) refFields() ([]*string, []*IDList) { return []*string{&in.Slug}, nil }
 func (in *PlanChecksIn) run(m *Mull, s *state) (any, string, error) {
-	p, err := m.planChecks(s, in.Slug, in.Commands)
+	p, err := m.planChecks(s, in.Slug, in.Commands, in.OnRequest)
 	if err != nil {
 		return nil, "", err
 	}
@@ -590,12 +591,13 @@ func (in *ConfigSetIn) run(m *Mull, s *state) (any, string, error) {
 }
 
 type ConfigChecksIn struct {
-	Commands StrList `json:"commands"`
+	Commands  StrList `json:"commands"`
+	OnRequest bool    `json:"on-request"`
 }
 
 func (in *ConfigChecksIn) refFields() ([]*string, []*IDList) { return nil, nil }
 func (in *ConfigChecksIn) run(m *Mull, s *state) (any, string, error) {
-	c, err := m.configChecks(s, in.Commands)
+	c, err := m.configChecks(s, in.Commands, in.OnRequest)
 	return c, "", err
 }
 
