@@ -5,6 +5,12 @@ plan: supervised-work
 item: 743b
 by: /Users/jeff/dev/kit/.claude/worktrees/agent-a7bc51ab72255e9ff
 created: "2026-11-22T17:41:12Z"
+settled:
+  action: accept
+  note: with review ac5c
+  by: Jeff
+  human: true
+  at: "2026-11-22T18:07:11Z"
 ---
 
 One rule for report --text and serve; a new tab keeps the packet open while Jeff walks the tour
