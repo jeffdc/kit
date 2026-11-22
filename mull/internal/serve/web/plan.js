@@ -31,7 +31,9 @@ export function planSheet(pr, r, data, page, body) {
       : p.state === "done" ? `${tag("done", "closed")} <small>in the Archive</small>` : tag(p.state)],
     ["Target", targetField(st.target, pr.summary?.release)],
     ["Phases", st.phases ? `${st.built} of ${st.phases} done` : `<span class="mut">none yet</span>`],
-    ["Can start now", st.now.length ? plural(st.now.length, "phase") : `<span class="mut">none</span>`],
+    // status.now also holds the phases awaiting their integration review,
+    // which can't start: they're built.
+    ["Can start now", (n => n ? plural(n, "phase") : `<span class="mut">none</span>`)(st.now.filter(ph => ph.state === "now").length)],
     ["Go live", st.go_live ? `<a href="${esc(href.phase(pid, st.go_live.id))}">${esc(st.go_live.title)}</a>` : `<span class="mut">not set</span>`],
     ["Open questions", `${st.questions}${stamp(st.blocking)}`],
     ...(st.overlaps?.length ? [["Overlap", st.overlaps.map(o => `<div>${o.items.map(i => copyId(i.id, `<a href="${esc(href.item(pid, i.id))}" title="${esc(i.title)}"><code>${esc(i.id)}</code></a>`)).join(" and ")} ` +
