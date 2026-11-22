@@ -5,6 +5,11 @@ plan: supervised-work
 item: "1499"
 by: /Users/jeff/dev/kit/.claude/worktrees/agent-a4ce3602e3548b182
 created: "2026-11-22T17:34:23Z"
+settled:
+  action: accept
+  by: Jeff
+  human: true
+  at: "2026-11-22T17:35:26Z"
 ---
 
 mull serve reads the overview on every write, and walking gigabytes of dependencies each time would be too slow
