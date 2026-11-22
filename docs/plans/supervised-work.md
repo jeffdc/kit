@@ -45,11 +45,10 @@ This plan fixes those while keeping mull's model small. Git stays the evidence: 
    - A phase may require an integration review (`mull phase set <id> integration-review on`, Jeff's call). Once all its items are done, it shows "awaiting integration review" instead of complete, and phases that need it stay blocked.
    - The supervisor, in a worktree on the target, runs `mull done <phase-id> --summary --tour --design -`. That runs the checks on the target tip, writes a report with the phase's combined diff, and files a review entry on the phase.
    - Accepting that review completes the phase. `do --reason` creates a committed fix-up item in the phase, which reopens it.
-8. **Worktree lifecycle.**
-   - `mull start <id> --worktree <path>` is run by the supervisor. It runs `git worktree add -b <id>-<slug> <path> <target>`, records the claim with that worktree as its identity, then runs config `bootstrap` commands in it, with `MULL_ITEM` and `MULL_FROM` (the worktree it was run from) in the environment. The project owns what bootstrap does; mull runs it and records the result, as with checks.
-   - `mull worktrees` lists claim worktrees with their state and disk size. A worktree is prunable when its item is done, its work is in the target, and it's clean. The view shows the prunable count and size as a problem.
-   - `mull worktree prune` is a dry run by default. With `--apply --on-request` (Jeff's call) it runs config `teardown`, then `git worktree remove` with no `--force`, then `git branch -d` with no `-D`, so git itself refuses anything dirty or unmerged.
-   - This changes a rule: mull would create and remove worktrees, not only write its own branch. The rule in CLAUDE.md and the design must be amended explicitly when this is agreed.
+8. **Worktree lifecycle, through the guides.** mull doesn't create or remove worktrees: a worktree isn't always needed, and creating one in `mull start` would force it (decided on question c6c0).
+   - `mull guide agents` and `mull guide supervisor` say how to handle it: when an item gets its own worktree, branch `<id>-<name>` from the plan's target, set it up as the plan's rules say (copying deps, the dev and test databases), and once the item is accepted and its work is in the target, the supervisor removes the worktree and its merged branch.
+   - Project-specific setup lives in the plan's rules (6) or the project's AGENTS.md, not in mull config.
+   - `mull worktrees` lists claim worktrees with their state and disk size, read-only. A worktree is prunable when its item is done, its work is in the target, and it's clean, and the list gives the `git worktree remove` and `git branch -d` commands for it. The view shows the prunable count and size as a problem.
 
 ## Not in mull
 
@@ -58,11 +57,12 @@ This plan fixes those while keeping mull's model small. Git stays the evidence: 
 - Declared per-item areas. Overlap comes from what branches actually changed. Add declarations only if that turns out to come too late.
 - Phase-level target branches.
 - A stored merge time.
+- Creating, bootstrapping or removing worktrees. The guides tell agents how, and mull only lists the prunable ones.
 - The sequencing that would have prevented the inconsistent site (a shared-components phase that the page phases need). That's planning, and phase needs already cover it.
 
 ## Why the order
 
-The small fixes (1 to 3) are independent and cheap, so they come first. The plan target (4) underpins the preview (5), the integration review gate (7) and pruning (8), because each needs to know where work goes. Rules (6) come before the overlap and gate work (7), since the `shared` globs live in the rules. Worktree lifecycle (8) is last: it's the biggest step outside mull's current lane, and it needs the target.
+The small fixes (1 to 3) are independent and cheap, so they come first. The plan target (4) underpins the preview (5), the integration review gate (7) and pruning (8), because each needs to know where work goes. Rules (6) come before the overlap and gate work (7), since the `shared` globs live in the rules. Worktree lifecycle (8) is last: it needs the target, and its guide text needs the rules doc.
 
 ## Done when
 
@@ -71,5 +71,5 @@ The next oaks-style run needs no supervisor improvisation for any of the failure
 - tours resolve against a live preview;
 - workers get their rules from `mull context`;
 - overlapping branches and an unreviewed whole phase show up before Jeff has to find them;
-- worktrees are created, bootstrapped and pruned through mull;
+- workers know from the guides how to set up a worktree, and leftover worktrees show up as prunable;
 - Jeff's decisions and follow-ups have their own commands.
