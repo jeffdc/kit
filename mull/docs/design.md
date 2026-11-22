@@ -34,7 +34,7 @@ New mull is the record of a program: its plans, where they stand, and everything
 
 | Record | What it is | Fields | Who writes it |
 |---|---|---|---|
-| **Plan** | A large effort, such as `taxogall`. High-level only. | id (plain-English slug, e.g. `taxogall`, `general`), title, summary, doc, rules, state `shaping`, `active` or `done` | You |
+| **Plan** | A large effort, such as `taxogall`. High-level only. | id (plain-English slug, e.g. `taxogall`, `general`), title, summary, doc, rules, its own hard checks, state `shaping`, `active` or `done` | You |
 | **Phase** | A big piece of a plan; a set of items. Called an epic before Model v2. | id (4-hex), plan (required), title, summary, doc, rules, needs (phases only), from | You, or agents on your instruction |
 | **Item** | A unit of work **one agent completes in one session.** | id (4-hex), plan (optional), phase (optional), rank, title, notes, docs (paths), stage, claim, from (the inbox entry it was made from, or the done item it follows up; no needs: see "Ordering") | Agents and you |
 | **Captured item** | The backlog: a bug or an idea, not work until you commit it (see "The backlog") | an item at stage `captured`, plus kind (`bug` or `idea`), category, source, triaged; a short note as its notes; optionally tagged to a plan or phase | Anyone captures; only you commit |
@@ -268,8 +268,8 @@ Bare 4-hex mentions in commit prose are not counted, because they collide with h
 The agent runs `mull done <id> --summary "…" --tour "…" --design -` when it says it's finished. mull then works through these steps:
 
 1. **Check that the tree is clean.** A dirty working tree is refused, because the results must belong to a commit. mull records the commit SHA and the tree hash.
-2. **Run the hard checks.** These are the commands in config. Typically there's one project target, such as `make done-checks` in gallformers, which can call `mix precommit`. mull runs them and records each command, its exit code and its output tail.
-3. **Don't re-run what already passed.** If a passing result is cached for the same tree hash (`checks/<tree-hash>.json`, written by an earlier `mull check`), it's reused. Same tree, same result.
+2. **Run the hard checks.** These are the commands in config, then the item's plan's own (see "A plan's own checks" below). Typically there's one project target, such as `make done-checks` in gallformers, which can call `mix precommit`. mull runs them and records each command, its exit code and its output tail.
+3. **Don't re-run what already passed.** If a passing result is cached for the same tree hash and the same commands (`checks/<tree-hash>.json`, written by an earlier `mull check` or `done`), it's reused. Same tree, same result.
 4. **If a check fails:** the item stays `active`. The failed attempt is saved and shown as a problem, and the command exits non-zero, so the agent knows it isn't done.
 5. **If all checks pass,** mull:
    - marks the item `in-review`;
@@ -291,11 +291,12 @@ Your instinct was right, and not naive. The project owns *what* the hard checks 
 **As built:**
 - **The human's name.** `mull name <name>` sets, per machine (in `~/.config/mull/name`, beside the registry, never on the mull branch), the name the person using mull there goes by: a repository is shared, and everyone who works on it has their own. mull's own words then use it for "the human": the protocol in `mull context`, which also opens by telling agents to write the name in what they write to mull, and mull's messages and errors. Guides stay as written, since they're copied into shared files (AGENTS.md). Stored records are never rewritten, and with no name the words are as before.
 - **Setting config.** Config is set with `mull config set integration|release|remote <v>`, `mull config checks "<cmd>" ...` and `mull config layer <name> <glob...>`. A layer named `ui` is what triggers the tour requirement.
+- **A plan's own checks.** A plan may add hard checks of its own for the work in it, such as an end-to-end suite only that plan's pages need: `mull plan checks <slug> "<cmd>" ...` replaces them, and no commands removes them. They're the human's, like the plan's doc and rules, and kept in the plan's record (`checks`, shown by `plan show`). `done` runs config's checks, then the item's plan's, leaving out any command config already runs, as one list. `mull check --item <id>` runs exactly what `done` would for that item, and `mull check` alone runs config's. An item with no plan runs config's only, and when neither has any, `done` refuses as below.
 - **Where changes are measured from.** Changes are measured from the commit that was checked out when the item was claimed (`claim.base`, recorded by `mull start`). That captures exactly the session's work. If there's no recorded base, they're measured from the merge base with the integration branch.
-- **How checks run.** Checks run with `sh -c` in the worktree, one after another, and stop at the first failure. Only the last 40 lines of a failing command's output are kept. Results are cached on the `mull` branch at `checks/<tree>.json`, keyed by tree and command list.
-- **No checks configured.** `done` refuses unless the human gives `--override`.
+- **How checks run.** Checks run with `sh -c` in the worktree, one after another, and stop at the first failure. Only the last 40 lines of a failing command's output are kept. Results are cached on the `mull` branch at `checks/<tree>.json`, keyed by tree and command list, so a pass of config's checks alone doesn't stand for a plan's longer list.
+- **No checks configured.** When neither config nor the item's plan has any, `done` refuses unless the human gives `--override`.
 - **Reading a report.** `mull report <id> --text` prints the report as markdown.
-- **Trust.** Check commands come from mull's config, which travels with `sync`, and `done` runs them. Treat them like a Makefile in the repo: as trusted as whoever can push to the remote.
+- **Trust.** Check commands come from mull's config and plans, which travel with `sync`, and `done` runs them. Treat them like a Makefile in the repo: as trusted as whoever can push to the remote.
 
 Config example:
 
@@ -379,11 +380,11 @@ The ops are every write except `init`, `sync`, `migrate`, `check` and `done`.
 | Group | Commands |
 |---|---|
 | Setup | `mull init [--integration b] [--release b]` · `mull config [set\|checks\|layer …]` · `mull sync [--dry-run]` · `mull migrate [--dry-run] [--text] [--on-request]` |
-| Plans (you) | `mull plan new <slug> "title" [--summary -] --on-request` · `plan agree <slug> --on-request` · `plan list` · `plan show <slug>` · `plan doc <slug> [-] [--log]` · `plan rules <slug> [-] [--log]` · `plan close <slug>` |
+| Plans (you) | `mull plan new <slug> "title" [--summary -] --on-request` · `plan agree <slug> --on-request` · `plan list` · `plan show <slug>` · `plan doc <slug> [-] [--log]` · `plan rules <slug> [-] [--log]` · `plan checks <slug> ["<cmd>" …]` · `plan close <slug>` |
 | Phases | `mull phase add "title" --plan <slug> [--needs …] [--summary -]` · `phase list [--plan]` · `phase doc <id> [-] [--log]` · `phase rules <id> [-] [--log]` · `phase delete <id> --on-request` · `show <id>` |
 | Items | `mull add "title" (--plan <slug> \| --phase <id> \| --plan none \| --follow-up <done-id>) [--notes -] [--doc path]` · `show` · `list [--plan] [--phase] [--state] [--kind] [--untriaged]` · `set` · `drop` |
 | Dependencies and order | `mull need <phase> <phase…>` · `mull unneed <phase> <phase…>` · `mull rank <phase\|plan\|none> <ids…>` · `mull ready [--plan]` |
-| Work (agents) | `mull start <id>` · `release <id>` · `check` (run the hard checks, cache the result) · `done <id> --summary "…" --tour "…" --design -` |
+| Work (agents) | `mull start <id>` · `release <id>` · `check [--item <id>]` (run the hard checks, cache the result; with `--item`, its plan's too) · `done <id> --summary "…" --tour "…" --design -` |
 | Capture (agents) | `mull decided "text"`, `ask "question"`, each with `--item <id>` or `--plan <slug>`, plus `[--detail -] [--source …]` · `decided "text" --human --on-request` (your own decision, settled at once) |
 | Backlog | `mull bug "title"` · `idea "title"`, each with `[--detail -] [--source …] [--plan \| --phase] [--category …]` · `commit <id> [--plan \| --phase \| --plan none] --on-request` · `triage <id…> --on-request` (or `--all [--plan <slug>\|none]`) |
 | Batch | `mull batch [--dry-run] < ops.jsonl` |

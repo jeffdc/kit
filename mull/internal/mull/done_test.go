@@ -302,8 +302,8 @@ func TestCheckRecordsAndReuses(t *testing.T) {
 	m, _ := setup(t)
 	check, runs := counterCheck(t, 0)
 	must[model.Config](t)(m.ConfigChecks([]string{check}))
-	first := must[CheckOutcome](t)(m.Check())
-	second := must[CheckOutcome](t)(m.Check())
+	first := must[CheckOutcome](t)(m.Check(""))
+	second := must[CheckOutcome](t)(m.Check(""))
 	if !first.Passed || first.Cached || !second.Cached || runs() != 1 {
 		t.Fatalf("first %+v, second %+v, runs %d", first, second, runs())
 	}

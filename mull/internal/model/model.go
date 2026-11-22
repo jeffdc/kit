@@ -137,6 +137,9 @@ type Plan struct {
 	// the human's, plain markdown, printed in full by context --item. Like the
 	// doc, they are their own file (PlanRulesPath).
 	Rules string `yaml:"-" json:"rules,omitempty"`
+	// Checks are the plan's own hard checks: shell commands done runs for
+	// the plan's items after config's.
+	Checks []string `yaml:"checks,omitempty" json:"checks,omitempty"`
 	// Legacy means the record was read in format 1 (see Format).
 	Legacy bool `yaml:"-" json:"-"`
 }

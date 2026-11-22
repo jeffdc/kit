@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -64,15 +65,63 @@ func (m *Mull) configSet(s *state, key, value string) (model.Config, error) {
 
 func (m *Mull) configChecks(s *state, commands []string) (model.Config, error) {
 	return s.changeConfig(func(c *model.Config) error {
-		c.DoneChecks = []string{}
-		for _, cmd := range commands {
-			if cmd = strings.TrimSpace(cmd); cmd != "" {
-				c.DoneChecks = append(c.DoneChecks, cmd)
-			}
-		}
+		c.DoneChecks = append([]string{}, trimCommands(commands)...)
 		return nil
 	})
 }
+
+// trimCommands trims each check command and leaves out empty ones.
+func trimCommands(commands []string) []string {
+	var out []string
+	for _, cmd := range commands {
+		if cmd = strings.TrimSpace(cmd); cmd != "" {
+			out = append(out, cmd)
+		}
+	}
+	return out
+}
+
+// PlanChecks replaces a plan's own hard checks, which done runs for the
+// plan's items after config's; no commands removes them.
+func (m *Mull) PlanChecks(slug string, commands []string) (*model.Plan, error) {
+	var out *model.Plan
+	err := m.update("plan checks "+slug, func(s *state) error {
+		var err error
+		out, err = m.planChecks(s, slug, commands)
+		return err
+	})
+	return out, err
+}
+
+func (m *Mull) planChecks(s *state, slug string, commands []string) (*model.Plan, error) {
+	p, err := s.plan(slug)
+	if err != nil {
+		return nil, err
+	}
+	checks := trimCommands(commands)
+	if slices.Equal(checks, p.Checks) {
+		return p, nil // unchanged: write nothing
+	}
+	p.Checks, p.Updated = checks, m.now()
+	return p, s.putPlan(p)
+}
+
+// hardChecks is the commands done runs for an item in plan p (nil for an
+// item with no plan): config's, then the plan's own, leaving out any that
+// config already runs.
+func hardChecks(cfg model.Config, p *model.Plan) []string {
+	out := append([]string{}, cfg.DoneChecks...)
+	if p != nil {
+		for _, c := range p.Checks {
+			if !slices.Contains(out, c) {
+				out = append(out, c)
+			}
+		}
+	}
+	return out
+}
+
+const noChecksHint = `the human sets them with: mull config checks "<command>" ..., and a plan's own with: mull plan checks <slug> "<command>" ...`
 
 func (m *Mull) configLayer(s *state, name string, globs []string) (model.Config, error) {
 	return s.changeConfig(func(c *model.Config) error {
@@ -186,25 +235,45 @@ type CheckOutcome struct {
 	Cached bool `json:"cached"`
 }
 
-// Check runs the configured hard checks against HEAD (which must be clean),
-// reusing a cached pass for the same tree, and records the run.
-func (m *Mull) Check() (CheckOutcome, error) {
-	cfg, err := m.Config()
+// Check runs the hard checks against HEAD (which must be clean), reusing a
+// cached pass for the same tree and command list, and records the run. With
+// an item, they're the checks done would run for it: config's, then its
+// plan's own. Without one, only config's.
+func (m *Mull) Check(itemID string) (CheckOutcome, error) {
+	var commands []string
+	err := m.view(func(s *state) error {
+		var p *model.Plan
+		if itemID != "" {
+			i, err := s.item(itemID)
+			if err != nil {
+				return err
+			}
+			p = s.plans[i.Plan]
+		}
+		commands = hardChecks(s.config, p)
+		return nil
+	})
 	if err != nil {
 		return CheckOutcome{}, err
 	}
-	if len(cfg.DoneChecks) == 0 {
-		return CheckOutcome{}, errf(CodeNoChecks, "no hard checks configured; the human sets them with: mull config checks \"<command>\" ...")
+	if len(commands) == 0 {
+		return CheckOutcome{}, errf(CodeNoChecks, "no hard checks configured; "+noChecksHint)
 	}
+	return m.runChecks(commands)
+}
+
+// runChecks runs commands as the hard checks against the clean HEAD,
+// reusing a cached pass for the same tree and command list.
+func (m *Mull) runChecks(commands []string) (CheckOutcome, error) {
 	commit, tree, err := m.cleanTree()
 	if err != nil {
 		return CheckOutcome{}, err
 	}
-	if cached, ok := m.cachedPass(tree, cfg.DoneChecks); ok {
+	if cached, ok := m.cachedPass(tree, commands); ok {
 		return CheckOutcome{CheckRun: cached, Cached: true}, nil
 	}
 	run := model.CheckRun{Tree: tree, Commit: commit, At: m.now(), By: m.Worktree(), Passed: true}
-	for _, c := range cfg.DoneChecks {
+	for _, c := range commands {
 		r := m.runCheck(c)
 		run.Results = append(run.Results, r)
 		if r.Exit != 0 {
@@ -309,6 +378,7 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 	wt := m.Worktree()
 	var cfg model.Config
 	var claim model.Claim
+	var commands []string
 	err := m.view(func(s *state) error {
 		cfg = s.config
 		i, err := s.item(id)
@@ -319,6 +389,7 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 			return err
 		}
 		claim = *i.Claim
+		commands = hardChecks(cfg, s.plans[i.Plan])
 		return nil
 	})
 	if err != nil {
@@ -326,9 +397,9 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 	}
 
 	var checks model.CheckRun
-	if len(cfg.DoneChecks) == 0 {
+	if len(commands) == 0 {
 		if in.Override == "" {
-			return out, errf(CodeNoChecks, "no hard checks configured, so nothing can prove this item done; the human sets them with: mull config checks \"<command>\" ...")
+			return out, errf(CodeNoChecks, "no hard checks configured, so nothing can prove this item done; "+noChecksHint)
 		}
 		commit, tree, err := m.cleanTree()
 		if err != nil {
@@ -336,7 +407,7 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 		}
 		checks = model.CheckRun{Tree: tree, Commit: commit, At: m.now(), By: wt}
 	} else {
-		outcome, err := m.Check()
+		outcome, err := m.runChecks(commands)
 		if err != nil {
 			return out, err
 		}
