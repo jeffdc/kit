@@ -418,8 +418,8 @@ func TestOpsCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	rec := post(t, h, "/api/projects/"+filepath.Base(dir)+"/ops", opsBody(t, tipOf(t, dir),
-		map[string]any{"op": "bug", "text": "The footer overlaps on a phone", "detail": "Seen at 400px."},
-		map[string]any{"op": "idea", "text": "A digest by email", "plan": "pilot"}), nil)
+		map[string]any{"op": "bug", "title": "The footer overlaps on a phone", "detail": "Seen at 400px."},
+		map[string]any{"op": "idea", "title": "A digest by email", "plan": "pilot"}), nil)
 	if rec.Code != 200 {
 		t.Fatalf("POST ops: %d %s", rec.Code, rec.Body)
 	}
@@ -427,14 +427,15 @@ func TestOpsCapture(t *testing.T) {
 	if len(rep.Results) != 2 || rep.Results[0].ID == "" || rep.Results[1].ID == "" {
 		t.Fatalf("results = %+v", rep.Results)
 	}
-	want := []struct{ kind, plan, notes string }{{model.ItemBug, "", "Seen at 400px."}, {model.ItemIdea, "pilot", ""}}
+	want := []struct{ kind, title, plan, notes string }{
+		{model.ItemBug, "The footer overlaps on a phone", "", "Seen at 400px."}, {model.ItemIdea, "A digest by email", "pilot", ""}}
 	for i, r := range rep.Results {
 		v, err := m.Show(r.ID)
 		if err != nil {
 			t.Fatal(err)
 		}
 		it := v.Item
-		if it.State != model.StateCaptured || it.Kind != want[i].kind || it.Plan != want[i].plan || it.Notes != want[i].notes || it.Source != "Jeff in mull serve" {
+		if it.State != model.StateCaptured || it.Kind != want[i].kind || it.Title != want[i].title || it.Plan != want[i].plan || it.Notes != want[i].notes || it.Source != "Jeff in mull serve" {
 			t.Errorf("captured %d = %+v, want a %s for plan %q, from Jeff in mull serve", i, it.Item, want[i].kind, want[i].plan)
 		}
 	}

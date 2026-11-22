@@ -119,22 +119,41 @@ func TestCapturesInBatch(t *testing.T) {
 	input := strings.Join([]string{
 		`{"op": "plan new", "slug": "alpha", "title": "Alpha", "on-request": true}`,
 		`{"op": "plan agree", "slug": "alpha", "on-request": true}`,
-		`{"op": "bug", "ref": "b", "text": "Crash on empty list", "category": "ui", "source": "human"}`,
-		`{"op": "idea", "ref": "i", "plan": "alpha", "text": "Dark mode", "detail": "Asked for twice."}`,
+		`{"op": "bug", "ref": "b", "title": "Crash on empty list", "category": "ui", "source": "human"}`,
+		`{"op": "idea", "ref": "i", "plan": "alpha", "text": "Dark mode", "detail": "Asked for twice."}`, // text: title's alias
 		`{"op": "commit", "id": "@b", "plan": "alpha", "on-request": true}`,
 	}, "\n")
 	results, err := m.Batch(strings.NewReader(input), false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if b := results[4].Result.(ItemView); b.ID != results[2].ID || b.State != model.StateCommitted || b.Plan != "alpha" {
+	if b := results[4].Result.(ItemView); b.ID != results[2].ID || b.State != model.StateCommitted || b.Plan != "alpha" || b.Title != "Crash on empty list" {
 		t.Fatalf("committed bug = %+v", b)
 	}
-	if i := item(t, m, results[3].ID); i.Kind != model.ItemIdea || i.Notes != "Asked for twice." || i.State != model.StateCaptured {
+	if i := item(t, m, results[3].ID); i.Kind != model.ItemIdea || i.Title != "Dark mode" || i.Notes != "Asked for twice." || i.State != model.StateCaptured {
 		t.Fatalf("idea = %+v", i)
 	}
 	_, err = m.Batch(strings.NewReader(`{"op": "commit", "id": "`+results[3].ID+`"}`), true)
 	if e := batchErr(t, err); e.Lines[0].Code != CodeNotAllowed {
 		t.Fatalf("lines = %+v", e.Lines)
+	}
+}
+
+// A bug or idea takes title, as add does, or text as its alias, never both;
+// a bad field's error lists title, not the alias.
+func TestCaptureTitleInBatch(t *testing.T) {
+	m, _ := setup(t)
+	_, err := m.Batch(strings.NewReader(`{"op": "bug", "title": "Crash", "text": "Crash"}`), true)
+	if e := batchErr(t, err); e.Lines[0].Code != CodeInvalid || !strings.Contains(e.Lines[0].Error, `"title" or "text"`) {
+		t.Fatalf("lines = %+v", e.Lines)
+	}
+	_, err = m.Batch(strings.NewReader(`{"op": "idea"}`), true)
+	if e := batchErr(t, err); e.Lines[0].Code != CodeInvalid {
+		t.Fatalf("no title: lines = %+v", e.Lines)
+	}
+	_, err = m.Batch(strings.NewReader(`{"op": "idea", "name": "Dark mode"}`), true)
+	e := batchErr(t, err)
+	if msg := e.Lines[0].Error; e.Lines[0].Code != CodeInvalid || !strings.Contains(msg, "fields: title, plan, phase") || strings.Contains(msg, "text") {
+		t.Fatalf("unknown field: lines = %+v", e.Lines)
 	}
 }

@@ -91,8 +91,8 @@ var ops = map[string]opDef{
 	"decided":       {func() Input { return &DecidedIn{} }, "text, item, plan, source, detail, human, on-request"},
 	"ask":           {func() Input { return &CaptureIn{kind: model.KindQuestion} }, "text, item, plan, source, detail"},
 	"loose":         {func() Input { return &CaptureIn{kind: model.KindLoose} }, "retired: use bug or idea"},
-	"bug":           {func() Input { return &CaptureItemIn{kind: model.ItemBug} }, "text, plan, phase, category, source, detail"},
-	"idea":          {func() Input { return &CaptureItemIn{kind: model.ItemIdea} }, "text, plan, phase, category, source, detail"},
+	"bug":           {func() Input { return &CaptureItemIn{kind: model.ItemBug} }, "title, plan, phase, category, source, detail"},
+	"idea":          {func() Input { return &CaptureItemIn{kind: model.ItemIdea} }, "title, plan, phase, category, source, detail"},
 	"commit":        {func() Input { return &CommitIn{} }, "id, plan, phase, on-request"},
 	"triage":        {func() Input { return &TriageIn{} }, "ids, all, plan, on-request"},
 	"start":         {func() Input { return &StartIn{} }, "id"},
@@ -352,10 +352,12 @@ func (in *DecidedIn) run(m *Mull, s *state) (any, string, error) {
 	return e, e.ID, nil
 }
 
-// CaptureItemIn captures a bug or idea. Text is the title, as for the other
-// captures, and detail becomes its notes.
+// CaptureItemIn captures a bug or idea: an item, so it takes a title as add
+// does, and detail becomes its notes. Text is a silent alias for Title, from
+// when captures were inbox entries (it's still what decided and ask take).
 type CaptureItemIn struct {
-	Text     string `json:"text"`
+	Title    string `json:"title"`
+	Text     string `json:"text"` // alias for Title, not listed in the op's fields
 	Plan     string `json:"plan"`
 	Phase    string `json:"phase"`
 	Category string `json:"category"`
@@ -368,7 +370,14 @@ func (in *CaptureItemIn) refFields() ([]*string, []*IDList) {
 	return []*string{&in.Plan, &in.Phase}, nil
 }
 func (in *CaptureItemIn) run(m *Mull, s *state) (any, string, error) {
-	i, err := m.captureItem(s, NewCapture{Kind: in.kind, Title: in.Text, Plan: in.Plan, Phase: in.Phase,
+	title := in.Title
+	if in.Text != "" {
+		if title != "" {
+			return nil, "", errf(CodeInvalid, `give "title" or "text" (its alias), not both`)
+		}
+		title = in.Text
+	}
+	i, err := m.captureItem(s, NewCapture{Kind: in.kind, Title: title, Plan: in.Plan, Phase: in.Phase,
 		Category: in.Category, Source: in.Source, Detail: in.Detail})
 	if err != nil {
 		return nil, "", err
