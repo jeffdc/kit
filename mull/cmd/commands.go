@@ -533,22 +533,32 @@ func releaseCmd(a *app) *cobra.Command {
 
 func captureCmd(a *app, op string) *cobra.Command {
 	short := map[string]string{
-		"decided": "Record a decision you made that the human didn't (--detail: why)",
+		"decided": "Record a decision you made that the human didn't (--detail: why), or with --human --on-request one the human made",
 		"ask":     "Ask the human something",
 	}[op]
 	var item, plan, source, detail string
+	var human, onRequest bool
 	c := &cobra.Command{
 		Use: op + " <text>", Short: short, Args: exact(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			in, _ := mull.NewInput(op)
-			ci := in.(*mull.CaptureIn)
-			var err error
-			if ci.Detail, err = a.text(detail); err != nil {
+			d, err := a.text(detail)
+			if err != nil {
 				return err
 			}
-			ci.Text, ci.Item, ci.Plan, ci.Source = args[0], item, plan, source
+			in, _ := mull.NewInput(op)
+			if di, ok := in.(*mull.DecidedIn); ok {
+				di.Text, di.Item, di.Plan, di.Source, di.Detail = args[0], item, plan, source, d
+				di.Human, di.OnRequest = human, onRequest
+				return a.write(op, di)
+			}
+			ci := in.(*mull.CaptureIn)
+			ci.Text, ci.Item, ci.Plan, ci.Source, ci.Detail = args[0], item, plan, source, d
 			return a.write(op, ci)
 		},
+	}
+	if op == "decided" {
+		c.Flags().BoolVar(&human, "human", false, "the human made this decision (in conversation): settled at once, into the decision log (needs --on-request)")
+		c.Flags().BoolVar(&onRequest, "on-request", false, "with --human: an agent recording the human's decision on their explicit instruction")
 	}
 	c.Flags().StringVar(&item, "item", "", "the item this concerns (implies the plan)")
 	c.Flags().StringVar(&plan, "plan", "", "the plan, when there is no item (required when the repo has more than one plan)")

@@ -88,7 +88,7 @@ var ops = map[string]opDef{
 	"set":           {func() Input { return &SetIn{} }, "id, field, value"},
 	"need":          {func() Input { return &NeedIn{add: true} }, "id, needs"},
 	"unneed":        {func() Input { return &NeedIn{} }, "id, needs"},
-	"decided":       {func() Input { return &CaptureIn{kind: model.KindDecision} }, "text, item, plan, source, detail"},
+	"decided":       {func() Input { return &DecidedIn{} }, "text, item, plan, source, detail, human, on-request"},
 	"ask":           {func() Input { return &CaptureIn{kind: model.KindQuestion} }, "text, item, plan, source, detail"},
 	"loose":         {func() Input { return &CaptureIn{kind: model.KindLoose} }, "retired: use bug or idea"},
 	"bug":           {func() Input { return &CaptureItemIn{kind: model.ItemBug} }, "text, plan, phase, category, source, detail"},
@@ -320,6 +320,29 @@ type CaptureIn struct {
 func (in *CaptureIn) refFields() ([]*string, []*IDList) { return []*string{&in.Item, &in.Plan}, nil }
 func (in *CaptureIn) run(m *Mull, s *state) (any, string, error) {
 	e, err := m.capture(s, CaptureInput{Kind: in.kind, Text: in.Text, Item: in.Item, Plan: in.Plan, Source: in.Source, Detail: in.Detail})
+	if err != nil {
+		return nil, "", err
+	}
+	return e, e.ID, nil
+}
+
+// DecidedIn records a decision: an agent's own, left open for the human to
+// ratify, or with Human the human's own, made in conversation and settled at
+// once.
+type DecidedIn struct {
+	Text      string `json:"text"`
+	Item      string `json:"item"`
+	Plan      string `json:"plan"`
+	Source    string `json:"source"`
+	Detail    string `json:"detail"`
+	Human     bool   `json:"human"`
+	OnRequest bool   `json:"on-request"`
+}
+
+func (in *DecidedIn) refFields() ([]*string, []*IDList) { return []*string{&in.Item, &in.Plan}, nil }
+func (in *DecidedIn) run(m *Mull, s *state) (any, string, error) {
+	e, err := m.decided(s, CaptureInput{Kind: model.KindDecision, Text: in.Text, Item: in.Item, Plan: in.Plan,
+		Source: in.Source, Detail: in.Detail}, in.Human, in.OnRequest)
 	if err != nil {
 		return nil, "", err
 	}

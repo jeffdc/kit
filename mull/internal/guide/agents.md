@@ -15,6 +15,7 @@ This project's plans, work items, backlog and open questions live in **mull**: a
    - End every commit message with the trailer line `Mull: <id>`.
 3. **Capture as you go,** one line each, without waiting for the end. Anyone captures; only the human commits.
    - `mull decided "<what you chose>" --item <id> --detail "<why, one line>"`: any choice the human didn't make for you.
+   - `mull decided "<what the human decided>" --human --on-request --item <id>`: a decision the human made themselves, in conversation. It goes straight into the decision log, settled as theirs, and never to their inbox. Don't write "the human chose" into an agent decision instead.
    - `mull ask "<question>" --item <id>`: anything you need from the human. Keep working on whatever isn't blocked.
    - `mull bug "<what>" --source "item <id>"`: anything out of scope that's wrong (a bug, an inconsistency, half-finished work, an assumption you made).
    - `mull idea "<title>" --detail "<short note>" --source "<where>"`: a possibility worth keeping that isn't work yet, whether the human raised it or you noticed it. Keep to ideas worth the human's time.

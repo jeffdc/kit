@@ -152,6 +152,7 @@ The inbox holds only what needs you: questions, decisions and reviews.
 A review can't be decided or dropped, because both would leave unreviewed work looking finished. To abandon the work, drop the item itself.
 
 - Accepted and decided entries make up the **decision log**. Agents read it before starting work, so a settled question stays settled.
+- **Your own decisions** made in conversation go straight into the log: an agent records one with `mull decided "…" --human --on-request` (`--item` or `--plan` as for any decision, `--detail` for why). It's a decision entry settled at once as decided, by the agent's worktree on request, so it never reaches the inbox and no review carries it. Without `--on-request` it's refused (`not_allowed`); `--on-request` without `--human` is refused too (`invalid_argument`), since an agent's own decision needs neither.
 - An agent may settle entries **on your explicit instruction in conversation**. The record notes `by: agent, on request`.
 
 ## Storage: the `mull` branch
@@ -370,7 +371,7 @@ The ops are every write except `init`, `sync`, `migrate`, `check` and `done`.
 | Items | `mull add "title" (--plan <slug> \| --phase <id> \| --plan none) [--notes -] [--doc path]` · `show` · `list [--plan] [--phase] [--state] [--kind] [--untriaged]` · `set` · `drop` |
 | Dependencies and order | `mull need <phase> <phase…>` · `mull unneed <phase> <phase…>` · `mull rank <phase\|plan\|none> <ids…>` · `mull ready [--plan]` |
 | Work (agents) | `mull start <id>` · `release <id>` · `check` (run the hard checks, cache the result) · `done <id> --summary "…" --tour "…" --design -` |
-| Capture (agents) | `mull decided "text"`, `ask "question"`, each with `--item <id>` or `--plan <slug>`, plus `[--detail -] [--source …]` |
+| Capture (agents) | `mull decided "text"`, `ask "question"`, each with `--item <id>` or `--plan <slug>`, plus `[--detail -] [--source …]` · `decided "text" --human --on-request` (your own decision, settled at once) |
 | Backlog | `mull bug "title"` · `idea "title"`, each with `[--detail -] [--source …] [--plan \| --phase] [--category …]` · `commit <id> [--plan \| --phase \| --plan none] --on-request` · `triage <id…> --on-request` (or `--all [--plan <slug>\|none]`) |
 | Batch | `mull batch [--dry-run] < ops.jsonl` |
 | Settle (you, or an agent on your request) | `mull inbox [--kind] [--plan] [--parked]` · `accept <id…> [--follow-up "…"]` · `decide <id> "text"` · `do <id> [--plan] [--phase] [--as phase] [--reason "…"]` · `drop <id…> [--reason "…"]` · `park <id> "reason"` |
@@ -384,7 +385,7 @@ This is a short block pasted into the project's `AGENTS.md`. In outline:
 1. At session start, run `mull context --item <id>`. Read the decision log before deciding anything it may already settle, and read the item's docs and its phase's doc.
 2. **One item per session.** It's committed work from `mull ready`, or a captured item the human wants done now. Claim it with `mull start`, which commits a captured item. Name the branch `<id>-…`. End every commit message with `Mull: <id>`.
 3. Capture as you go, one line each:
-   - `mull decided` for any choice you made that the human didn't;
+   - `mull decided` for any choice you made that the human didn't, and with `--human --on-request` for one the human made in conversation;
    - `mull ask` for anything you need from the human;
    - `mull bug` for anything out of scope that's wrong, and for feedback the human hands over for later;
    - `mull idea` for a possibility worth keeping that isn't work yet.

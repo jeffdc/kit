@@ -70,6 +70,28 @@ func (m *Mull) capture(s *state, in CaptureInput) (*model.Entry, error) {
 	return m.newEntry(s, in.Kind, in.Text, in.Item, in.Plan, in.Source, in.Detail)
 }
 
+// decided records a decision. An agent's own (human false) is left open for
+// the human to ratify, usually with its item's review. The human's own (human
+// true), made in conversation and recorded by an agent on request, is settled
+// at once as decided: straight into the decision log, never in the inbox and
+// never carried by a review.
+func (m *Mull) decided(s *state, in CaptureInput, human, onRequest bool) (*model.Entry, error) {
+	if !human {
+		if onRequest {
+			return nil, errf(CodeInvalid, "--on-request goes with --human, for a decision the human made; an agent's own decision needs neither")
+		}
+		return m.capture(s, in)
+	}
+	if !m.asked(onRequest) {
+		return nil, errf(CodeNotAllowed, "only the human makes their own decisions: pass --on-request when the human decided this in conversation (for a choice you made, drop --human)")
+	}
+	e, err := m.capture(s, in)
+	if err != nil {
+		return nil, err
+	}
+	return e, m.settle(s, e, model.ActDecide, e.Text, "", SettleOpts{OnRequest: onRequest})
+}
+
 // retiredCapture points from mull loose and inbox ideas to captures.
 const retiredCapture = "loose ends and inbox ideas are retired: capture it as an item with " +
 	"mull bug \"...\" or mull idea \"...\" (--source says where it came from; --plan or --phase tag it)"

@@ -26,7 +26,7 @@ On failure, mull prints nothing to stdout, prints this to stderr, and exits 1:
 | `invalid_state` | the record is in the wrong state (e.g. accepting an item that isn't done) |
 | `claimed` | the item is claimed by another worktree |
 | `already_settled` | the inbox entry is already settled |
-| `not_allowed` | not allowed (kind rules; a worker accepting its own work; promoting an idea, committing a captured item, triaging, creating a plan, agreeing one or migrating without `--on-request`; a `mull serve` write with no `mull name` or git `user.name`, or of an op its pages don't offer; needs on an item, or a phase needing an item) |
+| `not_allowed` | not allowed (kind rules; a worker accepting its own work; promoting an idea, committing a captured item, triaging, creating a plan, agreeing one, migrating or recording the human's own decision (`decided --human`) without `--on-request`; a `mull serve` write with no `mull name` or git `user.name`, or of an op its pages don't offer; needs on an item, or a phase needing an item) |
 | `dependency_cycle` | the needs would form a cycle |
 | `scope_required` | say which plan or item: `--plan` or `--item` (or `--phase`, or `--plan none` for unplanned work, for `add`) |
 | `tour_required` | UI files changed and no `--tour` was given |
@@ -102,7 +102,7 @@ Times are RFC 3339 in UTC. IDs are 4 hex characters; plans use their slug.
 | `need`, `unneed` | `{type: "phase", phase: PhaseView}`. Only a phase has needs, and only on phases; on an item they fail with `not_allowed` |
 | `rank` | `{plan?, phase?, items: [{id, title, state, rank}]}`: the group (neither for Unplanned) and its open work in the new order. `mull rank <phase\|plan\|none> <ids...>` names the group by phase ID, plan slug (its items with no phase) or `none` (Unplanned), and must list every open item in it, first to last: a missing one, or one that isn't open work in the group, fails with `invalid_argument` naming it |
 | `start` | `{item: ItemView, warnings: []}`. Starting a blocked item is allowed with a warning, and so is starting committed work while open work ranked before it in its group isn't done: the warning names those items, with their stage. Equal ranks and unranked items have no order, so they don't warn, and nor does a captured item started now (it joins its group last, unranked by anyone). A captured item tagged to a shaping plan can't be started (`invalid_state`), since starting commits it |
-| `decided`, `ask` | Entry |
+| `decided`, `ask` | Entry. `decided --human --on-request` (the human's own decision) returns it already settled: `settled` is `{action: "decide", note: <the text>, by: <worktree>, on_request: true, at}`, so it's in `decisions` at once and never in `inbox`. `--on-request` without `--human` is `invalid_argument` |
 | `inbox` | `{entries: [Entry]}`, oldest first: questions, decisions and reviews. Loose ends and ideas only with `--kind loose-end\|idea`. `--plan none` for entries with no plan |
 | `loose`, `ideas` | retired: fail with code `retired` |
 | `accept` | `{entries: [Entry], items: [ItemView], follow_up: ItemView\|null}`. `entries` includes the decisions an accepted review carried and ratified |
@@ -187,7 +187,8 @@ An unknown project, plan, phase or item is 404 `not_found`; a registered project
 | `rank` | `group` (a phase ID, plan slug or `none`), `ids` (every open item in it, first to last) |
 | `set` | `id`, `field`, `value` |
 | `need`, `unneed` | `id` (a phase), `needs` (phases) |
-| `decided`, `ask` | `text`, `item`, `plan`, `source`, `detail` |
+| `decided` | `text`, `item`, `plan`, `source`, `detail`, `human` (`true`: the human's own decision, settled at once), `on-request` (required with `human`, and only with it) |
+| `ask` | `text`, `item`, `plan`, `source`, `detail` |
 | `bug`, `idea` | `text` (the title), `plan`, `phase` (both optional), `category`, `source`, `detail` (kept as notes) |
 | `commit` | `id`, `plan` (`none` for unplanned), `phase`, `on-request` (required: only the human commits) |
 | `triage` | `ids`, or `all` (`true`) with an optional `plan` (`none` for untagged captures), `on-request` (required: triage is run with the human) |

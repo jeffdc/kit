@@ -24,6 +24,7 @@ When you settle or file more than a couple of records at once, use `mull batch`.
   - **idle-claim:** the worker has stalled. Find out why, or `mull release` the item.
   - **unclaimed-work:** someone is committing to an item's branch without having claimed it.
 - Route questions and decisions to the human. Don't answer them yourself. `mull inbox` shows what needs them: questions, decisions and reviews only.
+- A decision the human makes in conversation, not in answer to an inbox entry, goes in with `mull decided "<their decision>" --human --on-request` (with `--item` or `--plan`): settled at once as theirs, into the decision log. To answer an entry, use `mull decide <entry-id>` instead.
 - Feedback the human hands you for later goes in as a captured bug (`mull bug`), in their words, with `--source "human, <date or context>"`. File it when it's given.
 
 ## The backlog
