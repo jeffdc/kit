@@ -5,6 +5,12 @@ plan: item-order
 item: a43b
 by: /Users/jeff/dev/kit
 created: "2026-11-18T20:47:33Z"
+settled:
+  action: accept
+  note: with review ad91
+  by: Jeff
+  human: true
+  at: "2026-11-22T15:13:42Z"
 ---
 
 Asked 2026-11-18, ahead of a43b, over drag and drop or a move-to-first action
