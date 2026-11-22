@@ -13,7 +13,8 @@ import (
 //	decision:  accept (ratify), decide (overrule), drop, park
 //	question:  decide, do, drop, park
 //	loose-end: decide, do, drop, park
-//	review:    accept (optionally with a follow-up item), do (send back: reopen the item), park
+//	review:    accept (optionally with a follow-up item), do (send back: reopen the item,
+//	           or for a phase's integration review add a fix-up item to the phase), park
 //	idea:      do (promote to an item or phase; only on the human's say-so), drop, park
 var allowed = map[string][]string{
 	model.KindIdea:     {model.ActDo, model.ActDrop, model.ActPark},
@@ -185,6 +186,7 @@ func copyEntry(e *model.Entry) *model.Entry {
 		c.Settled = &st
 	}
 	c.Decisions = slices.Clone(e.Decisions)
+	c.Items = slices.Clone(e.Items)
 	return &c
 }
 
@@ -253,10 +255,11 @@ type AcceptResult struct {
 }
 
 // Accept ratifies decisions and accepts reviewed work. refs may be decision
-// or review entries, or items in review (whose review is settled with them).
-// Accepting a review also ratifies the decisions it carries that are still
-// unsettled. followUp, if set, creates a follow-up item for an accepted
-// review; it applies only when accepting a single review.
+// or review entries, items in review (whose review is settled with them), or
+// phases with an open integration review (which completes them). Accepting
+// a review also ratifies the decisions it carries that are still unsettled.
+// followUp, if set, creates a follow-up item for an accepted review; it
+// applies only when accepting a single reviewed item.
 func (m *Mull) Accept(refs []string, followUp string, o SettleOpts) (AcceptResult, error) {
 	var out AcceptResult
 	err := m.update(fmt.Sprintf("accept %v", refs), func(s *state) error {
@@ -281,6 +284,18 @@ func (m *Mull) accept(s *state, refs []string, followUp string, o SettleOpts) (A
 		var entry *model.Entry
 		var item *model.Item
 		switch {
+		case s.entries[ref] != nil && s.entries[ref].Phase != "", s.phases[ref] != nil:
+			r := s.entries[ref]
+			if r == nil {
+				if r = s.openIntegrationReview(ref); r == nil {
+					return out, errf(CodeState, "phase %s has no open integration review to accept (mull done %s files one)", ref, ref)
+				}
+			}
+			if err := m.acceptPhaseReview(s, r, o); err != nil {
+				return out, err
+			}
+			out.Entries = append(out.Entries, r)
+			continue
 		case s.entries[ref] != nil:
 			entry = s.entries[ref]
 			if entry.Kind == model.KindReview {
@@ -400,7 +415,8 @@ func (m *Mull) decide(s *state, id, decision string, o SettleOpts) (*model.Entry
 }
 
 // DoResult reports what do did: the settled entry and the item or phase it
-// became (or, for a review, the reopened item).
+// became (or, for a review, the reopened item; for an integration review,
+// the fix-up item it added to the phase).
 type DoResult struct {
 	Entry *model.Entry `json:"entry"`
 	Item  *ItemView    `json:"item,omitempty"`
@@ -433,6 +449,9 @@ func (m *Mull) do(s *state, in DoInput) (DoResult, error) {
 	e, err := s.entry(in.ID)
 	if err != nil {
 		return DoResult{}, err
+	}
+	if e.Kind == model.KindReview && e.Phase != "" {
+		return m.sendBackPhase(s, e, in)
 	}
 	as := in.As
 	if as == "" {

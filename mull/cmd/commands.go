@@ -784,6 +784,8 @@ func printInbox(a *app, es []*model.Entry) error {
 			where := e.Plan
 			if e.Item != "" {
 				where += "/" + e.Item
+			} else if e.Phase != "" {
+				where += "/" + e.Phase // an integration review
 			}
 			status, src := "", ""
 			if e.Settled != nil {
@@ -806,7 +808,7 @@ func printInbox(a *app, es []*model.Entry) error {
 func acceptCmd(a *app) *cobra.Command {
 	var in mull.AcceptIn
 	c := &cobra.Command{
-		Use: "accept <id...>", Short: "Ratify decisions, or accept reviewed work (entry or item IDs)", Args: atLeast(1),
+		Use: "accept <id...>", Short: "Ratify decisions, or accept reviewed work (entry or item IDs, or a phase for its integration review)", Args: atLeast(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			in.IDs = mull.SplitIDs(args)
 			return a.write("accept", &in)
@@ -1010,8 +1012,8 @@ func doneCmd(a *app) *cobra.Command {
 	var in mull.DoneInput
 	var summary, tour, design string
 	c := &cobra.Command{
-		Use:   "done <id>",
-		Short: "Finish an item: run the hard checks, write the done report, and file it for review",
+		Use:   "done <item-id|phase-id>",
+		Short: "Finish an item, or file a phase's integration review: run the hard checks, write the done report, and file it for review",
 		Args:  exact(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			stdin := 0
@@ -1040,7 +1042,7 @@ func doneCmd(a *app) *cobra.Command {
 					in.Tour = append(in.Tour, line)
 				}
 			}
-			return a.read(func(m *mull.Mull) (any, error) { return m.Done(args[0], in) })
+			return a.read(func(m *mull.Mull) (any, error) { return m.Finish(args[0], in) })
 		},
 	}
 	c.Flags().StringVar(&summary, "summary", "", "what changed and how it fits (- reads stdin)")
@@ -1054,7 +1056,7 @@ func reportCmd(a *app) *cobra.Command {
 	var n int
 	var asText bool
 	c := &cobra.Command{
-		Use: "report <item-id>", Short: "An item's done report (the latest by default)", Args: exact(1),
+		Use: "report <item-id|phase-id>", Short: "An item's done report, or a phase's integration review report (the latest by default)", Args: exact(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			m, err := a.open()
 			if err != nil {

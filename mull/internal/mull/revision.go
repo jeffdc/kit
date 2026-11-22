@@ -652,6 +652,8 @@ func entryChange(a, b *model.Entry) (Change, bool) {
 		f.short("item", a.Item, b.Item)
 		f.short("source", a.Source, b.Source)
 		f.short("decisions", list(a.Decisions), list(b.Decisions))
+		f.short("phase", a.Phase, b.Phase)
+		f.short("items", list(a.Items), list(b.Items))
 		f.text("detail", a.Detail, b.Detail)
 		if a.Settled != nil && b.Settled != nil && a.Settled.Action == b.Settled.Action && a.Settled.Note != b.Settled.Note {
 			f.text("settled_note", a.Settled.Note, b.Settled.Note)
