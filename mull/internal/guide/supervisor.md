@@ -15,6 +15,7 @@ When you settle or file more than a couple of records at once, use `mull batch`.
 ## Handing out work
 - Pick from `mull ready`. These items are committed, in agreed plans, in phases whose needs are done. They're in order: by phase schedule, then by rank within each group, so hand out work from the top; only phases need other phases, and rank never holds work back.
 - Don't hand out two items likely to touch the same files at the same time.
+- **Worktrees.** mull never creates or removes them: you (or your harness) do, and only when an item needs one. An item's worktree gets the branch `<id>-<short-name>`, from the tip of its plan's target (the integration branch for unplanned work): `git worktree add -b <id>-<short-name> <path> <target>`. It's set up as the plan's rules or the project's `AGENTS.md` say (copying dependencies, the dev and test databases); when they don't say how, propose the rule with `mull ask` rather than putting it in the hand-off. The worker makes the branch, and the worktree if none was made for it, before `mull start`.
 - **The hand-off is one line.** Give each worker its worktree and this instruction, and nothing else: "Follow `mull guide agents`. Your item is `<id>`." Never add rules, context or reminders to the prompt. Prompts aren't kept, the next worker doesn't see them, and two of them can contradict each other without anyone noticing.
 - Everything a worker needs comes from `mull context --item <id>`: the item's notes and docs, its phase's doc, the decision log, and its plan's rules, then its phase's, in full. Before you hand out an item, read that output as the worker will. What's missing goes in one of two places:
   - **The plan's or phase's rules,** for what every worker there must follow: how to set up a worktree, what to use and reuse, what not to touch, the skills to load, the checks to run. Skills, and anything else that depends on a harness, are only text in the rules. Rules are the human's, like docs: when they're missing or wrong, propose them with `mull ask` (which plan or phase, and the wording you'd add), and write them (`mull plan rules <slug> -`, `mull phase rules <id> -`) only on the human's word. Hold back the work that needs them until then, and keep handing out what doesn't.
@@ -53,6 +54,18 @@ When a worker runs `mull done`, you review before the human sees it:
 5. Tell the human what you accepted and what you sent back, with the UI tour for anything they should click through themselves.
 
 Unreviewed work is incomplete work. An item is in review after `mull done`, and done only once its review is accepted.
+
+## Removing worktrees
+Worktrees left behind pile up (dependencies and databases make each one big), and mull never removes them. You do, once both hold:
+- the item is done (its review accepted), not just in review;
+- its work is on its plan's target: the view shows no done-not-in-git problem for it.
+
+Then, with the worktree and branch from its claim (`mull show <id>`), from a checkout of the target:
+```
+git worktree remove <path>
+git branch -d <id>-<short-name>
+```
+Both refuse when something would be lost: `git worktree remove` a worktree with uncommitted or untracked changes, and `git branch -d` a branch not merged into its upstream (or into the branch you're on, when it has none). A refusal means there's work to look at, so find out what it is. Never force either (`--force`, `-D`) without the human's word. Leave alone a worktree whose item is still active or in review, or was sent back.
 
 ## End of session
 - Run `mull sync`.

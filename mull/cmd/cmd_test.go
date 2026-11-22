@@ -197,10 +197,11 @@ func TestCLIEndToEnd(t *testing.T) {
 		t.Fatal("guide agents lacks the human-feedback rule")
 	}
 	// Model v2 rules each guide must keep: who captures and commits, how done is
-	// called, where the backlog is triaged, and migrating old data first.
+	// called, where the backlog is triaged, migrating old data first, and how a
+	// worktree is made and removed (mull itself never does either).
 	for g, wants := range map[string][]string{
-		"agents":     {"Anyone captures; only the human commits", "--design -", "mull guide triage", "phase_doc"},
-		"supervisor": {"mull guide triage", "mull set <id> plan", "with or without `--on-request`"},
+		"agents":     {"Anyone captures; only the human commits", "--design -", "mull guide triage", "phase_doc", "from the tip of the item's plan's target", "mull never creates or removes worktrees"},
+		"supervisor": {"mull guide triage", "mull set <id> plan", "with or without `--on-request`", "mull never creates or removes them", "git branch -d <id>-<short-name>", "Never force either"},
 		"intake":     {"mull migrate --dry-run", "plan agree", "phase doc"},
 		"triage":     {"--on-request", "mull migrate"},
 	} {
