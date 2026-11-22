@@ -24,6 +24,7 @@ var (
 	phaseKeys     = keys{[]string{"id", "plan", "title", "created", "updated"}, []string{"needs", "from", "summary", "doc"}}
 	itemKeys      = keys{[]string{"id", "title", "state", "created", "updated"}, []string{"plan", "phase", "rank", "kind", "category", "source", "needs", "docs", "claim", "from", "triaged", "notes"}}
 	itemViewKeys  = itemKeys.plus(keys{[]string{"ready"}, []string{"blocked_by"}})
+	captureKeys   = itemViewKeys.plus(keys{[]string{"similar"}, nil})
 	phaseViewKeys = phaseKeys.plus(keys{[]string{"progress", "complete"}, []string{"blocked_by"}})
 	entryKeys     = keys{[]string{"id", "kind", "text", "plan", "by", "created"}, []string{"item", "source", "settled", "decisions", "detail"}}
 	configKeys    = keys{[]string{"format", "integration", "release", "remote", "done_checks", "layers"}, nil}
@@ -169,13 +170,15 @@ func TestOutputShapes(t *testing.T) {
 	checkKeys(t, "do.item", do["item"], itemViewKeys)
 
 	// Captures: bugs and ideas are captured items; only the human commits them.
-	shape(itemViewKeys, "idea", "Mobile ID tool", "--plan", "launch", "--detail", "Phones in the field.", "--source", "conversation")
-	bug := shape(itemViewKeys, "bug", "Flaky login test", "--category", "tests")
-	h1s := shape(itemViewKeys, "bug", "Two h1s on home", "--phase", id(phase))
+	shape(captureKeys, "idea", "Mobile ID tool", "--plan", "launch", "--detail", "Phones in the field.", "--source", "conversation")
+	bug := shape(captureKeys, "bug", "Flaky login test", "--category", "tests")
+	h1s := shape(captureKeys, "bug", "Two h1s on home", "--phase", id(phase))
 	shape(itemViewKeys, "commit", id(bug), "--on-request")
 	tr := shape(keys{[]string{"items"}, nil}, "triage", id(h1s), "--on-request")
 	checkKeys(t, "triage.items[0]", first(t, "items", tr["items"]), itemViewKeys)
-	shape(itemViewKeys, "bug", "Untriaged for the view", "--plan", "launch")
+	shape(captureKeys, "bug", "Untriaged for the view", "--plan", "launch")
+	dup := shape(captureKeys, "bug", "The login tests are flaky")
+	checkKeys(t, "bug.similar[0]", first(t, "similar", dup["similar"]), keys{[]string{"id", "title"}, nil})
 	lo3 := shape(entryKeys, "ask", "A pricing page?", "--plan", "launch")
 	promo := shape(keys{[]string{"entry"}, []string{"item", "phase"}}, "do", id(lo3), "--as", "phase")
 	checkKeys(t, "do --as phase .phase", promo["phase"], phaseViewKeys)

@@ -370,7 +370,7 @@ func (in *CaptureItemIn) run(m *Mull, s *state) (any, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	return s.itemView(i), i.ID, nil
+	return s.captureView(i), i.ID, nil
 }
 
 type CommitIn struct {
