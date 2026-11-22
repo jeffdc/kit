@@ -51,6 +51,7 @@ type PlanBoard struct {
 	Slug     string       `json:"slug"`
 	Title    string       `json:"title"`
 	State    string       `json:"state,omitempty"` // the plan's state; none for the unplanned board
+	Target   Target       `json:"target"`          // where its work lands; integration for the unplanned board
 	Progress Progress     `json:"progress"`
 	Phases   []PhaseLine  `json:"phases"`
 	Unfiled  Progress     `json:"unfiled"`
@@ -177,7 +178,8 @@ func parseTime(s string) (time.Time, bool) {
 }
 
 func (s *state) board(p *model.Plan, g *gitState, now time.Time) PlanBoard {
-	b := PlanBoard{Slug: p.Slug, Title: p.Title, State: p.State, Phases: []PhaseLine{}, Problems: []Problem{}, InFlight: []FlightLine{}}
+	b := PlanBoard{Slug: p.Slug, Title: p.Title, State: p.State, Target: s.target(p.Slug, g.Targets),
+		Phases: []PhaseLine{}, Problems: []Problem{}, InFlight: []FlightLine{}}
 	var items, unfiled []*model.Item
 	for _, id := range sortedKeys(s.items) {
 		if i := s.items[id]; i.Plan == p.Slug {
@@ -219,10 +221,7 @@ func (s *state) board(p *model.Plan, g *gitState, now time.Time) PlanBoard {
 	}
 
 	for _, i := range items {
-		ig := g.Items[i.ID]
-		if ig == nil {
-			ig = &ItemGit{}
-		}
+		ig := s.gitOf(g, i)
 		last, hasLast := parseTime(ig.LastActivity)
 		recent := hasLast && now.Sub(last) <= recentActivity
 		switch i.State {
@@ -258,7 +257,7 @@ func (s *state) board(p *model.Plan, g *gitState, now time.Time) PlanBoard {
 			if !ig.SeenInGit {
 				if up, ok := parseTime(i.Updated); ok && now.Sub(up) > notInGitAfter {
 					b.Problems = append(b.Problems, Problem{Kind: "done-not-in-git", Item: i.ID,
-						Text: fmt.Sprintf("%s %s ago, but none of its work is on %s", i.State, ago(now, up), g.Integration)})
+						Text: fmt.Sprintf("%s %s ago, but none of its work is on %s", i.State, ago(now, up), ig.Target)})
 				}
 			}
 		}
@@ -415,6 +414,7 @@ func (v View) Text(now time.Time) string {
 			state = "  (done)"
 		}
 		fmt.Fprintf(&b, "\n%s  %s%s\n", strings.ToUpper(p.Slug), p.Title, state)
+		fmt.Fprintf(&b, "  %s\n", targetText(p.Target, v.Release))
 		writeBoard(&b, p, now)
 	}
 	if v.Unplanned != nil {
@@ -450,6 +450,24 @@ func (v View) Text(now time.Time) string {
 		b.WriteString("\n")
 	}
 	return b.String()
+}
+
+// targetText is a plan's target line: the branch, where it comes from, and
+// how far it is ahead of release.
+func targetText(t Target, release string) string {
+	line := "target " + t.Branch
+	if t.From == TargetFromIntegration {
+		line += " (integration)"
+	}
+	switch {
+	case !t.Found:
+		line += " · branch not found"
+	case t.AheadOfRelease > 0:
+		line += fmt.Sprintf(" · %d ahead of %s", t.AheadOfRelease, release)
+	case release != "" && release != t.Branch:
+		line += " · level with " + release
+	}
+	return line
 }
 
 // writeBoard renders one plan's (or the unplanned work's) block.

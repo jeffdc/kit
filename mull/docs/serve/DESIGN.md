@@ -319,7 +319,7 @@ IDs are how Jeff hands things to an agent, so every item, entry (question, decis
 - 44px links in muted 550 type. The active tab is ink, bold, with a 2px ink underline that overlaps the row's 1px ink base. Counts follow in condensed tabular figures. Actions sit at the right end of the row (they take their own row at ≤1180px). A shaping plan's row offers "Agree this plan", a write that asks "Agree it?".
 
 ### Title block
-- The name box holds breadcrumbs and the display-size name. On an item's sheet an "Edit title" write sits under the name, and its one-line form takes the name's place while open. Each field box has a label over a value. Project sheets show integration branch, ahead count, status (Live / Reconnecting), last change, Needs you (the ask box, a blocking stamp if any, and "2 questions · 1 decision"), and revision ("Rev 9" plus a muted "9 changes since 07:16 PM"). Agents are in the Plans column.
+- The name box holds breadcrumbs and the display-size name. On an item's sheet an "Edit title" write sits under the name, and its one-line form takes the name's place while open. Each field box has a label over a value. Project sheets show integration branch, ahead count, status (Live / Reconnecting), last change, Needs you (the ask box, a blocking stamp if any, and "2 questions · 1 decision"), and revision ("Rev 9" plus a muted "9 changes since 07:16 PM"). Agents are in the Plans column. A plan's sheet shows its Target: the branch in mono, with a muted note saying it's the integration branch (when the plan sets none), not found in git, or how far it's ahead of (or level with) release. An item's Git field counts its commits on that target, with when they were merged, or says it's not on the target yet.
 
 ### Needs you schedule (signature)
 - Numbered tiers 01–06 in a `details` list, ranked by what answering unblocks. The ranking comes from the API.
@@ -336,7 +336,7 @@ IDs are how Jeff hands things to an agent, so every item, entry (question, decis
 - Once settled, the header shows the outcome as a tag ("accepted", "sent back") with the time and the reason.
 
 ### Plans column
-- Each plan gets a title and stage tag, then a definition list (76px label column) with Built / Now / Next / Go live / Agents. Rows hold name, stamp, cell bar and a mono ratio, and are separated by construction lines.
+- Each plan gets a title and stage tag, then a definition list (76px label column) with Target (only for a plan with its own target branch; the title block already shows integration) / Built / Now / Next / Go live / Agents. Rows hold name, stamp, cell bar and a mono ratio, and are separated by construction lines.
 
 ### Tables (schedules)
 - Full width with a 1.5px ink header rule. Headers use the label face. Cells have 9px × 10px padding over 1px construction lines.

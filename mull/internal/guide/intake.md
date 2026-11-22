@@ -25,6 +25,7 @@ If the repo already has a `mull` branch (`mull view` works), its records may com
 ## 2. Set up mull (ask first)
 Propose, and wait for approval:
 - the integration branch (where work lands) and the release branch;
+- for a plan whose work lands on a branch of its own (a long-running feature or integration branch, not the integration branch), that branch as the plan's target: a `plan set` line (`"field": "target"`) after its `plan new`, or `mull plan set <slug> target <branch>`. Seen in git is measured against each plan's target;
 - the hard checks `mull done` should run. Ideally that's one make target, e.g. `make done-checks`. If none exists, propose one, but don't create it without approval;
 - layers: path globs for `ui`, `tests` and the other main areas of the code.
 
@@ -73,8 +74,8 @@ Plan, docs, phases, items, Needs you entries and captures in one go. `@` refs po
 {"op": "add", "ref": "welcome", "phase": "@onboard", "title": "Welcome flow for paid accounts"}
 {"op": "decided", "item": "@hook", "text": "Store raw webhook payloads", "detail": "Replay after outages", "source": "matter 50ff, For review"}
 {"op": "ask", "plan": "@p", "text": "Monthly or annual plans first?", "source": "matter 50ff, Open"}
-{"op": "bug", "plan": "@p", "text": "Branch quercus-leafminer-key: 2 commits ahead, last touched 2026-09-08", "source": "git"}
-{"op": "idea", "text": "Mobile-first ID tool", "detail": "An ID tool laid out for phones in the field: one question per screen, big tap targets, and the photo taken in the app. Raised by two users after the spring walks; nothing designed yet.", "source": "matter 32a5"}
+{"op": "bug", "plan": "@p", "title": "Branch quercus-leafminer-key: 2 commits ahead, last touched 2026-09-08", "source": "git"}
+{"op": "idea", "title": "Mobile-first ID tool", "detail": "An ID tool laid out for phones in the field: one question per screen, big tap targets, and the photo taken in the app. Raised by two users after the spring walks; nothing designed yet.", "source": "matter 32a5"}
 ```
 - An item's plan comes from its phase, so `add` needs only `phase`.
 - An inbox entry needs `item` or `plan` when the repo has more than one plan. Captures (`bug`, `idea`) don't.

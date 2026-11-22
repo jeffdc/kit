@@ -34,7 +34,7 @@ New mull is the record of a program: its plans, where they stand, and everything
 
 | Record | What it is | Fields | Who writes it |
 |---|---|---|---|
-| **Plan** | A large effort, such as `taxogall`. High-level only. | id (plain-English slug, e.g. `taxogall`, `general`), title, summary, doc, rules, its own hard checks, state `shaping`, `active` or `done` | You |
+| **Plan** | A large effort, such as `taxogall`. High-level only. | id (plain-English slug, e.g. `taxogall`, `general`), title, summary, doc, rules, its own hard checks, state `shaping`, `active` or `done`, target (the branch its work lands on; config's integration branch when unset) | You |
 | **Phase** | A big piece of a plan; a set of items. Called an epic before Model v2. | id (4-hex), plan (required), title, summary, doc, rules, needs (phases only), from | You, or agents on your instruction |
 | **Item** | A unit of work **one agent completes in one session.** | id (4-hex), plan (optional), phase (optional), rank, title, notes, docs (paths), stage, claim, from (the inbox entry it was made from, or the done item it follows up; no needs: see "Ordering") | Agents and you |
 | **Captured item** | The backlog: a bug or an idea, not work until you commit it (see "The backlog") | an item at stage `captured`, plus kind (`bug` or `idea`), category, source, triaged; a short note as its notes; optionally tagged to a plan or phase | Anyone captures; only you commit |
@@ -181,7 +181,7 @@ There's one file per record, so concurrent writes and merges rarely conflict.
 - `mull plan doc <slug> [-]` and `mull phase doc <id> [-]` print a doc or replace it from stdin; empty stdin removes it. `--log` lists its versions, newest first, read from the commits that changed the file.
 - A plan's or phase's `summary` is separate and unchanged. `mull migrate` turned summaries into doc stubs.
 
-**Rules.** A plan, and optionally a phase, may have rules: the human's standing rules for the agents working in it (how to set up a worktree, what to use and reuse, what not to touch, skills to load). They're what a supervisor would otherwise repeat in every worker's prompt, so they live where every worker reads them.
+**Rules.** A plan, and optionally a phase, may have rules: the human's standing rules for the agents working in it (how to set up a worktree, what to use and reuse, what not to touch, skills to load). They're what a supervisor would otherwise repeat in every worker's prompt, so they live where every worker reads them, and the supervisor's hand-off stays one line (`mull guide supervisor`).
 - Rules are kept as a doc is: plain markdown in their own file, at `rules/` plus the record's path, so writing them touches neither the record nor the doc, and their history is their own. Only format 2 has them.
 - `mull plan rules <slug> [-]` and `mull phase rules <id> [-]` print or replace them, as `plan doc` does a doc, with `--log` and `--text`. Like docs, they're the human's: agents change them only when asked.
 - `mull context --item` gives the item's plan's rules, then its phase's (`plan_rules`, `phase_rules`), in full, and its protocol then ends with a line saying to follow them. mull never checks that they're followed: anything harness-specific, such as a required skill, is only text in the rules.
@@ -258,10 +258,18 @@ mull derives from git:
 | Mark | Meaning |
 |---|---|
 | **Linked commits** | Commits with the trailer, or reached through a branch or merge carrying the ID |
-| **Seen in git** | The item's linked commits are reachable from the integration branch, so its work has landed. Shown next to `done`, never a gate |
-| **Problems** | An active claim with no linked commits for a day; an item in review or done with nothing seen in git after three days; a failed done attempt; recent commits on an item nobody has claimed; commits carrying a done item's trailer, on any branch, written after it was accepted (see "Follow-ups"); commits on the integration branch with no link, shown as a count |
+| **Seen in git** | The item's linked commits are reachable from its plan's target branch, so its work has landed. Shown next to `done`, never a gate |
+| **Merged at** | When the work came into the target: the date of the target's first-parent commit that brought in the item's latest linked commit (the merge, or the commit itself when it was made on the target). Derived each time, never stored |
+| **Problems** | An active claim with no linked commits for a day; an item in review or done with nothing seen in git on its target after three days; a failed done attempt; recent commits on an item nobody has claimed; commits carrying a done item's trailer, on any branch, written after it was accepted (see "Follow-ups"); commits on the integration branch with no link, shown as a count |
 
 Bare 4-hex mentions in commit prose are not counted, because they collide with hashes.
+
+**A target branch per plan** (plan `supervised-work`). A plan's `target` is the branch its work lands on, set with `mull plan set <slug> target <branch>` (or `mull set <slug> target <branch>`; `""` clears it). Without one, a plan's work, and unplanned work, lands on config's integration branch. There are no phase-level targets.
+- Each item is measured against its own plan's target: its work is seen in git once linked commits are on that branch, and a merge of an id-branch counts only on that branch. Work that reached another plan's target, or integration, isn't seen for it.
+- Unmerged work is linked commits on no target branch, so a branch merged into its target and left behind doesn't count. Target branches themselves (and the release branch) are never read as unmerged branches.
+- The target is any name git accepts for a branch, other than `mull`. It needn't exist yet, and the view says when it doesn't.
+- Unlinked commits are still counted on the integration branch only.
+- Each target's history is read once (up to 5000 commits, cached by its tip), so a plan that shares integration costs nothing extra.
 
 ## Done: deterministic, with mull as the only path
 
@@ -292,7 +300,7 @@ Your instinct was right, and not naive. The project owns *what* the hard checks 
 - **The human's name.** `mull name <name>` sets, per machine (in `~/.config/mull/name`, beside the registry, never on the mull branch), the name the person using mull there goes by: a repository is shared, and everyone who works on it has their own. mull's own words then use it for "the human": the protocol in `mull context`, which also opens by telling agents to write the name in what they write to mull, and mull's messages and errors. Guides stay as written, since they're copied into shared files (AGENTS.md). Stored records are never rewritten, and with no name the words are as before.
 - **Setting config.** Config is set with `mull config set integration|release|remote <v>`, `mull config checks "<cmd>" ...` and `mull config layer <name> <glob...>`. A layer named `ui` is what triggers the tour requirement.
 - **A plan's own checks.** A plan may add hard checks of its own for the work in it, such as an end-to-end suite only that plan's pages need: `mull plan checks <slug> "<cmd>" ...` replaces them, and no commands removes them. They're the human's, like the plan's doc and rules, and kept in the plan's record (`checks`, shown by `plan show`). `done` runs config's checks, then the item's plan's, leaving out any command config already runs, as one list. `mull check --item <id>` runs exactly what `done` would for that item, and `mull check` alone runs config's. An item with no plan runs config's only, and when neither has any, `done` refuses as below.
-- **Where changes are measured from.** Changes are measured from the commit that was checked out when the item was claimed (`claim.base`, recorded by `mull start`). That captures exactly the session's work. If there's no recorded base, they're measured from the merge base with the integration branch.
+- **Where changes are measured from.** Changes are measured from the commit that was checked out when the item was claimed (`claim.base`, recorded by `mull start`). That captures exactly the session's work. If there's no recorded base, they're measured from the merge base with the item's plan's target branch (the integration branch for unplanned work).
 - **How checks run.** Checks run with `sh -c` in the worktree, one after another, and stop at the first failure. Only the last 40 lines of a failing command's output are kept. Results are cached on the `mull` branch at `checks/<tree>.json`, keyed by tree and command list, so a pass of config's checks alone doesn't stand for a plan's longer list.
 - **No checks configured.** When neither config nor the item's plan has any, `done` refuses unless the human gives `--override`.
 - **Reading a report.** `mull report <id> --text` prints the report as markdown.
@@ -315,12 +323,13 @@ layers:
 
 ## The view
 
-`mull view [--plan p] [--text]`, with one block per open plan (active, then shaping), then unplanned work, the backlog's untriaged count and unlinked commits. With `--text`:
+`mull view [--plan p] [--text]`, with one block per open plan (active, then shaping), then unplanned work, the backlog's untriaged count and unlinked commits. Each plan's block opens with its target branch, marked `(integration)` when the plan falls back to it, and how far that branch is ahead of release. With `--text`:
 
 ```
 integration taxogall · 166 ahead of main · 2026-11-09
 
 TAXOGALL  Taxogall
+  target taxogall (integration) · 166 ahead of main
   ▰▰▰▰▱▱▱▱▱▱ 7/17 done · 1 in review · 2 active · 3 ready · 12 captured (4 untriaged)
   PHASES
     3f1a  Admin                        ▰▰▰▱       3/4 done · 1 ready
@@ -380,7 +389,7 @@ The ops are every write except `init`, `sync`, `migrate`, `check` and `done`.
 | Group | Commands |
 |---|---|
 | Setup | `mull init [--integration b] [--release b]` · `mull config [set\|checks\|layer …]` · `mull sync [--dry-run]` · `mull migrate [--dry-run] [--text] [--on-request]` |
-| Plans (you) | `mull plan new <slug> "title" [--summary -] --on-request` · `plan agree <slug> --on-request` · `plan list` · `plan show <slug>` · `plan doc <slug> [-] [--log]` · `plan rules <slug> [-] [--log]` · `plan checks <slug> ["<cmd>" …]` · `plan close <slug>` |
+| Plans (you) | `mull plan new <slug> "title" [--summary -] --on-request` · `plan agree <slug> --on-request` · `plan list` · `plan show <slug>` · `plan set <slug> title\|summary\|target <value>` · `plan doc <slug> [-] [--log]` · `plan rules <slug> [-] [--log]` · `plan checks <slug> ["<cmd>" …]` · `plan close <slug>` |
 | Phases | `mull phase add "title" --plan <slug> [--needs …] [--summary -]` · `phase list [--plan]` · `phase doc <id> [-] [--log]` · `phase rules <id> [-] [--log]` · `phase delete <id> --on-request` · `show <id>` |
 | Items | `mull add "title" (--plan <slug> \| --phase <id> \| --plan none \| --follow-up <done-id>) [--notes -] [--doc path]` · `show` · `list [--plan] [--phase] [--state] [--kind] [--untriaged]` · `set` · `drop` |
 | Dependencies and order | `mull need <phase> <phase…>` · `mull unneed <phase> <phase…>` · `mull rank <phase\|plan\|none> <ids…>` · `mull ready [--plan]` |
@@ -389,7 +398,7 @@ The ops are every write except `init`, `sync`, `migrate`, `check` and `done`.
 | Backlog | `mull bug "title"` · `idea "title"`, each with `[--detail -] [--source …] [--plan \| --phase] [--category …]` · `commit <id> [--plan \| --phase \| --plan none] --on-request` · `triage <id…> --on-request` (or `--all [--plan <slug>\|none]`) |
 | Batch | `mull batch [--dry-run] < ops.jsonl` |
 | Settle (you, or an agent on your request) | `mull inbox [--kind] [--plan] [--parked]` · `accept <id…> [--follow-up "…"]` · `decide <id> "text"` · `do <id> [--plan] [--phase] [--as phase] [--reason "…"]` · `drop <id…> [--reason "…"]` · `park <id> "reason"` |
-| Read (agents) | `mull view [--plan] [--text]` · `mull context [--item <id>]` (compact JSON for the start of a session: the protocol reminder, the shaping and active plans with their phases, ready and active items, your claims, recent decisions, and for the item its phase's doc, its plan's and phase's rules, open questions and last report) · `decisions [--plan]` · `report <id> [--n] [--text]` |
+| Read (agents) | `mull view [--plan] [--text]` · `mull context [--item <id>]` (compact JSON for the start of a session: the protocol reminder, the shaping and active plans with their targets and phases, ready and active items, your claims, recent decisions, and for the item its phase's doc, its plan's and phase's rules, open questions and last report) · `decisions [--plan]` · `report <id> [--n] [--text]` |
 | Guides | `mull guide agents` · `mull guide intake` · `mull guide supervisor` · `mull guide triage` · `mull guide json` (the output shapes and error codes) |
 | The human's view | `mull serve [--port n]` · `mull serve --install` · `mull serve --uninstall` |
 
@@ -412,7 +421,8 @@ This is a short block pasted into the project's `AGENTS.md`. In outline:
 
 `mull guide supervisor` covers coordinating several agents:
 - pick from `mull ready`;
-- give each worker one item ID;
+- give each worker a one-line hand-off, its item ID and nothing else: anything a worker needs goes in its plan's or phase's rules or the item's notes, never in a prompt, so it reaches every worker through `mull context --item`;
+- propose missing or contradictory rules to the human with `mull ask`, since rules are theirs, and propose a phase for shared foundations (layout, components, helpers) that the phases using them need, rather than letting parallel workers each build their own;
 - review each finished item's done report and diff, then `accept` (with `--follow-up` for small leftovers), or send it back with `do <review> --reason`;
 - watch `mull view`, acting on problems first;
 - route questions and decisions to the human instead of answering them;

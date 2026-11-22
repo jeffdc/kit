@@ -279,6 +279,19 @@ func planCmd(a *app) *cobra.Command {
 			return a.write("plan close", &mull.PlanCloseIn{Slug: args[0]})
 		},
 	}
+	set := &cobra.Command{
+		Use: "set <slug> <title|summary|target> <value>",
+		Short: "Change a plan's field. target is the branch its work lands on, where seen in git is measured " +
+			"(\"\" falls back to config integration). Value - reads stdin",
+		Args: exact(3),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			val, err := a.text(args[2])
+			if err != nil {
+				return err
+			}
+			return a.write("plan set", &mull.PlanSetIn{Slug: args[0], Field: args[1], Value: val})
+		},
+	}
 	doc := docCmd(a, "plan", "<slug>", "the picture, done-when and why the order",
 		func(m *mull.Mull, slug string) (mull.DocResult, error) { return m.PlanDoc(slug) },
 		func(m *mull.Mull, slug string) (mull.DocLog, error) { return m.PlanDocLog(slug) },
@@ -295,7 +308,7 @@ func planCmd(a *app) *cobra.Command {
 			return a.write("plan checks", &mull.PlanChecksIn{Slug: args[0], Commands: args[1:]})
 		},
 	}
-	c.AddCommand(newC, agree, list, show, doc, rules, checks, closeC)
+	c.AddCommand(newC, agree, list, show, set, doc, rules, checks, closeC)
 	return c
 }
 
@@ -528,7 +541,7 @@ func readyCmd(a *app) *cobra.Command {
 func setCmd(a *app) *cobra.Command {
 	return &cobra.Command{
 		Use:   "set <slug|id> <field> <value>",
-		Short: "Change a field (plan/phase: title, summary; item: title, notes, category, phase, doc; captured item: plan too, none untags, and kind bug or idea). Value - reads stdin",
+		Short: "Change a field (plan: title, summary, target; phase: title, summary; item: title, notes, category, phase, doc; captured item: plan too, none untags, and kind bug or idea). Value - reads stdin",
 		Args:  exact(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			val, err := a.text(args[2])
@@ -627,7 +640,7 @@ func captureItemCmd(a *app, op string) *cobra.Command {
 			if c.Detail, err = a.text(in.Detail); err != nil {
 				return err
 			}
-			c.Text, c.Plan, c.Phase, c.Category, c.Source = args[0], in.Plan, in.Phase, in.Category, in.Source
+			c.Title, c.Plan, c.Phase, c.Category, c.Source = args[0], in.Plan, in.Phase, in.Category, in.Source
 			return a.write(op, c)
 		},
 	}

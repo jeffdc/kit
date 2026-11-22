@@ -4,13 +4,15 @@
 
 import { esc, href, tag, cells, plural, ago, copyId } from "./html.js";
 import { within } from "./revision.js";
+import { targetField } from "./title.js";
 
 const stamp = n => n ? `<span class="stamp">${n} blocking</span>` : "";
 
 export function plansColumn(pid, overview, changes) {
   const plans = overview.plans || [];
   const loose = (overview.agents || []).filter(a => !a.plan);
-  const blocks = plans.map(ps => plan(pid, ps, changes));
+  const release = overview.summary?.release;
+  const blocks = plans.map(ps => plan(pid, ps, changes, release));
   if (loose.length) {
     blocks.push(`<div class="plan"><div class="ph"><h3><a href="${esc(href.unplanned(pid))}">Unplanned work</a></h3></div>
       <div class="dl"><span class="lab">Agents</span><div>${loose.map(a => agent(pid, a, changes)).join("")}</div></div></div>`);
@@ -19,8 +21,9 @@ export function plansColumn(pid, overview, changes) {
   return `<div class="hd"><h2>Plans</h2><span class="lab">${plural(plans.length, "plan")} in progress</span></div>${body}`;
 }
 
-function plan(pid, ps, ch) {
+function plan(pid, ps, ch, release) {
   const rows = [];
+  if (ps.target?.from === "plan") rows.push(["Target", `<div>${targetField(ps.target, release)}</div>`]);
   const cl = pred => ch ? ch.cls(pred) : "";
   if (ps.state === "shaping") {
     rows.push(["State", `<div>Plan doc in progress<div class="sub">${plural(ps.questions, "open question")} · ${ps.phases ? plural(ps.phases, "phase") : "no phases yet"}</div></div>`]);

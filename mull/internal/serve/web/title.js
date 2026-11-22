@@ -43,6 +43,18 @@ export function projectFields(pr, live) {
   return fields;
 }
 
+// targetField: the branch a plan's work lands on (its own, or the
+// integration branch it falls back to) and how far it is ahead of release.
+export function targetField(t, release) {
+  if (!t) return `<span class="mut">unknown</span>`;
+  const notes = [];
+  if (t.from === "integration") notes.push("the integration branch");
+  if (!t.found) notes.push("not found in git");
+  else if (t.ahead_of_release) notes.push(`${plural(t.ahead_of_release, "commit")} ahead of ${esc(release)}`);
+  else if (release && release !== t.branch) notes.push(`level with ${esc(release)}`);
+  return `<code>${esc(t.branch)}</code>${notes.length ? ` <small>${notes.join(" · ")}</small>` : ""}`;
+}
+
 // needsField: how much needs the human, what it is, and whether any of it
 // blocks.
 function needsField(pr) {

@@ -56,6 +56,15 @@ m done "$fav" --summary "A favicon." --tour none --design "An SVG in the page he
 m accept "$fav" --on-request
 old=$(id add "Rename the settings page" --plan none)
 m drop "$old" --reason "Not needed after all" --on-request
+# The web plan lands on its own target branch, a commit ahead of main, with
+# the digest job's work merged into it.
+git checkout -q -b web-next
+git checkout -q -b "$digest-job"
+git commit -q --allow-empty -m "Nightly digest job" -m "Mull: $digest"
+git checkout -q web-next
+git merge -q --no-ff --no-edit "$digest-job"
+git checkout -q main
+m plan set web target web-next
 # A plan still shaping, for Agree this plan.
 m plan new pilot "Pilot with two teams" --summary "Try the web app with two teams before launch." --on-request
 echo "demo repo: $demo"

@@ -129,6 +129,9 @@ type Plan struct {
 	Created string `yaml:"created" json:"created"`
 	Updated string `yaml:"updated" json:"updated"`
 	Summary string `yaml:"-" json:"summary,omitempty"`
+	// Target is the branch the plan's work lands on: where seen in git is
+	// measured. Empty means config's integration branch.
+	Target string `yaml:"target,omitempty" json:"target,omitempty"`
 	// Doc is the plan's doc: the picture, done-when and why the order;
 	// intent only, never status. It is its own file (PlanDocPath), not part
 	// of the record.

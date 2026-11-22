@@ -422,9 +422,7 @@ func (m *Mull) ItemPage(id string) (ItemPage, error) {
 		if ph := s.phases[i.Phase]; ph != nil {
 			out.PhaseTitle, out.PhaseState = ph.Title, s.phaseState(ph)
 		}
-		if ig := g.Items[id]; ig != nil {
-			out.Git = *ig
-		}
+		out.Git = s.gitOf(g, i)
 		out.Review, out.Reports = s.review(i)
 		return nil
 	})

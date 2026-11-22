@@ -50,7 +50,8 @@ type BriefItem struct {
 type BriefPlan struct {
 	Slug   string       `json:"slug"`
 	Title  string       `json:"title"`
-	State  string       `json:"state"` // shaping or active
+	State  string       `json:"state"`  // shaping or active
+	Target Target       `json:"target"` // where its work lands
 	Phases []BriefPhase `json:"phases,omitempty"`
 }
 
@@ -113,6 +114,11 @@ func (m *Mull) Context(itemID string) (Context, error) {
 			}
 			c.Protocol = named
 		}
+		_, heads, err := m.branchHeads()
+		if err != nil {
+			return err
+		}
+		targets := m.readTargets(s, heads)
 		brief := func(i *model.Item) BriefItem {
 			b := BriefItem{ID: i.ID, Title: i.Title, Plan: i.Plan, Phase: i.Phase}
 			if i.Claim != nil {
@@ -125,7 +131,7 @@ func (m *Mull) Context(itemID string) (Context, error) {
 			if p.State == model.PlanDone {
 				continue
 			}
-			bp := BriefPlan{Slug: slug, Title: p.Title, State: p.State}
+			bp := BriefPlan{Slug: slug, Title: p.Title, State: p.State, Target: s.target(slug, targets)}
 			for _, id := range sortedKeys(s.phases) {
 				if e := s.phases[id]; e.Plan == slug {
 					ev := s.phaseView(e)
