@@ -118,6 +118,7 @@ type gitState struct {
 	IntegrationFound bool
 	AheadOfRelease   int
 	Targets          targets
+	Heads            map[string]string // every local branch's tip
 	Items            map[string]*ItemGit
 	Unlinked         []string // recent first-parent commits on integration with no link (subjects)
 }
@@ -239,6 +240,7 @@ func (m *Mull) readGit(s *state) (*gitState, error) {
 	if err != nil {
 		return nil, err
 	}
+	g.Heads = heads
 	g.Targets = m.readTargets(s, heads)
 	g.IntegrationFound = g.Targets.tips[g.Integration] != ""
 	g.AheadOfRelease = g.Targets.ahead[g.Integration]

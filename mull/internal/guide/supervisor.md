@@ -32,6 +32,7 @@ When you settle or file more than a couple of records at once, use `mull batch`.
   - **unclaimed-work:** someone is committing to an item's branch without having claimed it.
   - **done-not-in-git:** none of the item's work is on its plan's target: it was accepted (flagged at once), or has been in review three days. Merge its branch into the target.
   - **work-after-accept:** commits under a done item's trailer came after it was accepted. Later work needs its own item: `mull add "<title>" --follow-up <done-id>` (on the human's word, if they didn't ask for the change), and new commits go under that ID.
+- **WORKTREES** in `mull view` counts the claim worktrees that can be removed: see "Removing worktrees" below.
 - Route questions and decisions to the human. Don't answer them yourself. When a worker's question is one its rules should have answered, propose the rule with `mull ask` as well, so the next worker doesn't ask it again. `mull inbox` shows what needs them: questions, decisions and reviews only.
 - A decision the human makes in conversation, not in answer to an inbox entry, goes in with `mull decided "<their decision>" --human --on-request` (with `--item` or `--plan`): settled at once as theirs, into the decision log. To answer an entry, use `mull decide <entry-id>` instead.
 - Feedback the human hands you for later goes in as a captured bug (`mull bug`), in their words, with `--source "human, <date or context>"`. File it when it's given.
@@ -56,11 +57,14 @@ When a worker runs `mull done`, you review before the human sees it:
 Unreviewed work is incomplete work. An item is in review after `mull done`, and done only once its review is accepted.
 
 ## Removing worktrees
-Worktrees left behind pile up (dependencies and databases make each one big), and mull never removes them. You do, once both hold:
+Worktrees left behind pile up (dependencies and databases make each one big), and mull never removes them. You do, once all of these hold:
 - the item is done (its review accepted), not just in review;
-- its work is on its plan's target: the view shows no done-not-in-git problem for it.
+- its work is on its plan's target: the view shows no done-not-in-git problem for it, and nothing checked out in the worktree is missing from the target;
+- the worktree is clean: no uncommitted or untracked changes.
 
-Then, with the worktree and branch from its claim (`mull show <id>`), from a checkout of the target:
+`mull worktrees` finds them. It lists every worktree of this repository that an item was claimed from (not the main one), with the item claimed there last, its state and the worktree's disk size, and marks `prunable` the ones that meet all three, with the `commands` that remove each; for the others, `why` says what's left. `mull view` shows how many are prunable, and their size, under WORKTREES. mull only lists them: it never runs the commands.
+
+The commands are these, for the worktree and its merged branch (and the item's claim branch, when that's another one); run them from a checkout of the target:
 ```
 git worktree remove <path>
 git branch -d <id>-<short-name>

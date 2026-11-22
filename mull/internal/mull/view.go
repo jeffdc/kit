@@ -30,10 +30,13 @@ type View struct {
 	Unplanned        *PlanBoard  `json:"unplanned,omitempty"` // items with no plan, and what needs you about them
 	UnlinkedCount    int         `json:"unlinked_commits_this_week"`
 	UnlinkedRecent   []string    `json:"unlinked_recent,omitempty"`
-	Legacy           *Legacy     `json:"legacy,omitempty"`
-	Untriaged        int         `json:"untriaged"`             // the whole project's untriaged captured items, with --plan too
-	LastTriage       string      `json:"last_triage,omitempty"` // the latest triage stamp on any item
-	Format           int         `json:"format"`                // the data's storage format (see model.Format)
+	// PrunableWorktrees counts the claim worktrees that can be removed
+	// (mull worktrees lists them), when there are any.
+	PrunableWorktrees *Prunable `json:"prunable_worktrees,omitempty"`
+	Legacy            *Legacy   `json:"legacy,omitempty"`
+	Untriaged         int       `json:"untriaged"`             // the whole project's untriaged captured items, with --plan too
+	LastTriage        string    `json:"last_triage,omitempty"` // the latest triage stamp on any item
+	Format            int       `json:"format"`                // the data's storage format (see model.Format)
 	// MigrationRequired means writes are refused until mull migrate: the
 	// data, or some of its records, are from before Model v2.
 	MigrationRequired bool `json:"migration_required,omitempty"`
@@ -112,11 +115,15 @@ func (m *Mull) Board(plan string) (View, error) {
 		if err != nil {
 			return err
 		}
+		prunable, err := m.prunable(s, g, plan)
+		if err != nil {
+			return err
+		}
 		now := m.Now().UTC()
 		v = View{
 			Generated: now.Format(time.RFC3339), Integration: g.Integration, IntegrationFound: g.IntegrationFound,
 			Release: s.config.Release, AheadOfRelease: g.AheadOfRelease,
-			UnlinkedCount: len(g.Unlinked), Plans: []PlanBoard{},
+			UnlinkedCount: len(g.Unlinked), Plans: []PlanBoard{}, PrunableWorktrees: prunable,
 			Format: s.config.Format, MigrationRequired: s.writable() != nil,
 		}
 		if n := len(g.Unlinked); n > 0 {
@@ -445,6 +452,9 @@ func (v View) Text(now time.Time) string {
 			parts = append(parts, plural(l.Ideas, "inbox idea")+" (mull inbox --kind idea)")
 		}
 		fmt.Fprintf(&b, "\nLEGACY  %s, kept until mull migrate turns them into captured items\n", strings.Join(parts, " · "))
+	}
+	if p := v.PrunableWorktrees; p != nil {
+		fmt.Fprintf(&b, "\nWORKTREES  %s\n", prunableText(*p))
 	}
 	if v.UnlinkedCount > 0 {
 		verb := "carry"

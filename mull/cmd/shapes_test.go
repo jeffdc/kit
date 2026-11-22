@@ -214,7 +214,7 @@ func TestOutputShapes(t *testing.T) {
 	}
 
 	v := shape(keys{[]string{"generated", "integration", "integration_found", "release", "ahead_of_release", "plans", "unlinked_commits_this_week", "untriaged", "format"},
-		[]string{"unlinked_recent", "unplanned", "legacy", "last_triage", "migration_required"}}, "view")
+		[]string{"unlinked_recent", "unplanned", "legacy", "last_triage", "migration_required", "prunable_worktrees"}}, "view")
 	board := first(t, "view.plans", v["plans"])
 	boardKeys := keys{[]string{"slug", "title", "target", "progress", "phases", "unfiled", "problems", "in_flight", "needs_you"}, []string{"state"}}
 	checkKeys(t, "view.plans[0]", board, boardKeys)
@@ -227,6 +227,27 @@ func TestOutputShapes(t *testing.T) {
 	checkKeys(t, "context.plans[0]", cp, keys{[]string{"slug", "title", "state", "target"}, []string{"phases"}})
 	checkKeys(t, "context.plans[0].target", cp.(map[string]any)["target"], targetKeys)
 	shape(keys{[]string{"guide", "text"}, nil}, "guide", "json")
+
+	// Claim worktrees: one item claimed from a worktree of its own, done and
+	// merged, so the list has a prunable row and the view counts it.
+	wtItem := shape(itemViewKeys, "add", "Receipts", "--phase", id(phase))
+	wt := gittest.AddWorktree(t, r.dir, id(wtItem)+"-receipts")
+	worker := &run{t: t, dir: wt}
+	worker.ok("start", id(wtItem))
+	gittest.Commit(t, wt, "receipts.txt", "receipts", "Receipts", "Mull: "+id(wtItem))
+	worker.ok("done", id(wtItem), "--summary", "Receipts.", "--tour", "none", "--design", "Plain.")
+	gittest.Git(t, r.dir, "merge", "-q", "--no-ff", "--no-edit", id(wtItem)+"-receipts")
+	gittest.Git(t, r.dir, "branch", "-f", "launch-site", "main") // the plan's target
+	r.ok("accept", id(wtItem), "--on-request")
+	wl := shape(keys{[]string{"worktrees", "prunable", "prunable_bytes"}, nil}, "worktrees")
+	wr := first(t, "worktrees", wl["worktrees"])
+	checkKeys(t, "worktrees[0]", wr, keys{[]string{"path", "head", "item", "title", "state", "target", "bytes", "clean", "merged", "prunable"},
+		[]string{"branch", "plan", "locked", "why", "commands"}})
+	if wr.(map[string]any)["prunable"] != true {
+		t.Errorf("worktrees[0] = %v, want prunable", wr)
+	}
+	v = r.ok("view")
+	checkKeys(t, "view.prunable_worktrees", v["prunable_worktrees"], keys{[]string{"count", "bytes"}, nil})
 
 	remote := t.TempDir() + "/remote.git"
 	gittest.Git(t, r.dir, "init", "-q", "--bare", remote)

@@ -899,6 +899,17 @@ func viewCmd(a *app) *cobra.Command {
 	return c
 }
 
+func worktreesCmd(a *app) *cobra.Command {
+	return &cobra.Command{
+		Use:   "worktrees",
+		Short: "The claim worktrees, with their item, state and size, and which can be removed (read-only)",
+		Args:  noArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.read(func(m *mull.Mull) (any, error) { return m.Worktrees() })
+		},
+	}
+}
+
 func contextCmd(a *app) *cobra.Command {
 	var item string
 	c := &cobra.Command{

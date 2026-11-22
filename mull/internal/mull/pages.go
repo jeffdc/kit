@@ -195,6 +195,9 @@ type Overview struct {
 	NeedsYou NeedsYouTiers `json:"needs_you"`
 	Plans    []PlanStatus  `json:"plans"`  // active, then shaping
 	Agents   []AgentRow    `json:"agents"` // every active item, unplanned ones too
+	// Worktrees counts the claim worktrees that can be removed (see mull
+	// worktrees), when there are any.
+	Worktrees *Prunable `json:"prunable_worktrees,omitempty"`
 }
 
 // Overview reads the project overview.
@@ -223,7 +226,8 @@ func (m *Mull) Overview() (Overview, error) {
 		for _, i := range active {
 			out.Agents = append(out.Agents, s.agentRow(i, g))
 		}
-		return nil
+		out.Worktrees, err = m.prunable(s, g, "")
+		return err
 	})
 	return out, err
 }
