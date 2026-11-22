@@ -300,7 +300,15 @@ func planCmd(a *app) *cobra.Command {
 		func(m *mull.Mull, slug string) (mull.RulesResult, error) { return m.PlanRules(slug) },
 		func(m *mull.Mull, slug string) (mull.RulesLog, error) { return m.PlanRulesLog(slug) },
 		func(ref, rules string) mull.Input { return &mull.PlanRulesIn{Slug: ref, Rules: &rules} })
-	c.AddCommand(newC, agree, list, show, set, doc, rules, closeC)
+	checks := &cobra.Command{
+		Use:   "checks <slug> [command...]",
+		Short: "Replace the plan's own hard checks, which done runs for its items after config's (each argument is one shell command; none clears)",
+		Args:  atLeast(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.write("plan checks", &mull.PlanChecksIn{Slug: args[0], Commands: args[1:]})
+		},
+	}
+	c.AddCommand(newC, agree, list, show, set, doc, rules, checks, closeC)
 	return c
 }
 
@@ -923,14 +931,15 @@ func guideCmd(a *app) *cobra.Command {
 // ---- Finishing work ----
 
 func checkCmd(a *app) *cobra.Command {
-	return &cobra.Command{
+	var item string
+	c := &cobra.Command{
 		Use: "check", Short: "Run the hard checks against the clean HEAD and record the result", Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			m, err := a.open()
 			if err != nil {
 				return err
 			}
-			out, err := m.Check()
+			out, err := m.Check(item)
 			if err != nil {
 				return err
 			}
@@ -940,6 +949,8 @@ func checkCmd(a *app) *cobra.Command {
 			return a.json(out)
 		},
 	}
+	c.Flags().StringVar(&item, "item", "", "run what done would for this item: config's checks, then its plan's own")
+	return c
 }
 
 func failedCommand(rs []model.CheckResult) string {

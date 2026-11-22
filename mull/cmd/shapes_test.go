@@ -20,7 +20,7 @@ func (k keys) plus(o keys) keys {
 }
 
 var (
-	planKeys      = keys{[]string{"slug", "title", "state", "created", "updated"}, []string{"summary", "target", "doc"}}
+	planKeys      = keys{[]string{"slug", "title", "state", "created", "updated"}, []string{"summary", "target", "doc", "rules", "checks"}}
 	targetKeys    = keys{[]string{"branch", "from", "found", "ahead_of_release"}, nil}
 	phaseKeys     = keys{[]string{"id", "plan", "title", "created", "updated"}, []string{"needs", "from", "summary", "doc"}}
 	itemKeys      = keys{[]string{"id", "title", "state", "created", "updated"}, []string{"plan", "phase", "rank", "kind", "category", "source", "needs", "docs", "claim", "from", "triaged", "notes"}}
@@ -99,6 +99,7 @@ func TestOutputShapes(t *testing.T) {
 
 	shape(planKeys, "plan", "new", "launch", "Launch", "--on-request", "--summary", "Ship it.")
 	shape(planKeys, "plan", "agree", "launch", "--on-request")
+	shape(planKeys, "plan", "checks", "launch", "exit 0")
 	pl := shape(keys{[]string{"plans"}, nil}, "plan", "list")
 	checkKeys(t, "plan list[0]", first(t, "plans", pl["plans"]), planKeys.plus(keys{[]string{"progress"}, nil}))
 
@@ -196,7 +197,7 @@ func TestOutputShapes(t *testing.T) {
 
 	// Finish work.
 	r.ok("start", id(a))
-	ck := shape(keys{[]string{"tree", "commit", "at", "by", "passed", "results", "cached"}, nil}, "check")
+	ck := shape(keys{[]string{"tree", "commit", "at", "by", "passed", "results", "cached"}, nil}, "check", "--item", id(a))
 	checkKeys(t, "check.results[0]", first(t, "results", ck["results"]), keys{[]string{"command", "exit", "duration_ms"}, []string{"tail"}})
 	r.ok("decided", "Retry three times", "--item", id(a), "--detail", "Stripe's advice")
 	dn := shapeIn("One handler.\n", keys{[]string{"report", "report_path", "item"}, []string{"review_entry", "reminder"}},

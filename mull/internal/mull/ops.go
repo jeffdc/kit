@@ -82,6 +82,7 @@ var ops = map[string]opDef{
 	"plan doc":      {func() Input { return &PlanDocIn{} }, "slug, doc"},
 	"plan set":      {func() Input { return &PlanSetIn{} }, "slug, field, value"},
 	"plan rules":    {func() Input { return &PlanRulesIn{} }, "slug, rules"},
+	"plan checks":   {func() Input { return &PlanChecksIn{} }, "slug, commands"},
 	"phase add":     {func() Input { return &PhaseAddIn{} }, "title, plan, summary, needs"},
 	"phase doc":     {func() Input { return &PhaseDocIn{} }, "id, doc"},
 	"phase rules":   {func() Input { return &PhaseRulesIn{} }, "id, rules"},
@@ -275,6 +276,21 @@ func (in *PlanRulesIn) run(m *Mull, s *state) (any, string, error) {
 	}
 	r, err := m.setPlanRules(s, in.Slug, *in.Rules)
 	return r, in.Slug, err
+}
+
+// PlanChecksIn replaces a plan's own hard checks; no commands removes them.
+type PlanChecksIn struct {
+	Slug     string  `json:"slug"`
+	Commands StrList `json:"commands"`
+}
+
+func (in *PlanChecksIn) refFields() ([]*string, []*IDList) { return []*string{&in.Slug}, nil }
+func (in *PlanChecksIn) run(m *Mull, s *state) (any, string, error) {
+	p, err := m.planChecks(s, in.Slug, in.Commands)
+	if err != nil {
+		return nil, "", err
+	}
+	return p, p.Slug, nil
 }
 
 // PhaseRulesIn replaces a phase's rules, as PlanRulesIn does a plan's.

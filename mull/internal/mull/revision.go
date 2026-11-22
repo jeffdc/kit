@@ -561,6 +561,7 @@ func planChange(a, b *model.Plan) (Change, bool) {
 		f.short("state", a.State, b.State)
 		f.short("target", a.Target, b.Target)
 		f.text("summary", a.Summary, b.Summary)
+		f.text("checks", strings.Join(a.Checks, "\n"), strings.Join(b.Checks, "\n"))
 		return f
 	}, func(p *model.Plan, c *Change) {
 		c.Type, c.ID, c.Title, c.Plan, c.State = RecordPlan, p.Slug, p.Title, p.Slug, p.State

@@ -314,6 +314,38 @@ func TestRulesCommands(t *testing.T) {
 	}
 }
 
+func TestPlanChecksCommands(t *testing.T) {
+	r := run{t: t, dir: gittest.NewRepo(t)}
+	r.ok("init")
+	r.ok("plan", "new", "launch", "Launch", "--on-request")
+	r.ok("plan", "agree", "launch", "--on-request")
+	it := r.ok("add", "Webhook", "--plan", "launch")["id"].(string)
+	r.ok("start", it)
+	// Only the plan has checks: check without --item has none to run.
+	r.fails("no_checks", "check")
+	p := r.ok("plan", "checks", "launch", "true", "exit 0")
+	if got := p["checks"].([]any); len(got) != 2 || got[0] != "true" || got[1] != "exit 0" {
+		t.Fatalf("plan checks = %v", p)
+	}
+	r.fails("no_checks", "check")
+	ck := r.ok("check", "--item", it)
+	if res := ck["results"].([]any); len(res) != 2 || ck["passed"] != true {
+		t.Fatalf("check --item = %v", ck)
+	}
+	r.ok("config", "checks", "true")
+	// Config's run first, and the plan's "true" is already among them, so
+	// the command list is the same and the pass is reused.
+	ck = r.ok("check", "--item", it)
+	if res := ck["results"].([]any); len(res) != 2 || res[1].(map[string]any)["command"] != "exit 0" || ck["cached"] != true {
+		t.Fatalf("check --item with config = %v", ck)
+	}
+	r.fails("not_found", "plan", "checks", "nope", "true")
+	r.fails("not_found", "check", "--item", "ffff")
+	if p := r.ok("plan", "checks", "launch"); p["checks"] != nil {
+		t.Fatalf("cleared plan checks = %v", p)
+	}
+}
+
 func TestScopeRules(t *testing.T) {
 	r := run{t: t, dir: gittest.NewRepo(t)}
 	r.ok("init")
