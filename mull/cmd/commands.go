@@ -619,7 +619,7 @@ func captureItemCmd(a *app, op string) *cobra.Command {
 			if c.Detail, err = a.text(in.Detail); err != nil {
 				return err
 			}
-			c.Text, c.Plan, c.Phase, c.Category, c.Source = args[0], in.Plan, in.Phase, in.Category, in.Source
+			c.Title, c.Plan, c.Phase, c.Category, c.Source = args[0], in.Plan, in.Phase, in.Category, in.Source
 			return a.write(op, c)
 		},
 	}

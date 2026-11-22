@@ -194,7 +194,7 @@ An unknown project, plan, phase or item is 404 `not_found`; a registered project
 | `need`, `unneed` | `id` (a phase), `needs` (phases) |
 | `decided` | `text`, `item`, `plan`, `source`, `detail`, `human` (`true`: the human's own decision, settled at once), `on-request` (required with `human`, and only with it) |
 | `ask` | `text`, `item`, `plan`, `source`, `detail` |
-| `bug`, `idea` | `text` (the title), `plan`, `phase` (both optional), `category`, `source`, `detail` (kept as notes) |
+| `bug`, `idea` | `title` (as for `add`), `plan`, `phase` (both optional), `category`, `source`, `detail` (kept as notes) |
 | `commit` | `id`, `plan` (`none` for unplanned), `phase`, `on-request` (required: only the human commits) |
 | `triage` | `ids`, or `all` (`true`) with an optional `plan` (`none` for untagged captures), `on-request` (required: triage is run with the human) |
 | `start`, `release` | `id` |

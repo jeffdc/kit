@@ -83,9 +83,9 @@ export const captureBar = (pid, plan = null) => {
 // captureOps is the write a form sends, or null if it has no title.
 export function captureOps(form) {
   const s = draft(form.dataset.capture);
-  const text = (s.title || "").trim();
-  if (!text) return null;
-  const op = { op: s.kind === "bug" ? "bug" : "idea", text };
+  const title = (s.title || "").trim();
+  if (!title) return null;
+  const op = { op: s.kind === "bug" ? "bug" : "idea", title };
   if ((s.detail || "").trim()) op.detail = s.detail.trim();
   if (form.dataset.plan) op.plan = form.dataset.plan;
   return [op];
