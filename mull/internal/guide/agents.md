@@ -36,7 +36,7 @@ This project's plans, work items, backlog and open questions live in **mull**: a
    - Read a plan's or phase's doc with `mull plan doc <slug>` or `mull phase doc <id>`, and its rules with `mull plan rules <slug>` or `mull phase rules <id>`.
    - Phases need other phases (`mull need <phase> <phase>`); that's the only dependency. Items are ranked within their group (a phase, a plan's items with no phase, or Unplanned): `mull ready` lists them first to last, and `mull start` warns when open work ranked before yours isn't done.
    - When the human says what comes first ("do X first", "Y before Z"), reorder with one `mull rank <phase|plan|none> <id…>`, listing every open item in the group first to last; `mull add --before`/`--after <id>` places a new item. You give the order, never numbers. Reorder only when the human says to.
-   - Never change the hard checks (`mull config checks`, `mull plan checks`) on your own: they judge your work. When the human tells you to, add `--on-request`.
+   - Never change the hard checks (`mull config checks`, `mull plan checks`) on your own: they judge your work. Nor whether a phase needs an integration review (`mull phase set <id> integration-review on|off`): that holds the phase open once its items are done. When the human tells you to, add `--on-request`.
    - Never commit a captured item (`mull commit <id>`) on your own. When the human tells you to, add `--on-request`, with `--plan`, `--phase` or `--plan none` if they say where it goes. Retag a capture (`mull set <id> plan|phase <value>`) only on their word too.
    - When the human asks for a change to work that's already done (accepted), it's a new item, never the done one: `mull add "<title>" --follow-up <done-id>` puts it in the same plan and phase. Work it under the new item's ID; never commit under a done item's trailer.
 5. **Finish only with `mull done`:**
@@ -45,11 +45,13 @@ This project's plans, work items, backlog and open questions live in **mull**: a
    ```
    - Give the design notes on stdin: how you built it and why (the approach, the shape of the code, what you rejected). They're required, and "none" isn't accepted.
    - Give the tour inline, one step per line: what to click and what the human should see. Write "none" if no UI changed. Only one of `--summary`, `--tour` and `--design` can read stdin.
+   - Name each page in the tour by its path (`Open /trees/quercus-alba`), never a full URL: your own dev server will be gone when the tour is walked. `mull serve` and `mull report --text` resolve paths against the plan's `preview`, and `done` warns when a step gives a local URL (`http://localhost:4001/…`) that isn't the preview.
    - `done` runs the project's hard checks itself, then any the item's plan adds (`mull check --item <id>` runs the same ones before you finish). If they fail, fix the problem and run `done` again, or run `mull release <id>` and say why.
    - The report flags your changes to any files the plan lists as `shared` (`mull plan show <slug>`), so the review looks at them closely. It never blocks, but change shared files only where your item needs it, and say why in the design notes.
    - After `done` the item is in review. It's done only once its review is accepted. Never say an item is done unless `mull done` succeeded.
 6. **Hand over:**
    - Show the human (or the supervisor) the report from `mull report <id>`, and the tour. The review carries the decisions you recorded with `--item`, and accepting it ratifies them.
+   - Your work reaches the preview only once the supervisor has reviewed it and merged it into the target. The human walks the tour there, and accepts after.
    - Run `mull accept <id> --on-request` only when the human tells you to. If they decide one of those decisions differently, run `mull decide <decision-id> "<their decision>" --on-request` first.
    - Settle any other inbox entry only on the human's explicit instruction, also with `--on-request`.
 7. **Run `mull sync`** after `done` and at the end of the session.

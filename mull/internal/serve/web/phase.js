@@ -27,12 +27,15 @@ export function phaseSheet(pr, data, page) {
     ["Needs", ph.needs?.length ? `<span>${ph.needs.map(link).join(", ")}</span>` : `<span class="mut">nothing</span>`],
     ["Needed by", page.needed_by.length ? `<span>${page.needed_by.map(n => `<a href="${esc(href.phase(pid, n.id))}">${esc(n.title)}</a>`).join(", ")}</span>` : `<span class="mut">nothing</span>`],
     ["Open questions", String(st.questions)],
+    ["Integration review", ph.integration_review ? "required" : `<span class="mut">not required</span>`],
   ];
   const crumbs = [`<a href="${href.home()}">All projects</a>`, `<a href="${esc(href.project(pid))}">${esc(pid)}</a>`, `<a href="${esc(href.plan(pid, ph.plan))}">${esc(shortTitle(page.plan_title))}</a>`];
   const head = titleBlock({ title: ph.title, crumbs, fields, long: true, cloud: ch ? ch.cls(c => c.type === "phase" && c.id === ph.id) : "" });
   const waits = st.state === "waits" && st.waits_for.length
     ? `<p class="sub" style="margin:0">Waits for ${st.waits_for.map(w => `<a href="${esc(href.phase(pid, w.id))}">${esc(w.title)}</a>`).join(", ")} to be done.</p>`
-    : "";
+    : st.state === "awaiting-review"
+      ? `<p class="sub" style="margin:0">Every item is done. The phase is complete, and the phases that need it can start, once its integration review is accepted.</p>`
+      : "";
   const captured = page.captured.length
     ? `<div class="hd" style="margin-top:24px"><h2>Captured for this phase</h2><span class="lab">Not committed yet</span></div>${itemTable(pid, page.captured, [col.id(), col.title(pid, "Captured"), col.kind(), col.category()], { changes: ch })}`
     : "";

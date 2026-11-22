@@ -30,7 +30,7 @@ var (
 	entryKeys     = keys{[]string{"id", "kind", "text", "plan", "by", "created"}, []string{"item", "source", "settled", "decisions", "detail"}}
 	configKeys    = keys{[]string{"format", "integration", "release", "remote", "done_checks", "layers"}, nil}
 	progressKeys  = keys{[]string{"total", "captured", "untriaged", "committed", "active", "in_review", "done", "dropped", "ready"}, nil}
-	reportKeys    = keys{[]string{"item", "n", "passed", "commit", "at", "by", "summary", "checks"}, []string{"override", "base", "tour", "changes", "shared", "design", "decisions"}}
+	reportKeys    = keys{[]string{"item", "n", "passed", "commit", "at", "by", "summary", "checks"}, []string{"override", "base", "tour", "warnings", "changes", "shared", "design", "decisions"}}
 )
 
 func checkKeys(t *testing.T, what string, v any, k keys) {
@@ -206,10 +206,10 @@ func TestOutputShapes(t *testing.T) {
 	ck := shape(keys{[]string{"tree", "commit", "at", "by", "passed", "results", "cached"}, nil}, "check", "--item", id(a))
 	checkKeys(t, "check.results[0]", first(t, "results", ck["results"]), keys{[]string{"command", "exit", "duration_ms"}, []string{"tail"}})
 	r.ok("decided", "Retry three times", "--item", id(a), "--detail", "Stripe's advice")
-	dn := shapeIn("One handler.\n", keys{[]string{"report", "report_path", "item"}, []string{"review_entry", "reminder"}},
+	dn := shapeIn("One handler.\n", keys{[]string{"report", "report_path", "item"}, []string{"review_entry", "warnings", "reminder"}},
 		"done", id(a), "--summary", "Webhook handler.", "--tour", "none", "--design", "-")
 	checkKeys(t, "done.item", dn["item"], itemViewKeys)
-	rp := shape(keys{[]string{"report", "text"}, nil}, "report", id(a))
+	rp := shape(keys{[]string{"report", "text"}, []string{"preview"}}, "report", id(a))
 	checkKeys(t, "report.report", rp["report"], reportKeys)
 	checkKeys(t, "report.shared[0]", first(t, "shared", rp["report"].(map[string]any)["shared"]),
 		keys{[]string{"status", "path", "glob"}, nil})
@@ -222,7 +222,7 @@ func TestOutputShapes(t *testing.T) {
 	}
 
 	v := shape(keys{[]string{"generated", "integration", "integration_found", "release", "ahead_of_release", "plans", "unlinked_commits_this_week", "untriaged", "format"},
-		[]string{"unlinked_recent", "unplanned", "legacy", "last_triage", "migration_required"}}, "view")
+		[]string{"unlinked_recent", "unplanned", "legacy", "last_triage", "migration_required", "prunable_worktrees"}}, "view")
 	board := first(t, "view.plans", v["plans"])
 	boardKeys := keys{[]string{"slug", "title", "target", "progress", "phases", "unfiled", "problems", "in_flight", "needs_you"}, []string{"state", "preview"}}
 	checkKeys(t, "view.plans[0]", board, boardKeys)
@@ -243,6 +243,27 @@ func TestOutputShapes(t *testing.T) {
 		t.Errorf("context.item.preview = %v", ci["preview"])
 	}
 	shape(keys{[]string{"guide", "text"}, nil}, "guide", "json")
+
+	// Claim worktrees: one item claimed from a worktree of its own, done and
+	// merged, so the list has a prunable row and the view counts it.
+	wtItem := shape(itemViewKeys, "add", "Receipts", "--phase", id(phase))
+	wt := gittest.AddWorktree(t, r.dir, id(wtItem)+"-receipts")
+	worker := &run{t: t, dir: wt}
+	worker.ok("start", id(wtItem))
+	gittest.Commit(t, wt, "receipts.txt", "receipts", "Receipts", "Mull: "+id(wtItem))
+	worker.ok("done", id(wtItem), "--summary", "Receipts.", "--tour", "none", "--design", "Plain.")
+	gittest.Git(t, r.dir, "merge", "-q", "--no-ff", "--no-edit", id(wtItem)+"-receipts")
+	gittest.Git(t, r.dir, "branch", "-f", "launch-site", "main") // the plan's target
+	r.ok("accept", id(wtItem), "--on-request")
+	wl := shape(keys{[]string{"worktrees", "prunable", "prunable_bytes"}, nil}, "worktrees")
+	wr := first(t, "worktrees", wl["worktrees"])
+	checkKeys(t, "worktrees[0]", wr, keys{[]string{"path", "head", "item", "title", "state", "target", "bytes", "clean", "merged", "prunable"},
+		[]string{"branch", "plan", "locked", "why", "commands"}})
+	if wr.(map[string]any)["prunable"] != true {
+		t.Errorf("worktrees[0] = %v, want prunable", wr)
+	}
+	v = r.ok("view")
+	checkKeys(t, "view.prunable_worktrees", v["prunable_worktrees"], keys{[]string{"count", "bytes"}, nil})
 
 	remote := t.TempDir() + "/remote.git"
 	gittest.Git(t, r.dir, "init", "-q", "--bare", remote)

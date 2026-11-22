@@ -71,6 +71,7 @@ Because `start` works from captured, a small bug can go from the backlog to done
 **Unreviewed work is incomplete work.** An item counts as finished only once it's `done`, which means reviewed.
 - A phase's progress counts done items out of its committed items, with items in review shown separately. Captured items tagged to a phase are counted on their own and never hold it open.
 - A phase is complete when it has committed items and all of them are done or dropped.
+- **A phase may need an integration review** (plan `supervised-work`): `mull phase set <id> integration-review on|off`, your call (an agent needs `--on-request`, through `phase set` or `set`). With it on, a phase whose items are all done or dropped is built but not complete: it shows "awaiting integration review" (state `awaiting-review`) instead, and phases that need it stay blocked, until an integration review of it is accepted. That review is an inbox `review` entry carrying `phase` and the done `items` it covers; accepting it completes the phase while every done item in the phase is among them, so a fix-up or follow-up done after it needs a new one. The flag is the phase's `integration_review`; whether it's reviewed is derived from the inbox, never stored. Filing that review (`mull done <phase-id>`) is its own step.
 - Data from before Model v2 stores stages under their old names (`open`, `done`, `accepted` for committed, in-review and done), under a different key, so the two are never confused (see "Formats and `mull migrate`").
 
 **Triage** (Model v2) is a process the human runs with an agent (`mull guide triage`), not a screen. Each captured item is committed, tagged to a plan or phase (`mull set <id> plan|phase`, captured items only, so tagging never commits), started, dropped or left. `mull triage <id…> --on-request` (or `--all [--plan <slug>|none]`) stamps an item's `triaged` time; a captured item with no stamp is untriaged. The view shows only the untriaged count: for the project, on each board, and in each progress line.
@@ -89,7 +90,7 @@ Two kinds of order, and only one of them holds work back (Model v2, and plan `it
 - **Captured items** have no rank; **done and dropped** items keep theirs and list after open work. **Unranked** items exist only from before ranks: they sort after ranked ones, oldest first, and their group's next placement ranks them all in that order. No migration.
 - **Work order** is how every CLI list goes: plan by plan (by slug, Unplanned last); within a plan, its phases in schedule order (by depth of needs not yet done, then age; done phases last), then its items with no phase; within a group, open work by rank, then the rest. `mull ready [--plan p]`, `mull context` (whose ready list is cut at 15, so the top is what's kept), `mull list`, `mull show <phase|plan>`, `mull plan show` and the view's work in flight all use it. A supervisor agent hands out work from the top of `mull ready`.
 - **Rank is loud.** `mull start` on committed work while open work ranked before it in its group isn't done (committed, active or in review) still succeeds, with a warning naming each of those items and its stage. Equal ranks and unranked items don't warn, and nor does a captured item started now, since nobody ranked it.
-- The view sorts phases by readiness (can start, blocked, complete), then by age.
+- The view sorts phases by readiness (can start or awaiting integration review, blocked, complete), then by age.
 
 ### Claims (several agents at once)
 
@@ -275,6 +276,10 @@ Bare 4-hex mentions in commit prose are not counted, because they collide with h
 - It's an absolute `http` or `https` URL with a host, such as `http://localhost:4000`. Anything else is refused (`invalid_argument`).
 - `mull context --item` hands the worker its item's `target` (the plan's, or integration) and the plan's `preview`; the view shows the preview under the plan's target, and `context` lists it with each plan.
 - mull only records it. It never runs, restarts, fetches or health-checks the server, so a preview that's down is still a preview. There's no config fallback: unplanned work, and a plan that gives none, has no preview.
+- **Tours give paths.** A tour step names the page as a path (`Open /trees/quercus-alba and see the map`), never a full URL: a worker's own dev server is gone by the time the tour is walked, and the preview isn't. A path is a `/` at the start of the step or after a space, an opening bracket or a quote, up to the next space, closing bracket or quote, less any sentence punctuation that ends it. `//` and a path inside a URL aren't paths.
+- **Resolved when read.** `mull serve`'s review packet links each path to the preview, in a new tab, and says which preview and target it is (and when the work isn't on that target yet). `report`'s markdown (`text`, and `--text`) replaces each path in the tour's steps with its full URL, so a terminal can open it. Both use the item's plan's preview as it is when the report is read, so a preview set or changed after `done` still applies. The report itself keeps the steps as written, and with no preview a tour reads as written. A path is appended to the preview's scheme, host and path (trailing slash, query and fragment dropped), so `https://example.com/app` and `/trees` give `https://example.com/app/trees`.
+- **done warns about local URLs.** When a tour step gives a full URL on a local host (`localhost`, `*.localhost`, `127.0.0.1`, `0.0.0.0`, `::1`, or a scheme-less `localhost:4001/…`) whose scheme, host and port aren't the preview's, `done` warns: in its output (`warnings`) and in the report (`warnings`, shown under the tour). The warning names the path to give instead. It's soft: done still finishes. URLs on other hosts (a staging site, docs) are left alone.
+- **The order.** done, then the supervisor reviews the diff and merges the branch into the target, then the human walks the tour on the preview (now serving the work), then accept. The supervisor guide spells it out.
 
 **Overlap** (plan `supervised-work`). Parallel items that change the same files collide when they land, or each build the same thing their own way. mull derives it from what the branches actually changed, never from declared areas (add those only if this turns out to come too late):
 - **In flight** is active, or in review with none of its work on its plan's target yet. Once an item's work is on the target it's out of the comparison: what comes after it builds on it.
@@ -320,7 +325,7 @@ Your instinct was right, and not naive. The project owns *what* the hard checks 
 - **Where changes are measured from.** Changes are measured from the commit that was checked out when the item was claimed (`claim.base`, recorded by `mull start`). That captures exactly the session's work. If there's no recorded base, they're measured from the merge base with the item's plan's target branch (the integration branch for unplanned work).
 - **How checks run.** Checks run with `sh -c` in the worktree, one after another, and stop at the first failure. Only the last 40 lines of a failing command's output are kept. Results are cached on the `mull` branch at `checks/<tree>.json`, keyed by tree and command list, so a pass of config's checks alone doesn't stand for a plan's longer list.
 - **No checks configured.** When neither config nor the item's plan has any, `done` refuses unless the human gives `--override`.
-- **Reading a report.** `mull report <id> --text` prints the report as markdown.
+- **Reading a report.** `mull report <id> --text` prints the report as markdown, its tour's paths resolved against the item's plan's preview (see "A preview per plan").
 - **Trust.** Check commands come from mull's config and plans, which travel with `sync`, and `done` runs them. Treat them like a Makefile in the repo: as trusted as whoever can push to the remote.
 - **Only the human changes the checks.** They judge agents' work, so an agent may not change them: `mull config checks` and `mull plan checks` (and their batch ops) are refused (`not_allowed`) unless the agent passes `--on-request`, meaning you told it to. mull serve's writes are yours and would need no flag, though its pages don't offer these ops. This reverses the first cut (decision d359), where `plan checks` took no gate, as `plan doc` and `plan rules` don't: a doc or rules can steer an agent, but the checks are what let its work through.
 
@@ -341,7 +346,7 @@ layers:
 
 ## The view
 
-`mull view [--plan p] [--text]`, with one block per open plan (active, then shaping), then unplanned work, the backlog's untriaged count and unlinked commits. Each plan's block opens with its target branch, marked `(integration)` when the plan falls back to it, and how far that branch is ahead of release, then its preview URL when it has one. With `--text`:
+`mull view [--plan p] [--text]`, with one block per open plan (active, then shaping), then unplanned work, the backlog's untriaged count, the prunable worktrees and unlinked commits. Each plan's block opens with its target branch, marked `(integration)` when the plan falls back to it, and how far that branch is ahead of release, then its preview URL when it has one. With `--text`:
 
 ```
 integration taxogall · 166 ahead of main · 2026-11-09
@@ -364,6 +369,8 @@ TAXOGALL  Taxogall
   NEEDS YOU  1 review · 21 decisions · 8 questions (4 older than a week)
 
 BACKLOG  4 captured items untriaged (triage with the human: mull guide triage) · last triage 2026-11-02
+
+WORKTREES  3 claim worktrees (1.4 GB) are left behind by done work, merged and clean: mull worktrees gives the commands that remove them
 
 UNLINKED  31 commits on taxogall this week carry no item link
 ```
@@ -409,7 +416,7 @@ The ops are every write except `init`, `sync`, `migrate`, `check` and `done`.
 |---|---|
 | Setup | `mull init [--integration b] [--release b]` · `mull config [set\|checks … --on-request\|layer …]` · `mull sync [--dry-run]` · `mull migrate [--dry-run] [--text] [--on-request]` |
 | Plans (you) | `mull plan new <slug> "title" [--summary -] --on-request` · `plan agree <slug> --on-request` · `plan list` · `plan show <slug>` · `plan set <slug> title\|summary\|target\|preview <value>` · `plan doc <slug> [-] [--log]` · `plan rules <slug> [-] [--log]` · `plan checks <slug> ["<cmd>" …] --on-request` · `plan shared <slug> [<glob> …]` · `plan close <slug>` |
-| Phases | `mull phase add "title" --plan <slug> [--needs …] [--summary -]` · `phase list [--plan]` · `phase doc <id> [-] [--log]` · `phase rules <id> [-] [--log]` · `phase delete <id> --on-request` · `show <id>` |
+| Phases | `mull phase add "title" --plan <slug> [--needs …] [--summary -]` · `phase list [--plan]` · `phase set <id> title\|summary\|integration-review <value>` (`integration-review on\|off`: yours, `--on-request` for an agent) · `phase doc <id> [-] [--log]` · `phase rules <id> [-] [--log]` · `phase delete <id> --on-request` · `show <id>` |
 | Items | `mull add "title" (--plan <slug> \| --phase <id> \| --plan none \| --follow-up <done-id>) [--notes -] [--doc path]` · `show` · `list [--plan] [--phase] [--state] [--kind] [--untriaged]` · `set` · `drop` |
 | Dependencies and order | `mull need <phase> <phase…>` · `mull unneed <phase> <phase…>` · `mull rank <phase\|plan\|none> <ids…>` · `mull ready [--plan]` |
 | Work (agents) | `mull start <id>` · `release <id>` · `check [--item <id>]` (run the hard checks, cache the result; with `--item`, its plan's too) · `done <id> --summary "…" --tour "…" --design -` |
@@ -417,7 +424,7 @@ The ops are every write except `init`, `sync`, `migrate`, `check` and `done`.
 | Backlog | `mull bug "title"` · `idea "title"`, each with `[--detail -] [--source …] [--plan \| --phase] [--category …]` · `commit <id> [--plan \| --phase \| --plan none] --on-request` · `triage <id…> --on-request` (or `--all [--plan <slug>\|none]`) |
 | Batch | `mull batch [--dry-run] < ops.jsonl` |
 | Settle (you, or an agent on your request) | `mull inbox [--kind] [--plan] [--parked]` · `accept <id…> [--follow-up "…"]` · `decide <id> "text"` · `do <id> [--plan] [--phase] [--as phase] [--reason "…"]` · `drop <id…> [--reason "…"]` · `park <id> "reason"` |
-| Read (agents) | `mull view [--plan] [--text]` · `mull context [--item <id>]` (compact JSON for the start of a session: the protocol reminder, the shaping and active plans with their targets, previews and phases, ready and active items, your claims, recent decisions, and for the item its target and preview, its phase's doc, its plan's and phase's rules, open questions and last report) · `decisions [--plan]` · `report <id> [--n] [--text]` |
+| Read (agents) | `mull view [--plan] [--text]` · `mull context [--item <id>]` (compact JSON for the start of a session: the protocol reminder, the shaping and active plans with their targets, previews and phases, ready and active items, your claims, recent decisions, and for the item its target and preview, its phase's doc, its plan's and phase's rules, open questions and last report) · `decisions [--plan]` · `report <id> [--n] [--text]` · `worktrees` (the claim worktrees, and which can be removed; see "Prunable worktrees") |
 | Guides | `mull guide agents` · `mull guide intake` · `mull guide supervisor` · `mull guide triage` · `mull guide json` (the output shapes and error codes) |
 | The human's view | `mull serve [--port n]` · `mull serve --install` · `mull serve --uninstall` |
 
@@ -442,13 +449,18 @@ This is a short block pasted into the project's `AGENTS.md`. In outline:
 - pick from `mull ready`;
 - give each worker a one-line hand-off, its item ID and nothing else: anything a worker needs goes in its plan's or phase's rules or the item's notes, never in a prompt, so it reaches every worker through `mull context --item`;
 - propose missing or contradictory rules to the human with `mull ask`, since rules are theirs, and propose a phase for shared foundations (layout, components, helpers) that the phases using them need, rather than letting parallel workers each build their own;
-- review each finished item's done report and diff, then `accept` (with `--follow-up` for small leftovers), or send it back with `do <review> --reason`;
+- review each finished item's done report and diff, then `accept` (with `--follow-up` for small leftovers), or send it back with `do <review> --reason`; when the plan has a preview, merge the reviewed branch into its target first, so the human walks the tour on the preview, and accept only after they have;
 - watch `mull view`, acting on problems first;
 - route questions and decisions to the human instead of answering them;
 - keep the backlog from workers until the human commits it, and go through it with the human when they ask (`mull guide triage`);
 - remove an item's worktree and its merged branch (`git worktree remove`, `git branch -d`, never forced) once the item is accepted and its work is on its plan's target.
 
 **Worktrees are the guides' business, not mull's.** mull never creates, sets up or removes a worktree: not every item needs one, and making one in `mull start` would force it (decided on question c6c0). The guides say how: a worktree's branch is `<id>-<short-name>` from the plan's target, its project-specific setup (dependencies to copy, dev and test databases) lives in the plan's rules or the project's `AGENTS.md` rather than in mull's config, and the supervisor removes it once its item is done and merged.
+
+**Prunable worktrees.** mull only lists them. `mull worktrees` is read-only: it reads `git worktree list` and matches each linked worktree (never the main one) to the items claimed from it, the latest claim standing for it. A worktree no item was claimed from isn't listed, and neither is a claim's worktree that's gone or on another machine. Each row has the item, its state, the plan's target, the checked-out branch and HEAD, and the worktree's disk size (its files' total, walked afresh).
+- **Prunable** means all of: the item is done (accepted); some of its work is on its plan's target (seen in git); the worktree's HEAD, and the item's claim branch when that's another one, are on the target too, so nothing checked out there is left off it; the worktree is clean (`git status` shows nothing, untracked files included, as `git worktree remove` requires); it isn't locked; and it hasn't a target or release branch checked out (a long-lived worktree on a target is no item's to remove). Otherwise `why` says the first that fails.
+- **The commands** for a prunable one are `git worktree remove <path>`, then `git branch -d` for the branch checked out there and the claim branch (each when it exists and isn't a target or release branch, or checked out in another worktree). Neither is forced, so git still refuses if something would be lost. mull never runs them.
+- **In the view and mull serve.** `mull view` counts the prunable worktrees and their size (`prunable_worktrees`, the WORKTREES line), across every plan, closed ones too, since a plan is often closed before its worktrees are cleaned up; with `--plan`, that plan's only. mull serve's project overview shows the same count and size as a note. Both measure only worktrees that pass every other test, and reuse a measurement of the same worktree at the same HEAD for five minutes, so a page read doesn't walk gigabytes of dependencies each time.
 
 ## Intake (`mull guide intake`)
 

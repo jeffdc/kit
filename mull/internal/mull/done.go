@@ -426,6 +426,7 @@ type DoneResult struct {
 	ReportPath string       `json:"report_path"`
 	Item       ItemView     `json:"item"`
 	Review     string       `json:"review_entry,omitempty"`
+	Warnings   []string     `json:"warnings,omitempty"` // soft: they never stop done, and the report carries them too
 	Reminder   string       `json:"reminder,omitempty"`
 }
 
@@ -452,7 +453,7 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 	var cfg model.Config
 	var claim model.Claim
 	var commands []string
-	var target string
+	var target, preview string
 	err := m.view(func(s *state) error {
 		cfg = s.config
 		i, err := s.item(id)
@@ -465,6 +466,9 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 		claim = *i.Claim
 		commands = hardChecks(cfg, s.plans[i.Plan])
 		target, _ = s.targetOf(i.Plan)
+		if p := s.plans[i.Plan]; p != nil {
+			preview = p.Preview
+		}
 		return nil
 	})
 	if err != nil {
@@ -501,6 +505,7 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 		}
 	}
 
+	warnings := tourWarnings(in.Tour, preview)
 	finished := checks.Passed || in.Override != ""
 	err = m.update("done "+id, func(s *state) error {
 		i, err := s.item(id)
@@ -515,7 +520,7 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 		rep := model.Report{
 			Item: id, N: n, Passed: checks.Passed, Override: in.Override, Commit: checks.Commit, Base: base,
 			At: m.now(), By: wt, Summary: strings.TrimSpace(in.Summary), Tour: in.Tour, Checks: checks,
-			Design: design, Changes: changes,
+			Design: design, Changes: changes, Warnings: warnings,
 		}
 		if p := s.plans[i.Plan]; p != nil {
 			rep.Shared = sharedChanges(changes, p.Shared)
@@ -557,6 +562,7 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 	if err != nil {
 		return out, err
 	}
+	out.Warnings = warnings
 	if !finished {
 		return out, &ErrChecksFailed{Report: out.ReportPath}
 	}
@@ -658,6 +664,9 @@ func renderReport(r model.Report, title string) string {
 		}
 		b.WriteString("\n")
 	}
+	for _, w := range r.Warnings {
+		fmt.Fprintf(&b, "**Warning:** %s\n\n", w)
+	}
 	b.WriteString("### Checks (run by mull)\n\n")
 	if len(r.Checks.Results) == 0 {
 		b.WriteString("None configured.\n\n")
@@ -724,14 +733,30 @@ func short(sha string) string {
 	return sha
 }
 
+// ReportOut is an item's done report as report prints it: the structured
+// report, its markdown rendering, and the preview its tour's paths resolve
+// against.
+type ReportOut struct {
+	Report  model.Report `json:"report"`
+	Text    string       `json:"text"`
+	Preview string       `json:"preview,omitempty"` // the item's plan's preview, now
+}
+
 // ReportText returns an item's done report (the latest when n is 0) as
-// markdown, plus the structured report.
-func (m *Mull) ReportText(id string, n int) (string, model.Report, error) {
+// markdown, plus the structured report. The markdown's tour steps have their
+// paths resolved against the item's plan's preview as it is now; the
+// structured report keeps them as written.
+func (m *Mull) ReportText(id string, n int) (ReportOut, error) {
+	var out ReportOut
 	var text string
 	var rep model.Report
 	err := m.view(func(s *state) error {
-		if _, err := s.item(id); err != nil {
+		i, err := s.item(id)
+		if err != nil {
 			return err
+		}
+		if p := s.plans[i.Plan]; p != nil {
+			out.Preview = p.Preview
 		}
 		paths := s.tx.List(fmt.Sprintf("reports/%s-", id))
 		if len(paths) == 0 {
@@ -758,5 +783,6 @@ func (m *Mull) ReportText(id string, n int) (string, model.Report, error) {
 		text = body
 		return err
 	})
-	return text, rep, err
+	out.Report, out.Text = rep, resolveReportText(text, rep.Tour, out.Preview)
+	return out, err
 }

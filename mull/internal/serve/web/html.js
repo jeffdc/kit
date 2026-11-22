@@ -36,8 +36,8 @@ export const href = {
 };
 
 // Stage and state words, and the tag style each one takes.
-const LABEL = { "in-review": "in review", go_live: "go live" };
-const STYLE = { "in-review": "review", active: "active" };
+const LABEL = { "in-review": "in review", "awaiting-review": "awaiting integration review", go_live: "go live" };
+const STYLE = { "in-review": "review", "awaiting-review": "review", active: "active" };
 export const stageLabel = s => LABEL[s] || s || "";
 export const tag = (state, label) => `<span class="tag s-${esc(STYLE[state] || state)}">${esc(label || stageLabel(state))}</span>`;
 
@@ -49,6 +49,15 @@ export const itemStage = it => it.state === "committed" && (it.ready || it.item_
 export const shortTitle = t => String(t || "").split(":")[0];
 
 export const plural = (n, one, many = one + "s") => `${n} ${n === 1 ? one : many}`;
+
+// size renders a byte count in decimal units, as mull view does: 48 KB,
+// 312 MB, 1.4 GB.
+export function size(n) {
+  const units = ["bytes", "KB", "MB", "GB", "TB"];
+  let f = n, u = 0;
+  while (f >= 1000 && u < units.length - 1) { f /= 1000; u++; }
+  return u === 0 ? `${n} bytes` : `${f < 10 ? f.toFixed(1) : Math.round(f)} ${units[u]}`;
+}
 
 // needsTotal is everything Needs you lists for a project summary: open
 // questions, reviews and decisions (parked ones aside).

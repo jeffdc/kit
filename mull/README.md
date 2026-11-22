@@ -62,6 +62,8 @@ make build
 - a `Mull: <id>` commit trailer, or a merge of an `<id>-…` branch, on the integration branch marks the work as landed;
 - direct commits with neither are counted as unlinked.
 
+`./mull worktrees` lists the worktrees items were claimed from, with each item's state and the worktree's size, and marks the ones done work left behind (accepted, merged into the plan's target, and clean) as prunable, with the `git worktree remove` and `git branch -d` commands for each. It never runs them; the view counts them under WORKTREES.
+
 **Finishing work is deterministic.** The human configures the hard checks once:
 
 ```bash

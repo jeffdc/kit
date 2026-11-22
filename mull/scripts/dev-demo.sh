@@ -21,6 +21,9 @@ m init
 echo '{"op": "config checks", "commands": ["true"], "on-request": true}' | "$mull" batch >/dev/null
 m plan new web "Web app" --summary "Search, mail and the account pages." --on-request
 m plan agree web --on-request
+# Its preview, the URL that serves its target: a digest's tour resolves
+# against it. Nothing runs there, as mull never runs or checks a preview.
+m plan set web preview http://localhost:4000
 m plan doc web - <<'EOF'
 The web app's search, mail and account pages. This doc is long enough to show how prose runs on the sheet, with the status margin beside it: search comes first because mail links into it.
 EOF
@@ -39,8 +42,9 @@ m decided "Search runs on Postgres full-text, not a separate index" --item "$sea
 m decided "Results page 25 per page" --item "$search"
 m decided "Keep the API on /v2" --plan web --source "planning call"
 # An item in review carrying decisions: the Review tier and a packet. Its
-# work, on its own branch, changes the page layout, which the web plan lists
-# as shared, so the packet flags it.
+# tour gives a path (linked to the preview) and a stray local URL (which
+# done warns about). Its work, on its own branch, changes the page layout,
+# which the web plan lists as shared, so the packet flags it.
 m plan shared web "app/layout.css" "app/components/**"
 digest=$(id add "Digest job" --plan web)
 git checkout -q -b "$digest-job"
@@ -52,7 +56,8 @@ echo "/* digest banner */" >app/layout.css
 echo "# nightly digest" >jobs/digest.sh
 git add app jobs
 git commit -q -m "Nightly digest job" -m "Mull: $digest"
-m done "$digest" --summary "A nightly digest job." --tour none --design "A cron job reading the activity table, and a banner slot in the layout for the digest notice."
+m done "$digest" --summary "A nightly digest job." --design "A cron job reading the activity table, and a banner slot in the layout for the digest notice." --tour "Open /settings/digest and turn the digest on
+Then http://localhost:4001/digests/today: see today's digest"
 git checkout -q main
 # A long title, and a captured bug for the backlog.
 m add "Drop or park a Needs you entry with a reason" --plan web
@@ -72,6 +77,18 @@ git checkout -q -b web-next
 git merge -q --no-ff --no-edit "$digest-job"
 git checkout -q main
 m plan set web target web-next
+# A phase that needs an integration review, its one item done and merged:
+# it awaits that review, and Launch, which needs it, waits.
+pass=$(id phase add "Design pass" --plan web --summary "One look across every page.")
+m phase set "$pass" integration-review on --on-request
+header=$(id add "Shared page header" --phase "$pass")
+m start "$header"
+git checkout -q web-next
+git commit -q --allow-empty -m "Shared page header" -m "Mull: $header"
+git checkout -q main
+m done "$header" --summary "One header for every page." --tour none --design "A shared partial."
+m accept "$header" --on-request
+m need "$launch" "$pass"
 # Two agents at work on branches that both change the page layout: an
 # overlap in the Plans column.
 account=$(id add "Account page" --plan web)

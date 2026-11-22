@@ -88,6 +88,7 @@ var ops = map[string]opDef{
 	"phase doc":     {func() Input { return &PhaseDocIn{} }, "id, doc"},
 	"phase rules":   {func() Input { return &PhaseRulesIn{} }, "id, rules"},
 	"phase delete":  {func() Input { return &PhaseDeleteIn{} }, "id, on-request"},
+	"phase set":     {func() Input { return &PhaseSetIn{} }, "id, field, value, on-request"},
 	"add":           {func() Input { return &AddIn{} }, "title, plan, phase, follow-up, notes, doc, before, after"},
 	"rank":          {func() Input { return &RankIn{} }, "group, ids"},
 	"set":           {func() Input { return &SetIn{} }, "id, field, value"},
@@ -219,6 +220,25 @@ func (in *PhaseAddIn) run(m *Mull, s *state) (any, string, error) {
 		return nil, "", err
 	}
 	return e, e.ID, nil
+}
+
+// PhaseSetIn is set, for phases only: title, summary or integration-review
+// (on or off, the human's call: on-request).
+type PhaseSetIn struct {
+	ID        string `json:"id"`
+	Field     string `json:"field"`
+	Value     string `json:"value"`
+	OnRequest bool   `json:"on-request"`
+}
+
+func (in *PhaseSetIn) refFields() ([]*string, []*IDList) { return []*string{&in.ID}, nil }
+func (in *PhaseSetIn) run(m *Mull, s *state) (any, string, error) {
+	e, err := s.phase(in.ID)
+	if err != nil {
+		return nil, "", err
+	}
+	r, err := m.setPhase(s, e, in.Field, in.Value, in.OnRequest)
+	return r, in.ID, err
 }
 
 type PhaseDeleteIn struct {

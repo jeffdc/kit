@@ -30,7 +30,8 @@ func TestPlanSharedFlaggedByDone(t *testing.T) {
 	if got := res.Report.Shared; len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
 		t.Fatalf("report shared = %+v", got)
 	}
-	text, rep, err := m.ReportText(it.ID, 0)
+	out, err := m.ReportText(it.ID, 0)
+	text, rep := out.Text, out.Report
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,8 +62,8 @@ func TestPlanSharedUnflagged(t *testing.T) {
 	if res.Report.Shared != nil {
 		t.Fatalf("no match: shared = %+v", res.Report.Shared)
 	}
-	if text, _, _ := m.ReportText(it2.ID, 0); strings.Contains(text, "Shared files") {
-		t.Errorf("report text mentions shared files:\n%s", text)
+	if out, _ := m.ReportText(it2.ID, 0); strings.Contains(out.Text, "Shared files") {
+		t.Errorf("report text mentions shared files:\n%s", out.Text)
 	}
 }
 

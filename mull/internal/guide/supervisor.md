@@ -24,7 +24,7 @@ When you settle or file more than a couple of records at once, use `mull batch`.
 - Read the plan's and phase's rules together, as a worker does. When they contradict each other (say, "reuse the existing components" and "don't edit shared files"), or leave a gap that parallel workers would each fill their own way, ask the human before handing out more of that work.
 - **Shared foundations come first.** When several phases will each need the same shared pieces (layout, components, helpers, styles), don't let parallel workers each build their own. Propose to the human, with `mull ask`, a phase for the shared foundation that the other phases need (`mull need <phase> <foundation-phase>`), so its work is done before theirs starts. That's planning, so it's the human's call. Propose too that the plan list those files as shared (`mull plan shared <slug> <glob...>`, set on the human's word), so `done` flags every later change to them.
 - A captured item the human wants done now can go straight to a worker: `mull start` commits it. Only on the human's word.
-- Plans and phases are the human's. Don't create items, phases or plans, or change their docs, rules or checks, unless the human asked you to. If a piece of work is too big for one session, propose a split with `mull ask`. Only the human creates and agrees a plan (`mull plan new ... --on-request`, `mull plan agree <slug> --on-request`) and changes the hard checks (`mull config checks ... --on-request`, `mull plan checks <slug> ... --on-request`).
+- Plans and phases are the human's. Don't create items, phases or plans, or change their docs, rules or checks, unless the human asked you to. If a piece of work is too big for one session, propose a split with `mull ask`. Only the human creates and agrees a plan (`mull plan new ... --on-request`, `mull plan agree <slug> --on-request`), changes the hard checks (`mull config checks ... --on-request`, `mull plan checks <slug> ... --on-request`), and decides whether a phase needs an integration review (`mull phase set <id> integration-review on|off --on-request`). A phase that needs one shows "awaiting integration review" once its items are done, and the phases that need it stay blocked until that review is accepted.
 
 ## While they work
 - Watch `mull view`. Act on PROBLEMS first:
@@ -34,6 +34,7 @@ When you settle or file more than a couple of records at once, use `mull batch`.
   - **done-not-in-git:** none of the item's work is on its plan's target: it was accepted (flagged at once), or has been in review three days. Merge its branch into the target.
   - **overlap:** two items in flight have changed the same files on their branches, so they're likely to conflict or to build the same thing twice. Look at both diffs. Tell the later worker what the other is doing (or hold it until the other lands), merge the first that's ready before the other goes on, and when the overlap is a shared piece both need, propose a shared foundation to the human (above).
   - **work-after-accept:** commits under a done item's trailer came after it was accepted. Later work needs its own item: `mull add "<title>" --follow-up <done-id>` (on the human's word, if they didn't ask for the change), and new commits go under that ID.
+- **WORKTREES** in `mull view` counts the claim worktrees that can be removed: see "Removing worktrees" below.
 - Route questions and decisions to the human. Don't answer them yourself. When a worker's question is one its rules should have answered, propose the rule with `mull ask` as well, so the next worker doesn't ask it again. `mull inbox` shows what needs them: questions, decisions and reviews only.
 - A decision the human makes in conversation, not in answer to an inbox entry, goes in with `mull decided "<their decision>" --human --on-request` (with `--item` or `--plan`): settled at once as theirs, into the decision log. To answer an entry, use `mull decide <entry-id>` instead.
 - Feedback the human hands you for later goes in as a captured bug (`mull bug`), in their words, with `--source "human, <date or context>"`. File it when it's given.
@@ -48,21 +49,25 @@ When you settle or file more than a couple of records at once, use `mull batch`.
 - Older loose ends and inbox ideas, from before captured items, are listed by `mull inbox --kind loose-end` and `--kind idea` until `mull migrate` converts them. Until then they're settled as before, e.g. `mull do <id> --plan <p> [--as phase] --on-request`.
 
 ## Reviewing finished work
-When a worker runs `mull done`, you review before the human sees it:
-1. Read `mull report <id>`: what was built (the summary, the tour, the check results) and how (the design notes, the decisions made in the session, the changes by layer).
+When a worker runs `mull done`, you review before the human sees it. The order is: done, then your review of the diff, then you merge it into the target, then the human walks the tour on the preview, then accept.
+1. Read `mull report <id>`: what was built (the summary, the tour, the check results) and how (the design notes, the decisions made in the session, the changes by layer). Check `warnings` too: a tour step that gives a local URL other than the plan's preview points at a server that won't be there. The tour should give paths, which `mull report --text` and `mull serve` resolve against the preview.
 2. Look at the diff yourself (`git diff <base>..<commit>` from the report). Don't rely on the worker's summary. Check it against the plan's and phase's rules and the project's own: design system, duplication, real tests, deletions done. When the report flags shared files (Shared files changed: files the plan lists as `shared`), check each change suits the other work that uses them, in flight or done, not just this item.
-3. If it holds up, run `mull accept <id>`. Add `--follow-up "<text>"` for small leftovers. A change the human asks for after acceptance is a follow-up too: `mull add "<title>" --follow-up <id>`. Done items are never reopened. Accepting also ratifies the decisions the review carries, with or without `--on-request`, and those are the human's call: if there are any, show them to the human first and accept with `--on-request` once they agree. If they decide one differently, run `mull decide <decision-id> "<their decision>" --on-request` before accepting.
-4. If it doesn't, find its review entry with `mull inbox --kind review` and send it back with `mull do <entry-id> --reason "<what's wrong>"`. The item reopens for another session, and its decisions stay open for the next review.
-5. Tell the human what you accepted and what you sent back, with the UI tour for anything they should click through themselves.
+3. If it holds up, merge its branch into its plan's target, so the plan's preview serves it. When the report has a UI tour and the plan has a preview, give the human the tour (`mull report <id> --text` has the steps as full URLs on the preview) and wait until they've walked it there. A plan with a server but no preview is the gap under "Before starting": raise it with `mull ask`.
+4. Then run `mull accept <id>`. Add `--follow-up "<text>"` for small leftovers. A change the human asks for after acceptance is a follow-up too: `mull add "<title>" --follow-up <id>`. Done items are never reopened. Accepting also ratifies the decisions the review carries, with or without `--on-request`, and those are the human's call: if there are any, show them to the human first and accept with `--on-request` once they agree. If they decide one differently, run `mull decide <decision-id> "<their decision>" --on-request` before accepting.
+5. If it doesn't, or the human finds a problem on the preview, find its review entry with `mull inbox --kind review` and send it back with `mull do <entry-id> --reason "<what's wrong>"`. The item reopens for another session, and its decisions stay open for the next review.
+6. Tell the human what you accepted and what you sent back.
 
 Unreviewed work is incomplete work. An item is in review after `mull done`, and done only once its review is accepted.
 
 ## Removing worktrees
-Worktrees left behind pile up (dependencies and databases make each one big), and mull never removes them. You do, once both hold:
+Worktrees left behind pile up (dependencies and databases make each one big), and mull never removes them. You do, once all of these hold:
 - the item is done (its review accepted), not just in review;
-- its work is on its plan's target: the view shows no done-not-in-git problem for it.
+- its work is on its plan's target: the view shows no done-not-in-git problem for it, and nothing checked out in the worktree is missing from the target;
+- the worktree is clean: no uncommitted or untracked changes.
 
-Then, with the worktree and branch from its claim (`mull show <id>`), from a checkout of the target:
+`mull worktrees` finds them. It lists every worktree of this repository that an item was claimed from (not the main one), with the item claimed there last, its state and the worktree's disk size, and marks `prunable` the ones that meet all three, with the `commands` that remove each; for the others, `why` says what's left. `mull view` shows how many are prunable, and their size, under WORKTREES. mull only lists them: it never runs the commands.
+
+The commands are these, for the worktree and its merged branch (and the item's claim branch, when that's another one); run them from a checkout of the target:
 ```
 git worktree remove <path>
 git branch -d <id>-<short-name>
@@ -71,4 +76,4 @@ Both refuse when something would be lost: `git worktree remove` a worktree with 
 
 ## End of session
 - Run `mull sync`.
-- Give the human a short status: the phases' progress, what landed on each plan's target branch (`mull view` shows each plan's target), what's blocked, the inbox count by kind, and how many captured items are untriaged.
+- Give the human a short status: the phases' progress, what landed on each plan's target branch (`mull view` shows each plan's target), any phase awaiting its integration review, what's blocked, the inbox count by kind, and how many captured items are untriaged.

@@ -29,7 +29,9 @@ func (s *state) phaseItems(phaseID string) []*model.Item {
 	return out
 }
 
-func (s *state) phaseComplete(phaseID string) bool {
+// phaseBuilt reports whether every item committed to a phase is finished
+// (done or dropped), and there is at least one.
+func (s *state) phaseBuilt(phaseID string) bool {
 	committed := 0
 	for _, i := range s.phaseItems(phaseID) {
 		if i.State == model.StateCaptured {
@@ -41,6 +43,38 @@ func (s *state) phaseComplete(phaseID string) bool {
 		committed++
 	}
 	return committed > 0
+}
+
+// phaseComplete reports whether a phase is done: built and, when it needs
+// an integration review, with one accepted that covers its done items.
+func (s *state) phaseComplete(phaseID string) bool {
+	return s.phaseBuilt(phaseID) && !s.awaitsIntegrationReview(phaseID)
+}
+
+// awaitsIntegrationReview reports whether a phase is held open by its
+// integration review: it needs one, and no accepted integration review of
+// it covers every done item in it. It says nothing about whether the phase
+// is built.
+func (s *state) awaitsIntegrationReview(phaseID string) bool {
+	e := s.phases[phaseID]
+	if e == nil || !e.IntegrationReview {
+		return false
+	}
+	var done []string
+	for _, i := range s.phaseItems(phaseID) {
+		if i.State == model.StateDone {
+			done = append(done, i.ID)
+		}
+	}
+	for _, x := range s.entries {
+		if x.Kind != model.KindReview || x.Phase != phaseID || x.Settled == nil || x.Settled.Action != model.ActAccept {
+			continue
+		}
+		if !slices.ContainsFunc(done, func(id string) bool { return !slices.Contains(x.Items, id) }) {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *state) satisfied(id string) bool {
@@ -151,20 +185,27 @@ func (s *state) progress(items []*model.Item) Progress {
 	return p
 }
 
-// PhaseView is a phase with its derived progress.
+// PhaseView is a phase with its derived progress. AwaitingIntegrationReview
+// means every item is done, but the phase needs an integration review and no
+// accepted one covers them yet: it isn't complete, and phases that need it
+// stay blocked.
 type PhaseView struct {
 	model.Phase
-	Progress  Progress `json:"progress"`
-	Complete  bool     `json:"complete"`
-	BlockedBy []string `json:"blocked_by,omitempty"`
+	Progress                  Progress `json:"progress"`
+	Complete                  bool     `json:"complete"`
+	AwaitingIntegrationReview bool     `json:"awaiting_integration_review,omitempty"`
+	BlockedBy                 []string `json:"blocked_by,omitempty"`
 }
 
 func (s *state) phaseView(e *model.Phase) PhaseView {
+	built := s.phaseBuilt(e.ID)
+	awaiting := built && s.awaitsIntegrationReview(e.ID)
 	return PhaseView{
-		Phase:     *e,
-		Progress:  s.progress(s.phaseItems(e.ID)),
-		Complete:  s.phaseComplete(e.ID),
-		BlockedBy: s.blockedBy(e.Needs),
+		Phase:                     *e,
+		Progress:                  s.progress(s.phaseItems(e.ID)),
+		Complete:                  built && !awaiting,
+		AwaitingIntegrationReview: awaiting,
+		BlockedBy:                 s.blockedBy(e.Needs),
 	}
 }
 

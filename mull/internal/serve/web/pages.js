@@ -3,7 +3,7 @@
 // reads one or two API pages (subsFor), which app.js loads into the
 // project's data.pages.
 
-import { esc, href, agoSpan, needsTotal, needsBreakdown } from "./html.js";
+import { esc, href, agoSpan, needsTotal, needsBreakdown, plural, size } from "./html.js";
 import { titleBlock, projectHead, liveField } from "./title.js";
 import { schedule } from "./needs.js";
 import { plansColumn } from "./plans.js";
@@ -137,7 +137,11 @@ export function pageProject(state, pr) {
   const migrate = s.migration_required
     ? `<p class="note">This project's mull data is format ${s.format}. mull reads it, but refuses every write until it's migrated: <code>mull migrate --dry-run --text</code> shows what would change.</p>`
     : "";
-  return head + `<div class="page">${migrate}${revisionSchedule(pr.id, data.revision, entryHref)}<div class="cols">
+  const wt = ov.prunable_worktrees;
+  const prune = wt
+    ? `<p class="note">${plural(wt.count, "worktree")} (${size(wt.bytes)}) left behind by done work can be removed: ${wt.count === 1 ? "its item is" : "their items are"} accepted, the work is on the target, and nothing is uncommitted. <code>mull worktrees</code> lists them with the commands that remove them.</p>`
+    : "";
+  return head + `<div class="page">${migrate}${prune}${revisionSchedule(pr.id, data.revision, entryHref)}<div class="cols">
     <section id="needs"><div class="hd"><h2>Needs you</h2><span class="lab">${ny.open} open${ny.parked ? ` · ${ny.parked} parked` : ""} · ranked by what it unblocks</span></div>${schedule(ny, { pid: pr.id, changes: ch })}</section>
     <aside>${plansColumn(pr.id, ov, ch)}</aside>
   </div></div>`;

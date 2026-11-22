@@ -41,7 +41,8 @@ func TestPlanChecksRunAfterConfig(t *testing.T) {
 	if again := must[CheckOutcome](t)(m.Check(it.ID)); !again.Cached || planRuns() != 1 {
 		t.Fatalf("check for the item after done = %+v", again)
 	}
-	text, _, err := m.ReportText(it.ID, 0)
+	out, err := m.ReportText(it.ID, 0)
+	text := out.Text
 	if err != nil || !strings.Contains(text, "`"+planCheck+"`: pass") {
 		t.Errorf("report text lacks the plan's check (%v):\n%s", err, text)
 	}

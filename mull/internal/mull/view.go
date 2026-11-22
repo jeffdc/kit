@@ -30,10 +30,13 @@ type View struct {
 	Unplanned        *PlanBoard  `json:"unplanned,omitempty"` // items with no plan, and what needs you about them
 	UnlinkedCount    int         `json:"unlinked_commits_this_week"`
 	UnlinkedRecent   []string    `json:"unlinked_recent,omitempty"`
-	Legacy           *Legacy     `json:"legacy,omitempty"`
-	Untriaged        int         `json:"untriaged"`             // the whole project's untriaged captured items, with --plan too
-	LastTriage       string      `json:"last_triage,omitempty"` // the latest triage stamp on any item
-	Format           int         `json:"format"`                // the data's storage format (see model.Format)
+	// PrunableWorktrees counts the claim worktrees that can be removed
+	// (mull worktrees lists them), when there are any.
+	PrunableWorktrees *Prunable `json:"prunable_worktrees,omitempty"`
+	Legacy            *Legacy   `json:"legacy,omitempty"`
+	Untriaged         int       `json:"untriaged"`             // the whole project's untriaged captured items, with --plan too
+	LastTriage        string    `json:"last_triage,omitempty"` // the latest triage stamp on any item
+	Format            int       `json:"format"`                // the data's storage format (see model.Format)
 	// MigrationRequired means writes are refused until mull migrate: the
 	// data, or some of its records, are from before Model v2.
 	MigrationRequired bool `json:"migration_required,omitempty"`
@@ -63,11 +66,14 @@ type PlanBoard struct {
 
 // PhaseLine is a phase's progress line.
 type PhaseLine struct {
-	ID        string   `json:"id"`
-	Title     string   `json:"title"`
-	Progress  Progress `json:"progress"`
-	Complete  bool     `json:"complete"`
-	BlockedBy []string `json:"blocked_by,omitempty"`
+	ID       string   `json:"id"`
+	Title    string   `json:"title"`
+	Progress Progress `json:"progress"`
+	Complete bool     `json:"complete"`
+	// AwaitingIntegrationReview: built, but not complete until its
+	// integration review is accepted.
+	AwaitingIntegrationReview bool     `json:"awaiting_integration_review,omitempty"`
+	BlockedBy                 []string `json:"blocked_by,omitempty"`
 }
 
 // FlightLine is an item being worked on.
@@ -118,11 +124,15 @@ func (m *Mull) Board(plan string) (View, error) {
 		if err := m.readOverlaps(s, g); err != nil {
 			return err
 		}
+		prunable, err := m.prunable(s, g, plan)
+		if err != nil {
+			return err
+		}
 		now := m.Now().UTC()
 		v = View{
 			Generated: now.Format(time.RFC3339), Integration: g.Integration, IntegrationFound: g.IntegrationFound,
 			Release: s.config.Release, AheadOfRelease: g.AheadOfRelease,
-			UnlinkedCount: len(g.Unlinked), Plans: []PlanBoard{},
+			UnlinkedCount: len(g.Unlinked), Plans: []PlanBoard{}, PrunableWorktrees: prunable,
 			Format: s.config.Format, MigrationRequired: s.writable() != nil,
 		}
 		if n := len(g.Unlinked); n > 0 {
@@ -223,7 +233,8 @@ func (s *state) board(p *model.Plan, g *gitState, now time.Time) PlanBoard {
 	})
 	for _, e := range phases {
 		ev := s.phaseView(e)
-		b.Phases = append(b.Phases, PhaseLine{ID: e.ID, Title: e.Title, Progress: ev.Progress, Complete: ev.Complete, BlockedBy: ev.BlockedBy})
+		b.Phases = append(b.Phases, PhaseLine{ID: e.ID, Title: e.Title, Progress: ev.Progress, Complete: ev.Complete,
+			AwaitingIntegrationReview: ev.AwaitingIntegrationReview, BlockedBy: ev.BlockedBy})
 	}
 
 	for _, i := range items {
@@ -459,6 +470,9 @@ func (v View) Text(now time.Time) string {
 		}
 		fmt.Fprintf(&b, "\nLEGACY  %s, kept until mull migrate turns them into captured items\n", strings.Join(parts, " · "))
 	}
+	if p := v.PrunableWorktrees; p != nil {
+		fmt.Fprintf(&b, "\nWORKTREES  %s\n", prunableText(*p))
+	}
 	if v.UnlinkedCount > 0 {
 		verb := "carry"
 		if v.UnlinkedCount == 1 {
@@ -500,6 +514,8 @@ func writeBoard(b *strings.Builder, p PlanBoard, now time.Time) {
 			status := progressText(e.Progress)
 			if e.Complete {
 				status = "complete"
+			} else if e.AwaitingIntegrationReview {
+				status = "awaiting integration review"
 			} else if len(e.BlockedBy) > 0 {
 				status += " · blocked by " + strings.Join(e.BlockedBy, ", ")
 			}

@@ -530,6 +530,14 @@ func (f *fields) text(name, from, to string) {
 
 func list(ids []string) string { return strings.Join(ids, ",") }
 
+// onOff is a flag as a short field: on, or "" when off.
+func onOff(b bool) string {
+	if b {
+		return "on"
+	}
+	return ""
+}
+
 // change makes the Change for a record that was a (nil: added) and is b
 // (nil: removed); ok is false when nothing changed.
 func change[T any](a, b *T, diff func(a, b *T) fields, describe func(r *T, c *Change)) (Change, bool) {
@@ -577,6 +585,7 @@ func phaseChange(a, b *model.Phase) (Change, bool) {
 		f.short("title", a.Title, b.Title)
 		f.short("needs", list(a.Needs), list(b.Needs))
 		f.short("from", a.From, b.From)
+		f.short("integration_review", onOff(a.IntegrationReview), onOff(b.IntegrationReview))
 		f.text("summary", a.Summary, b.Summary)
 		return f
 	}, func(p *model.Phase, c *Change) {

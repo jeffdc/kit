@@ -92,9 +92,9 @@ function projectNode(pr, data) {
 
 function phaseNode(pid, ph) {
   const p = ph.progress, total = p.total - p.dropped;
-  const progress = ph.state === "done" ? "done" : ph.state === "waits" ? "waits" : total ? `${p.done}/${total}` : "now";
+  const progress = ph.state === "done" ? "done" : ph.state === "waits" ? "waits" : ph.state === "awaiting-review" ? "review" : total ? `${p.done}/${total}` : "now";
   return {
-    key: `ph:${pid}:${ph.id}`, label: ph.title, href: href.phase(pid, ph.id), match: within.phase(ph.id), waits: ph.state !== "now",
+    key: `ph:${pid}:${ph.id}`, label: ph.title, href: href.phase(pid, ph.id), match: within.phase(ph.id), waits: ph.state !== "now" && ph.state !== "awaiting-review",
     meta: marks(ph.blocking, ph.needs_you, false, href.phase(pid, ph.id)) + (ph.go_live ? `<span class="tag">Go live</span>` : "") + em(progress),
     kids: ph.items.map(it => itemNode(pid, it)),
   };
