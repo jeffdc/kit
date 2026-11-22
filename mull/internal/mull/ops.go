@@ -81,19 +81,21 @@ var ops = map[string]opDef{
 	"plan close":    {func() Input { return &PlanCloseIn{} }, "slug"},
 	"plan doc":      {func() Input { return &PlanDocIn{} }, "slug, doc"},
 	"plan set":      {func() Input { return &PlanSetIn{} }, "slug, field, value"},
+	"plan rules":    {func() Input { return &PlanRulesIn{} }, "slug, rules"},
 	"phase add":     {func() Input { return &PhaseAddIn{} }, "title, plan, summary, needs"},
 	"phase doc":     {func() Input { return &PhaseDocIn{} }, "id, doc"},
+	"phase rules":   {func() Input { return &PhaseRulesIn{} }, "id, rules"},
 	"phase delete":  {func() Input { return &PhaseDeleteIn{} }, "id, on-request"},
-	"add":           {func() Input { return &AddIn{} }, "title, plan, phase, notes, doc, before, after"},
+	"add":           {func() Input { return &AddIn{} }, "title, plan, phase, follow-up, notes, doc, before, after"},
 	"rank":          {func() Input { return &RankIn{} }, "group, ids"},
 	"set":           {func() Input { return &SetIn{} }, "id, field, value"},
 	"need":          {func() Input { return &NeedIn{add: true} }, "id, needs"},
 	"unneed":        {func() Input { return &NeedIn{} }, "id, needs"},
-	"decided":       {func() Input { return &CaptureIn{kind: model.KindDecision} }, "text, item, plan, source, detail"},
+	"decided":       {func() Input { return &DecidedIn{} }, "text, item, plan, source, detail, human, on-request"},
 	"ask":           {func() Input { return &CaptureIn{kind: model.KindQuestion} }, "text, item, plan, source, detail"},
 	"loose":         {func() Input { return &CaptureIn{kind: model.KindLoose} }, "retired: use bug or idea"},
-	"bug":           {func() Input { return &CaptureItemIn{kind: model.ItemBug} }, "text, plan, phase, category, source, detail"},
-	"idea":          {func() Input { return &CaptureItemIn{kind: model.ItemIdea} }, "text, plan, phase, category, source, detail"},
+	"bug":           {func() Input { return &CaptureItemIn{kind: model.ItemBug} }, "title, plan, phase, category, source, detail"},
+	"idea":          {func() Input { return &CaptureItemIn{kind: model.ItemIdea} }, "title, plan, phase, category, source, detail"},
 	"commit":        {func() Input { return &CommitIn{} }, "id, plan, phase, on-request"},
 	"triage":        {func() Input { return &TriageIn{} }, "ids, all, plan, on-request"},
 	"start":         {func() Input { return &StartIn{} }, "id"},
@@ -259,6 +261,37 @@ func (in *PhaseDocIn) run(m *Mull, s *state) (any, string, error) {
 	return r, in.ID, err
 }
 
+// PlanRulesIn replaces a plan's rules. Rules is required ("" removes them),
+// as a doc is.
+type PlanRulesIn struct {
+	Slug  string  `json:"slug"`
+	Rules *string `json:"rules"`
+}
+
+func (in *PlanRulesIn) refFields() ([]*string, []*IDList) { return []*string{&in.Slug}, nil }
+func (in *PlanRulesIn) run(m *Mull, s *state) (any, string, error) {
+	if in.Rules == nil {
+		return nil, "", errf(CodeInvalid, `plan rules needs "rules": the new rules ("" removes them)`)
+	}
+	r, err := m.setPlanRules(s, in.Slug, *in.Rules)
+	return r, in.Slug, err
+}
+
+// PhaseRulesIn replaces a phase's rules, as PlanRulesIn does a plan's.
+type PhaseRulesIn struct {
+	ID    string  `json:"id"`
+	Rules *string `json:"rules"`
+}
+
+func (in *PhaseRulesIn) refFields() ([]*string, []*IDList) { return []*string{&in.ID}, nil }
+func (in *PhaseRulesIn) run(m *Mull, s *state) (any, string, error) {
+	if in.Rules == nil {
+		return nil, "", errf(CodeInvalid, `phase rules needs "rules": the new rules ("" removes them)`)
+	}
+	r, err := m.setPhaseRules(s, in.ID, *in.Rules)
+	return r, in.ID, err
+}
+
 type AddIn struct {
 	Title  string  `json:"title"`
 	Plan   string  `json:"plan"`
@@ -268,17 +301,20 @@ type AddIn struct {
 	Doc    StrList `json:"doc"`
 	Before string  `json:"before"`
 	After  string  `json:"after"`
+	// FollowUp is a done item this follows up: the item joins its plan and
+	// phase, with from set to it.
+	FollowUp string `json:"follow-up"`
 }
 
 func (in *AddIn) refFields() ([]*string, []*IDList) {
-	return []*string{&in.Plan, &in.Phase, &in.Before, &in.After}, nil
+	return []*string{&in.Plan, &in.Phase, &in.Before, &in.After, &in.FollowUp}, nil
 }
 func (in *AddIn) run(m *Mull, s *state) (any, string, error) {
 	if len(in.Needs) > 0 {
 		return nil, "", errItemNeeds("add takes no needs")
 	}
 	i, err := m.addItem(s, NewItem{Plan: in.Plan, Phase: in.Phase, Title: in.Title, Notes: in.Notes, Docs: in.Doc,
-		Before: in.Before, After: in.After})
+		Before: in.Before, After: in.After, FollowUp: in.FollowUp})
 	if err != nil {
 		return nil, "", err
 	}
@@ -343,10 +379,35 @@ func (in *CaptureIn) run(m *Mull, s *state) (any, string, error) {
 	return e, e.ID, nil
 }
 
-// CaptureItemIn captures a bug or idea. Text is the title, as for the other
-// captures, and detail becomes its notes.
+// DecidedIn records a decision: an agent's own, left open for the human to
+// ratify, or with Human the human's own, made in conversation and settled at
+// once.
+type DecidedIn struct {
+	Text      string `json:"text"`
+	Item      string `json:"item"`
+	Plan      string `json:"plan"`
+	Source    string `json:"source"`
+	Detail    string `json:"detail"`
+	Human     bool   `json:"human"`
+	OnRequest bool   `json:"on-request"`
+}
+
+func (in *DecidedIn) refFields() ([]*string, []*IDList) { return []*string{&in.Item, &in.Plan}, nil }
+func (in *DecidedIn) run(m *Mull, s *state) (any, string, error) {
+	e, err := m.decided(s, CaptureInput{Kind: model.KindDecision, Text: in.Text, Item: in.Item, Plan: in.Plan,
+		Source: in.Source, Detail: in.Detail}, in.Human, in.OnRequest)
+	if err != nil {
+		return nil, "", err
+	}
+	return e, e.ID, nil
+}
+
+// CaptureItemIn captures a bug or idea: an item, so it takes a title as add
+// does, and detail becomes its notes. Text is a silent alias for Title, from
+// when captures were inbox entries (it's still what decided and ask take).
 type CaptureItemIn struct {
-	Text     string `json:"text"`
+	Title    string `json:"title"`
+	Text     string `json:"text"` // alias for Title, not listed in the op's fields
 	Plan     string `json:"plan"`
 	Phase    string `json:"phase"`
 	Category string `json:"category"`
@@ -359,12 +420,19 @@ func (in *CaptureItemIn) refFields() ([]*string, []*IDList) {
 	return []*string{&in.Plan, &in.Phase}, nil
 }
 func (in *CaptureItemIn) run(m *Mull, s *state) (any, string, error) {
-	i, err := m.captureItem(s, NewCapture{Kind: in.kind, Title: in.Text, Plan: in.Plan, Phase: in.Phase,
+	title := in.Title
+	if in.Text != "" {
+		if title != "" {
+			return nil, "", errf(CodeInvalid, `give "title" or "text" (its alias), not both`)
+		}
+		title = in.Text
+	}
+	i, err := m.captureItem(s, NewCapture{Kind: in.kind, Title: title, Plan: in.Plan, Phase: in.Phase,
 		Category: in.Category, Source: in.Source, Detail: in.Detail})
 	if err != nil {
 		return nil, "", err
 	}
-	return s.itemView(i), i.ID, nil
+	return s.captureView(i), i.ID, nil
 }
 
 type CommitIn struct {

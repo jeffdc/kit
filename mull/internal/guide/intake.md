@@ -74,8 +74,8 @@ Plan, docs, phases, items, Needs you entries and captures in one go. `@` refs po
 {"op": "add", "ref": "welcome", "phase": "@onboard", "title": "Welcome flow for paid accounts"}
 {"op": "decided", "item": "@hook", "text": "Store raw webhook payloads", "detail": "Replay after outages", "source": "matter 50ff, For review"}
 {"op": "ask", "plan": "@p", "text": "Monthly or annual plans first?", "source": "matter 50ff, Open"}
-{"op": "bug", "plan": "@p", "text": "Branch quercus-leafminer-key: 2 commits ahead, last touched 2026-09-08", "source": "git"}
-{"op": "idea", "text": "Mobile-first ID tool", "detail": "An ID tool laid out for phones in the field: one question per screen, big tap targets, and the photo taken in the app. Raised by two users after the spring walks; nothing designed yet.", "source": "matter 32a5"}
+{"op": "bug", "plan": "@p", "title": "Branch quercus-leafminer-key: 2 commits ahead, last touched 2026-09-08", "source": "git"}
+{"op": "idea", "title": "Mobile-first ID tool", "detail": "An ID tool laid out for phones in the field: one question per screen, big tap targets, and the photo taken in the app. Raised by two users after the spring walks; nothing designed yet.", "source": "matter 32a5"}
 ```
 - An item's plan comes from its phase, so `add` needs only `phase`.
 - An inbox entry needs `item` or `plan` when the repo has more than one plan. Captures (`bug`, `idea`) don't.

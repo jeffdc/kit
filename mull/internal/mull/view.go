@@ -82,7 +82,7 @@ type FlightLine struct {
 
 // Problem is something wrong the human should see first.
 type Problem struct {
-	Kind string `json:"kind"` // idle-claim, done-not-in-git, unclaimed-work
+	Kind string `json:"kind"` // idle-claim, failed-done, unclaimed-work, done-not-in-git, work-after-accept
 	Item string `json:"item"`
 	Text string `json:"text"`
 }
@@ -249,6 +249,11 @@ func (s *state) board(p *model.Plan, g *gitState, now time.Time) PlanBoard {
 					Text: "has recent commits but nobody has claimed it"})
 			}
 		case model.StateInReview, model.StateDone:
+			if ig.afterAccept > 0 && now.Sub(ig.lastAfterAccept) <= recentActivity && !s.followedUpSince(i.ID, ig.lastAfterAccept) {
+				b.Problems = append(b.Problems, Problem{Kind: "work-after-accept", Item: i.ID,
+					Text: fmt.Sprintf("accepted, but %s carrying its trailer came after (last %s ago); later work needs its own item: mull add --follow-up %s",
+						plural(ig.afterAccept, "commit"), ago(now, ig.lastAfterAccept), i.ID)})
+			}
 			if !ig.SeenInGit {
 				if up, ok := parseTime(i.Updated); ok && now.Sub(up) > notInGitAfter {
 					b.Problems = append(b.Problems, Problem{Kind: "done-not-in-git", Item: i.ID,
@@ -266,6 +271,17 @@ func (s *state) board(p *model.Plan, g *gitState, now time.Time) PlanBoard {
 		b.NeedsYou.add(e, now)
 	}
 	return b
+}
+
+// followedUpSince reports whether an item following up id (from set to it)
+// was added at or after t.
+func (s *state) followedUpSince(id string, t time.Time) bool {
+	for _, i := range s.items {
+		if c, ok := parseTime(i.Created); ok && i.From == id && !c.Before(t.Truncate(time.Second)) {
+			return true
+		}
+	}
+	return false
 }
 
 // add counts e if it needs the human, or is parked. Retired kinds are

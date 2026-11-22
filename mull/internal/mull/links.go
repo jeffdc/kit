@@ -43,6 +43,11 @@ type ItemGit struct {
 	LastActivity string   `json:"last_activity,omitempty"` // latest linked commit anywhere
 	Branches     []string `json:"branches,omitempty"`      // unmerged branches carrying its work
 	SeenInGit    bool     `json:"seen_in_git"`             // landed > 0
+
+	// For a done item: the commits carrying its trailer that were written
+	// (author date) after it was accepted, anywhere, and the latest of them.
+	afterAccept     int
+	lastAfterAccept time.Time
 }
 
 // Target is where a plan's work lands: the plan's own target branch, or
@@ -135,6 +140,7 @@ func later(a, b string) string {
 
 type commitInfo struct {
 	sha, date, subject string
+	authored           time.Time // author date: kept by a rebase or cherry-pick, unlike date
 	parents            []string
 	trailers           []string
 }
@@ -142,7 +148,7 @@ type commitInfo struct {
 const (
 	fieldSep  = "\x1f"
 	recordSep = "\x1e"
-	logFormat = "%H%x1f%P%x1f%cI%x1f%s%x1f%(trailers:key=Mull,valueonly,separator=%x2C)%x1e"
+	logFormat = "%H%x1f%P%x1f%cI%x1f%s%x1f%(trailers:key=Mull,valueonly,separator=%x2C)%x1f%aI%x1e"
 )
 
 // logFrom returns up to historyLimit commits reachable from tip, a commit
@@ -170,10 +176,11 @@ func (m *Mull) logCommits(args ...string) ([]commitInfo, error) {
 			continue
 		}
 		f := strings.Split(rec, fieldSep)
-		if len(f) < 5 {
+		if len(f) < 6 {
 			continue
 		}
 		c := commitInfo{sha: f[0], parents: strings.Fields(f[1]), date: f[2], subject: f[3]}
+		c.authored, _ = time.Parse(time.RFC3339, f[5])
 		for _, t := range strings.Split(f[4], ",") {
 			if t = strings.TrimSpace(t); model.IsID(t) {
 				c.trailers = append(c.trailers, t)
@@ -241,6 +248,22 @@ func (m *Mull) readGit(s *state) (*gitState, error) {
 	}
 	known := func(id string) bool { return s.items[id] != nil }
 	weekAgo := m.Now().Add(-7 * 24 * time.Hour).UTC().Format(time.RFC3339)
+	accepted := s.acceptedAt()
+	counted := map[string]bool{} // sha and item, so a commit on several branches counts once
+	afterAccept := func(c commitInfo) {
+		for _, id := range c.trailers {
+			at, ok := accepted[id]
+			if !ok || !c.authored.After(at) || counted[c.sha+id] {
+				continue
+			}
+			counted[c.sha+id] = true
+			ig := g.item(id)
+			ig.afterAccept++
+			if c.authored.After(ig.lastAfterAccept) {
+				ig.lastAfterAccept = c.authored
+			}
+		}
+	}
 
 	var tips []string // every target's tip: work on none of them is unmerged
 	for _, b := range sortedKeys(g.Targets.tips) {
@@ -264,6 +287,7 @@ func (m *Mull) readGit(s *state) (*gitState, error) {
 		}
 		// Trailers anywhere in the target's history.
 		for _, c := range commits {
+			afterAccept(c)
 			for _, id := range c.trailers {
 				if known(id) && targetOf[id] == b {
 					landed(id, c)
@@ -306,6 +330,7 @@ func (m *Mull) readGit(s *state) (*gitState, error) {
 		}
 		touched := map[string]bool{}
 		for _, c := range commits {
+			afterAccept(c)
 			ids := append([]string{}, c.trailers...)
 			if branchItem != "" {
 				ids = append(ids, branchItem)
@@ -411,6 +436,33 @@ func broughtIn(tip string, bySha map[string]commitInfo) map[string]string {
 			}
 			out[sha] = f.date
 			stack = append(stack, c.parents...)
+		}
+	}
+	return out
+}
+
+// acceptedAt is when each done item was accepted: its latest accepted
+// review, or else (done some other way, as from before Model v2) when it was
+// last updated, which is never before it was done.
+func (s *state) acceptedAt() map[string]time.Time {
+	out := map[string]time.Time{}
+	for _, e := range s.entries {
+		if e.Kind != model.KindReview || e.Settled == nil || e.Settled.Action != model.ActAccept {
+			continue
+		}
+		if i := s.items[e.Item]; i == nil || i.State != model.StateDone {
+			continue
+		}
+		if at, ok := parseTime(e.Settled.At); ok && at.After(out[e.Item]) {
+			out[e.Item] = at
+		}
+	}
+	for id, i := range s.items {
+		if _, ok := out[id]; ok || i.State != model.StateDone {
+			continue
+		}
+		if at, ok := parseTime(i.Updated); ok {
+			out[id] = at
 		}
 	}
 	return out

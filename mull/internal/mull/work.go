@@ -259,6 +259,7 @@ func (m *Mull) phaseDelete(s *state, id string, onRequest bool) (PhaseDeleteResu
 		}
 	}
 	s.putDoc(phaseDocPath(e), "")
+	s.putDoc(model.PhaseRulesPath(id), "")
 	s.tx.Delete(model.PhasePath(id))
 	delete(s.phases, id)
 	out.Phase = e
@@ -299,6 +300,9 @@ type NewItem struct {
 	Plan, Phase, Title, Notes string
 	Docs                      []string
 	From                      string // the inbox entry it was made from
+	// FollowUp is a done item this follows up: the new item takes its plan
+	// and phase (a Plan or Phase given must agree), and From is set to it.
+	FollowUp string
 	// Before or After places committed work just before or after that open
 	// item in its group; neither puts it at the end.
 	Before, After string
@@ -351,6 +355,11 @@ func (m *Mull) addItem(s *state, in NewItem) (*model.Item, error) {
 	if in.Title == "" {
 		return nil, errf(CodeInvalid, "an item needs a title")
 	}
+	if in.FollowUp != "" {
+		if err := s.followUp(&in); err != nil {
+			return nil, err
+		}
+	}
 	plan, err := s.resolvePlan(in.Plan, in.Phase)
 	if err != nil {
 		return nil, err
@@ -388,6 +397,41 @@ func (m *Mull) addItem(s *state, in NewItem) (*model.Item, error) {
 		return nil, err
 	}
 	return i, s.checkCycles()
+}
+
+// followUp points in at the done item it follows up: its plan and phase,
+// and from. Work after acceptance is a new item, never a reopened one.
+func (s *state) followUp(in *NewItem) error {
+	src, err := s.item(in.FollowUp)
+	if err != nil {
+		return err
+	}
+	if src.State != model.StateDone {
+		hint := ""
+		if src.State == model.StateInReview {
+			hint = "; send it back instead (mull do <review> --reason)"
+		}
+		return errf(CodeState, "item %s is %s; --follow-up follows up done (accepted) work%s", src.ID, src.State, hint)
+	}
+	if in.stage == model.StateCaptured {
+		return errf(CodeInvalid, "--follow-up makes committed work, not a capture")
+	}
+	plan := src.Plan
+	if plan == "" {
+		plan = model.NoPlan
+	}
+	if in.Plan != "" && in.Plan != plan {
+		return errf(CodeInvalid, "--follow-up %s puts it in plan %s, not %s", src.ID, plan, in.Plan)
+	}
+	if in.Phase != "" && in.Phase != src.Phase {
+		where := "no phase"
+		if src.Phase != "" {
+			where = "phase " + src.Phase
+		}
+		return errf(CodeInvalid, "--follow-up %s puts it in %s, not phase %s", src.ID, where, in.Phase)
+	}
+	in.Plan, in.Phase, in.From = plan, src.Phase, src.ID
+	return nil
 }
 
 // ItemFilter selects items; empty fields match everything. Plan "none"

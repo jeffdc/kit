@@ -114,7 +114,8 @@ func TestAllDigitIDsStayStrings(t *testing.T) {
 func TestValidDataPath(t *testing.T) {
 	for _, p := range []string{
 		"config.yml", "plans/general.md", "plans/phase-two.md", "phases/1a2b.md", "epics/1a2b.md", "items/7877.md",
-		"inbox/beef.md", "reports/1a2b-3.md", "docs/plans/general.md", "docs/phases/1a2b.md", "docs/epics/1a2b.md", "checks/" + strings.Repeat("a", 40) + ".json",
+		"inbox/beef.md", "reports/1a2b-3.md", "docs/plans/general.md", "docs/phases/1a2b.md", "docs/epics/1a2b.md",
+		"rules/plans/general.md", "rules/plans/phase-two.md", "rules/phases/1a2b.md", "checks/" + strings.Repeat("a", 40) + ".json",
 	} {
 		if !ValidDataPath(p) {
 			t.Errorf("%q should be a valid data path", p)
@@ -124,6 +125,7 @@ func TestValidDataPath(t *testing.T) {
 		"", "README", "src/secret.go", "items/1a2b.md.bak", "items/12345.md", "plans/Bad.md",
 		"plans/../x.md", "items/sub/1a2b.md", ".gitignore", "checks/abc.json", "config.yaml",
 		"docs/items/1a2b.md", "docs/inbox/beef.md", "docs/plans/Bad.md", "docs/epics/12345.md", "docs/phases/12345.md", "phases/x.md", "docs/README.md", "docs/docs/plans/x.md",
+		"rules/epics/1a2b.md", "rules/items/1a2b.md", "rules/plans/Bad.md", "rules/phases/12345.md", "rules/README.md",
 	} {
 		if ValidDataPath(p) {
 			t.Errorf("%q should not be a valid data path", p)

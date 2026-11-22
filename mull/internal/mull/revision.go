@@ -47,17 +47,19 @@ const (
 
 // Types of record a change is about.
 const (
-	RecordPlan     = "plan"
-	RecordPlanDoc  = "plan_doc"
-	RecordPhase    = "phase"
-	RecordPhaseDoc = "phase_doc"
-	RecordItem     = "item"
-	RecordEntry    = "entry"
+	RecordPlan       = "plan"
+	RecordPlanDoc    = "plan_doc"
+	RecordPlanRules  = "plan_rules"
+	RecordPhase      = "phase"
+	RecordPhaseDoc   = "phase_doc"
+	RecordPhaseRules = "phase_rules"
+	RecordItem       = "item"
+	RecordEntry      = "entry"
 )
 
 // Change is one record that differs between two revisions. A doc is its own
 // record (plan_doc, phase_doc, with the plan's slug or the phase's ID), as
-// it is its own file.
+// it is its own file, and so are rules (plan_rules, phase_rules).
 type Change struct {
 	Type   string `json:"type"`
 	ID     string `json:"id"`              // a plan's slug, or a phase, item or entry ID
@@ -324,7 +326,7 @@ func (m *Mull) recordChanges(from, to string) ([]Change, error) {
 			out[i].At = tipAt
 		}
 	}
-	order := map[string]int{RecordPlan: 0, RecordPlanDoc: 1, RecordPhase: 2, RecordPhaseDoc: 3, RecordItem: 4, RecordEntry: 5}
+	order := map[string]int{RecordPlan: 0, RecordPlanDoc: 1, RecordPlanRules: 2, RecordPhase: 3, RecordPhaseDoc: 4, RecordPhaseRules: 5, RecordItem: 6, RecordEntry: 7}
 	sort.SliceStable(out, func(a, b int) bool {
 		if out[a].At != out[b].At {
 			return out[a].At > out[b].At
@@ -361,6 +363,9 @@ func (m *Mull) diffRecords(from, to string) ([]Change, error) {
 		if c, ok := docChange(RecordPlanDoc, slug, planDoc(a), planDoc(b), planTitle(a, b), slug); ok {
 			out = append(out, c)
 		}
+		if c, ok := docChange(RecordPlanRules, slug, planRules(a), planRules(b), planTitle(a, b), slug); ok {
+			out = append(out, c)
+		}
 	}
 	for _, id := range unionKeys(old.phases, cur.phases) {
 		a, b := old.phases[id], cur.phases[id]
@@ -369,6 +374,9 @@ func (m *Mull) diffRecords(from, to string) ([]Change, error) {
 		}
 		title, plan := phaseTitle(a, b)
 		if c, ok := docChange(RecordPhaseDoc, id, phaseDoc(a), phaseDoc(b), title, plan); ok {
+			out = append(out, c)
+		}
+		if c, ok := docChange(RecordPhaseRules, id, phaseRules(a), phaseRules(b), title, plan); ok {
 			out = append(out, c)
 		}
 	}
@@ -480,6 +488,10 @@ func changePaths(c Change) []string {
 		return []string{model.PhasePath(c.ID), model.LegacyPhasePath(c.ID)}
 	case RecordPhaseDoc:
 		return []string{model.PhaseDocPath(c.ID), model.LegacyPhaseDocPath(c.ID)}
+	case RecordPlanRules:
+		return []string{model.PlanRulesPath(c.ID)}
+	case RecordPhaseRules:
+		return []string{model.PhaseRulesPath(c.ID)}
 	case RecordItem:
 		return []string{model.ItemPath(c.ID)}
 	case RecordEntry:
@@ -666,6 +678,20 @@ func phaseDoc(p *model.Phase) string {
 		return ""
 	}
 	return p.Doc
+}
+
+func planRules(p *model.Plan) string {
+	if p == nil {
+		return ""
+	}
+	return p.Rules
+}
+
+func phaseRules(p *model.Phase) string {
+	if p == nil {
+		return ""
+	}
+	return p.Rules
 }
 
 // planTitle is the plan's title now, or before if it was removed.

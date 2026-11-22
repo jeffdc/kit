@@ -27,10 +27,12 @@ var uiOps = map[string]bool{
 	// close a plan, which archives it
 	"plan close": true,
 	// edit text in place: an item's title and notes (set, limited to
-	// uiSetFields), and a plan's or a phase's doc
-	"set":       true,
-	"plan doc":  true,
-	"phase doc": true,
+	// uiSetFields), and a plan's or a phase's doc and rules
+	"set":         true,
+	"plan doc":    true,
+	"phase doc":   true,
+	"plan rules":  true,
+	"phase rules": true,
 	// reorder a group's open work (an item moved up or down): the page
 	// sends the whole new order, as mull rank needs
 	"rank": true,

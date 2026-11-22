@@ -24,9 +24,14 @@ type Context struct {
 // ContextItem is the item a session works on, with what bears on it.
 type ContextItem struct {
 	ItemView
-	PhaseTitle     string        `json:"phase_title,omitempty"`
-	PhaseSummary   string        `json:"phase_summary,omitempty"`
-	PhaseDoc       string        `json:"phase_doc,omitempty"`
+	PhaseTitle   string `json:"phase_title,omitempty"`
+	PhaseSummary string `json:"phase_summary,omitempty"`
+	PhaseDoc     string `json:"phase_doc,omitempty"`
+	// PlanRules and PhaseRules are the human's standing rules for work in
+	// the item's plan and phase, in full: the worker follows the plan's,
+	// then the phase's.
+	PlanRules      string        `json:"plan_rules,omitempty"`
+	PhaseRules     string        `json:"phase_rules,omitempty"`
 	OpenQuestions  []BriefEntry  `json:"open_questions,omitempty"`
 	ItemDecisions  []BriefDecide `json:"item_decisions,omitempty"`
 	LastReport     string        `json:"last_report,omitempty"`
@@ -79,10 +84,14 @@ var protocol = []string{
 	"One item per session: mull start <id>; branch <id>-<name>; end each commit message with 'Mull: <id>'.",
 	"Read the decisions below before deciding anything they settle, and the item's docs and phase_doc for intent.",
 	"Capture as you go: mull decided / mull ask with --item <id>; anything out of scope with mull bug (wrong) / mull idea (a possibility) --source \"item <id>\". Captures go to the backlog; only the human commits them.",
-	"Don't change plans, phases or their docs, add items, or commit or retag captures unless the human asks; propose with mull ask.",
+	"Don't change plans, phases or their docs or rules, add items, or commit or retag captures unless the human asks; propose with mull ask.",
 	"Finish only with mull done <id> --summary ... --tour ... --design - (design notes on stdin: how and why); it runs the hard checks, and the item is in review until accepted. Never claim done in prose.",
 	"Settle inbox entries only on the human's explicit instruction, with --on-request. mull sync after done.",
 }
+
+// rulesProtocol is the protocol's last line when the item's plan or phase
+// has rules.
+const rulesProtocol = "Follow the item's plan_rules, then its phase_rules: the human's standing rules for this work."
 
 // Context builds the session-start briefing, focused on item when given.
 func (m *Mull) Context(itemID string) (Context, error) {
@@ -157,8 +166,11 @@ func (m *Mull) Context(itemID string) (Context, error) {
 				return err
 			}
 			ci := &ContextItem{ItemView: s.itemView(i)}
+			if p := s.plans[i.Plan]; p != nil {
+				ci.PlanRules = p.Rules
+			}
 			if e := s.phases[i.Phase]; e != nil {
-				ci.PhaseTitle, ci.PhaseSummary, ci.PhaseDoc = e.Title, e.Summary, e.Doc
+				ci.PhaseTitle, ci.PhaseSummary, ci.PhaseDoc, ci.PhaseRules = e.Title, e.Summary, e.Doc, e.Rules
 			}
 			for _, id := range sortedKeys(s.entries) {
 				e := s.entries[id]
@@ -170,6 +182,9 @@ func (m *Mull) Context(itemID string) (Context, error) {
 				ci.LastReport = model.ReportPath(itemID, rep.N)
 				passed := rep.Passed
 				ci.LastReportPass = &passed
+			}
+			if ci.PlanRules != "" || ci.PhaseRules != "" {
+				c.Protocol = append(c.Protocol, guide.Personal(rulesProtocol, m.Human()))
 			}
 			c.Item = ci
 		}

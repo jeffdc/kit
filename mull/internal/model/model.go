@@ -136,6 +136,10 @@ type Plan struct {
 	// intent only, never status. It is its own file (PlanDocPath), not part
 	// of the record.
 	Doc string `yaml:"-" json:"doc,omitempty"`
+	// Rules are the plan's standing rules for the agents working in it:
+	// the human's, plain markdown, printed in full by context --item. Like the
+	// doc, they are their own file (PlanRulesPath).
+	Rules string `yaml:"-" json:"rules,omitempty"`
 	// Legacy means the record was read in format 1 (see Format).
 	Legacy bool `yaml:"-" json:"-"`
 }
@@ -167,6 +171,9 @@ type Phase struct {
 	// Doc is the phase's doc: its design and done-when; intent only, never
 	// status. It is its own file (PhaseDocPath), not part of the record.
 	Doc string `yaml:"-" json:"doc,omitempty"`
+	// Rules are the phase's standing rules for its workers, after its
+	// plan's: their own file (PhaseRulesPath), like the doc.
+	Rules string `yaml:"-" json:"rules,omitempty"`
 	// Legacy means the record was read in format 1, from epics/ (see Format).
 	Legacy bool `yaml:"-" json:"-"`
 }
@@ -201,7 +208,7 @@ type Item struct {
 	Needs    []string `yaml:"needs,omitempty" json:"needs,omitempty"`
 	Docs     []string `yaml:"docs,omitempty" json:"docs,omitempty"`
 	Claim    *Claim   `yaml:"claim,omitempty" json:"claim,omitempty"`
-	From     string   `yaml:"from,omitempty" json:"from,omitempty"` // the inbox entry it was made from
+	From     string   `yaml:"from,omitempty" json:"from,omitempty"` // the inbox entry it was made from, or the done item it follows up
 	Triaged  string   `yaml:"triaged,omitempty" json:"triaged,omitempty"`
 	Created  string   `yaml:"created" json:"created"`
 	Updated  string   `yaml:"updated" json:"updated"`
@@ -391,6 +398,12 @@ func LegacyPhaseDocPath(id string) string { return "docs/" + LegacyPhasePath(id)
 func PlanDocPath(slug string) string { return "docs/" + PlanPath(slug) }
 func PhaseDocPath(id string) string  { return "docs/" + PhasePath(id) }
 
+// Rules are plain markdown files too, one per plan or phase that has them:
+// "rules/" plus the record's path. Only format 2 has them, so a phase's
+// rules are always under rules/phases/.
+func PlanRulesPath(slug string) string { return "rules/" + PlanPath(slug) }
+func PhaseRulesPath(id string) string  { return "rules/" + PhasePath(id) }
+
 const ConfigPath = "config.yml"
 
 // dataPaths are the paths records may occupy, in either format: a migrated
@@ -400,6 +413,8 @@ var dataPaths = []*regexp.Regexp{
 	regexp.MustCompile(`^(docs/)?plans/[a-z][a-z0-9]*(-[a-z0-9]+)*\.md$`),
 	regexp.MustCompile(`^(phases|epics|items|inbox)/[0-9a-f]{4}\.md$`),
 	regexp.MustCompile(`^docs/(phases|epics)/[0-9a-f]{4}\.md$`),
+	regexp.MustCompile(`^rules/plans/[a-z][a-z0-9]*(-[a-z0-9]+)*\.md$`),
+	regexp.MustCompile(`^rules/phases/[0-9a-f]{4}\.md$`),
 	regexp.MustCompile(`^reports/[0-9a-f]{4}-[0-9]+\.md$`),
 	regexp.MustCompile(`^checks/[0-9a-f]{40}([0-9a-f]{24})?\.json$`),
 }

@@ -34,9 +34,9 @@ New mull is the record of a program: its plans, where they stand, and everything
 
 | Record | What it is | Fields | Who writes it |
 |---|---|---|---|
-| **Plan** | A large effort, such as `taxogall`. High-level only. | id (plain-English slug, e.g. `taxogall`, `general`), title, summary, doc, state `shaping`, `active` or `done`, target (the branch its work lands on; config's integration branch when unset) | You |
-| **Phase** | A big piece of a plan; a set of items. Called an epic before Model v2. | id (4-hex), plan (required), title, summary, doc, needs (phases only), from | You, or agents on your instruction |
-| **Item** | A unit of work **one agent completes in one session.** | id (4-hex), plan (optional), phase (optional), rank, title, notes, docs (paths), stage, claim, from (no needs: see "Ordering") | Agents and you |
+| **Plan** | A large effort, such as `taxogall`. High-level only. | id (plain-English slug, e.g. `taxogall`, `general`), title, summary, doc, rules, state `shaping`, `active` or `done`, target (the branch its work lands on; config's integration branch when unset) | You |
+| **Phase** | A big piece of a plan; a set of items. Called an epic before Model v2. | id (4-hex), plan (required), title, summary, doc, rules, needs (phases only), from | You, or agents on your instruction |
+| **Item** | A unit of work **one agent completes in one session.** | id (4-hex), plan (optional), phase (optional), rank, title, notes, docs (paths), stage, claim, from (the inbox entry it was made from, or the done item it follows up; no needs: see "Ordering") | Agents and you |
 | **Captured item** | The backlog: a bug or an idea, not work until you commit it (see "The backlog") | an item at stage `captured`, plus kind (`bug` or `idea`), category, source, triaged; a short note as its notes; optionally tagged to a plan or phase | Anyone captures; only you commit |
 | **Inbox entry** | Something that needs you | id, kind (`decision`, `question` or `review`), one-line text, detail, item, plan, source, by, created; a review also lists the decisions it carries; when settled: action, note, what it made, by, time | Agents capture; you settle |
 | **Done report** | The record of a finished item | item, commit SHA, tree hash, summary, UI tour, check results, design notes, decisions made in the session, system context | Agent plus mull |
@@ -128,6 +128,7 @@ The backlog is the captured items: bugs and ideas. A captured item is a title, a
 **Anyone captures; only the human commits.**
 - `mull bug "…"` captures something out of scope that's wrong: a bug, an inconsistency, half-finished work, an assumption. Feedback the human hands over for later goes in the same way, in their words, with the human as its source.
 - `mull idea "…"` captures a possibility worth keeping that isn't work yet, whether the human raised it or an agent noticed it. In intake, most of the old backlog fits here.
+- Both print `similar`: up to five open items, captured or committed, whose titles overlap the new one's a lot in their words (rarer words count for more, so a prefix most titles share counts for little). It's a hint, never a block: the capture is filed either way, and the agent protocol says to check it and ask the human before keeping a near-duplicate.
 - `mull commit <id>` makes it committed work, optionally moving it to a plan or phase (`--plan none` for unplanned work). An agent must pass `--on-request`, meaning the human asked, and mull refuses otherwise.
 - `mull start <id>` on a captured item commits it too, for a small fix the human wants done now. A capture tagged to a shaping plan can't be started.
 - `mull drop <id>` drops it.
@@ -152,6 +153,7 @@ The inbox holds only what needs you: questions, decisions and reviews.
 A review can't be decided or dropped, because both would leave unreviewed work looking finished. To abandon the work, drop the item itself.
 
 - Accepted and decided entries make up the **decision log**. Agents read it before starting work, so a settled question stays settled.
+- **Your own decisions** made in conversation go straight into the log: an agent records one with `mull decided "…" --human --on-request` (`--item` or `--plan` as for any decision, `--detail` for why). It's a decision entry settled at once as decided, by the agent's worktree on request, so it never reaches the inbox and no review carries it. Without `--on-request` it's refused (`not_allowed`); `--on-request` without `--human` is refused too (`invalid_argument`), since an agent's own decision needs neither.
 - An agent may settle entries **on your explicit instruction in conversation**. The record notes `by: agent, on request`.
 
 ## Storage: the `mull` branch
@@ -168,6 +170,8 @@ reports/<item>-<n>.md
 checks/<tree-hash>.json        # cached hard-check results
 docs/plans/<slug>.md           # a plan's doc
 docs/phases/<id>.md            # a phase's doc (docs/epics/ before Model v2)
+rules/plans/<slug>.md          # a plan's rules
+rules/phases/<id>.md           # a phase's rules
 ```
 
 There's one file per record, so concurrent writes and merges rarely conflict.
@@ -176,6 +180,12 @@ There's one file per record, so concurrent writes and merges rarely conflict.
 - A doc is plain markdown with no frontmatter, in its own file at `docs/` plus its record's path. Writing it never touches the record, and changing the record never touches the doc, so the doc's history is exactly its own versions.
 - `mull plan doc <slug> [-]` and `mull phase doc <id> [-]` print a doc or replace it from stdin; empty stdin removes it. `--log` lists its versions, newest first, read from the commits that changed the file.
 - A plan's or phase's `summary` is separate and unchanged. `mull migrate` turned summaries into doc stubs.
+
+**Rules.** A plan, and optionally a phase, may have rules: the human's standing rules for the agents working in it (how to set up a worktree, what to use and reuse, what not to touch, skills to load). They're what a supervisor would otherwise repeat in every worker's prompt, so they live where every worker reads them, and the supervisor's hand-off stays one line (`mull guide supervisor`).
+- Rules are kept as a doc is: plain markdown in their own file, at `rules/` plus the record's path, so writing them touches neither the record nor the doc, and their history is their own. Only format 2 has them.
+- `mull plan rules <slug> [-]` and `mull phase rules <id> [-]` print or replace them, as `plan doc` does a doc, with `--log` and `--text`. Like docs, they're the human's: agents change them only when asked.
+- `mull context --item` gives the item's plan's rules, then its phase's (`plan_rules`, `phase_rules`), in full, and its protocol then ends with a line saying to follow them. mull never checks that they're followed: anything harness-specific, such as a required skill, is only text in the rules.
+- `mull serve` shows and edits them under the doc: a plan's on its Plan doc tab, a phase's on its sheet.
 
 **Writes:**
 - Git plumbing: a temporary index, `write-tree`, `commit-tree`, then `update-ref refs/heads/mull <new> <old>`.
@@ -250,7 +260,7 @@ mull derives from git:
 | **Linked commits** | Commits with the trailer, or reached through a branch or merge carrying the ID |
 | **Seen in git** | The item's linked commits are reachable from its plan's target branch, so its work has landed. Shown next to `done`, never a gate |
 | **Merged at** | When the work came into the target: the date of the target's first-parent commit that brought in the item's latest linked commit (the merge, or the commit itself when it was made on the target). Derived each time, never stored |
-| **Problems** | An active claim with no linked commits for a day; an item in review or done with nothing seen in git on its target after three days; a failed done attempt; recent commits on an item nobody has claimed; commits on the integration branch with no link, shown as a count |
+| **Problems** | An active claim with no linked commits for a day; an item in review or done with nothing seen in git on its target after three days; a failed done attempt; recent commits on an item nobody has claimed; commits carrying a done item's trailer, on any branch, written after it was accepted (see "Follow-ups"); commits on the integration branch with no link, shown as a count |
 
 Bare 4-hex mentions in commit prose are not counted, because they collide with hashes.
 
@@ -277,6 +287,10 @@ The agent runs `mull done <id> --summary "…" --tour "…" --design -` when it 
 You then read the report and explore the tour. Settling the review is how an item becomes `done`:
 - **Accept** marks it done. `--follow-up "text"` adds a new item for small leftovers.
 - **Do** sends it back: the item returns to committed, with the reason in its notes.
+
+**Follow-ups.** Done means reviewed, so a done item is never reopened, and its report stays as it was. Work after acceptance (a change you ask for once you've seen it) is a new item: `mull add "title" --follow-up <done-id>` creates committed work in the done item's plan and phase (a `--plan` or `--phase` given must agree), ranked last in its group, with `from` set to the done item. `accept --follow-up "text"` makes the same item at the moment of accepting.
+- **The problem it prevents.** Commits carrying a done item's `Mull:` trailer and written after it was accepted (by author date, so a rebase or cherry-pick of earlier work doesn't count), on the integration branch or any other, show in the view as `work-after-accept`. A branch name or a merge commit alone doesn't count, so merging the item's branch after acceptance is fine.
+- **When it clears.** It shows while the latest such commit is under a week old, and clears as soon as a follow-up of the item is added after that commit. "Accepted" is when its review was last accepted; an item done without one (from before Model v2) counts from when it was last updated.
 
 There's no override for agents. For you, `mull done --override "reason"` exists, and it stays visible in the report and the view.
 
@@ -355,7 +369,7 @@ Its design is in `serve/`: who it's for and its principles in `serve/PRODUCT.md`
 ## The CLI
 
 The CLI is used by agents. The human sees its data through an agent, or in `mull serve` (see above).
-- **Output.** Every command prints JSON to stdout. `view`, `inbox`, `report`, `guide`, `migrate`, `plan doc` and `phase doc` also have `--text`, so an agent can show its human a rendering.
+- **Output.** Every command prints JSON to stdout. `view`, `inbox`, `report`, `guide`, `migrate`, `plan doc`, `phase doc`, `plan rules` and `phase rules` also have `--text`, so an agent can show its human a rendering.
 - **Errors.** An error prints `{"code", "error"}` to stderr and exits 1. The codes are stable.
 - **The contract.** The shapes and codes are in `mull guide json`, and tests check every command's output against it.
 - **Long text** is read from stdin with `-`.
@@ -368,37 +382,37 @@ The CLI is used by agents. The human sees its data through an agent, or in `mull
 The ops are every write except `init`, `sync`, `migrate`, `check` and `done`.
 
 **Scope is never silent:**
-- `add` takes its plan from `--phase`, and refuses a `--plan` that disagrees. With neither, it refuses: unplanned work is asked for with `--plan none`.
+- `add` takes its plan from `--phase`, and refuses a `--plan` that disagrees. With neither, it refuses: unplanned work is asked for with `--plan none`. `--follow-up <done-id>` takes both from the done item, and refuses a `--plan` or `--phase` that disagrees.
 - `decided` and `ask` require `--item` or `--plan` once the repo has more than one open plan (shaping or active). Captures (`bug`, `idea`) need neither.
 
 | Group | Commands |
 |---|---|
 | Setup | `mull init [--integration b] [--release b]` · `mull config [set\|checks\|layer …]` · `mull sync [--dry-run]` · `mull migrate [--dry-run] [--text] [--on-request]` |
-| Plans (you) | `mull plan new <slug> "title" [--summary -] --on-request` · `plan agree <slug> --on-request` · `plan list` · `plan show <slug>` · `plan set <slug> title\|summary\|target <value>` · `plan doc <slug> [-] [--log]` · `plan close <slug>` |
-| Phases | `mull phase add "title" --plan <slug> [--needs …] [--summary -]` · `phase list [--plan]` · `phase doc <id> [-] [--log]` · `phase delete <id> --on-request` · `show <id>` |
-| Items | `mull add "title" (--plan <slug> \| --phase <id> \| --plan none) [--notes -] [--doc path]` · `show` · `list [--plan] [--phase] [--state] [--kind] [--untriaged]` · `set` · `drop` |
+| Plans (you) | `mull plan new <slug> "title" [--summary -] --on-request` · `plan agree <slug> --on-request` · `plan list` · `plan show <slug>` · `plan set <slug> title\|summary\|target <value>` · `plan doc <slug> [-] [--log]` · `plan rules <slug> [-] [--log]` · `plan close <slug>` |
+| Phases | `mull phase add "title" --plan <slug> [--needs …] [--summary -]` · `phase list [--plan]` · `phase doc <id> [-] [--log]` · `phase rules <id> [-] [--log]` · `phase delete <id> --on-request` · `show <id>` |
+| Items | `mull add "title" (--plan <slug> \| --phase <id> \| --plan none \| --follow-up <done-id>) [--notes -] [--doc path]` · `show` · `list [--plan] [--phase] [--state] [--kind] [--untriaged]` · `set` · `drop` |
 | Dependencies and order | `mull need <phase> <phase…>` · `mull unneed <phase> <phase…>` · `mull rank <phase\|plan\|none> <ids…>` · `mull ready [--plan]` |
 | Work (agents) | `mull start <id>` · `release <id>` · `check` (run the hard checks, cache the result) · `done <id> --summary "…" --tour "…" --design -` |
-| Capture (agents) | `mull decided "text"`, `ask "question"`, each with `--item <id>` or `--plan <slug>`, plus `[--detail -] [--source …]` |
+| Capture (agents) | `mull decided "text"`, `ask "question"`, each with `--item <id>` or `--plan <slug>`, plus `[--detail -] [--source …]` · `decided "text" --human --on-request` (your own decision, settled at once) |
 | Backlog | `mull bug "title"` · `idea "title"`, each with `[--detail -] [--source …] [--plan \| --phase] [--category …]` · `commit <id> [--plan \| --phase \| --plan none] --on-request` · `triage <id…> --on-request` (or `--all [--plan <slug>\|none]`) |
 | Batch | `mull batch [--dry-run] < ops.jsonl` |
 | Settle (you, or an agent on your request) | `mull inbox [--kind] [--plan] [--parked]` · `accept <id…> [--follow-up "…"]` · `decide <id> "text"` · `do <id> [--plan] [--phase] [--as phase] [--reason "…"]` · `drop <id…> [--reason "…"]` · `park <id> "reason"` |
-| Read (agents) | `mull view [--plan] [--text]` · `mull context [--item <id>]` (compact JSON for the start of a session: the protocol reminder, the shaping and active plans with their targets and phases, ready and active items, your claims, recent decisions, and for the item its phase's doc, open questions and last report) · `decisions [--plan]` · `report <id> [--n] [--text]` |
+| Read (agents) | `mull view [--plan] [--text]` · `mull context [--item <id>]` (compact JSON for the start of a session: the protocol reminder, the shaping and active plans with their targets and phases, ready and active items, your claims, recent decisions, and for the item its phase's doc, its plan's and phase's rules, open questions and last report) · `decisions [--plan]` · `report <id> [--n] [--text]` |
 | Guides | `mull guide agents` · `mull guide intake` · `mull guide supervisor` · `mull guide triage` · `mull guide json` (the output shapes and error codes) |
 | The human's view | `mull serve [--port n]` · `mull serve --install` · `mull serve --uninstall` |
 
 ## The agent protocol (`mull guide agents`)
 
 This is a short block pasted into the project's `AGENTS.md`. In outline:
-1. At session start, run `mull context --item <id>`. Read the decision log before deciding anything it may already settle, and read the item's docs and its phase's doc.
+1. At session start, run `mull context --item <id>`. Read the decision log before deciding anything it may already settle, and read the item's docs and its phase's doc. Follow its plan's rules, then its phase's.
 2. **One item per session.** It's committed work from `mull ready`, or a captured item the human wants done now. Claim it with `mull start`, which commits a captured item. Name the branch `<id>-…`. End every commit message with `Mull: <id>`.
 3. Capture as you go, one line each:
-   - `mull decided` for any choice you made that the human didn't;
+   - `mull decided` for any choice you made that the human didn't, and with `--human --on-request` for one the human made in conversation;
    - `mull ask` for anything you need from the human;
    - `mull bug` for anything out of scope that's wrong, and for feedback the human hands over for later;
    - `mull idea` for a possibility worth keeping that isn't work yet.
 
-   Bugs and ideas go to the backlog, not to the inbox.
+   Bugs and ideas go to the backlog, not to the inbox. When a capture's `similar` list holds what looks like the same thing, ask the human before keeping the near-duplicate.
 4. Don't change plans or phases (or their docs), add items, or commit captured ones unless the human asks. Propose changes with `mull ask`.
 5. Finish with `mull done`. If it fails, fix the problem or `mull release` the item and say why. After `done` the item is in review, and it's done only once its review is accepted. Never claim "done" in prose.
 6. Show the human, or the supervisor, the done report and the UI tour. Run `mull accept <id> --on-request` only when the human tells you to. Then `mull sync`.
@@ -406,7 +420,8 @@ This is a short block pasted into the project's `AGENTS.md`. In outline:
 
 `mull guide supervisor` covers coordinating several agents:
 - pick from `mull ready`;
-- give each worker one item ID;
+- give each worker a one-line hand-off, its item ID and nothing else: anything a worker needs goes in its plan's or phase's rules or the item's notes, never in a prompt, so it reaches every worker through `mull context --item`;
+- propose missing or contradictory rules to the human with `mull ask`, since rules are theirs, and propose a phase for shared foundations (layout, components, helpers) that the phases using them need, rather than letting parallel workers each build their own;
 - review each finished item's done report and diff, then `accept` (with `--follow-up` for small leftovers), or send it back with `do <review> --reason`;
 - watch `mull view`, acting on problems first;
 - route questions and decisions to the human instead of answering them;

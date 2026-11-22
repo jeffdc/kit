@@ -149,8 +149,8 @@ func TestRetagCapturedItems(t *testing.T) {
 func TestTriageInBatch(t *testing.T) {
 	m, _ := setup(t)
 	input := strings.Join([]string{
-		`{"op": "bug", "ref": "b", "text": "Crash on empty list"}`,
-		`{"op": "idea", "ref": "i", "text": "Dark mode"}`,
+		`{"op": "bug", "ref": "b", "title": "Crash on empty list"}`,
+		`{"op": "idea", "ref": "i", "title": "Dark mode"}`,
 		`{"op": "set", "id": "@i", "field": "plan", "value": "general"}`,
 		`{"op": "triage", "ids": "@b @i", "on-request": true}`,
 	}, "\n")

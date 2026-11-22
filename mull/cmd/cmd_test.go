@@ -241,6 +241,17 @@ func TestUsageErrorsHaveACode(t *testing.T) {
 	// One flag name for an inbox entry's extra text: --detail. --why is gone.
 	r.fails("usage", "decided", "x", "--why", "because")
 	r.ok("decided", "x", "--detail", "because")
+	// --human is the human's own decision: only on request, and only decided takes it.
+	r.fails("not_allowed", "decided", "y", "--human")
+	r.fails("invalid_argument", "decided", "y", "--on-request")
+	r.fails("usage", "ask", "y", "--human")
+	e := r.ok("decided", "y", "--human", "--on-request", "--detail", "said so")
+	if st, _ := e["settled"].(map[string]any); st["action"] != "decide" || st["note"] != "y" || st["on_request"] != true {
+		t.Fatalf("decided --human = %v", e)
+	}
+	if n := len(r.ok("inbox")["entries"].([]any)); n != 1 {
+		t.Fatalf("inbox has %d entries, want only the agent's decision", n)
+	}
 }
 
 func TestDocCommands(t *testing.T) {
@@ -266,6 +277,39 @@ func TestDocCommands(t *testing.T) {
 		t.Fatalf("emptied doc = %v", d)
 	}
 	if l := r.ok("plan", "doc", "launch", "--log"); len(l["versions"].([]any)) != 2 {
+		t.Fatalf("log = %v", l)
+	}
+}
+
+func TestRulesCommands(t *testing.T) {
+	r := run{t: t, dir: gittest.NewRepo(t)}
+	r.ok("init")
+	r.ok("plan", "new", "launch", "Launch", "--on-request")
+	if d := r.okIn("- Branch from main.\n", "plan", "rules", "launch", "-"); d["type"] != "plan" || d["id"] != "launch" || d["rules"] != "- Branch from main." {
+		t.Fatalf("plan rules - = %v", d)
+	}
+	if out, _, code := r.mull("", "plan", "rules", "launch", "--text"); code != 0 || out != "- Branch from main.\n" {
+		t.Fatalf("plan rules --text = %q", out)
+	}
+	if p := r.ok("show", "launch"); p["plan"].(map[string]any)["rules"] != "- Branch from main." {
+		t.Fatalf("show = %v", p)
+	}
+	r.ok("plan", "agree", "launch", "--on-request")
+	ph := r.ok("phase", "add", "Billing", "--plan", "launch")["id"].(string)
+	r.okIn("Stripe test mode only.", "phase", "rules", ph, "-")
+	it := r.ok("add", "Webhook", "--phase", ph)["id"].(string)
+	item := r.ok("context", "--item", it)["item"].(map[string]any)
+	if item["plan_rules"] != "- Branch from main." || item["phase_rules"] != "Stripe test mode only." {
+		t.Fatalf("context item = %v", item)
+	}
+	r.fails("usage", "phase", "rules", ph, "inline text")
+	r.fails("usage", "phase", "rules", ph, "-", "--text")
+	r.fails("not_found", "plan", "rules", "nope")
+	r.fails("not_found", "phase", "rules", "ffff")
+	if d := r.okIn("", "phase", "rules", ph, "-"); d["rules"] != "" {
+		t.Fatalf("emptied rules = %v", d)
+	}
+	if l := r.ok("phase", "rules", ph, "--log"); len(l["versions"].([]any)) != 2 || l["versions"].([]any)[0].(map[string]any)["rules"] != "" {
 		t.Fatalf("log = %v", l)
 	}
 }
@@ -296,6 +340,7 @@ func TestScopeRules(t *testing.T) {
 	}
 	r.fails("invalid_argument", "add", "y", "--phase", phase, "--plan", "beta")
 	r.fails("scope_required", "add", "z")
+	r.fails("invalid_state", "add", "w", "--follow-up", id(it)) // only done work is followed up
 	if it := r.ok("add", "z", "--plan", "none"); it["plan"] != nil {
 		t.Fatalf("unplanned item = %v", it)
 	}

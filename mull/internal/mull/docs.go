@@ -151,3 +151,131 @@ func (m *Mull) docLog(typ, id string, paths ...string) (DocLog, error) {
 	}
 	return out, nil
 }
+
+// Plans and phases may also have rules: the human's standing rules for the
+// agents working in them (how to set up, what to use, what not to touch).
+// They are plain markdown kept as a doc is, in their own file, and
+// context --item prints the item's plan's rules, then its phase's.
+
+// RulesResult is a plan's or phase's rules, as plan rules and phase rules
+// print them.
+type RulesResult struct {
+	Type  string `json:"type"`  // plan or phase
+	ID    string `json:"id"`    // the plan's slug or the phase's ID
+	Rules string `json:"rules"` // "" when there are none
+}
+
+// RulesVersion is one version of a plan's or phase's rules ("" when the
+// commit removed them).
+type RulesVersion struct {
+	Commit string `json:"commit"`
+	At     string `json:"at"`
+	Rules  string `json:"rules"`
+}
+
+// RulesLog is the history of a plan's or phase's rules, newest first.
+type RulesLog struct {
+	Type     string         `json:"type"`
+	ID       string         `json:"id"`
+	Versions []RulesVersion `json:"versions"`
+}
+
+// PlanRules returns a plan's rules.
+func (m *Mull) PlanRules(slug string) (RulesResult, error) {
+	var out RulesResult
+	err := m.view(func(s *state) error {
+		p, err := s.plan(slug)
+		if err != nil {
+			return err
+		}
+		out = RulesResult{Type: "plan", ID: p.Slug, Rules: p.Rules}
+		return nil
+	})
+	return out, err
+}
+
+// PhaseRules returns a phase's rules.
+func (m *Mull) PhaseRules(id string) (RulesResult, error) {
+	var out RulesResult
+	err := m.view(func(s *state) error {
+		e, err := s.phase(id)
+		if err != nil {
+			return err
+		}
+		out = RulesResult{Type: "phase", ID: e.ID, Rules: e.Rules}
+		return nil
+	})
+	return out, err
+}
+
+// SetPlanRules replaces a plan's rules; empty rules remove them. Any plan
+// takes rules, as any plan takes a doc.
+func (m *Mull) SetPlanRules(slug, rules string) (RulesResult, error) {
+	var out RulesResult
+	err := m.update("plan rules "+slug, func(s *state) error {
+		var err error
+		out, err = m.setPlanRules(s, slug, rules)
+		return err
+	})
+	return out, err
+}
+
+func (m *Mull) setPlanRules(s *state, slug, rules string) (RulesResult, error) {
+	p, err := s.plan(slug)
+	if err != nil {
+		return RulesResult{}, err
+	}
+	s.putDoc(model.PlanRulesPath(slug), rules)
+	p.Rules = getDoc(s.tx, model.PlanRulesPath(slug))
+	return RulesResult{Type: "plan", ID: slug, Rules: p.Rules}, nil
+}
+
+// SetPhaseRules replaces a phase's rules; empty rules remove them.
+func (m *Mull) SetPhaseRules(id, rules string) (RulesResult, error) {
+	var out RulesResult
+	err := m.update("phase rules "+id, func(s *state) error {
+		var err error
+		out, err = m.setPhaseRules(s, id, rules)
+		return err
+	})
+	return out, err
+}
+
+func (m *Mull) setPhaseRules(s *state, id, rules string) (RulesResult, error) {
+	e, err := s.phase(id)
+	if err != nil {
+		return RulesResult{}, err
+	}
+	s.putDoc(model.PhaseRulesPath(id), rules)
+	e.Rules = getDoc(s.tx, model.PhaseRulesPath(id))
+	return RulesResult{Type: "phase", ID: id, Rules: e.Rules}, nil
+}
+
+// PlanRulesLog returns every version of a plan's rules, newest first.
+func (m *Mull) PlanRulesLog(slug string) (RulesLog, error) {
+	if _, err := m.PlanRules(slug); err != nil {
+		return RulesLog{}, err
+	}
+	return m.rulesLog("plan", slug, model.PlanRulesPath(slug))
+}
+
+// PhaseRulesLog returns every version of a phase's rules, newest first.
+func (m *Mull) PhaseRulesLog(id string) (RulesLog, error) {
+	if _, err := m.PhaseRules(id); err != nil {
+		return RulesLog{}, err
+	}
+	return m.rulesLog("phase", id, model.PhaseRulesPath(id))
+}
+
+// rulesLog is docLog for rules: the same history, with rules for doc.
+func (m *Mull) rulesLog(typ, id, path string) (RulesLog, error) {
+	out := RulesLog{Type: typ, ID: id, Versions: []RulesVersion{}}
+	l, err := m.docLog(typ, id, path)
+	if err != nil {
+		return out, err
+	}
+	for _, v := range l.Versions {
+		out.Versions = append(out.Versions, RulesVersion{Commit: v.Commit, At: v.At, Rules: v.Doc})
+	}
+	return out, nil
+}
