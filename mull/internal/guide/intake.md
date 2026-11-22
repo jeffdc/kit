@@ -26,6 +26,7 @@ If the repo already has a `mull` branch (`mull view` works), its records may com
 Propose, and wait for approval:
 - the integration branch (where work lands) and the release branch;
 - for a plan whose work lands on a branch of its own (a long-running feature or integration branch, not the integration branch), that branch as the plan's target: a `plan set` line (`"field": "target"`) after its `plan new`, or `mull plan set <slug> target <branch>`. Seen in git is measured against each plan's target;
+- for a plan whose target a running server shows (a dev or staging server the project keeps on that branch), its URL as the plan's preview: a `plan set` line (`"field": "preview"`), or `mull plan set <slug> preview <url>`. Workers get it from `mull context --item`. mull only records it: keeping the server up is the project's;
 - the hard checks `mull done` should run. Ideally that's one make target, e.g. `make done-checks`. If none exists, propose one, but don't create it without approval;
 - layers: path globs for `ui`, `tests` and the other main areas of the code.
 

@@ -2,6 +2,7 @@ package mull
 
 import (
 	"fmt"
+	"net/url"
 	"slices"
 	"strings"
 
@@ -704,7 +705,8 @@ type SetResult struct {
 
 // Set changes one field of a plan, phase or item.
 //
-//	plan: title, summary, target (a branch; "" falls back to config integration)
+//	plan: title, summary, target (a branch; "" falls back to config integration),
+//	preview (the URL serving its target; "" clears it)
 //	phase: title, summary
 //	item: title, notes, category, phase ("" to unfile), doc (adds a path), and for a
 //	captured item plan ("none" to untag; a phase in another plan retags it) and kind (bug or idea)
@@ -734,8 +736,14 @@ func (m *Mull) set(s *state, ref, field, value string) (SetResult, error) {
 				return SetResult{}, err
 			}
 			p.Target = target
+		case "preview":
+			preview, err := checkPreview(value)
+			if err != nil {
+				return SetResult{}, err
+			}
+			p.Preview = preview
 		default:
-			return SetResult{}, errf(CodeInvalid, "a plan's settable fields are title, summary and target")
+			return SetResult{}, errf(CodeInvalid, "a plan's settable fields are title, summary, target and preview")
 		}
 		p.Updated = now
 		return SetResult{Type: "plan", Plan: p}, s.putPlan(p)
@@ -845,6 +853,21 @@ func (m *Mull) checkTarget(value string) (string, error) {
 	}
 	if _, err := m.repo.Output(nil, nil, "check-ref-format", "--branch", value); err != nil || strings.HasPrefix(value, "-") {
 		return "", errf(CodeInvalid, "%q is not a valid branch name", value)
+	}
+	return value, nil
+}
+
+// checkPreview validates a plan's preview: an absolute http or https URL
+// with a host. mull never fetches it, so a server that isn't up is fine.
+// "" clears it.
+func checkPreview(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", nil
+	}
+	u, err := url.Parse(value)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return "", errf(CodeInvalid, "%q is not a preview URL: give the http or https URL that serves the plan's target, such as http://localhost:4000", value)
 	}
 	return value, nil
 }
