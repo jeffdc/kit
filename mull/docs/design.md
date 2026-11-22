@@ -34,7 +34,7 @@ New mull is the record of a program: its plans, where they stand, and everything
 
 | Record | What it is | Fields | Who writes it |
 |---|---|---|---|
-| **Plan** | A large effort, such as `taxogall`. High-level only. | id (plain-English slug, e.g. `taxogall`, `general`), title, summary, doc, rules, its own hard checks, state `shaping`, `active` or `done`, target (the branch its work lands on; config's integration branch when unset) | You |
+| **Plan** | A large effort, such as `taxogall`. High-level only. | id (plain-English slug, e.g. `taxogall`, `general`), title, summary, doc, rules, its own hard checks, state `shaping`, `active` or `done`, target (the branch its work lands on; config's integration branch when unset), preview (the URL that serves its target) | You |
 | **Phase** | A big piece of a plan; a set of items. Called an epic before Model v2. | id (4-hex), plan (required), title, summary, doc, rules, needs (phases only), from | You, or agents on your instruction |
 | **Item** | A unit of work **one agent completes in one session.** | id (4-hex), plan (optional), phase (optional), rank, title, notes, docs (paths), stage, claim, from (the inbox entry it was made from, or the done item it follows up; no needs: see "Ordering") | Agents and you |
 | **Captured item** | The backlog: a bug or an idea, not work until you commit it (see "The backlog") | an item at stage `captured`, plus kind (`bug` or `idea`), category, source, triaged; a short note as its notes; optionally tagged to a plan or phase | Anyone captures; only you commit |
@@ -271,6 +271,11 @@ Bare 4-hex mentions in commit prose are not counted, because they collide with h
 - Unlinked commits are still counted on the integration branch only.
 - Each target's history is read once (up to 5000 commits, cached by its tip), so a plan that shares integration costs nothing extra.
 
+**A preview per plan** (plan `supervised-work`). A plan's `preview` is the URL that serves its target branch (a dev or staging server the project runs), set with `mull plan set <slug> preview <url>` (or `mull set <slug> preview <url>`; `""` clears it). It's where the human walks a tour once the work is merged into the target.
+- It's an absolute `http` or `https` URL with a host, such as `http://localhost:4000`. Anything else is refused (`invalid_argument`).
+- `mull context --item` hands the worker its item's `target` (the plan's, or integration) and the plan's `preview`; the view shows the preview under the plan's target, and `context` lists it with each plan.
+- mull only records it. It never runs, restarts, fetches or health-checks the server, so a preview that's down is still a preview. There's no config fallback: unplanned work, and a plan that gives none, has no preview.
+
 ## Done: deterministic, with mull as the only path
 
 The agent runs `mull done <id> --summary "…" --tour "…" --design -` when it says it's finished. mull then works through these steps:
@@ -324,7 +329,7 @@ layers:
 
 ## The view
 
-`mull view [--plan p] [--text]`, with one block per open plan (active, then shaping), then unplanned work, the backlog's untriaged count and unlinked commits. Each plan's block opens with its target branch, marked `(integration)` when the plan falls back to it, and how far that branch is ahead of release. With `--text`:
+`mull view [--plan p] [--text]`, with one block per open plan (active, then shaping), then unplanned work, the backlog's untriaged count and unlinked commits. Each plan's block opens with its target branch, marked `(integration)` when the plan falls back to it, and how far that branch is ahead of release, then its preview URL when it has one. With `--text`:
 
 ```
 integration taxogall · 166 ahead of main · 2026-11-09
@@ -390,7 +395,7 @@ The ops are every write except `init`, `sync`, `migrate`, `check` and `done`.
 | Group | Commands |
 |---|---|
 | Setup | `mull init [--integration b] [--release b]` · `mull config [set\|checks … --on-request\|layer …]` · `mull sync [--dry-run]` · `mull migrate [--dry-run] [--text] [--on-request]` |
-| Plans (you) | `mull plan new <slug> "title" [--summary -] --on-request` · `plan agree <slug> --on-request` · `plan list` · `plan show <slug>` · `plan set <slug> title\|summary\|target <value>` · `plan doc <slug> [-] [--log]` · `plan rules <slug> [-] [--log]` · `plan checks <slug> ["<cmd>" …] --on-request` · `plan close <slug>` |
+| Plans (you) | `mull plan new <slug> "title" [--summary -] --on-request` · `plan agree <slug> --on-request` · `plan list` · `plan show <slug>` · `plan set <slug> title\|summary\|target\|preview <value>` · `plan doc <slug> [-] [--log]` · `plan rules <slug> [-] [--log]` · `plan checks <slug> ["<cmd>" …] --on-request` · `plan close <slug>` |
 | Phases | `mull phase add "title" --plan <slug> [--needs …] [--summary -]` · `phase list [--plan]` · `phase doc <id> [-] [--log]` · `phase rules <id> [-] [--log]` · `phase delete <id> --on-request` · `show <id>` |
 | Items | `mull add "title" (--plan <slug> \| --phase <id> \| --plan none \| --follow-up <done-id>) [--notes -] [--doc path]` · `show` · `list [--plan] [--phase] [--state] [--kind] [--untriaged]` · `set` · `drop` |
 | Dependencies and order | `mull need <phase> <phase…>` · `mull unneed <phase> <phase…>` · `mull rank <phase\|plan\|none> <ids…>` · `mull ready [--plan]` |
@@ -399,7 +404,7 @@ The ops are every write except `init`, `sync`, `migrate`, `check` and `done`.
 | Backlog | `mull bug "title"` · `idea "title"`, each with `[--detail -] [--source …] [--plan \| --phase] [--category …]` · `commit <id> [--plan \| --phase \| --plan none] --on-request` · `triage <id…> --on-request` (or `--all [--plan <slug>\|none]`) |
 | Batch | `mull batch [--dry-run] < ops.jsonl` |
 | Settle (you, or an agent on your request) | `mull inbox [--kind] [--plan] [--parked]` · `accept <id…> [--follow-up "…"]` · `decide <id> "text"` · `do <id> [--plan] [--phase] [--as phase] [--reason "…"]` · `drop <id…> [--reason "…"]` · `park <id> "reason"` |
-| Read (agents) | `mull view [--plan] [--text]` · `mull context [--item <id>]` (compact JSON for the start of a session: the protocol reminder, the shaping and active plans with their targets and phases, ready and active items, your claims, recent decisions, and for the item its phase's doc, its plan's and phase's rules, open questions and last report) · `decisions [--plan]` · `report <id> [--n] [--text]` |
+| Read (agents) | `mull view [--plan] [--text]` · `mull context [--item <id>]` (compact JSON for the start of a session: the protocol reminder, the shaping and active plans with their targets, previews and phases, ready and active items, your claims, recent decisions, and for the item its target and preview, its phase's doc, its plan's and phase's rules, open questions and last report) · `decisions [--plan]` · `report <id> [--n] [--text]` |
 | Guides | `mull guide agents` · `mull guide intake` · `mull guide supervisor` · `mull guide triage` · `mull guide json` (the output shapes and error codes) |
 | The human's view | `mull serve [--port n]` · `mull serve --install` · `mull serve --uninstall` |
 

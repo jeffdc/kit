@@ -21,6 +21,7 @@ This project's plans, work items, backlog and open questions live in **mull**: a
    - Read the decisions it lists, and don't re-decide anything the log already settles.
    - Read the item's `docs` and its `phase_doc` (the phase's design and when it's done). Docs hold intent only. Status comes from mull, never from a doc.
    - Follow its `plan_rules`, then its `phase_rules`, when it has them: the human's standing rules for work in that plan and phase (how to set up, what to use, what not to touch). They come in full with the item, so nothing else needs to repeat them.
+   - Its `target` is the branch your work lands on. Its `preview`, when the plan gives one, is the URL that serves that branch, where the human sees your work once it's merged there. mull only records the preview, and never runs or checks the server.
 2. **One item per session.**
    - Claim it with `mull start <id>`. Your item is committed work (`mull ready`), or a captured item the human wants done now: starting commits it.
    - Work on a branch named `<id>-<short-name>`, made from the tip of the item's plan's target branch (`target.branch` on its plan in `mull context`; the integration branch for unplanned work). Make it before `mull start`, so the claim records the branch and the commit it started from.

@@ -11,6 +11,7 @@ When you settle or file more than a couple of records at once, use `mull batch`.
 - Read the docs of the plans and phases you're working in (`mull plan doc <slug>`, `mull phase doc <id>`): the picture, when each is done, and why the order. Docs hold intent only; status comes from mull.
 - Read their rules too (`mull plan rules <slug>`, `mull phase rules <id>`): what every worker there is told. You review against them.
 - Read `mull decisions`. Workers must not re-decide what's settled, and neither must you.
+- Know where each plan's work lands and where it can be seen: `mull view` shows each plan's target and, when it has one, its preview (the URL serving that target, which workers get from `mull context --item`). mull never runs the preview server. A plan with a server but no `preview` is a gap to propose to the human with `mull ask`: setting it (`mull plan set <slug> preview <url>`) is theirs, like the plan's other fields.
 
 ## Handing out work
 - Pick from `mull ready`. These items are committed, in agreed plans, in phases whose needs are done. They're in order: by phase schedule, then by rank within each group, so hand out work from the top; only phases need other phases, and rank never holds work back.

@@ -560,6 +560,7 @@ func planChange(a, b *model.Plan) (Change, bool) {
 		f.short("title", a.Title, b.Title)
 		f.short("state", a.State, b.State)
 		f.short("target", a.Target, b.Target)
+		f.short("preview", a.Preview, b.Preview)
 		f.text("summary", a.Summary, b.Summary)
 		f.text("checks", strings.Join(a.Checks, "\n"), strings.Join(b.Checks, "\n"))
 		return f
