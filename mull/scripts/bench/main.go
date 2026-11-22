@@ -38,7 +38,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: bench seed -size small|medium|large -dir <dir> [-seed n]\n       bench run [-n runs] [-url live-server] [-back 10,1000,10000] [-json] <repo>...")
+	fmt.Fprintln(os.Stderr, "usage: bench seed -size small|medium|large -dir <dir> [-seed n] [-targets n]\n       bench run [-n runs] [-url live-server] [-back 10,1000,10000] [-json] <repo>...")
 	os.Exit(2)
 }
 
@@ -47,11 +47,13 @@ func seed(args []string) error {
 	size := fs.String("size", "large", "small, medium or large")
 	dir := fs.String("dir", "", "where to create the repository (skipped if it exists)")
 	n := fs.Uint64("seed", 1, "random seed: the same seed gives the same records")
+	targets := fs.Int("targets", 0, "how many active plans (0 to 2) get a target branch of their own")
 	fs.Parse(args)
 	s, ok := bench.Sizes[*size]
 	if !ok || *dir == "" {
 		usage()
 	}
+	s.Targets = *targets
 	if _, err := os.Stat(*dir); err == nil {
 		fmt.Fprintf(os.Stderr, "%s exists; not reseeding\n", *dir)
 		return nil

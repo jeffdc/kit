@@ -73,12 +73,19 @@ function claimField(it) {
   return ["Worked in", `${where} <small>${branch}from ${esc(day(c.at))}</small>`];
 }
 
+// gitField: what git says about the item's work, measured against its
+// plan's target branch: landed there (and when the commit that brought it
+// in was made), or still only on other branches.
 function gitField(g) {
-  if (!g.seen_in_git) return `<span class="mut">no commits yet</span>`;
-  const parts = [plural(g.landed_commits, "landed commit")];
+  const target = `<code>${esc(g.target)}</code>`;
+  if (!g.seen_in_git && !g.unmerged_commits) return `<span class="mut">no commits yet</span> <small>lands on ${target}</small>`;
+  const parts = [g.seen_in_git ? `${plural(g.landed_commits, "commit")} on ${target}` : `not on ${target} yet`];
   if (g.unmerged_commits) parts.push(`${g.unmerged_commits} unmerged`);
-  const branches = g.branches?.length ? ` · ${g.branches.map(esc).join(", ")}` : "";
-  return `${parts.join(" · ")} <small>${g.last_activity ? `last ${esc(ago(g.last_activity))}` : ""}${branches}</small>`;
+  const notes = [];
+  if (g.merged_at) notes.push(`merged ${esc(ago(g.merged_at))}`);
+  else if (g.last_activity) notes.push(`last ${esc(ago(g.last_activity))}`);
+  if (g.branches?.length) notes.push(g.branches.map(esc).join(", "));
+  return `${parts.join(" · ")}${notes.length ? ` <small>${notes.join(" · ")}</small>` : ""}`;
 }
 
 // review: the packet, what was built (does it work?) beside how (was it

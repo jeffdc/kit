@@ -84,10 +84,7 @@ func (m *Mull) summary(s *state) (Summary, error) {
 // summaryRefs fills in the integration branch and how far it is ahead of
 // the release branch.
 func (m *Mull) summaryRefs(s *state, out *Summary) error {
-	out.Integration = s.config.Integration
-	if out.Integration == "" {
-		out.Integration = "main"
-	}
+	out.Integration = s.integration()
 	_, heads, err := m.branchHeads()
 	if err != nil {
 		return err

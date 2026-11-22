@@ -80,6 +80,7 @@ var ops = map[string]opDef{
 	"plan agree":    {func() Input { return &PlanAgreeIn{} }, "slug, on-request"},
 	"plan close":    {func() Input { return &PlanCloseIn{} }, "slug"},
 	"plan doc":      {func() Input { return &PlanDocIn{} }, "slug, doc"},
+	"plan set":      {func() Input { return &PlanSetIn{} }, "slug, field, value"},
 	"plan rules":    {func() Input { return &PlanRulesIn{} }, "slug, rules"},
 	"phase add":     {func() Input { return &PhaseAddIn{} }, "title, plan, summary, needs"},
 	"phase doc":     {func() Input { return &PhaseDocIn{} }, "id, doc"},
@@ -182,6 +183,22 @@ func (in *PlanCloseIn) run(m *Mull, s *state) (any, string, error) {
 		return nil, "", err
 	}
 	return p, p.Slug, nil
+}
+
+// PlanSetIn is set, for plans only: title, summary or target.
+type PlanSetIn struct {
+	Slug  string `json:"slug"`
+	Field string `json:"field"`
+	Value string `json:"value"`
+}
+
+func (in *PlanSetIn) refFields() ([]*string, []*IDList) { return []*string{&in.Slug}, nil }
+func (in *PlanSetIn) run(m *Mull, s *state) (any, string, error) {
+	if _, err := s.plan(in.Slug); err != nil {
+		return nil, "", err
+	}
+	r, err := m.set(s, in.Slug, in.Field, in.Value)
+	return r, in.Slug, err
 }
 
 type PhaseAddIn struct {

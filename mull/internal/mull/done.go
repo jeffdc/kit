@@ -309,6 +309,7 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 	wt := m.Worktree()
 	var cfg model.Config
 	var claim model.Claim
+	var target string
 	err := m.view(func(s *state) error {
 		cfg = s.config
 		i, err := s.item(id)
@@ -319,6 +320,7 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 			return err
 		}
 		claim = *i.Claim
+		target, _ = s.targetOf(i.Plan)
 		return nil
 	})
 	if err != nil {
@@ -343,7 +345,7 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 		checks = outcome.CheckRun
 	}
 
-	changes, base, err := m.changes(cfg, claim.Base, checks.Commit)
+	changes, base, err := m.changes(cfg, target, claim.Base, checks.Commit)
 	if err != nil {
 		return out, err
 	}
@@ -433,15 +435,12 @@ func ownActive(i *model.Item, wt string) error {
 }
 
 // changes lists files changed from the claim's base (or the merge base with
-// the integration branch) to commit, grouped by configured layer.
-func (m *Mull) changes(cfg model.Config, claimBase, commit string) ([]model.LayerChanges, string, error) {
+// target, the item's plan's target branch) to commit, grouped by configured
+// layer.
+func (m *Mull) changes(cfg model.Config, target, claimBase, commit string) ([]model.LayerChanges, string, error) {
 	base := claimBase
 	if base == "" || !m.hasCommit(base) {
-		integ := cfg.Integration
-		if integ == "" {
-			integ = "main"
-		}
-		mb, err := m.repo.Output(nil, nil, "merge-base", "refs/heads/"+integ, commit)
+		mb, err := m.repo.Output(nil, nil, "merge-base", "refs/heads/"+target, commit)
 		if err != nil {
 			return nil, "", nil // no common base: report no changes rather than fail
 		}

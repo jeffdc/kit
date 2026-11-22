@@ -55,4 +55,4 @@ Unreviewed work is incomplete work. An item is in review after `mull done`, and 
 
 ## End of session
 - Run `mull sync`.
-- Give the human a short status: the phases' progress, what landed, what's blocked, the inbox count by kind, and how many captured items are untriaged.
+- Give the human a short status: the phases' progress, what landed on each plan's target branch (`mull view` shows each plan's target), what's blocked, the inbox count by kind, and how many captured items are untriaged.

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"mull/internal/model"
+	"mull/internal/store"
 )
 
 // Every write has an inner form that runs on a transaction's state (used by
@@ -703,7 +704,7 @@ type SetResult struct {
 
 // Set changes one field of a plan, phase or item.
 //
-//	plan: title, summary
+//	plan: title, summary, target (a branch; "" falls back to config integration)
 //	phase: title, summary
 //	item: title, notes, category, phase ("" to unfile), doc (adds a path), and for a
 //	captured item plan ("none" to untag; a phase in another plan retags it) and kind (bug or idea)
@@ -727,8 +728,14 @@ func (m *Mull) set(s *state, ref, field, value string) (SetResult, error) {
 			p.Title = value
 		case "summary":
 			p.Summary = value
+		case "target":
+			target, err := m.checkTarget(value)
+			if err != nil {
+				return SetResult{}, err
+			}
+			p.Target = target
 		default:
-			return SetResult{}, errf(CodeInvalid, "a plan's settable fields are title and summary")
+			return SetResult{}, errf(CodeInvalid, "a plan's settable fields are title, summary and target")
 		}
 		p.Updated = now
 		return SetResult{Type: "plan", Plan: p}, s.putPlan(p)
@@ -823,6 +830,23 @@ func (m *Mull) set(s *state, ref, field, value string) (SetResult, error) {
 		return SetResult{Type: "item", Item: &v}, nil
 	}
 	return SetResult{}, errf(CodeNotFound, "no plan, phase or item %q", ref)
+}
+
+// checkTarget validates a plan's target branch: a name git accepts for a
+// branch, and not mull's own. The branch needn't exist yet (the view says
+// when it doesn't). "" clears it, so the plan falls back to integration.
+func (m *Mull) checkTarget(value string) (string, error) {
+	value = strings.TrimPrefix(strings.TrimSpace(value), "refs/heads/")
+	if value == "" {
+		return "", nil
+	}
+	if "refs/heads/"+value == store.Ref {
+		return "", errf(CodeInvalid, "%q is mull's own branch; a plan's target is where its code lands", value)
+	}
+	if _, err := m.repo.Output(nil, nil, "check-ref-format", "--branch", value); err != nil || strings.HasPrefix(value, "-") {
+		return "", errf(CodeInvalid, "%q is not a valid branch name", value)
+	}
+	return value, nil
 }
 
 // ---- Dependencies ----
