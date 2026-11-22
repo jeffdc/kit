@@ -26,7 +26,10 @@ What it solves: agents picking the wrong item next, priority within a phase, and
 
 An agent told "do X first" runs one `mull rank`, the next `mull ready` lists X first, starting something ranked after X warns, and mull serve shows the same order.
 
+## Settled
+
+- **How mull serve shows rank** (Jeff, 2026-11-18): a position number (1, 2, 3, equal ranks sharing one) on open items in a group's table, with done and dropped after them, unnumbered. Reordering is up and down arrows on each open row.
+
 ## Open
 
-- How mull serve shows rank: a number, or position only.
-- Whether `mull rank` takes a partial list (the listed items first, the rest after them in their current order) as a convenience, or stays strict.
+- Whether `mull rank` takes a partial list (the listed items first, the rest after them in their current order) as a convenience, or stays strict (ed34). It's strict for now; the question is in the inbox.
