@@ -34,6 +34,8 @@ export function planSheet(pr, r, data, page, body) {
     ["Can start now", st.now.length ? plural(st.now.length, "phase") : `<span class="mut">none</span>`],
     ["Go live", st.go_live ? `<a href="${esc(href.phase(pid, st.go_live.id))}">${esc(st.go_live.title)}</a>` : `<span class="mut">not set</span>`],
     ["Open questions", `${st.questions}${stamp(st.blocking)}`],
+    ...(st.overlaps?.length ? [["Overlap", st.overlaps.map(o => `<div>${o.items.map(i => copyId(i.id, `<a href="${esc(href.item(pid, i.id))}" title="${esc(i.title)}"><code>${esc(i.id)}</code></a>`)).join(" and ")} ` +
+      `<small title="${esc(o.files.join("\n"))}">both change ${plural(o.files.length, "file")}</small></div>`).join("")]] : []),
     ["Plan doc", !p.doc ? `<span class="mut">not written</span>`
       : docCloud ? `<a href="${esc(href.plan(pid, slug))}/doc">changed</a> <small>since ${since}</small>` : `<small>no changes since ${since}</small>`],
     ["Rules", !p.rules ? `<span class="mut">none</span>`

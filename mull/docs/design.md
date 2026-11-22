@@ -260,7 +260,7 @@ mull derives from git:
 | **Linked commits** | Commits with the trailer, or reached through a branch or merge carrying the ID |
 | **Seen in git** | The item's linked commits are reachable from its plan's target branch, so its work has landed. Shown next to `done`, never a gate |
 | **Merged at** | When the work came into the target: the date of the target's first-parent commit that brought in the item's latest linked commit (the merge, or the commit itself when it was made on the target). Derived each time, never stored |
-| **Problems** | An active claim with no linked commits for a day; an item in review with nothing seen in git on its target after three days, or accepted (done) with nothing there at once (work in review may not be merged yet, but accepted work belongs on the target); a failed done attempt; recent commits on an item nobody has claimed; commits carrying a done item's trailer, on any branch, written after it was accepted (see "Follow-ups"); commits on the integration branch with no link, shown as a count |
+| **Problems** | An active claim with no linked commits for a day; an item in review with nothing seen in git on its target after three days, or accepted (done) with nothing there at once (work in review may not be merged yet, but accepted work belongs on the target); a failed done attempt; recent commits on an item nobody has claimed; commits carrying a done item's trailer, on any branch, written after it was accepted (see "Follow-ups"); two items in flight whose branches changed the same files (see "Overlap" below); commits on the integration branch with no link, shown as a count |
 
 Bare 4-hex mentions in commit prose are not counted, because they collide with hashes.
 
@@ -270,6 +270,13 @@ Bare 4-hex mentions in commit prose are not counted, because they collide with h
 - The target is any name git accepts for a branch, other than `mull`. It needn't exist yet, and the view says when it doesn't.
 - Unlinked commits are still counted on the integration branch only.
 - Each target's history is read once (up to 5000 commits, cached by its tip), so a plan that shares integration costs nothing extra.
+
+**Overlap** (plan `supervised-work`). Parallel items that change the same files collide when they land, or each build the same thing their own way. mull derives it from what the branches actually changed, never from declared areas (add those only if this turns out to come too late):
+- **In flight** is active, or in review with none of its work on its plan's target yet. Once an item's work is on the target it's out of the comparison: what comes after it builds on it.
+- **Work branches.** An item's are its claim's branch, when that's a local branch other than a target, the release branch or `mull`, and its other unmerged branches named `<id>-…`. An item with none (claimed on the target, or its branch on another machine) isn't read.
+- **What a branch changed** runs from its merge base with the item's plan's target to its tip, so what the branch took in from the target since it was claimed (a rebase, a merge of the target) isn't counted. When the claim's base is later than that or isn't on the target (work started on another item's branch), it runs from the claim's base instead, so work stacked on another branch doesn't overlap with it. Renames count both paths.
+- **Shown** as an `overlap` problem in `mull view`, on each plan's side of the pair (on the first in ID order when both are in the plan), naming the other item and the files both changed; and in `mull serve`, as an Overlap row in the plan's block on the project overview and an Overlap field on the plan's sheet. It's every pair across the project, so items in different plans show in both.
+- **Cost.** Each item in flight costs up to three git calls (the merge base, whether the claim's base is on it, and the diff), cached by those commit IDs, so a read recomputes only the items whose branch or target moved.
 
 ## Done: deterministic, with mull as the only path
 
@@ -337,9 +344,10 @@ TAXOGALL  Taxogall
     8b2e  Phase 2                      ▰▰▰▰▱▱▱▱▱  4/9 done · 1 in review · 2 active · 2 ready
     d470  Notes                        ▱▱▱        0/3 done · blocked by 8b2e
     e915  Cutover                      ▱          0/1 done · blocked by 8b2e, d470
-  PROBLEMS (2)
+  PROBLEMS (3)
     d3b0  claimed 3d ago by agent-1, no linked commits for a day
     d3b0  done attempt 1 failed its checks (reports/d3b0-1.md)
+    cb28  shares 2 changed files with d3b0 (active): lib/web/layout.ex, assets/css/app.css
   IN FLIGHT
     cb28  Add a taxon from iNat                agent-2 · cb28-inat · 6 commits · last 3h
     d3b0  Unified edit model                   agent-1 · d3b0-edit-model · 2 commits · last 3d
