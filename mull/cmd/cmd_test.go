@@ -241,6 +241,17 @@ func TestUsageErrorsHaveACode(t *testing.T) {
 	// One flag name for an inbox entry's extra text: --detail. --why is gone.
 	r.fails("usage", "decided", "x", "--why", "because")
 	r.ok("decided", "x", "--detail", "because")
+	// --human is the human's own decision: only on request, and only decided takes it.
+	r.fails("not_allowed", "decided", "y", "--human")
+	r.fails("invalid_argument", "decided", "y", "--on-request")
+	r.fails("usage", "ask", "y", "--human")
+	e := r.ok("decided", "y", "--human", "--on-request", "--detail", "said so")
+	if st, _ := e["settled"].(map[string]any); st["action"] != "decide" || st["note"] != "y" || st["on_request"] != true {
+		t.Fatalf("decided --human = %v", e)
+	}
+	if n := len(r.ok("inbox")["entries"].([]any)); n != 1 {
+		t.Fatalf("inbox has %d entries, want only the agent's decision", n)
+	}
 }
 
 func TestDocCommands(t *testing.T) {
