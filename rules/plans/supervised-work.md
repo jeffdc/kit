@@ -1,0 +1,8 @@
+- Code is in `mull/`. Read `mull/CLAUDE.md` and the parts of `mull/docs/design.md` your item touches before changing anything.
+- Work in your own worktree. Create your branch `<id>-<name>` from main's tip *before* `mull start`, so the claim records it.
+- Don't run `make dev`, `make install`, or start or kill any server. Test with `make test` and go tests, in temporary repos only.
+- Write UI tours as steps against `make dev`'s demo (http://localhost:6899/#/demo); Jeff walks them after merge.
+- Never `rm`/`mv` files or run destructive git commands. Never push code, merge into main, or run `mull accept`. `mull sync` is fine.
+- Other workers run in parallel: touch `docs/design.md`, `internal/guide/*.md`, kit's `AGENTS.md` and other shared files only where your item needs it.
+- Wherever behaviour or output changes, update `docs/design.md`, the guides, `mull guide json` and kit's `AGENTS.md` copy of the agents guide.
+- For a change to a read path, run `make bench` before and after and put the numbers in the design notes.
