@@ -316,7 +316,16 @@ func planCmd(a *app) *cobra.Command {
 		},
 	}
 	checks.Flags().BoolVar(&checksIn.OnRequest, "on-request", false, "an agent changing the checks on the human's explicit instruction")
-	c.AddCommand(newC, agree, list, show, set, doc, rules, checks, closeC)
+	shared := &cobra.Command{
+		Use: "shared <slug> [glob...]",
+		Short: "Replace the plan's shared globs: files its parallel work shares (layout, components, styles), " +
+			"whose changes done flags in the report (globs as config layer's: * within a path segment, ** across them; none clears)",
+		Args: atLeast(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.write("plan shared", &mull.PlanSharedIn{Slug: args[0], Globs: args[1:]})
+		},
+	}
+	c.AddCommand(newC, agree, list, show, set, doc, rules, checks, shared, closeC)
 	return c
 }
 

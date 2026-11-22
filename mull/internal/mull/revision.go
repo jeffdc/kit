@@ -563,6 +563,7 @@ func planChange(a, b *model.Plan) (Change, bool) {
 		f.short("preview", a.Preview, b.Preview)
 		f.text("summary", a.Summary, b.Summary)
 		f.text("checks", strings.Join(a.Checks, "\n"), strings.Join(b.Checks, "\n"))
+		f.short("shared", strings.Join(a.Shared, " "), strings.Join(b.Shared, " "))
 		return f
 	}, func(p *model.Plan, c *Change) {
 		c.Type, c.ID, c.Title, c.Plan, c.State = RecordPlan, p.Slug, p.Title, p.Slug, p.State

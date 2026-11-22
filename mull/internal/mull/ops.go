@@ -83,6 +83,7 @@ var ops = map[string]opDef{
 	"plan set":      {func() Input { return &PlanSetIn{} }, "slug, field, value"},
 	"plan rules":    {func() Input { return &PlanRulesIn{} }, "slug, rules"},
 	"plan checks":   {func() Input { return &PlanChecksIn{} }, "slug, commands, on-request"},
+	"plan shared":   {func() Input { return &PlanSharedIn{} }, "slug, globs"},
 	"phase add":     {func() Input { return &PhaseAddIn{} }, "title, plan, summary, needs"},
 	"phase doc":     {func() Input { return &PhaseDocIn{} }, "id, doc"},
 	"phase rules":   {func() Input { return &PhaseRulesIn{} }, "id, rules"},
@@ -288,6 +289,21 @@ type PlanChecksIn struct {
 func (in *PlanChecksIn) refFields() ([]*string, []*IDList) { return []*string{&in.Slug}, nil }
 func (in *PlanChecksIn) run(m *Mull, s *state) (any, string, error) {
 	p, err := m.planChecks(s, in.Slug, in.Commands, in.OnRequest)
+	if err != nil {
+		return nil, "", err
+	}
+	return p, p.Slug, nil
+}
+
+// PlanSharedIn replaces a plan's shared globs; no globs removes them.
+type PlanSharedIn struct {
+	Slug  string  `json:"slug"`
+	Globs StrList `json:"globs"`
+}
+
+func (in *PlanSharedIn) refFields() ([]*string, []*IDList) { return []*string{&in.Slug}, nil }
+func (in *PlanSharedIn) run(m *Mull, s *state) (any, string, error) {
+	p, err := m.planShared(s, in.Slug, in.Globs)
 	if err != nil {
 		return nil, "", err
 	}

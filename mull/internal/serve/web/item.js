@@ -131,10 +131,19 @@ function review(pid, it, page) {
       : `<span class="decn-acts">${writeButton({ pid, key: ak, ops: [{ op: "accept", ids: [d.id] }], label: "Approve", ask: "Approve?", done: `Approved decision ${d.id}.`, confirm: false })}${dd.button}</span>`;
     return `<div class="decn">${copyId(d.id)}<span>${esc(d.text)}</span>${act}${d.detail ? `<span class="why">${esc(d.detail)}</span>` : ""}${s?.note && s.action !== "accept" ? `<span class="why">${esc(s.note)}</span>` : ""}${s ? "" : failure(ak, `Approving ${d.id}`)}${dd ? dd.form : ""}</div>`;
   }).join("") : `<p class="sub" style="margin:6px 0 0">None.</p>`;
+  // Changes to the plan's shared files (its shared globs, as done found
+  // them) are flagged: a box in ink above the decisions, and a word in the
+  // files table. Ink only: they need a look, not an answer.
+  const sharedPaths = new Set((r.shared || []).map(f => f.path));
+  const shared = r.shared?.length
+    ? `<div class="shared"><span class="lab">Shared files changed · ${r.shared.length}</span>
+        <p class="sub">The plan lists these as shared by its parallel work. Check the change suits everything that uses them.</p>
+        ${r.shared.map(f => `<div class="sh"><code class="mut">${esc(f.status)}</code><code>${esc(f.path)}</code><span class="sub">shared: <code>${esc(f.glob)}</code></span></div>`).join("")}</div>`
+    : "";
   const files = (r.changes || []).map(l => {
     const add = l.files.reduce((n, f) => n + f.added, 0), del = l.files.reduce((n, f) => n + f.removed, 0);
     return `<tr class="grp-h"><td><b>${esc(l.layer)}</b></td><td class="n">${plural(l.files.length, "file")}</td><td class="n mono">+${add}</td><td class="n mono">−${del}</td></tr>` +
-      l.files.map(f => `<tr><td><code class="mut">${esc(f.status)}</code> <code>${esc(f.path)}</code></td><td></td><td class="n mono">+${f.added}</td><td class="n mono">−${f.removed}</td></tr>`).join("");
+      l.files.map(f => `<tr><td><code class="mut">${esc(f.status)}</code> <code>${esc(f.path)}</code>${sharedPaths.has(f.path) ? ` <span class="sub">shared</span>` : ""}</td><td></td><td class="n mono">+${f.added}</td><td class="n mono">−${f.removed}</td></tr>`).join("");
   }).join("");
   return `<section class="review">
     <div class="rv-head"><h2>Review: does it work, and was it built well?</h2>${state}</div>${below}
@@ -146,6 +155,7 @@ function review(pid, it, page) {
         <span class="sub">Report ${r.n} · <code>${short(r.commit)}</code> from <code>${short(r.base)}</code> · ${esc(clock(r.at))}</span>${earlier}</section>
       <section><div class="hd"><h2>How it was built</h2><span class="lab">Sound design?</span></div>
         <div class="prose">${markdown(r.design, pid)}</div>
+        ${shared}
         <div><span class="lab">Decisions made in this session · ${decisions.length || "none"}</span>${decs}</div>
         ${files ? `<div><span class="lab">Files by layer</span><div class="tbl-wrap"><table class="t files"><tbody>${files}</tbody></table></div></div>` : ""}
       </section>

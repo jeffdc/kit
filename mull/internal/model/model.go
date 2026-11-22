@@ -147,6 +147,10 @@ type Plan struct {
 	// Checks are the plan's own hard checks: shell commands done runs for
 	// the plan's items after config's.
 	Checks []string `yaml:"checks,omitempty" json:"checks,omitempty"`
+	// Shared are path globs for the files the plan's parallel work shares
+	// (layout, components, styles): done flags an item's changes to them in
+	// its report.
+	Shared []string `yaml:"shared,omitempty" json:"shared,omitempty"`
 	// Legacy means the record was read in format 1 (see Format).
 	Legacy bool `yaml:"-" json:"-"`
 }
@@ -354,6 +358,14 @@ type LayerChanges struct {
 	Files []FileChange `yaml:"files" json:"files"`
 }
 
+// SharedChange is a changed file that matches one of the plan's shared
+// globs, as the done report flags it.
+type SharedChange struct {
+	Status string `yaml:"status" json:"status"` // A, M, D, R
+	Path   string `yaml:"path" json:"path"`
+	Glob   string `yaml:"glob" json:"glob"` // the first of the plan's shared globs it matches
+}
+
 // ReportDecision is a decision made in the session, as the done report
 // records it.
 type ReportDecision struct {
@@ -378,6 +390,10 @@ type Report struct {
 	Tour     []string       `yaml:"tour,omitempty" json:"tour,omitempty"`
 	Checks   CheckRun       `yaml:"checks" json:"checks"`
 	Changes  []LayerChanges `yaml:"changes,omitempty" json:"changes,omitempty"`
+	// Shared are the changed files that match the item's plan's shared
+	// globs when it was done, by path. Reports from before plans had shared
+	// globs have none.
+	Shared []SharedChange `yaml:"shared,omitempty" json:"shared,omitempty"`
 	// Design is how it was built and why. Reports made before mull done
 	// required it have none.
 	Design    string           `yaml:"design,omitempty" json:"design,omitempty"`
