@@ -242,7 +242,7 @@ type DocRef struct {
 	ID        string    `json:"id"`
 	Type      string    `json:"type"` // phase or item
 	Title     string    `json:"title"`
-	State     string    `json:"state"` // a phase's done, now or waits; an item's stage
+	State     string    `json:"state"` // a phase's done, awaiting-review, now or waits; an item's stage
 	Progress  *Progress `json:"progress,omitempty"`
 	Questions int       `json:"questions"`
 }

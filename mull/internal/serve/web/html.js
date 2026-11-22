@@ -36,8 +36,8 @@ export const href = {
 };
 
 // Stage and state words, and the tag style each one takes.
-const LABEL = { "in-review": "in review", go_live: "go live" };
-const STYLE = { "in-review": "review", active: "active" };
+const LABEL = { "in-review": "in review", "awaiting-review": "awaiting integration review", go_live: "go live" };
+const STYLE = { "in-review": "review", "awaiting-review": "review", active: "active" };
 export const stageLabel = s => LABEL[s] || s || "";
 export const tag = (state, label) => `<span class="tag s-${esc(STYLE[state] || state)}">${esc(label || stageLabel(state))}</span>`;
 

@@ -31,7 +31,9 @@ export function planSheet(pr, r, data, page, body) {
       : p.state === "done" ? `${tag("done", "closed")} <small>in the Archive</small>` : tag(p.state)],
     ["Target", targetField(st.target, pr.summary?.release)],
     ["Phases", st.phases ? `${st.built} of ${st.phases} done` : `<span class="mut">none yet</span>`],
-    ["Can start now", st.now.length ? plural(st.now.length, "phase") : `<span class="mut">none</span>`],
+    // status.now also holds the phases awaiting their integration review,
+    // which can't start: they're built.
+    ["Can start now", (n => n ? plural(n, "phase") : `<span class="mut">none</span>`)(st.now.filter(ph => ph.state === "now").length)],
     ["Go live", st.go_live ? `<a href="${esc(href.phase(pid, st.go_live.id))}">${esc(st.go_live.title)}</a>` : `<span class="mut">not set</span>`],
     ["Open questions", `${st.questions}${stamp(st.blocking)}`],
     ...(st.overlaps?.length ? [["Overlap", st.overlaps.map(o => `<div>${o.items.map(i => copyId(i.id, `<a href="${esc(href.item(pid, i.id))}" title="${esc(i.title)}"><code>${esc(i.id)}</code></a>`)).join(" and ")} ` +
@@ -93,7 +95,7 @@ function phaseTable(pid, slug, steps, ch) {
 
 function phaseRow(pid, ph, ch, group) {
   const link = href.phase(pid, ph.id), p = ph.progress, total = p.total - p.dropped;
-  const cls = [ph.state !== "now" ? "waits" : "", ch ? ch.cls(within.phase(ph.id)).trim() : ""].filter(Boolean).join(" ");
+  const cls = [ph.state !== "now" && ph.state !== "awaiting-review" ? "waits" : "", ch ? ch.cls(within.phase(ph.id)).trim() : ""].filter(Boolean).join(" ");
   return `<tr${cls ? ` class="${cls}"` : ""} data-href="${esc(link)}"${group ? ` data-group="${esc(group)}" hidden` : ""}><td>${copyId(ph.id)}</td>` +
     `<td><a class="ttl" href="${esc(link)}">${esc(ph.title)}</a>${ph.go_live ? ` <span class="tag">Go live</span>` : ""}${ph.summary ? `<span class="meta">${esc(ph.summary)}</span>` : ""}</td>` +
     `<td>${tag(ph.state)}${stamp(ph.blocking)}</td><td class="w">${cells(p)}</td>` +
@@ -118,7 +120,7 @@ function nextBlock(pid, page, ch) {
       return `<div class="ag nx${ch ? ch.cls(within.item(i.id)) : ""}" data-href="${esc(link)}">${copyId(i.id, `<a href="${esc(link)}"><code>${esc(i.id)}</code></a>`)}<a href="${esc(link)}" class="clip">${esc(i.title)}</a>${tag(itemStage(i))}</div>`;
     }).join("");
     return `<div class="plan"><div class="ph"><h3><a href="${esc(href.phase(pid, ph.id))}">${esc(ph.title)}</a>${stamp(ph.blocking)}</h3><span class="mono mut">${total ? `${p.done}/${total}` : ""}</span></div>
-      <div class="nx-list">${rows || `<div class="sub">No open items.</div>`}${more ? `<div class="sub">and ${more} more ready</div>` : ""}</div></div>`;
+      <div class="nx-list">${rows || `<div class="sub">${ph.state === "awaiting-review" ? "Every item is done. It's complete once its integration review is accepted." : "No open items."}</div>`}${more ? `<div class="sub">and ${more} more ready</div>` : ""}</div></div>`;
   }).join("");
 }
 

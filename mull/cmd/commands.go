@@ -456,7 +456,23 @@ func phaseCmd(a *app) *cobra.Command {
 		},
 	}
 	onRequestFlag(deleteCmd, &del.OnRequest)
-	c.AddCommand(add, list, doc, rules, deleteCmd)
+	var setIn mull.PhaseSetIn
+	set := &cobra.Command{
+		Use: "set <id> <title|summary|integration-review> <value>",
+		Short: "Change a phase's field. integration-review on means that once its items are done it awaits an integration review, " +
+			"and isn't complete (phases that need it stay blocked) until one is accepted; only the human turns it on or off. Value - reads stdin",
+		Args: exact(3),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			val, err := a.text(args[2])
+			if err != nil {
+				return err
+			}
+			setIn.ID, setIn.Field, setIn.Value = args[0], args[1], val
+			return a.write("phase set", &setIn)
+		},
+	}
+	set.Flags().BoolVar(&setIn.OnRequest, "on-request", false, "an agent changing integration-review on the human's explicit instruction")
+	c.AddCommand(add, list, set, doc, rules, deleteCmd)
 	return c
 }
 
@@ -549,7 +565,7 @@ func readyCmd(a *app) *cobra.Command {
 func setCmd(a *app) *cobra.Command {
 	return &cobra.Command{
 		Use:   "set <slug|id> <field> <value>",
-		Short: "Change a field (plan: title, summary, target, preview; phase: title, summary; item: title, notes, category, phase, doc; captured item: plan too, none untags, and kind bug or idea). Value - reads stdin",
+		Short: "Change a field (plan: title, summary, target, preview; phase: title, summary, integration-review (the human's: mull phase set); item: title, notes, category, phase, doc; captured item: plan too, none untags, and kind bug or idea). Value - reads stdin",
 		Args:  exact(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			val, err := a.text(args[2])
