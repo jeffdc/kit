@@ -402,7 +402,7 @@ func addCmd(a *app) *cobra.Command {
 	var needs, docs []string
 	c := &cobra.Command{
 		Use:   "add <title>",
-		Short: "Add an item: a unit of work one agent completes in one session (--phase implies its plan)",
+		Short: "Add an item: a unit of work one agent completes in one session (--phase implies its plan; --follow-up <done-id> takes the done item's)",
 		Args:  exact(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			in.Title, in.Needs, in.Doc = args[0], mull.SplitIDs(needs), docs
@@ -415,6 +415,7 @@ func addCmd(a *app) *cobra.Command {
 	}
 	c.Flags().StringVar(&in.Plan, "plan", "", "plan slug (not needed with --phase; none: unplanned work)")
 	c.Flags().StringVar(&in.Phase, "phase", "", "phase ID")
+	c.Flags().StringVar(&in.FollowUp, "follow-up", "", "a done item this follows up: the new item joins its plan and phase, with from set to it")
 	c.Flags().StringSliceVar(&needs, "needs", nil, "refused: items have no needs; phases need phases")
 	c.Flags().StringVar(&in.Notes, "notes", "", "short notes (- reads stdin)")
 	c.Flags().StringArrayVar(&docs, "doc", nil, "path of a related document (repeatable)")

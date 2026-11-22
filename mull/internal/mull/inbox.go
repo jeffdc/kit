@@ -296,11 +296,7 @@ func (m *Mull) accept(s *state, refs []string, followUp string, o SettleOpts) (A
 			return out, errf(CodeInvalid, "follow-up applies when accepting exactly one reviewed item")
 		}
 		src := s.items[out.Items[0].ID]
-		plan := src.Plan
-		if plan == "" {
-			plan = model.NoPlan
-		}
-		i, err := m.addItem(s, NewItem{Plan: plan, Phase: src.Phase, Title: followUp,
+		i, err := m.addItem(s, NewItem{FollowUp: src.ID, Title: followUp,
 			Notes: fmt.Sprintf("Follow-up from the review of %s.", src.ID)})
 		if err != nil {
 			return out, err

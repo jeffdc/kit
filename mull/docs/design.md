@@ -36,7 +36,7 @@ New mull is the record of a program: its plans, where they stand, and everything
 |---|---|---|---|
 | **Plan** | A large effort, such as `taxogall`. High-level only. | id (plain-English slug, e.g. `taxogall`, `general`), title, summary, doc, state `shaping`, `active` or `done` | You |
 | **Phase** | A big piece of a plan; a set of items. Called an epic before Model v2. | id (4-hex), plan (required), title, summary, doc, needs (phases only), from | You, or agents on your instruction |
-| **Item** | A unit of work **one agent completes in one session.** | id (4-hex), plan (optional), phase (optional), rank, title, notes, docs (paths), stage, claim, from (no needs: see "Ordering") | Agents and you |
+| **Item** | A unit of work **one agent completes in one session.** | id (4-hex), plan (optional), phase (optional), rank, title, notes, docs (paths), stage, claim, from (the inbox entry it was made from, or the done item it follows up; no needs: see "Ordering") | Agents and you |
 | **Captured item** | The backlog: a bug or an idea, not work until you commit it (see "The backlog") | an item at stage `captured`, plus kind (`bug` or `idea`), category, source, triaged; a short note as its notes; optionally tagged to a plan or phase | Anyone captures; only you commit |
 | **Inbox entry** | Something that needs you | id, kind (`decision`, `question` or `review`), one-line text, detail, item, plan, source, by, created; a review also lists the decisions it carries; when settled: action, note, what it made, by, time | Agents capture; you settle |
 | **Done report** | The record of a finished item | item, commit SHA, tree hash, summary, UI tour, check results, design notes, decisions made in the session, system context | Agent plus mull |
@@ -249,7 +249,7 @@ mull derives from git:
 |---|---|
 | **Linked commits** | Commits with the trailer, or reached through a branch or merge carrying the ID |
 | **Seen in git** | The item's linked commits are reachable from the integration branch, so its work has landed. Shown next to `done`, never a gate |
-| **Problems** | An active claim with no linked commits for a day; an item in review or done with nothing seen in git after three days; a failed done attempt; recent commits on an item nobody has claimed; commits on the integration branch with no link, shown as a count |
+| **Problems** | An active claim with no linked commits for a day; an item in review or done with nothing seen in git after three days; a failed done attempt; recent commits on an item nobody has claimed; commits carrying a done item's trailer, on any branch, written after it was accepted (see "Follow-ups"); commits on the integration branch with no link, shown as a count |
 
 Bare 4-hex mentions in commit prose are not counted, because they collide with hashes.
 
@@ -269,6 +269,10 @@ The agent runs `mull done <id> --summary "…" --tour "…" --design -` when it 
 You then read the report and explore the tour. Settling the review is how an item becomes `done`:
 - **Accept** marks it done. `--follow-up "text"` adds a new item for small leftovers.
 - **Do** sends it back: the item returns to committed, with the reason in its notes.
+
+**Follow-ups.** Done means reviewed, so a done item is never reopened, and its report stays as it was. Work after acceptance (a change you ask for once you've seen it) is a new item: `mull add "title" --follow-up <done-id>` creates committed work in the done item's plan and phase (a `--plan` or `--phase` given must agree), ranked last in its group, with `from` set to the done item. `accept --follow-up "text"` makes the same item at the moment of accepting.
+- **The problem it prevents.** Commits carrying a done item's `Mull:` trailer and written after it was accepted (by author date, so a rebase or cherry-pick of earlier work doesn't count), on the integration branch or any other, show in the view as `work-after-accept`. A branch name or a merge commit alone doesn't count, so merging the item's branch after acceptance is fine.
+- **When it clears.** It shows while the latest such commit is under a week old, and clears as soon as a follow-up of the item is added after that commit. "Accepted" is when its review was last accepted; an item done without one (from before Model v2) counts from when it was last updated.
 
 There's no override for agents. For you, `mull done --override "reason"` exists, and it stays visible in the report and the view.
 
@@ -359,7 +363,7 @@ The CLI is used by agents. The human sees its data through an agent, or in `mull
 The ops are every write except `init`, `sync`, `migrate`, `check` and `done`.
 
 **Scope is never silent:**
-- `add` takes its plan from `--phase`, and refuses a `--plan` that disagrees. With neither, it refuses: unplanned work is asked for with `--plan none`.
+- `add` takes its plan from `--phase`, and refuses a `--plan` that disagrees. With neither, it refuses: unplanned work is asked for with `--plan none`. `--follow-up <done-id>` takes both from the done item, and refuses a `--plan` or `--phase` that disagrees.
 - `decided` and `ask` require `--item` or `--plan` once the repo has more than one open plan (shaping or active). Captures (`bug`, `idea`) need neither.
 
 | Group | Commands |
@@ -367,7 +371,7 @@ The ops are every write except `init`, `sync`, `migrate`, `check` and `done`.
 | Setup | `mull init [--integration b] [--release b]` · `mull config [set\|checks\|layer …]` · `mull sync [--dry-run]` · `mull migrate [--dry-run] [--text] [--on-request]` |
 | Plans (you) | `mull plan new <slug> "title" [--summary -] --on-request` · `plan agree <slug> --on-request` · `plan list` · `plan show <slug>` · `plan doc <slug> [-] [--log]` · `plan close <slug>` |
 | Phases | `mull phase add "title" --plan <slug> [--needs …] [--summary -]` · `phase list [--plan]` · `phase doc <id> [-] [--log]` · `phase delete <id> --on-request` · `show <id>` |
-| Items | `mull add "title" (--plan <slug> \| --phase <id> \| --plan none) [--notes -] [--doc path]` · `show` · `list [--plan] [--phase] [--state] [--kind] [--untriaged]` · `set` · `drop` |
+| Items | `mull add "title" (--plan <slug> \| --phase <id> \| --plan none \| --follow-up <done-id>) [--notes -] [--doc path]` · `show` · `list [--plan] [--phase] [--state] [--kind] [--untriaged]` · `set` · `drop` |
 | Dependencies and order | `mull need <phase> <phase…>` · `mull unneed <phase> <phase…>` · `mull rank <phase\|plan\|none> <ids…>` · `mull ready [--plan]` |
 | Work (agents) | `mull start <id>` · `release <id>` · `check` (run the hard checks, cache the result) · `done <id> --summary "…" --tour "…" --design -` |
 | Capture (agents) | `mull decided "text"`, `ask "question"`, each with `--item <id>` or `--plan <slug>`, plus `[--detail -] [--source …]` |

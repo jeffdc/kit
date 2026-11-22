@@ -296,6 +296,7 @@ func TestScopeRules(t *testing.T) {
 	}
 	r.fails("invalid_argument", "add", "y", "--phase", phase, "--plan", "beta")
 	r.fails("scope_required", "add", "z")
+	r.fails("invalid_state", "add", "w", "--follow-up", id(it)) // only done work is followed up
 	if it := r.ok("add", "z", "--plan", "none"); it["plan"] != nil {
 		t.Fatalf("unplanned item = %v", it)
 	}

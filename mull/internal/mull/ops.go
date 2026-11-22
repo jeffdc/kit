@@ -83,7 +83,7 @@ var ops = map[string]opDef{
 	"phase add":     {func() Input { return &PhaseAddIn{} }, "title, plan, summary, needs"},
 	"phase doc":     {func() Input { return &PhaseDocIn{} }, "id, doc"},
 	"phase delete":  {func() Input { return &PhaseDeleteIn{} }, "id, on-request"},
-	"add":           {func() Input { return &AddIn{} }, "title, plan, phase, notes, doc, before, after"},
+	"add":           {func() Input { return &AddIn{} }, "title, plan, phase, follow-up, notes, doc, before, after"},
 	"rank":          {func() Input { return &RankIn{} }, "group, ids"},
 	"set":           {func() Input { return &SetIn{} }, "id, field, value"},
 	"need":          {func() Input { return &NeedIn{add: true} }, "id, needs"},
@@ -251,17 +251,20 @@ type AddIn struct {
 	Doc    StrList `json:"doc"`
 	Before string  `json:"before"`
 	After  string  `json:"after"`
+	// FollowUp is a done item this follows up: the item joins its plan and
+	// phase, with from set to it.
+	FollowUp string `json:"follow-up"`
 }
 
 func (in *AddIn) refFields() ([]*string, []*IDList) {
-	return []*string{&in.Plan, &in.Phase, &in.Before, &in.After}, nil
+	return []*string{&in.Plan, &in.Phase, &in.Before, &in.After, &in.FollowUp}, nil
 }
 func (in *AddIn) run(m *Mull, s *state) (any, string, error) {
 	if len(in.Needs) > 0 {
 		return nil, "", errItemNeeds("add takes no needs")
 	}
 	i, err := m.addItem(s, NewItem{Plan: in.Plan, Phase: in.Phase, Title: in.Title, Notes: in.Notes, Docs: in.Doc,
-		Before: in.Before, After: in.After})
+		Before: in.Before, After: in.After, FollowUp: in.FollowUp})
 	if err != nil {
 		return nil, "", err
 	}

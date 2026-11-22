@@ -23,6 +23,7 @@ When you settle or file more than a couple of records at once, use `mull batch`.
   - **failed-done:** the worker's checks failed. It should fix the problem or release the item.
   - **idle-claim:** the worker has stalled. Find out why, or `mull release` the item.
   - **unclaimed-work:** someone is committing to an item's branch without having claimed it.
+  - **work-after-accept:** commits under a done item's trailer came after it was accepted. Later work needs its own item: `mull add "<title>" --follow-up <done-id>` (on the human's word, if they didn't ask for the change), and new commits go under that ID.
 - Route questions and decisions to the human. Don't answer them yourself. `mull inbox` shows what needs them: questions, decisions and reviews only.
 - Feedback the human hands you for later goes in as a captured bug (`mull bug`), in their words, with `--source "human, <date or context>"`. File it when it's given.
 
@@ -39,7 +40,7 @@ When you settle or file more than a couple of records at once, use `mull batch`.
 When a worker runs `mull done`, you review before the human sees it:
 1. Read `mull report <id>`: what was built (the summary, the tour, the check results) and how (the design notes, the decisions made in the session, the changes by layer).
 2. Look at the diff yourself (`git diff <base>..<commit>` from the report). Don't rely on the worker's summary. Check it against the project's rules: design system, duplication, real tests, deletions done.
-3. If it holds up, run `mull accept <id>`. Add `--follow-up "<text>"` for small leftovers. Accepting also ratifies the decisions the review carries, with or without `--on-request`, and those are the human's call: if there are any, show them to the human first and accept with `--on-request` once they agree. If they decide one differently, run `mull decide <decision-id> "<their decision>" --on-request` before accepting.
+3. If it holds up, run `mull accept <id>`. Add `--follow-up "<text>"` for small leftovers. A change the human asks for after acceptance is a follow-up too: `mull add "<title>" --follow-up <id>`. Done items are never reopened. Accepting also ratifies the decisions the review carries, with or without `--on-request`, and those are the human's call: if there are any, show them to the human first and accept with `--on-request` once they agree. If they decide one differently, run `mull decide <decision-id> "<their decision>" --on-request` before accepting.
 4. If it doesn't, find its review entry with `mull inbox --kind review` and send it back with `mull do <entry-id> --reason "<what's wrong>"`. The item reopens for another session, and its decisions stay open for the next review.
 5. Tell the human what you accepted and what you sent back, with the UI tour for anything they should click through themselves.
 
