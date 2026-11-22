@@ -129,7 +129,7 @@ Shapes and error codes: mull guide json. Many writes at once: mull batch.`,
 		retiredCmd("loose", `capture it as an item with mull bug "..." or mull idea "..." (--source says where it came from)`),
 		retiredCmd("ideas", "captured ideas are items (mull list --kind idea); older inbox ideas: mull inbox --kind idea"),
 		inboxCmd(a), acceptCmd(a), decideCmd(a), doCmd(a), parkCmd(a),
-		decisionsCmd(a), serveCmd(a),
+		decisionsCmd(a), worktreesCmd(a), serveCmd(a),
 	)
 	return root
 }
