@@ -237,11 +237,12 @@ type PlanStatus struct {
 	Next      []PhaseRow `json:"next"`    // waiting phases one step away (not go live)
 	GoLive    *PhaseRow  `json:"go_live"` // the phase the plan ends with, if it has one
 	Agents    []AgentRow `json:"agents"`
+	Overlaps  []Overlap  `json:"overlaps"` // pairs of items in flight, one or both in the plan, changing the same files
 }
 
 func (s *state) planStatus(p *model.Plan, g *gitState) PlanStatus {
 	out := PlanStatus{Slug: p.Slug, Title: p.Title, State: p.State, Summary: p.Summary, Target: s.target(p.Slug, g.Targets),
-		Now: []PhaseRow{}, Next: []PhaseRow{}, Agents: []AgentRow{}}
+		Now: []PhaseRow{}, Next: []PhaseRow{}, Agents: []AgentRow{}, Overlaps: g.overlapsOf(p.Slug)}
 	var items, active []*model.Item
 	for _, id := range sortedKeys(s.items) {
 		if i := s.items[id]; i.Plan == p.Slug {

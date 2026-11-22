@@ -83,9 +83,11 @@ type FlightLine struct {
 
 // Problem is something wrong the human should see first.
 type Problem struct {
-	Kind string `json:"kind"` // idle-claim, failed-done, unclaimed-work, done-not-in-git, work-after-accept
-	Item string `json:"item"`
-	Text string `json:"text"`
+	Kind  string   `json:"kind"` // idle-claim, failed-done, unclaimed-work, done-not-in-git, work-after-accept, overlap
+	Item  string   `json:"item"`
+	With  string   `json:"with,omitempty"`  // overlap: the other item
+	Files []string `json:"files,omitempty"` // overlap: the files both changed
+	Text  string   `json:"text"`
 }
 
 // NeedsYou counts the plan's open inbox: questions, decisions and reviews.
@@ -111,6 +113,9 @@ func (m *Mull) Board(plan string) (View, error) {
 		}
 		g, err := m.readGit(s)
 		if err != nil {
+			return err
+		}
+		if err := m.readOverlaps(s, g); err != nil {
 			return err
 		}
 		now := m.Now().UTC()
@@ -270,6 +275,10 @@ func (s *state) board(p *model.Plan, g *gitState, now time.Time) PlanBoard {
 				}
 			}
 		}
+	}
+
+	for _, o := range g.overlapsOf(p.Slug) {
+		b.Problems = append(b.Problems, overlapProblem(o, p.Slug))
 	}
 
 	for _, id := range sortedKeys(s.entries) {

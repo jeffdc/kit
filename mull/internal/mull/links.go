@@ -120,6 +120,9 @@ type gitState struct {
 	Targets          targets
 	Items            map[string]*ItemGit
 	Unlinked         []string // recent first-parent commits on integration with no link (subjects)
+
+	heads    map[string]string // every local branch's tip
+	overlaps []Overlap         // pairs of items in flight changing the same files; read by readOverlaps
 }
 
 func (g *gitState) item(id string) *ItemGit {
@@ -239,6 +242,7 @@ func (m *Mull) readGit(s *state) (*gitState, error) {
 	if err != nil {
 		return nil, err
 	}
+	g.heads = heads
 	g.Targets = m.readTargets(s, heads)
 	g.IntegrationFound = g.Targets.tips[g.Integration] != ""
 	g.AheadOfRelease = g.Targets.ahead[g.Integration]

@@ -65,6 +65,21 @@ git checkout -q web-next
 git merge -q --no-ff --no-edit "$digest-job"
 git checkout -q main
 m plan set web target web-next
+# Two agents at work on branches that both change the page layout: an
+# overlap in the Plans column.
+account=$(id add "Account page" --plan web)
+theme=$(id add "Dark theme" --plan web)
+for it in "$account:account" "$theme:theme"; do
+	item=${it%%:*} name=${it#*:}
+	git checkout -q -b "$item-$name" web-next
+	m start "$item"
+	mkdir -p app
+	echo "$name" >"app/$name.css"
+	echo "/* $name */" >app/layout.css
+	git add app
+	git commit -q -m "Start the $name work" -m "Mull: $item"
+done
+git checkout -q main
 # A plan still shaping, for Agree this plan.
 m plan new pilot "Pilot with two teams" --summary "Try the web app with two teams before launch." --on-request
 echo "demo repo: $demo"
