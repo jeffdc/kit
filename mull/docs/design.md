@@ -128,6 +128,7 @@ The backlog is the captured items: bugs and ideas. A captured item is a title, a
 **Anyone captures; only the human commits.**
 - `mull bug "…"` captures something out of scope that's wrong: a bug, an inconsistency, half-finished work, an assumption. Feedback the human hands over for later goes in the same way, in their words, with the human as its source.
 - `mull idea "…"` captures a possibility worth keeping that isn't work yet, whether the human raised it or an agent noticed it. In intake, most of the old backlog fits here.
+- Both print `similar`: up to five open items, captured or committed, whose titles overlap the new one's a lot in their words (rarer words count for more, so a prefix most titles share counts for little). It's a hint, never a block: the capture is filed either way, and the agent protocol says to check it and ask the human before keeping a near-duplicate.
 - `mull commit <id>` makes it committed work, optionally moving it to a plan or phase (`--plan none` for unplanned work). An agent must pass `--on-request`, meaning the human asked, and mull refuses otherwise.
 - `mull start <id>` on a captured item commits it too, for a small fix the human wants done now. A capture tagged to a shaping plan can't be started.
 - `mull drop <id>` drops it.
@@ -389,7 +390,7 @@ This is a short block pasted into the project's `AGENTS.md`. In outline:
    - `mull bug` for anything out of scope that's wrong, and for feedback the human hands over for later;
    - `mull idea` for a possibility worth keeping that isn't work yet.
 
-   Bugs and ideas go to the backlog, not to the inbox.
+   Bugs and ideas go to the backlog, not to the inbox. When a capture's `similar` list holds what looks like the same thing, ask the human before keeping the near-duplicate.
 4. Don't change plans or phases (or their docs), add items, or commit captured ones unless the human asks. Propose changes with `mull ask`.
 5. Finish with `mull done`. If it fails, fix the problem or `mull release` the item and say why. After `done` the item is in review, and it's done only once its review is accepted. Never claim "done" in prose.
 6. Show the human, or the supervisor, the done report and the UI tour. Run `mull accept <id> --on-request` only when the human tells you to. Then `mull sync`.

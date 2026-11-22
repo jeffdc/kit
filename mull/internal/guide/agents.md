@@ -19,6 +19,7 @@ This project's plans, work items, backlog and open questions live in **mull**: a
    - `mull bug "<what>" --source "item <id>"`: anything out of scope that's wrong (a bug, an inconsistency, half-finished work, an assumption you made).
    - `mull idea "<title>" --detail "<short note>" --source "<where>"`: a possibility worth keeping that isn't work yet, whether the human raised it or you noticed it. Keep to ideas worth the human's time.
    - Bugs and ideas go to the backlog, not to the human's inbox: that's only questions, decisions and reviews. The human goes through the backlog in triage (`mull guide triage`). Add `--plan` or `--phase` to a capture if it belongs to one, and `--category` if it helps.
+   - Check `similar` in what `bug` and `idea` print: open items whose titles overlap the new one's a lot. If one looks like the same thing, ask the human with `mull ask`, naming both IDs, whether to keep the new one. It's a hint, never a block: the capture is already filed.
    - **Feedback the human hands over for later** (something to fix, change or revisit, but not now):
      ```
      mull bug "<the feedback, in the human's words>" --source "human, <date or context>"
