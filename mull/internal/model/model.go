@@ -378,6 +378,9 @@ type Report struct {
 	Tour     []string       `yaml:"tour,omitempty" json:"tour,omitempty"`
 	Checks   CheckRun       `yaml:"checks" json:"checks"`
 	Changes  []LayerChanges `yaml:"changes,omitempty" json:"changes,omitempty"`
+	// Warnings are done's soft warnings, such as a tour step giving a local
+	// URL that isn't the plan's preview. They never stop done.
+	Warnings []string `yaml:"warnings,omitempty" json:"warnings,omitempty"`
 	// Design is how it was built and why. Reports made before mull done
 	// required it have none.
 	Design    string           `yaml:"design,omitempty" json:"design,omitempty"`

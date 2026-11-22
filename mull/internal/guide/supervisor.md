@@ -48,12 +48,13 @@ When you settle or file more than a couple of records at once, use `mull batch`.
 - Older loose ends and inbox ideas, from before captured items, are listed by `mull inbox --kind loose-end` and `--kind idea` until `mull migrate` converts them. Until then they're settled as before, e.g. `mull do <id> --plan <p> [--as phase] --on-request`.
 
 ## Reviewing finished work
-When a worker runs `mull done`, you review before the human sees it:
-1. Read `mull report <id>`: what was built (the summary, the tour, the check results) and how (the design notes, the decisions made in the session, the changes by layer).
+When a worker runs `mull done`, you review before the human sees it. The order is: done, then your review of the diff, then you merge it into the target, then the human walks the tour on the preview, then accept.
+1. Read `mull report <id>`: what was built (the summary, the tour, the check results) and how (the design notes, the decisions made in the session, the changes by layer). Check `warnings` too: a tour step that gives a local URL other than the plan's preview points at a server that won't be there. The tour should give paths, which `mull report --text` and `mull serve` resolve against the preview.
 2. Look at the diff yourself (`git diff <base>..<commit>` from the report). Don't rely on the worker's summary. Check it against the plan's and phase's rules and the project's own: design system, duplication, real tests, deletions done.
-3. If it holds up, run `mull accept <id>`. Add `--follow-up "<text>"` for small leftovers. A change the human asks for after acceptance is a follow-up too: `mull add "<title>" --follow-up <id>`. Done items are never reopened. Accepting also ratifies the decisions the review carries, with or without `--on-request`, and those are the human's call: if there are any, show them to the human first and accept with `--on-request` once they agree. If they decide one differently, run `mull decide <decision-id> "<their decision>" --on-request` before accepting.
-4. If it doesn't, find its review entry with `mull inbox --kind review` and send it back with `mull do <entry-id> --reason "<what's wrong>"`. The item reopens for another session, and its decisions stay open for the next review.
-5. Tell the human what you accepted and what you sent back, with the UI tour for anything they should click through themselves.
+3. If it holds up, merge its branch into its plan's target, so the plan's preview serves it. When the report has a UI tour and the plan has a preview, give the human the tour (`mull report <id> --text` has the steps as full URLs on the preview) and wait until they've walked it there. A plan with a server but no preview is the gap under "Before starting": raise it with `mull ask`.
+4. Then run `mull accept <id>`. Add `--follow-up "<text>"` for small leftovers. A change the human asks for after acceptance is a follow-up too: `mull add "<title>" --follow-up <id>`. Done items are never reopened. Accepting also ratifies the decisions the review carries, with or without `--on-request`, and those are the human's call: if there are any, show them to the human first and accept with `--on-request` once they agree. If they decide one differently, run `mull decide <decision-id> "<their decision>" --on-request` before accepting.
+5. If it doesn't, or the human finds a problem on the preview, find its review entry with `mull inbox --kind review` and send it back with `mull do <entry-id> --reason "<what's wrong>"`. The item reopens for another session, and its decisions stay open for the next review.
+6. Tell the human what you accepted and what you sent back.
 
 Unreviewed work is incomplete work. An item is in review after `mull done`, and done only once its review is accepted.
 
