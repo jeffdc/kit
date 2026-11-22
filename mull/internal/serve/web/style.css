@@ -212,7 +212,7 @@ tr.cl.cl-cont.cl-open > td::after { background-size: 12px 0, 12px 0, 7px 12px; }
 .cp.ok { color: var(--ink); box-shadow: none; }
 @media (hover: hover) {
   .cp:not(.ok) { opacity: 0; }
-  :is(tr, .it, .grp li, .grp > summary, .decn, .node, .ag, .co, .find li, .rv-note, .cid):is(:hover, :focus-within) .cp, .tb .cp { opacity: 1; }
+  :is(tr, .it, .grp li, .grp > summary, .decn, .node, .ag, .ov, .co, .find li, .rv-note, .cid):is(:hover, :focus-within) .cp, .tb .cp { opacity: 1; }
   /* in the sheet index no room is kept for it until its row is hovered or focused */
   .node .cp:not(.ok) { width: 0; margin-left: -7px; }
   .node:is(:hover, :focus-within) .cp { width: 18px; }
@@ -387,6 +387,9 @@ tr[data-href]:hover > td, .it[data-href]:hover, .ag[data-href]:hover, .pr[data-h
 .ag { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 10px; align-items: baseline; min-height: 22px; }
 .ag > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ag.cl { margin: 9px 0 11px; }
+.ov { padding: 2px 0; min-width: 0; }
+.ov + .ov { margin-top: 4px; }
+.ov > .sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dl a.cl { display: inline-block; margin: 6px 0; }
 
 /* tables */

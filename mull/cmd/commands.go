@@ -284,9 +284,10 @@ func planCmd(a *app) *cobra.Command {
 		},
 	}
 	set := &cobra.Command{
-		Use: "set <slug> <title|summary|target> <value>",
+		Use: "set <slug> <title|summary|target|preview> <value>",
 		Short: "Change a plan's field. target is the branch its work lands on, where seen in git is measured " +
-			"(\"\" falls back to config integration). Value - reads stdin",
+			"(\"\" falls back to config integration); preview is the URL that serves that branch, handed to workers " +
+			"(mull never runs or checks it; \"\" clears it). Value - reads stdin",
 		Args: exact(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			val, err := a.text(args[2])
@@ -548,7 +549,7 @@ func readyCmd(a *app) *cobra.Command {
 func setCmd(a *app) *cobra.Command {
 	return &cobra.Command{
 		Use:   "set <slug|id> <field> <value>",
-		Short: "Change a field (plan: title, summary, target; phase: title, summary; item: title, notes, category, phase, doc; captured item: plan too, none untags, and kind bug or idea). Value - reads stdin",
+		Short: "Change a field (plan: title, summary, target, preview; phase: title, summary; item: title, notes, category, phase, doc; captured item: plan too, none untags, and kind bug or idea). Value - reads stdin",
 		Args:  exact(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			val, err := a.text(args[2])

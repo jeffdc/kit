@@ -193,8 +193,9 @@ type Overview struct {
 	Summary  Summary       `json:"summary"`
 	Counts   Counts        `json:"counts"`
 	NeedsYou NeedsYouTiers `json:"needs_you"`
-	Plans    []PlanStatus  `json:"plans"`  // active, then shaping
-	Agents   []AgentRow    `json:"agents"` // every active item, unplanned ones too
+	Plans    []PlanStatus  `json:"plans"`    // active, then shaping
+	Agents   []AgentRow    `json:"agents"`   // every active item, unplanned ones too
+	Overlaps []Overlap     `json:"overlaps"` // every pair of items in flight changing the same files, unplanned ones too
 	// Worktrees counts the claim worktrees that can be removed (see mull
 	// worktrees), when there are any.
 	Worktrees *Prunable `json:"prunable_worktrees,omitempty"`
@@ -212,7 +213,10 @@ func (m *Mull) Overview() (Overview, error) {
 		if err != nil {
 			return err
 		}
-		out = Overview{Summary: sum, Counts: s.counts(m.Now()), NeedsYou: s.needsYou(nil), Plans: []PlanStatus{}, Agents: []AgentRow{}}
+		if err := m.readOverlaps(s, g); err != nil {
+			return err
+		}
+		out = Overview{Summary: sum, Counts: s.counts(m.Now()), NeedsYou: s.needsYou(nil), Plans: []PlanStatus{}, Agents: []AgentRow{}, Overlaps: g.overlaps}
 		for _, p := range s.notDonePlans() {
 			out.Plans = append(out.Plans, s.planStatus(p, g))
 		}
@@ -296,6 +300,9 @@ func (m *Mull) PlanPage(slug string) (PlanPage, error) {
 		}
 		g, err := m.readGit(s)
 		if err != nil {
+			return err
+		}
+		if err := m.readOverlaps(s, g); err != nil {
 			return err
 		}
 		out = PlanPage{Plan: *p, Status: s.planStatus(p, g), Schedule: s.schedule(slug),

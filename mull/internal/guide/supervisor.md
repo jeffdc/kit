@@ -11,6 +11,7 @@ When you settle or file more than a couple of records at once, use `mull batch`.
 - Read the docs of the plans and phases you're working in (`mull plan doc <slug>`, `mull phase doc <id>`): the picture, when each is done, and why the order. Docs hold intent only; status comes from mull.
 - Read their rules too (`mull plan rules <slug>`, `mull phase rules <id>`): what every worker there is told. You review against them.
 - Read `mull decisions`. Workers must not re-decide what's settled, and neither must you.
+- Know where each plan's work lands and where it can be seen: `mull view` shows each plan's target and, when it has one, its preview (the URL serving that target, which workers get from `mull context --item`). mull never runs the preview server. A plan with a server but no `preview` is a gap to propose to the human with `mull ask`: setting it (`mull plan set <slug> preview <url>`) is theirs, like the plan's other fields.
 
 ## Handing out work
 - Pick from `mull ready`. These items are committed, in agreed plans, in phases whose needs are done. They're in order: by phase schedule, then by rank within each group, so hand out work from the top; only phases need other phases, and rank never holds work back.
@@ -31,6 +32,7 @@ When you settle or file more than a couple of records at once, use `mull batch`.
   - **idle-claim:** the worker has stalled. Find out why, or `mull release` the item.
   - **unclaimed-work:** someone is committing to an item's branch without having claimed it.
   - **done-not-in-git:** none of the item's work is on its plan's target: it was accepted (flagged at once), or has been in review three days. Merge its branch into the target.
+  - **overlap:** two items in flight have changed the same files on their branches, so they're likely to conflict or to build the same thing twice. Look at both diffs. Tell the later worker what the other is doing (or hold it until the other lands), merge the first that's ready before the other goes on, and when the overlap is a shared piece both need, propose a shared foundation to the human (above).
   - **work-after-accept:** commits under a done item's trailer came after it was accepted. Later work needs its own item: `mull add "<title>" --follow-up <done-id>` (on the human's word, if they didn't ask for the change), and new commits go under that ID.
 - **WORKTREES** in `mull view` counts the claim worktrees that can be removed: see "Removing worktrees" below.
 - Route questions and decisions to the human. Don't answer them yourself. When a worker's question is one its rules should have answered, propose the rule with `mull ask` as well, so the next worker doesn't ask it again. `mull inbox` shows what needs them: questions, decisions and reviews only.

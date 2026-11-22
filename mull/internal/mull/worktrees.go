@@ -194,7 +194,7 @@ func (m *Mull) worktreeRows(s *state, g *gitState, measureAll bool) ([]WorktreeR
 		}
 	}
 
-	heads := g.Heads
+	heads := g.heads
 	rows := []WorktreeRow{}
 	for k := 1; k < len(wts); k++ {
 		w, i := wts[k], claimed[k]

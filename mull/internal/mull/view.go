@@ -53,8 +53,9 @@ type Legacy struct {
 type PlanBoard struct {
 	Slug     string       `json:"slug"`
 	Title    string       `json:"title"`
-	State    string       `json:"state,omitempty"` // the plan's state; none for the unplanned board
-	Target   Target       `json:"target"`          // where its work lands; integration for the unplanned board
+	State    string       `json:"state,omitempty"`   // the plan's state; none for the unplanned board
+	Target   Target       `json:"target"`            // where its work lands; integration for the unplanned board
+	Preview  string       `json:"preview,omitempty"` // the URL that serves the target, when the plan gives one
 	Progress Progress     `json:"progress"`
 	Phases   []PhaseLine  `json:"phases"`
 	Unfiled  Progress     `json:"unfiled"`
@@ -85,9 +86,11 @@ type FlightLine struct {
 
 // Problem is something wrong the human should see first.
 type Problem struct {
-	Kind string `json:"kind"` // idle-claim, failed-done, unclaimed-work, done-not-in-git, work-after-accept
-	Item string `json:"item"`
-	Text string `json:"text"`
+	Kind  string   `json:"kind"` // idle-claim, failed-done, unclaimed-work, done-not-in-git, work-after-accept, overlap
+	Item  string   `json:"item"`
+	With  string   `json:"with,omitempty"`  // overlap: the other item
+	Files []string `json:"files,omitempty"` // overlap: the files both changed
+	Text  string   `json:"text"`
 }
 
 // NeedsYou counts the plan's open inbox: questions, decisions and reviews.
@@ -113,6 +116,9 @@ func (m *Mull) Board(plan string) (View, error) {
 		}
 		g, err := m.readGit(s)
 		if err != nil {
+			return err
+		}
+		if err := m.readOverlaps(s, g); err != nil {
 			return err
 		}
 		prunable, err := m.prunable(s, g, plan)
@@ -185,7 +191,7 @@ func parseTime(s string) (time.Time, bool) {
 }
 
 func (s *state) board(p *model.Plan, g *gitState, now time.Time) PlanBoard {
-	b := PlanBoard{Slug: p.Slug, Title: p.Title, State: p.State, Target: s.target(p.Slug, g.Targets),
+	b := PlanBoard{Slug: p.Slug, Title: p.Title, State: p.State, Target: s.target(p.Slug, g.Targets), Preview: p.Preview,
 		Phases: []PhaseLine{}, Problems: []Problem{}, InFlight: []FlightLine{}}
 	var items, unfiled []*model.Item
 	for _, id := range sortedKeys(s.items) {
@@ -276,6 +282,10 @@ func (s *state) board(p *model.Plan, g *gitState, now time.Time) PlanBoard {
 				}
 			}
 		}
+	}
+
+	for _, o := range g.overlapsOf(p.Slug) {
+		b.Problems = append(b.Problems, overlapProblem(o, p.Slug))
 	}
 
 	for _, id := range sortedKeys(s.entries) {
@@ -430,6 +440,9 @@ func (v View) Text(now time.Time) string {
 		}
 		fmt.Fprintf(&b, "\n%s  %s%s\n", strings.ToUpper(p.Slug), p.Title, state)
 		fmt.Fprintf(&b, "  %s\n", targetText(p.Target, v.Release))
+		if p.Preview != "" {
+			fmt.Fprintf(&b, "  preview %s\n", p.Preview)
+		}
 		writeBoard(&b, p, now)
 	}
 	if v.Unplanned != nil {
