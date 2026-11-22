@@ -13,9 +13,9 @@ export const within = {
   all: () => () => true,
   item: id => c => c.type === "item" && c.id === id,
   entry: id => c => c.type === "entry" && c.id === id,
-  phase: id => c => ((c.type === "phase" || c.type === "phase_doc") && c.id === id) || (c.phase === id && !captured(c)),
+  phase: id => c => ((c.type === "phase" || c.type === "phase_doc" || c.type === "phase_rules") && c.id === id) || (c.phase === id && !captured(c)),
   plan: slug => c => c.plan === slug && !captured(c),
-  planRecord: slug => c => (c.type === "plan" || c.type === "plan_doc") && c.id === slug,
+  planRecord: slug => c => (c.type === "plan" || c.type === "plan_doc" || c.type === "plan_rules") && c.id === slug,
   unplanned: () => c => c.type === "item" && !c.plan && !captured(c),
   backlog: () => captured,
 };
@@ -72,7 +72,7 @@ export function revisionSchedule(pid, rev, entryHref) {
   const rows = changes.map(c => {
     const link = c.change === "removed" ? "" : target(pid, c, entryHref);
     const title = esc(recordTitle(c));
-    return `<tr${link ? ` data-href="${esc(link)}"` : ""}><td>${c.type === "plan" || c.type === "plan_doc" ? "<code>plan</code>" : copyId(c.id)}</td>` +
+    return `<tr${link ? ` data-href="${esc(link)}"` : ""}><td>${c.type === "plan" || c.type === "plan_doc" || c.type === "plan_rules" ? "<code>plan</code>" : copyId(c.id)}</td>` +
       `<td class="ttl">${link ? `<a href="${esc(link)}">${title}</a>` : title}</td><td class="mut">${esc(describe(c))}</td><td class="n mono mut">${esc(clock(c.at))}</td></tr>`;
   }).join("");
   return `<section><details class="revs" data-open="revs:${esc(pid)}"><summary class="hd"><h2>${CHEVRON} Revision ${rev.tip.number}</h2><span class="lab">${plural(changes.length, "change")} since you last looked, at ${esc(clock(rev.seen_at))}</span></summary>
@@ -82,14 +82,16 @@ export function revisionSchedule(pid, rev, entryHref) {
 function recordTitle(c) {
   if (c.type === "plan_doc") return `${c.title}: plan doc`;
   if (c.type === "phase_doc") return `${c.title}: phase doc`;
+  if (c.type === "plan_rules") return `${c.title}: plan rules`;
+  if (c.type === "phase_rules") return `${c.title}: phase rules`;
   return c.title;
 }
 
 function target(pid, c, entryHref) {
   switch (c.type) {
     case "item": return href.item(pid, c.id);
-    case "phase": case "phase_doc": return href.phase(pid, c.id);
-    case "plan": case "plan_doc": return href.plan(pid, c.id);
+    case "phase": case "phase_doc": case "phase_rules": return href.phase(pid, c.id);
+    case "plan": case "plan_doc": case "plan_rules": return href.plan(pid, c.id);
     case "entry": return entryHref(c.id) || (c.plan ? href.plan(pid, c.plan) : "");
   }
   return "";
@@ -99,6 +101,7 @@ function target(pid, c, entryHref) {
 export function describe(c) {
   if (c.change === "removed") return "removed";
   if (c.type === "plan_doc" || c.type === "phase_doc") return c.change === "added" ? "doc written" : "doc edited";
+  if (c.type === "plan_rules" || c.type === "phase_rules") return c.change === "added" ? "rules written" : "rules edited";
   if (c.type === "entry") {
     if (c.change === "added") return c.kind === "review" ? "filed for your review" : `new ${c.kind || "entry"}`;
     if (c.state && c.state !== "open") return `settled: ${c.state}`;

@@ -1,9 +1,10 @@
 // A plan's sheet: its title block and three tabs. Status is where it stands
 // (the phases in schedule order, what needs you, what's next), Plan doc is
-// the shared doc with its status margin, and Backlog is what's captured for
-// it.
+// the shared doc with its status margin, then the plan's rules for its
+// workers, and Backlog is what's captured for it.
 
 import { esc, href, tag, cells, plural, itemStage, clock, CHEVRON, copyId } from "./html.js";
+import { rulesSection } from "./rules.js";
 import { titleBlock } from "./title.js";
 import { within } from "./revision.js";
 import { schedule } from "./needs.js";
@@ -22,6 +23,8 @@ export function planSheet(pr, r, data, page, body) {
   const pid = pr.id, slug = r.id, p = page.plan, st = page.status, ch = data.changes;
   const tab = r.sub === "doc" || r.sub === "backlog" ? r.sub : "status";
   const docCloud = ch ? ch.cls(c => c.type === "plan_doc" && c.id === slug) : "";
+  const rulesCloud = ch ? ch.cls(c => c.type === "plan_rules" && c.id === slug) : "";
+  const tabCloud = ch ? ch.cls(c => (c.type === "plan_doc" || c.type === "plan_rules") && c.id === slug) : ""; // the tab shows both
   const since = esc(clock(data.revision?.seen_at));
   const fields = [
     ["State", p.state === "shaping" ? `${tag("shaping")} <small>not agreed yet</small>` : p.state === "active" ? tag("now", "active")
@@ -32,6 +35,8 @@ export function planSheet(pr, r, data, page, body) {
     ["Open questions", `${st.questions}${stamp(st.blocking)}`],
     ["Plan doc", !p.doc ? `<span class="mut">not written</span>`
       : docCloud ? `<a href="${esc(href.plan(pid, slug))}/doc">changed</a> <small>since ${since}</small>` : `<small>no changes since ${since}</small>`],
+    ["Rules", !p.rules ? `<span class="mut">none</span>`
+      : rulesCloud ? `<a href="${esc(href.plan(pid, slug))}/doc">changed</a> <small>since ${since}</small>` : `<small>no changes since ${since}</small>`],
   ];
   const head = titleBlock({ title: p.title, crumbs: crumbsFor(pid), fields, long: true, cloud: ch ? ch.cls(c => c.type === "plan" && c.id === slug) : "" });
   const base = href.plan(pid, slug);
@@ -43,7 +48,7 @@ export function planSheet(pr, r, data, page, body) {
   const closed = p.state === "done"; // in the Archive: capture from the project instead
   const nav = `<nav class="tabs" aria-label="Plan sections">` +
     t("status", "Status", base, st.questions ? plural(st.questions, "question") : undefined) +
-    t("doc", "Plan doc", `${base}/doc`, undefined, docCloud) +
+    t("doc", "Plan doc", `${base}/doc`, undefined, tabCloud) +
     t("backlog", "Backlog", `${base}/backlog`, `${page.backlog}${page.untriaged ? ` · ${page.untriaged} untriaged` : ""}`) +
     `<div class="acts">${p.state === "shaping" ? writeButton({ pid, key: `agree:${pid}:${slug}`, ops: [{ op: "plan agree", slug }], small: false,
       label: "Agree this plan", ask: "Agree it?", done: `Agreed ${p.title}: it's active now, so it can have phases and work.` }) : ""}` +
@@ -114,7 +119,7 @@ function nextBlock(pid, page, ch) {
   }).join("");
 }
 
-export function planDoc(pid, page) {
+export function planDoc(pid, page, ch) {
   const p = page.plan;
   // The doc is edited in place, the editor taking its place while open.
   const edit = editWrite({ pid, key: `edit-plandoc:${pid}:${p.slug}`, ops: [{ op: "plan doc", slug: p.slug }], field: "doc", long: true,
@@ -123,7 +128,9 @@ export function planDoc(pid, page) {
   const body = p.doc
     ? renderDoc(p.doc, pid, page.doc_refs)
     : `<div class="prose"><p class="ph-empty">No plan doc yet.${p.summary ? ` The summary: ${esc(p.summary)}` : ""}</p></div>`;
-  return `<section><div class="hd ed"><h2>The plan</h2><span class="lab">Shared by you and the agents · intent only; status is in the margin</span>${edit.button}</div><div class="doc-wrap">${edit.form || body}</div></section>`;
+  return `<section><div class="hd ed"><h2>The plan</h2><span class="lab">Shared by you and the agents · intent only; status is in the margin</span>${edit.button}</div><div class="doc-wrap">${edit.form || body}</div></section>` +
+    rulesSection({ pid, kind: "plan", key: `edit-planrules:${pid}:${p.slug}`, op: { op: "plan rules", slug: p.slug }, rules: p.rules, title: p.title,
+      refs: page.doc_refs, cloud: ch ? ch.cls(c => c.type === "plan_rules" && c.id === p.slug) : "" });
 }
 
 export const planBacklog = (pid, slug, bl, ch) => backlogBody(pid, bl, ch, { key: `plan:${pid}:${slug}`, inPlan: slug });

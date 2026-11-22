@@ -80,8 +80,10 @@ var ops = map[string]opDef{
 	"plan agree":    {func() Input { return &PlanAgreeIn{} }, "slug, on-request"},
 	"plan close":    {func() Input { return &PlanCloseIn{} }, "slug"},
 	"plan doc":      {func() Input { return &PlanDocIn{} }, "slug, doc"},
+	"plan rules":    {func() Input { return &PlanRulesIn{} }, "slug, rules"},
 	"phase add":     {func() Input { return &PhaseAddIn{} }, "title, plan, summary, needs"},
 	"phase doc":     {func() Input { return &PhaseDocIn{} }, "id, doc"},
+	"phase rules":   {func() Input { return &PhaseRulesIn{} }, "id, rules"},
 	"phase delete":  {func() Input { return &PhaseDeleteIn{} }, "id, on-request"},
 	"add":           {func() Input { return &AddIn{} }, "title, plan, phase, notes, doc, before, after"},
 	"rank":          {func() Input { return &RankIn{} }, "group, ids"},
@@ -239,6 +241,37 @@ func (in *PhaseDocIn) run(m *Mull, s *state) (any, string, error) {
 		return nil, "", errf(CodeInvalid, `phase doc needs "doc": the new doc ("" removes it)`)
 	}
 	r, err := m.setPhaseDoc(s, in.ID, *in.Doc)
+	return r, in.ID, err
+}
+
+// PlanRulesIn replaces a plan's rules. Rules is required ("" removes them),
+// as a doc is.
+type PlanRulesIn struct {
+	Slug  string  `json:"slug"`
+	Rules *string `json:"rules"`
+}
+
+func (in *PlanRulesIn) refFields() ([]*string, []*IDList) { return []*string{&in.Slug}, nil }
+func (in *PlanRulesIn) run(m *Mull, s *state) (any, string, error) {
+	if in.Rules == nil {
+		return nil, "", errf(CodeInvalid, `plan rules needs "rules": the new rules ("" removes them)`)
+	}
+	r, err := m.setPlanRules(s, in.Slug, *in.Rules)
+	return r, in.Slug, err
+}
+
+// PhaseRulesIn replaces a phase's rules, as PlanRulesIn does a plan's.
+type PhaseRulesIn struct {
+	ID    string  `json:"id"`
+	Rules *string `json:"rules"`
+}
+
+func (in *PhaseRulesIn) refFields() ([]*string, []*IDList) { return []*string{&in.ID}, nil }
+func (in *PhaseRulesIn) run(m *Mull, s *state) (any, string, error) {
+	if in.Rules == nil {
+		return nil, "", errf(CodeInvalid, `phase rules needs "rules": the new rules ("" removes them)`)
+	}
+	r, err := m.setPhaseRules(s, in.ID, *in.Rules)
 	return r, in.ID, err
 }
 

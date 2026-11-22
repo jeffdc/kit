@@ -337,7 +337,9 @@ func TestOpsEditText(t *testing.T) {
 		map[string]any{"op": "set", "id": bug, "field": "notes", "value": notes},
 		map[string]any{"op": "set", "id": it.ID, "field": "notes", "value": "Daily, at 6."},
 		map[string]any{"op": "plan doc", "slug": "pilot", "doc": "# Pilot\n\nThe picture."},
-		map[string]any{"op": "phase doc", "id": ph.ID, "doc": "Ingest the feeds."}), nil)
+		map[string]any{"op": "phase doc", "id": ph.ID, "doc": "Ingest the feeds."},
+		map[string]any{"op": "plan rules", "slug": "pilot", "rules": "- Branch from main."},
+		map[string]any{"op": "phase rules", "id": ph.ID, "rules": "Use the feed fixtures."}), nil)
 	if rec.Code != 200 {
 		t.Fatalf("POST ops: %d %s", rec.Code, rec.Body)
 	}
@@ -352,6 +354,12 @@ func TestOpsEditText(t *testing.T) {
 	}
 	if d, _ := m.PhaseDoc(ph.ID); d.Doc != "Ingest the feeds." {
 		t.Errorf("phase doc = %q", d.Doc)
+	}
+	if r, _ := m.PlanRules("pilot"); r.Rules != "- Branch from main." {
+		t.Errorf("plan rules = %q", r.Rules)
+	}
+	if r, _ := m.PhaseRules(ph.ID); r.Rules != "Use the feed fixtures." {
+		t.Errorf("phase rules = %q", r.Rules)
 	}
 	// What was edited is acknowledged, so it isn't clouded as news.
 	if rev := decode[RevisionReport](t, get(t, h, base+"/revision")); len(rev.Changes) != 0 {

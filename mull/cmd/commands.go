@@ -283,7 +283,11 @@ func planCmd(a *app) *cobra.Command {
 		func(m *mull.Mull, slug string) (mull.DocResult, error) { return m.PlanDoc(slug) },
 		func(m *mull.Mull, slug string) (mull.DocLog, error) { return m.PlanDocLog(slug) },
 		func(ref, doc string) mull.Input { return &mull.PlanDocIn{Slug: ref, Doc: &doc} })
-	c.AddCommand(newC, agree, list, show, doc, closeC)
+	rules := rulesCmd(a, "plan", "<slug>",
+		func(m *mull.Mull, slug string) (mull.RulesResult, error) { return m.PlanRules(slug) },
+		func(m *mull.Mull, slug string) (mull.RulesLog, error) { return m.PlanRulesLog(slug) },
+		func(ref, rules string) mull.Input { return &mull.PlanRulesIn{Slug: ref, Rules: &rules} })
+	c.AddCommand(newC, agree, list, show, doc, rules, closeC)
 	return c
 }
 
@@ -293,25 +297,53 @@ func docCmd(a *app, kind, arg, holds string,
 	get func(m *mull.Mull, ref string) (mull.DocResult, error),
 	history func(m *mull.Mull, ref string) (mull.DocLog, error),
 	put func(ref, doc string) mull.Input) *cobra.Command {
+	return textCmd(a, kind, "doc", arg, "Print a "+kind+"'s doc ("+holds+"; intent only, never status), "+
+		"or replace it with - (stdin; empty removes it). --log: every version, newest first",
+		func(m *mull.Mull, ref string) (any, string, error) {
+			d, err := get(m, ref)
+			return d, d.Doc, err
+		},
+		func(m *mull.Mull, ref string) (any, error) { return history(m, ref) }, put)
+}
+
+// rulesCmd is plan rules and phase rules, which work as docCmd does.
+func rulesCmd(a *app, kind, arg string,
+	get func(m *mull.Mull, ref string) (mull.RulesResult, error),
+	history func(m *mull.Mull, ref string) (mull.RulesLog, error),
+	put func(ref, rules string) mull.Input) *cobra.Command {
+	return textCmd(a, kind, "rules", arg, "Print a "+kind+"'s rules (the human's standing rules for the agents working in it, "+
+		"which context --item prints in full), or replace them with - (stdin; empty removes them). --log: every version, newest first",
+		func(m *mull.Mull, ref string) (any, string, error) {
+			r, err := get(m, ref)
+			return r, r.Rules, err
+		},
+		func(m *mull.Mull, ref string) (any, error) { return history(m, ref) }, put)
+}
+
+// textCmd is a plan's or phase's markdown (its doc or its rules): print
+// it, its history (--log), or replace it from stdin (-).
+func textCmd(a *app, kind, name, arg, short string,
+	get func(m *mull.Mull, ref string) (any, string, error),
+	history func(m *mull.Mull, ref string) (any, error),
+	put func(ref, text string) mull.Input) *cobra.Command {
 	var log, asText bool
 	c := &cobra.Command{
-		Use: "doc " + arg + " [-]",
-		Short: "Print a " + kind + "'s doc (" + holds + "; intent only, never status), " +
-			"or replace it with - (stdin; empty removes it). --log: every version, newest first",
-		Args: wrapArgs(cobra.RangeArgs(1, 2)),
+		Use:   name + " " + arg + " [-]",
+		Short: short,
+		Args:  wrapArgs(cobra.RangeArgs(1, 2)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 2 {
 				if args[1] != "-" {
-					return usage(fmt.Errorf("the doc is read from stdin: give - (got %q)", args[1]))
+					return usage(fmt.Errorf("the %s is read from stdin: give - (got %q)", name, args[1]))
 				}
 				if log || asText {
-					return usage(fmt.Errorf("--log and --text are for reading a doc, not replacing it"))
+					return usage(fmt.Errorf("--log and --text are for reading the %s, not replacing it", name))
 				}
-				doc, err := a.text("-")
+				text, err := a.text("-")
 				if err != nil {
 					return err
 				}
-				return a.write(kind+" doc", put(args[0], doc))
+				return a.write(kind+" "+name, put(args[0], text))
 			}
 			m, err := a.open()
 			if err != nil {
@@ -327,22 +359,22 @@ func docCmd(a *app, kind, arg, holds string,
 				}
 				return a.json(l)
 			}
-			d, err := get(m, args[0])
+			d, text, err := get(m, args[0])
 			if err != nil {
 				return err
 			}
 			if asText {
-				if d.Doc == "" {
+				if text == "" {
 					return nil
 				}
-				_, err = fmt.Fprintln(a.stdout, d.Doc)
+				_, err = fmt.Fprintln(a.stdout, text)
 				return err
 			}
 			return a.json(d)
 		},
 	}
-	c.Flags().BoolVar(&log, "log", false, "print every version of the doc, newest first")
-	c.Flags().BoolVar(&asText, "text", false, "print the doc as markdown instead of JSON")
+	c.Flags().BoolVar(&log, "log", false, "print every version of the "+name+", newest first")
+	c.Flags().BoolVar(&asText, "text", false, "print the "+name+" as markdown instead of JSON")
 	return c
 }
 
@@ -380,6 +412,10 @@ func phaseCmd(a *app) *cobra.Command {
 		func(m *mull.Mull, id string) (mull.DocResult, error) { return m.PhaseDoc(id) },
 		func(m *mull.Mull, id string) (mull.DocLog, error) { return m.PhaseDocLog(id) },
 		func(ref, doc string) mull.Input { return &mull.PhaseDocIn{ID: ref, Doc: &doc} })
+	rules := rulesCmd(a, "phase", "<id>",
+		func(m *mull.Mull, id string) (mull.RulesResult, error) { return m.PhaseRules(id) },
+		func(m *mull.Mull, id string) (mull.RulesLog, error) { return m.PhaseRulesLog(id) },
+		func(ref, rules string) mull.Input { return &mull.PhaseRulesIn{ID: ref, Rules: &rules} })
 	var del mull.PhaseDeleteIn
 	deleteCmd := &cobra.Command{
 		Use:   "delete <id>",
@@ -391,7 +427,7 @@ func phaseCmd(a *app) *cobra.Command {
 		},
 	}
 	onRequestFlag(deleteCmd, &del.OnRequest)
-	c.AddCommand(add, list, doc, deleteCmd)
+	c.AddCommand(add, list, doc, rules, deleteCmd)
 	return c
 }
 

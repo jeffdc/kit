@@ -136,3 +136,107 @@ func TestDocsInBatch(t *testing.T) {
 		t.Fatalf("plan doc after removal = %+v", d)
 	}
 }
+
+func TestPlanAndPhaseRules(t *testing.T) {
+	m, dir := setup(t)
+	must[*model.Plan](t)(m.PlanNew("launch", "Public launch", "", true))
+	if r := must[RulesResult](t)(m.PlanRules("launch")); r.Type != "plan" || r.ID != "launch" || r.Rules != "" {
+		t.Fatalf("rules before any = %+v", r)
+	}
+	rules := "- Use the shared components in lib/ui.\n- Don't edit priv/static."
+	if r := must[RulesResult](t)(m.SetPlanRules("launch", rules+"\n\n")); r.Rules != rules {
+		t.Fatalf("set plan rules = %+v", r)
+	}
+
+	// Rules are their own file, under rules/ plus the record's path, and
+	// writing them touches nothing else: not the record, not the doc.
+	if file := gittest.Git(t, dir, "show", store.Ref+":rules/plans/launch.md"); file != rules {
+		t.Fatalf("rules file = %q", file)
+	}
+	if changed := gittest.Git(t, dir, "show", "--format=", "--name-only", store.Ref); changed != "rules/plans/launch.md" {
+		t.Fatalf("plan rules commit touched %q", changed)
+	}
+	if pv := must[PlanView](t)(m.PlanShow("launch")); pv.Rules != rules || pv.Doc != "" {
+		t.Fatalf("plan show = %+v", pv.Plan)
+	}
+	before := gittest.Git(t, dir, "rev-parse", store.Ref)
+	must[RulesResult](t)(m.SetPlanRules("launch", rules))
+	if after := gittest.Git(t, dir, "rev-parse", store.Ref); after != before {
+		t.Fatalf("unchanged rules made a commit")
+	}
+
+	// context --item gives the item's plan's rules, then its phase's, in
+	// full, with a protocol line saying to follow them.
+	must[*model.Plan](t)(m.PlanAgree("launch", true))
+	ph := must[*model.Phase](t)(m.PhaseAdd("launch", "Billing", "", nil))
+	it := must[ItemView](t)(m.ItemAdd(NewItem{Phase: ph.ID, Title: "Webhook"}))
+	ctx := must[Context](t)(m.Context(it.ID))
+	if ctx.Item.PlanRules != rules || ctx.Item.PhaseRules != "" || !strings.Contains(strings.Join(ctx.Protocol, "\n"), "plan_rules, then its phase_rules") {
+		t.Fatalf("context = %+v, protocol %v", ctx.Item, ctx.Protocol)
+	}
+	must[RulesResult](t)(m.SetPhaseRules(ph.ID, "Test against Stripe's test mode."))
+	if file := gittest.Git(t, dir, "show", store.Ref+":rules/phases/"+ph.ID+".md"); file != "Test against Stripe's test mode." {
+		t.Fatalf("phase rules file = %q", file)
+	}
+	ctx = must[Context](t)(m.Context(it.ID))
+	if ctx.Item.PlanRules != rules || ctx.Item.PhaseRules != "Test against Stripe's test mode." {
+		t.Fatalf("context item = %+v", ctx.Item)
+	}
+	if sh := must[Shown](t)(m.Show(ph.ID)); sh.Phase.Rules != "Test against Stripe's test mode." {
+		t.Fatalf("phase show = %+v", sh.Phase)
+	}
+	// Context without an item has no rules line.
+	if c := must[Context](t)(m.Context("")); strings.Contains(strings.Join(c.Protocol, "\n"), "plan_rules") {
+		t.Fatalf("protocol without an item = %v", c.Protocol)
+	}
+
+	// Empty rules remove them, and with none there's no rules line.
+	must[RulesResult](t)(m.SetPlanRules("launch", ""))
+	must[RulesResult](t)(m.SetPhaseRules(ph.ID, " \n"))
+	ctx = must[Context](t)(m.Context(it.ID))
+	if ctx.Item.PlanRules != "" || ctx.Item.PhaseRules != "" || strings.Contains(strings.Join(ctx.Protocol, "\n"), "plan_rules") {
+		t.Fatalf("context without rules = %+v, protocol %v", ctx.Item, ctx.Protocol)
+	}
+
+	// History: a version per change, the removal included.
+	log := must[RulesLog](t)(m.PlanRulesLog("launch"))
+	if log.Type != "plan" || log.ID != "launch" || len(log.Versions) != 2 || log.Versions[0].Rules != "" || log.Versions[1].Rules != rules {
+		t.Fatalf("plan rules log = %+v", log)
+	}
+	if pl := must[RulesLog](t)(m.PhaseRulesLog(ph.ID)); len(pl.Versions) != 2 {
+		t.Fatalf("phase rules log = %+v", pl)
+	}
+
+	_, err := m.PlanRules("nope")
+	wantCode(t, err, CodeNotFound)
+	_, err = m.SetPhaseRules("ffff", "x")
+	wantCode(t, err, CodeNotFound)
+	_, err = m.PhaseRulesLog("ffff")
+	wantCode(t, err, CodeNotFound)
+}
+
+func TestRulesInBatchAndSync(t *testing.T) {
+	m, dir := setup(t)
+	remote := bareRemote(t, dir)
+	in := `{"op": "plan new", "ref": "p", "slug": "launch", "title": "Launch", "on-request": true}
+{"op": "plan rules", "slug": "@p", "rules": "Branch from main."}
+{"op": "plan agree", "slug": "@p", "on-request": true}
+{"op": "phase add", "ref": "b", "plan": "@p", "title": "Billing"}
+{"op": "phase rules", "id": "@b", "rules": "Stripe test mode only."}
+`
+	res := must[[]BatchResult](t)(m.Batch(strings.NewReader(in), false))
+	if r := res[4].Result.(RulesResult); r.Type != "phase" || r.ID != res[3].ID || r.Rules != "Stripe test mode only." {
+		t.Fatalf("phase rules result = %+v", r)
+	}
+	// rules is required: leaving it out can't clear them.
+	_, err := m.Batch(strings.NewReader(`{"op": "plan rules", "slug": "launch"}`), false)
+	wantCode(t, err, CodeBatchInvalid)
+
+	// Rules are mull data, so sync pushes them.
+	if r := must[SyncResult](t)(m.Sync(false)); r.Action != "pushed" {
+		t.Fatalf("sync = %+v", r)
+	}
+	if got := gittest.Git(t, remote, "show", store.Ref+":rules/plans/launch.md"); got != "Branch from main." {
+		t.Fatalf("remote rules = %q", got)
+	}
+}
