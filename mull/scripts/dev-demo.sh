@@ -89,6 +89,11 @@ git checkout -q main
 m done "$header" --summary "One header for every page." --tour none --design "A shared partial."
 m accept "$header" --on-request
 m need "$launch" "$pass"
+# Its integration review, filed at web-next's tip as a supervisor would:
+# it waits in Needs you, on the phase.
+git checkout -q web-next
+m done "$pass" --summary "The header reads the same on every page." --tour none --design "Read the combined diff on web-next; one header partial, used everywhere."
+git checkout -q main
 # Two agents at work on branches that both change the page layout: an
 # overlap in the Plans column.
 account=$(id add "Account page" --plan web)

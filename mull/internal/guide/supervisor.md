@@ -59,6 +59,14 @@ When a worker runs `mull done`, you review before the human sees it. The order i
 
 Unreviewed work is incomplete work. An item is in review after `mull done`, and done only once its review is accepted.
 
+## Integration reviews
+A phase that needs an integration review shows "awaiting integration review" in `mull view` once every item in it is done. Each item was reviewed alone; this review is of the whole phase on its target, where the pieces parallel workers built have to fit.
+1. Once every item's work is merged into the plan's target, go to a clean worktree whose HEAD is the target's tip (a checkout of the target, or `git worktree add --detach <path> <target>`), set up as the plan's rules say.
+2. Read the combined diff yourself: the files the phase's items changed, from the merge base of their claims to the tip (the report gives `base` and `commit`). Look for what per-item reviews can't see: duplicated helpers, components and styles, inconsistent layouts and names, shared files pulled different ways. Walk the phase's pages on the preview.
+3. Run `mull done <phase-id> --summary "<how the phase fits together>" --tour "<steps, or none>" --design -`, with your findings as the design notes: what you checked and what holds. It runs the hard checks on the tip, writes the phase's report (`mull report <phase-id>`, with the combined diff and its items) and files the integration review in the human's inbox. It's refused when the phase doesn't need one, has open work, or already has one open.
+4. Show the human the report and the tour. They accept it (`mull accept <phase-id>`, `--on-request` when you run it on their word; never on your own, since you filed it), which completes the phase and unblocks the phases that need it.
+5. If it doesn't hold up, the human sends it back with `mull do <review-id> --reason "<what to fix>"` (you run it with `--on-request` on their word): that adds a committed fix-up item to the phase, from the reason, and the phase reopens. Hand the fix-up out like any item; once it's done and merged, file the integration review again.
+
 ## Removing worktrees
 Worktrees left behind pile up (dependencies and databases make each one big), and mull never removes them. You do, once all of these hold:
 - the item is done (its review accepted), not just in review;

@@ -289,6 +289,45 @@ func TestOutputShapes(t *testing.T) {
 
 // TestMigrateShapes runs mull migrate on data written as the mull before
 // Model v2 wrote it (format 1), straight through the store.
+// A phase's integration review: done on the phase, its report, and the
+// review entry, accepted by the phase's ID.
+func TestPhaseDoneShapes(t *testing.T) {
+	r := run{t: t, dir: gittest.NewRepo(t)}
+	r.ok("init")
+	r.ok("config", "checks", "true", "--on-request")
+	r.ok("plan", "new", "launch", "Launch", "--on-request")
+	r.ok("plan", "agree", "launch", "--on-request")
+	ph := id(r.ok("phase", "add", "Pages", "--plan", "launch"))
+	r.ok("phase", "set", ph, "integration-review", "on", "--on-request")
+	it := id(r.ok("add", "Home page", "--phase", ph))
+	r.ok("start", it)
+	gittest.Commit(t, r.dir, "home.txt", "home\n", "Home", "Mull: "+it)
+	r.ok("done", it, "--summary", "Home.", "--tour", "none", "--design", "Plain.")
+	r.ok("accept", it, "--on-request")
+
+	r.fails("not_found", "do", ph) // a phase is no entry: do takes its review
+	dn := r.okIn("Read the combined diff.\n", "done", ph, "--summary", "Fits.", "--tour", "none", "--design", "-")
+	checkKeys(t, "done <phase>", dn, keys{[]string{"report", "report_path", "phase"}, []string{"review_entry", "warnings", "reminder"}})
+	pv := phaseViewKeys.plus(keys{nil, []string{"integration_review", "awaiting_integration_review"}})
+	checkKeys(t, "done <phase>.phase", dn["phase"], pv)
+	phaseReportKeys := keys{[]string{"phase", "items", "n", "passed", "commit", "at", "by", "summary", "checks"},
+		[]string{"override", "base", "tour", "warnings", "changes", "shared", "design"}}
+	checkKeys(t, "done <phase>.report", dn["report"], phaseReportKeys)
+	checkKeys(t, "done <phase>.report.items[0]", first(t, "items", dn["report"].(map[string]any)["items"]), keys{[]string{"id", "title"}, nil})
+	rp := r.ok("report", ph)
+	checkKeys(t, "report <phase>", rp, keys{[]string{"report", "text"}, []string{"preview"}})
+	checkKeys(t, "report <phase>.report", rp["report"], phaseReportKeys)
+	ek := entryKeys.plus(keys{nil, []string{"phase", "items"}})
+	rv := r.ok("show", dn["review_entry"].(string))
+	checkKeys(t, "show <integration review>", rv["entry"], ek)
+	r.fails("not_allowed", "accept", ph)
+	acc := r.ok("accept", ph, "--on-request")
+	checkKeys(t, "accept <phase>.entries[0]", first(t, "entries", acc["entries"]), ek)
+	if p := r.ok("show", ph)["phase"].(map[string]any); p["complete"] != true {
+		t.Fatalf("phase after accept = %v", p)
+	}
+}
+
 func TestMigrateShapes(t *testing.T) {
 	dir := gittest.NewRepo(t)
 	g, err := git.Open(dir)

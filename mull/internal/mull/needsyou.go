@@ -121,8 +121,12 @@ func (s *state) countBlocking(keep func(*model.Entry) bool) int {
 	return n
 }
 
-// entryPhase is the phase an entry is about: its item's.
+// entryPhase is the phase an entry is about: an integration review's own,
+// else its item's.
 func (s *state) entryPhase(e *model.Entry) string {
+	if e.Phase != "" {
+		return e.Phase
+	}
 	if i := s.items[e.Item]; i != nil {
 		return i.Phase
 	}
@@ -141,6 +145,9 @@ func (s *state) needRow(e *model.Entry) NeedRow {
 		if ph := s.phases[i.Phase]; ph != nil {
 			r.Phase, r.PhaseTitle = ph.ID, ph.Title
 		}
+	}
+	if ph := s.phases[e.Phase]; ph != nil { // an integration review
+		r.Phase, r.PhaseTitle = ph.ID, ph.Title
 	}
 	return r
 }

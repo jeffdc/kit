@@ -386,11 +386,23 @@ type ReportDecision struct {
 	Detail string `yaml:"detail,omitempty" json:"detail,omitempty"`
 }
 
+// ReportItem is a done item an integration review report covers.
+type ReportItem struct {
+	ID    string `yaml:"id" json:"id"`
+	Title string `yaml:"title" json:"title"`
+}
+
 // Report is a done report: the record of finishing (or failing to finish) an
 // item. What was built: summary, tour, checks. How: design notes, the
 // decisions made in the session, changes by layer.
+//
+// An integration review report (mull done on a phase) has Phase and Items
+// instead of Item: the phase and the done items it covers, with Changes their
+// combined diff on the target.
 type Report struct {
-	Item     string         `yaml:"item" json:"item"`
+	Item     string         `yaml:"item,omitempty" json:"item,omitempty"`
+	Phase    string         `yaml:"phase,omitempty" json:"phase,omitempty"`
+	Items    []ReportItem   `yaml:"items,omitempty" json:"items,omitempty"`
 	N        int            `yaml:"n" json:"n"`
 	Passed   bool           `yaml:"passed" json:"passed"`
 	Override string         `yaml:"override,omitempty" json:"override,omitempty"`

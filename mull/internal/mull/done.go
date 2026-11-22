@@ -430,10 +430,17 @@ type DoneResult struct {
 	Reminder   string       `json:"reminder,omitempty"`
 }
 
-// ErrChecksFailed means the hard checks failed; the item stays active.
-type ErrChecksFailed struct{ Report string }
+// ErrChecksFailed means the hard checks failed: the item stays active, or,
+// for a phase (Phase), no integration review is filed.
+type ErrChecksFailed struct {
+	Report string
+	Phase  bool
+}
 
 func (e *ErrChecksFailed) Error() string {
+	if e.Phase {
+		return "hard checks failed on the target's tip; no integration review is filed. See " + e.Report
+	}
 	return "hard checks failed; the item stays active. See " + e.Report
 }
 
@@ -442,19 +449,16 @@ func (e *ErrChecksFailed) Error() string {
 // If the checks fail, the failed report is saved and the item stays active.
 func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 	var out DoneResult
-	if strings.TrimSpace(in.Summary) == "" {
-		return out, errf(CodeInvalid, "done needs a summary: a few sentences on what changed and how it fits")
-	}
-	design := strings.TrimSpace(in.Design)
-	if design == "" || strings.EqualFold(strings.TrimRight(design, "."), "none") {
-		return out, errf(CodeDesignRequired, "done needs design notes with --design: how it was built and why (the approach, the shape of the code, what was rejected)")
+	design, err := doneText(in)
+	if err != nil {
+		return out, err
 	}
 	wt := m.Worktree()
 	var cfg model.Config
 	var claim model.Claim
 	var commands []string
 	var target, preview string
-	err := m.view(func(s *state) error {
+	err = m.view(func(s *state) error {
 		cfg = s.config
 		i, err := s.item(id)
 		if err != nil {
@@ -599,16 +603,30 @@ func (m *Mull) changes(cfg model.Config, target, claimBase, commit string) ([]mo
 		}
 		base = mb
 	}
+	out, err := m.diffChanges(cfg, base, commit, nil)
+	return out, base, err
+}
+
+// diffChanges lists the files changed from base to commit, grouped by
+// configured layer; with paths, only those files.
+func (m *Mull) diffChanges(cfg model.Config, base, commit string, paths []string) ([]model.LayerChanges, error) {
 	if base == commit {
-		return nil, base, nil
+		return nil, nil
 	}
-	nameStatus, err := m.repo.Output(nil, nil, "diff", "--name-status", "-M", base, commit)
-	if err != nil {
-		return nil, "", err
+	diff := func(format string) (string, error) {
+		args := []string{"--literal-pathspecs", "diff", format, "-M", base, commit}
+		if len(paths) > 0 {
+			args = append(append(args, "--"), paths...)
+		}
+		return m.repo.Output(nil, nil, args...)
 	}
-	numstat, err := m.repo.Output(nil, nil, "diff", "--numstat", "-M", base, commit)
+	nameStatus, err := diff("--name-status")
 	if err != nil {
-		return nil, "", err
+		return nil, err
+	}
+	numstat, err := diff("--numstat")
+	if err != nil {
+		return nil, err
 	}
 	counts := map[string][2]int{}
 	for _, l := range strings.Split(numstat, "\n") {
@@ -636,7 +654,7 @@ func (m *Mull) changes(cfg model.Config, target, claimBase, commit string) ([]mo
 		sort.Slice(files, func(a, b int) bool { return files[a].Path < files[b].Path })
 		out = append(out, model.LayerChanges{Layer: layer, Files: files})
 	}
-	return out, base, nil
+	return out, nil
 }
 
 func renderReport(r model.Report, title string) string {
@@ -645,16 +663,29 @@ func renderReport(r model.Report, title string) string {
 	switch {
 	case !r.Passed && r.Override != "":
 		status = "OVERRIDDEN (checks did not pass): " + r.Override
+	case !r.Passed && r.Phase != "":
+		status = "FAILED: no integration review is filed"
 	case !r.Passed:
 		status = "FAILED: the item stays active"
 	}
-	fmt.Fprintf(&b, "# Done report %d: %s (%s)\n\n", r.N, title, r.Item)
+	if r.Phase != "" {
+		fmt.Fprintf(&b, "# Integration review report %d: %s (phase %s)\n\n", r.N, title, r.Phase)
+	} else {
+		fmt.Fprintf(&b, "# Done report %d: %s (%s)\n\n", r.N, title, r.Item)
+	}
 	fmt.Fprintf(&b, "**Status:** %s  \n**Commit:** %s  \n**By:** %s at %s\n\n", status, short(r.Commit), r.By, r.At)
 	if n := len(r.Shared); n > 0 {
 		fmt.Fprintf(&b, "**Shared files:** %d changed that the plan lists as shared (see Shared files changed, below).\n\n", n)
 	}
 	b.WriteString("## What was built\n\n")
 	fmt.Fprintf(&b, "### Summary\n\n%s\n\n", r.Summary)
+	if r.Phase != "" {
+		b.WriteString("### Items\n\n")
+		for _, it := range r.Items {
+			fmt.Fprintf(&b, "- **%s** %s\n", it.ID, it.Title)
+		}
+		b.WriteString("\n")
+	}
 	b.WriteString("### UI tour\n\n")
 	if len(r.Tour) == 0 {
 		b.WriteString("None given.\n\n")
@@ -687,10 +718,13 @@ func renderReport(r model.Report, title string) string {
 	} else {
 		b.WriteString(r.Design + "\n\n")
 	}
-	b.WriteString("### Decisions made in the session\n\n")
-	if len(r.Decisions) == 0 {
-		b.WriteString("None recorded.\n\n")
-	} else {
+	switch {
+	case r.Phase != "":
+		// An integration review carries no decisions: its items' reviews did.
+	case len(r.Decisions) == 0:
+		b.WriteString("### Decisions made in the session\n\nNone recorded.\n\n")
+	default:
+		b.WriteString("### Decisions made in the session\n\n")
 		b.WriteString("Accepting the review ratifies these. To decide one differently, before accepting: `mull decide <id> \"...\"`\n\n")
 		for _, d := range r.Decisions {
 			fmt.Fprintf(&b, "- **%s** %s\n", d.ID, d.Text)
@@ -708,8 +742,13 @@ func renderReport(r model.Report, title string) string {
 		b.WriteString("\n")
 	}
 	b.WriteString("### Changes by layer\n\n")
-	if len(r.Changes) == 0 {
+	switch {
+	case len(r.Changes) == 0 && r.Phase != "":
+		b.WriteString("No file changes.\n")
+	case len(r.Changes) == 0:
 		b.WriteString("No file changes since the claim.\n")
+	case r.Phase != "":
+		fmt.Fprintf(&b, "The phase's combined diff: the files its items changed, from %s to %s.\n\n", short(r.Base), short(r.Commit))
 	}
 	for _, lc := range r.Changes {
 		added, removed := 0, 0
@@ -743,24 +782,31 @@ type ReportOut struct {
 }
 
 // ReportText returns an item's done report (the latest when n is 0) as
-// markdown, plus the structured report. The markdown's tour steps have their
-// paths resolved against the item's plan's preview as it is now; the
-// structured report keeps them as written.
+// markdown, plus the structured report; or, for a phase, its integration
+// review report. The markdown's tour steps have their paths resolved against
+// the item's (or phase's) plan's preview as it is now; the structured report
+// keeps them as written.
 func (m *Mull) ReportText(id string, n int) (ReportOut, error) {
 	var out ReportOut
 	var text string
 	var rep model.Report
 	err := m.view(func(s *state) error {
-		i, err := s.item(id)
-		if err != nil {
-			return err
+		what, plan := "item", ""
+		if e := s.phases[id]; e != nil {
+			what, plan = "phase", e.Plan
+		} else {
+			i, err := s.item(id)
+			if err != nil {
+				return err
+			}
+			plan = i.Plan
 		}
-		if p := s.plans[i.Plan]; p != nil {
+		if p := s.plans[plan]; p != nil {
 			out.Preview = p.Preview
 		}
 		paths := s.tx.List(fmt.Sprintf("reports/%s-", id))
 		if len(paths) == 0 {
-			return errf(CodeNotFound, "item %s has no done report", id)
+			return errf(CodeNotFound, "%s %s has no done report", what, id)
 		}
 		path := ""
 		if n > 0 {
