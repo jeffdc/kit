@@ -178,12 +178,16 @@ func configCmd(a *app) *cobra.Command {
 			return a.write("config set", &mull.ConfigSetIn{Key: args[0], Value: args[1]})
 		},
 	}
+	var checksIn mull.ConfigChecksIn
 	checks := &cobra.Command{
-		Use: "checks [command...]", Short: "Replace the hard checks done runs (each argument is one shell command; none clears)",
+		Use:   "checks [command...]",
+		Short: "Replace the hard checks done runs (each argument is one shell command; none clears). Only the human changes them",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return a.write("config checks", &mull.ConfigChecksIn{Commands: args})
+			checksIn.Commands = args
+			return a.write("config checks", &checksIn)
 		},
 	}
+	checks.Flags().BoolVar(&checksIn.OnRequest, "on-request", false, "an agent changing the checks on the human's explicit instruction")
 	layer := &cobra.Command{
 		Use:   "layer <name> [glob...]",
 		Short: "Set a layer's path globs for done reports (no globs removes it; a layer named ui makes tours required)",
@@ -300,14 +304,17 @@ func planCmd(a *app) *cobra.Command {
 		func(m *mull.Mull, slug string) (mull.RulesResult, error) { return m.PlanRules(slug) },
 		func(m *mull.Mull, slug string) (mull.RulesLog, error) { return m.PlanRulesLog(slug) },
 		func(ref, rules string) mull.Input { return &mull.PlanRulesIn{Slug: ref, Rules: &rules} })
+	var checksIn mull.PlanChecksIn
 	checks := &cobra.Command{
 		Use:   "checks <slug> [command...]",
-		Short: "Replace the plan's own hard checks, which done runs for its items after config's (each argument is one shell command; none clears)",
+		Short: "Replace the plan's own hard checks, which done runs for its items after config's (each argument is one shell command; none clears). Only the human changes them",
 		Args:  atLeast(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return a.write("plan checks", &mull.PlanChecksIn{Slug: args[0], Commands: args[1:]})
+			checksIn.Slug, checksIn.Commands = args[0], args[1:]
+			return a.write("plan checks", &checksIn)
 		},
 	}
+	checks.Flags().BoolVar(&checksIn.OnRequest, "on-request", false, "an agent changing the checks on the human's explicit instruction")
 	c.AddCommand(newC, agree, list, show, set, doc, rules, checks, closeC)
 	return c
 }

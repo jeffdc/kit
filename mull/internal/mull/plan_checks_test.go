@@ -13,10 +13,10 @@ func TestPlanChecksRunAfterConfig(t *testing.T) {
 	m, dir := setup(t)
 	cfgCheck, cfgRuns := counterCheck(t, 0)
 	planCheck, planRuns := counterCheck(t, 0)
-	must[model.Config](t)(m.ConfigChecks([]string{cfgCheck}))
+	must[model.Config](t)(m.ConfigChecks([]string{cfgCheck}, true))
 	// Blanks are dropped and commands trimmed; a copy of config's is kept
 	// but never run twice.
-	p := must[*model.Plan](t)(m.PlanChecks("general", []string{" " + planCheck + " ", "", cfgCheck}))
+	p := must[*model.Plan](t)(m.PlanChecks("general", []string{" " + planCheck + " ", "", cfgCheck}, true))
 	if len(p.Checks) != 2 || p.Checks[0] != planCheck || p.Checks[1] != cfgCheck {
 		t.Fatalf("plan checks = %q", p.Checks)
 	}
@@ -50,10 +50,10 @@ func TestPlanChecksRunAfterConfig(t *testing.T) {
 func TestPlanChecksOnlyForThePlansItems(t *testing.T) {
 	m, dir := setup(t)
 	failing, _ := counterCheck(t, 3)
-	must[model.Config](t)(m.ConfigChecks([]string{"true"}))
+	must[model.Config](t)(m.ConfigChecks([]string{"true"}, true))
 	must[*model.Plan](t)(m.PlanNew("other", "Other", "", true))
 	must[*model.Plan](t)(m.PlanAgree("other", true))
-	must[*model.Plan](t)(m.PlanChecks("other", []string{failing}))
+	must[*model.Plan](t)(m.PlanChecks("other", []string{failing}, true))
 
 	// An item in general, and one with no plan, don't run other's checks.
 	it := startWork(t, m, dir, "Webhook")
@@ -81,8 +81,8 @@ func TestPlanChecksOnlyForThePlansItems(t *testing.T) {
 	}
 
 	// With no config checks, a plan's own are enough to prove done.
-	must[model.Config](t)(m.ConfigChecks(nil))
-	must[*model.Plan](t)(m.PlanChecks("other", []string{"true"}))
+	must[model.Config](t)(m.ConfigChecks(nil, true))
+	must[*model.Plan](t)(m.PlanChecks("other", []string{"true"}, true))
 	if res := must[DoneResult](t)(m.Done(ot.ID, DoneInput{Summary: "Page.", Design: "A page."})); !res.Report.Passed || len(res.Report.Checks.Results) != 1 {
 		t.Fatalf("done on plan checks only = %+v", res.Report)
 	}
@@ -93,11 +93,11 @@ func TestPlanChecksOnlyForThePlansItems(t *testing.T) {
 
 func TestPlanChecksWrites(t *testing.T) {
 	m, dir := setup(t)
-	_, err := m.PlanChecks("nope", []string{"true"})
+	_, err := m.PlanChecks("nope", []string{"true"}, true)
 	wantCode(t, err, CodeNotFound)
 
 	seen := head(t, dir)
-	results := must[[]BatchResult](t)(m.Batch(strings.NewReader(`{"op": "plan checks", "slug": "general", "commands": "make e2e"}`+"\n"), false))
+	results := must[[]BatchResult](t)(m.Batch(strings.NewReader(`{"op": "plan checks", "slug": "general", "commands": "make e2e", "on-request": true}`+"\n"), false))
 	if p := results[0].Result.(*model.Plan); len(p.Checks) != 1 || p.Checks[0] != "make e2e" || results[0].ID != "general" {
 		t.Fatalf("batch plan checks = %+v", results[0])
 	}
@@ -107,14 +107,51 @@ func TestPlanChecksWrites(t *testing.T) {
 	}
 	// The same list again writes nothing; no commands removes them.
 	tip := head(t, dir)
-	must[*model.Plan](t)(m.PlanChecks("general", []string{"make e2e"}))
+	must[*model.Plan](t)(m.PlanChecks("general", []string{"make e2e"}, true))
 	if head(t, dir) != tip {
 		t.Errorf("unchanged plan checks wrote a commit")
 	}
-	if p := must[*model.Plan](t)(m.PlanChecks("general", nil)); p.Checks != nil {
+	if p := must[*model.Plan](t)(m.PlanChecks("general", nil, true)); p.Checks != nil {
 		t.Errorf("cleared plan checks = %q", p.Checks)
 	}
 	if p := must[PlanView](t)(m.PlanShow("general")); p.Checks != nil {
 		t.Errorf("plan show checks = %q", p.Checks)
+	}
+}
+
+// The checks judge agents' work, so an agent changes them, config's or a
+// plan's, only on the human's word (on-request); the human, as mull serve
+// writes, needs no flag.
+func TestChecksAreTheHumans(t *testing.T) {
+	m, dir := setup(t)
+	tip := head(t, dir)
+	_, err := m.ConfigChecks([]string{"true"}, false)
+	wantCode(t, err, CodeNotAllowed)
+	wantErr(t, err, "--on-request")
+	_, err = m.PlanChecks("general", []string{"true"}, false)
+	wantCode(t, err, CodeNotAllowed)
+	wantErr(t, err, "--on-request")
+	// Clearing them is a change too.
+	_, err = m.ConfigChecks(nil, false)
+	wantCode(t, err, CodeNotAllowed)
+	for _, line := range []string{
+		`{"op": "config checks", "commands": "true"}`,
+		`{"op": "plan checks", "slug": "general", "commands": "true"}`,
+	} {
+		_, err = m.Batch(strings.NewReader(line+"\n"), false)
+		if e := batchErr(t, err); len(e.Lines) != 1 || e.Lines[0].Code != CodeNotAllowed {
+			t.Errorf("batch %s = %+v", line, e.Lines)
+		}
+	}
+	if head(t, dir) != tip {
+		t.Fatalf("a refused checks change wrote a commit")
+	}
+
+	h := human(t, m, dir)
+	if c := must[model.Config](t)(h.ConfigChecks([]string{"true"}, false)); len(c.DoneChecks) != 1 {
+		t.Errorf("the human's config checks = %q", c.DoneChecks)
+	}
+	if p := must[*model.Plan](t)(h.PlanChecks("general", []string{"exit 0"}, false)); len(p.Checks) != 1 {
+		t.Errorf("the human's plan checks = %q", p.Checks)
 	}
 }

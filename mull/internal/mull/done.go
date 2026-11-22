@@ -24,9 +24,11 @@ func (m *Mull) ConfigSet(key, value string) (model.Config, error) {
 	return m.configTx("config set "+key, func(s *state) (model.Config, error) { return m.configSet(s, key, value) })
 }
 
-// ConfigChecks replaces the list of hard-check commands done runs.
-func (m *Mull) ConfigChecks(commands []string) (model.Config, error) {
-	return m.configTx("config checks", func(s *state) (model.Config, error) { return m.configChecks(s, commands) })
+// ConfigChecks replaces the list of hard-check commands done runs. The
+// checks judge agents' work, so only the human changes them: an agent must
+// say they asked (onRequest).
+func (m *Mull) ConfigChecks(commands []string, onRequest bool) (model.Config, error) {
+	return m.configTx("config checks", func(s *state) (model.Config, error) { return m.configChecks(s, commands, onRequest) })
 }
 
 // ConfigLayer sets a layer's path globs; no globs removes the layer.
@@ -63,7 +65,10 @@ func (m *Mull) configSet(s *state, key, value string) (model.Config, error) {
 	})
 }
 
-func (m *Mull) configChecks(s *state, commands []string) (model.Config, error) {
+func (m *Mull) configChecks(s *state, commands []string, onRequest bool) (model.Config, error) {
+	if !m.asked(onRequest) {
+		return model.Config{}, errf(CodeNotAllowed, "only the human changes the hard checks, since they judge agents' work: pass --on-request when the human has asked for this change")
+	}
 	return s.changeConfig(func(c *model.Config) error {
 		c.DoneChecks = append([]string{}, trimCommands(commands)...)
 		return nil
@@ -82,21 +87,25 @@ func trimCommands(commands []string) []string {
 }
 
 // PlanChecks replaces a plan's own hard checks, which done runs for the
-// plan's items after config's; no commands removes them.
-func (m *Mull) PlanChecks(slug string, commands []string) (*model.Plan, error) {
+// plan's items after config's; no commands removes them. Like config's, only
+// the human changes them: an agent must say they asked (onRequest).
+func (m *Mull) PlanChecks(slug string, commands []string, onRequest bool) (*model.Plan, error) {
 	var out *model.Plan
 	err := m.update("plan checks "+slug, func(s *state) error {
 		var err error
-		out, err = m.planChecks(s, slug, commands)
+		out, err = m.planChecks(s, slug, commands, onRequest)
 		return err
 	})
 	return out, err
 }
 
-func (m *Mull) planChecks(s *state, slug string, commands []string) (*model.Plan, error) {
+func (m *Mull) planChecks(s *state, slug string, commands []string, onRequest bool) (*model.Plan, error) {
 	p, err := s.plan(slug)
 	if err != nil {
 		return nil, err
+	}
+	if !m.asked(onRequest) {
+		return nil, errf(CodeNotAllowed, "only the human changes a plan's hard checks, since they judge agents' work: pass --on-request when the human has asked for this change to %q", slug)
 	}
 	checks := trimCommands(commands)
 	if slices.Equal(checks, p.Checks) {
@@ -121,7 +130,7 @@ func hardChecks(cfg model.Config, p *model.Plan) []string {
 	return out
 }
 
-const noChecksHint = `the human sets them with: mull config checks "<command>" ..., and a plan's own with: mull plan checks <slug> "<command>" ...`
+const noChecksHint = `the human sets them with: mull config checks "<command>" ... --on-request, and a plan's own with: mull plan checks <slug> "<command>" ... --on-request`
 
 func (m *Mull) configLayer(s *state, name string, globs []string) (model.Config, error) {
 	return s.changeConfig(func(c *model.Config) error {

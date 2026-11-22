@@ -65,7 +65,7 @@ make build
 **Finishing work is deterministic.** The human configures the hard checks once:
 
 ```bash
-./mull config checks "make done-checks"
+./mull config checks "make done-checks" --on-request   # the human's call: the checks judge agents' work
 ./mull config layer ui "lib/web/**" "assets/**"
 ```
 
