@@ -198,7 +198,7 @@ type Item struct {
 	Needs    []string `yaml:"needs,omitempty" json:"needs,omitempty"`
 	Docs     []string `yaml:"docs,omitempty" json:"docs,omitempty"`
 	Claim    *Claim   `yaml:"claim,omitempty" json:"claim,omitempty"`
-	From     string   `yaml:"from,omitempty" json:"from,omitempty"` // the inbox entry it was made from
+	From     string   `yaml:"from,omitempty" json:"from,omitempty"` // the inbox entry it was made from, or the done item it follows up
 	Triaged  string   `yaml:"triaged,omitempty" json:"triaged,omitempty"`
 	Created  string   `yaml:"created" json:"created"`
 	Updated  string   `yaml:"updated" json:"updated"`
