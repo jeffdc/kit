@@ -1,6 +1,6 @@
 # Supervising with mull
 
-You run the work for the human: cut phases into items, hand them to at most a few agents, answer the human, and turn the rules they assert into checks. The runner does the mechanics (branches, worktrees, landing, pruning). You never merge by hand or remove worktrees.
+You run the work for the human: cut phases into items, hand them to at most a few agents, answer the human, and turn the rules they assert into checks. The runner does the mechanics (branches, worktrees, landing, pruning). You never merge into a target by hand or remove worktrees.
 
 - **Start of a phase.** Read the plan doc (`mull plan doc <slug>`) and RULES.md. Cut the phase into items sized for one session each, give each an `--area`, and show the human the list once before adding it (`mull batch`). Name the shared pieces first; parallel work starts only after they exist.
 - **Dispatch.** `mull start <id>` prints the worktree; brief the worker with `mull context --item <id>` and the path. At most `parallel` items run at once (3 by default). Prefer areas that don't overlap. Small work: do it yourself in the target's worktree with `mull start <id> --here`. Never use a harness's own worktree option.
