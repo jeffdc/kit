@@ -24,8 +24,6 @@ type ItemRow struct {
 	Phase      string       `json:"phase,omitempty"`
 	PhaseTitle string       `json:"phase_title,omitempty"`
 	Claim      *model.Claim `json:"claim,omitempty"`
-	Untriaged  bool         `json:"untriaged,omitempty"`
-	Triaged    string       `json:"triaged,omitempty"`
 	Questions  int          `json:"questions"`          // open questions on it
 	Position   int          `json:"position,omitempty"` // its place in its group's rank order, open work only (see rowsOf)
 	Created    string       `json:"created"`
@@ -35,7 +33,7 @@ type ItemRow struct {
 func (s *state) itemRow(i *model.Item) ItemRow {
 	r := ItemRow{ID: i.ID, Title: i.Title, State: i.State, Ready: s.itemView(i).Ready, Kind: i.Kind,
 		Category: i.Category, Source: i.Source, Plan: i.Plan, Phase: i.Phase, Claim: i.Claim,
-		Untriaged: untriaged(i), Triaged: i.Triaged, Created: i.Created, Updated: i.Updated}
+		Created: i.Created, Updated: i.Updated}
 	if ph := s.phases[i.Phase]; ph != nil {
 		r.PhaseTitle = ph.Title
 	}
@@ -159,10 +157,8 @@ func unplanned(i *model.Item) bool { return i.Plan == "" && i.State != model.Sta
 
 // Counts are the project's tab counts.
 type Counts struct {
-	Unplanned  int    `json:"unplanned"` // committed items with no plan, any stage after captured, less archived ones (as Unplanned lists them)
-	Backlog    int    `json:"backlog"`   // captured items
-	Untriaged  int    `json:"untriaged"`
-	LastTriage string `json:"last_triage,omitempty"`
+	Unplanned int `json:"unplanned"` // committed items with no plan, any stage after captured, less archived ones (as Unplanned lists them)
+	Backlog   int `json:"backlog"`   // captured items: the agents' queue
 }
 
 func (s *state) counts(now time.Time) Counts {
@@ -176,12 +172,6 @@ func (s *state) counts(now time.Time) Counts {
 			c.Unplanned++
 		case i.State == model.StateCaptured:
 			c.Backlog++
-			if untriaged(i) {
-				c.Untriaged++
-			}
-		}
-		if i.Triaged > c.LastTriage {
-			c.LastTriage = i.Triaged
 		}
 	}
 	return c
@@ -333,15 +323,14 @@ type NextPhase struct {
 // PlanPage is a plan: its record and doc, its phases in schedule order,
 // what needs you about it, and what's next.
 type PlanPage struct {
-	Plan      model.Plan      `json:"plan"`
-	Status    PlanStatus      `json:"status"`
-	Schedule  []ScheduleGroup `json:"schedule"`
-	NeedsYou  NeedsYouTiers   `json:"needs_you"`
-	Next      []NextPhase     `json:"next"` // what's next: the phases that can start now
-	Unfiled   []ItemRow       `json:"unfiled"`
-	DocRefs   []DocRef        `json:"doc_refs"`
-	Backlog   int             `json:"backlog"` // captured items tagged to the plan
-	Untriaged int             `json:"untriaged"`
+	Plan     model.Plan      `json:"plan"`
+	Status   PlanStatus      `json:"status"`
+	Schedule []ScheduleGroup `json:"schedule"`
+	NeedsYou NeedsYouTiers   `json:"needs_you"`
+	Next     []NextPhase     `json:"next"` // what's next: the phases that can start now
+	Unfiled  []ItemRow       `json:"unfiled"`
+	DocRefs  []DocRef        `json:"doc_refs"`
+	Backlog  int             `json:"backlog"` // captured items tagged to the plan
 	// Problems are what's wrong with the plan's work, as mull view lists
 	// them, overlaps aside (Status.Overlaps).
 	Problems []ProblemRow `json:"problems"`
@@ -377,9 +366,6 @@ func (m *Mull) PlanPage(slug string) (PlanPage, error) {
 		for _, i := range s.items {
 			if i.Plan == slug && i.State == model.StateCaptured {
 				out.Backlog++
-				if untriaged(i) {
-					out.Untriaged++
-				}
 			}
 		}
 		return nil
@@ -613,14 +599,11 @@ func (m *Mull) UnplannedPage(all bool) (Unplanned, error) {
 }
 
 // Backlog is the captured items, newest first (so what was just captured
-// is at the top), untriaged ahead of triaged when captured together, with
-// what the UI filters by.
+// is at the top), with what the UI filters by.
 type Backlog struct {
 	Items      []ItemRow     `json:"items"`
 	Bugs       int           `json:"bugs"`
 	Ideas      int           `json:"ideas"`
-	Untriaged  int           `json:"untriaged"`
-	LastTriage string        `json:"last_triage,omitempty"`
 	Categories []string      `json:"categories"` // every category used, sorted
 	Plans      []SummaryPlan `json:"plans"`      // the plans items are tagged to
 }
@@ -648,13 +631,7 @@ func (m *Mull) BacklogPage(plan string) (Backlog, error) {
 			return i.Plan == plan
 		}
 		out = Backlog{Items: s.itemRows(keep), Categories: []string{}, Plans: []SummaryPlan{}}
-		sort.SliceStable(out.Items, func(a, b int) bool {
-			x, y := out.Items[a], out.Items[b]
-			if x.Created != y.Created {
-				return x.Created > y.Created
-			}
-			return x.Untriaged && !y.Untriaged
-		})
+		sort.SliceStable(out.Items, func(a, b int) bool { return out.Items[a].Created > out.Items[b].Created })
 		cats, plans := map[string]bool{}, map[string]bool{}
 		for _, r := range out.Items {
 			switch r.Kind {
@@ -662,12 +639,6 @@ func (m *Mull) BacklogPage(plan string) (Backlog, error) {
 				out.Bugs++
 			case model.ItemIdea:
 				out.Ideas++
-			}
-			if r.Untriaged {
-				out.Untriaged++
-			}
-			if r.Triaged > out.LastTriage {
-				out.LastTriage = r.Triaged
 			}
 			cats[r.Category] = true
 			plans[r.Plan] = true

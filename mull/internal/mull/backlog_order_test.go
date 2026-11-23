@@ -6,8 +6,7 @@ import (
 )
 
 // The backlog lists what was captured last at the top, whatever its
-// category, so a fresh capture is where the human looks for it; triage
-// only breaks a tie between items captured at the same moment.
+// category.
 func TestBacklogNewestFirst(t *testing.T) {
 	m, _ := setup(t)
 	base := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
@@ -19,9 +18,7 @@ func TestBacklogNewestFirst(t *testing.T) {
 	at(0)
 	old := capture("Old, with a category", "ui")
 	at(1)
-	triaged := capture("Triaged, captured with the next", "")
-	untriaged := capture("Untriaged, captured with the last", "")
-	must[TriageResult](t)(m.Triage(TriageInput{IDs: []string{triaged}, OnRequest: true}))
+	mid := capture("Captured in between", "")
 	at(2)
 	fresh := capture("Just captured, no category", "")
 
@@ -30,13 +27,13 @@ func TestBacklogNewestFirst(t *testing.T) {
 	for _, r := range bl.Items {
 		got = append(got, r.ID)
 	}
-	want := []string{fresh, untriaged, triaged, old}
+	want := []string{fresh, mid, old}
 	if len(got) != len(want) {
 		t.Fatalf("backlog = %v, want %v", got, want)
 	}
 	for i := range want {
 		if got[i] != want[i] {
-			t.Fatalf("backlog = %v, want %v (newest first, untriaged first within a moment)", got, want)
+			t.Fatalf("backlog = %v, want %v (newest first)", got, want)
 		}
 	}
 }

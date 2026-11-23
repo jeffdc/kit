@@ -96,7 +96,6 @@ func TestHumanNeedsNoOnRequest(t *testing.T) {
 	must[*model.Plan](t)(h.PlanNew("next", "Next", "", false))
 	must[*model.Plan](t)(h.PlanAgree("next", false))
 	c := must[ItemView](t)(m.CaptureItem(NewCapture{Kind: model.ItemBug, Title: "b"}))
-	must[TriageResult](t)(h.Triage(TriageInput{IDs: []string{c.ID}}))
 	must[ItemView](t)(h.Commit(CommitInput{ID: c.ID, Plan: "next"}))
 
 	// The human accepts work done in the worktree mull serve opens.

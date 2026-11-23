@@ -584,7 +584,6 @@ func listCmd(a *app) *cobra.Command {
 	c.Flags().StringVar(&f.Phase, "phase", "", "only this phase")
 	c.Flags().StringVar(&f.State, "state", "", "only this stage (captured, committed, active, in-review, done, dropped)")
 	c.Flags().StringVar(&f.Kind, "kind", "", "only this kind of captured item (bug, idea)")
-	c.Flags().BoolVar(&f.Untriaged, "untriaged", false, "only captured items not triaged yet")
 	return c
 }
 
@@ -706,12 +705,12 @@ func captureCmd(a *app, op string) *cobra.Command {
 
 func captureItemCmd(a *app, op string) *cobra.Command {
 	short := map[string]string{
-		"bug":  "Capture a bug into the backlog: a captured item, not committed work",
-		"idea": "Capture an idea into the backlog: a captured item, not committed work",
+		"bug":  "Queue a bug in one line, for later work (fix a small one in the area you're changing now instead). --area says where in the code",
+		"idea": "Queue an idea: a possibility worth keeping that isn't work yet; it feeds planning",
 	}[op]
 	var in mull.CaptureItemIn
 	c := &cobra.Command{
-		Use: op + " <title>", Short: short + " (only the human commits it: mull commit)", Args: exact(1),
+		Use: op + " <title>", Short: short, Args: exact(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ci, _ := mull.NewInput(op)
 			c := ci.(*mull.CaptureItemIn)
@@ -719,13 +718,14 @@ func captureItemCmd(a *app, op string) *cobra.Command {
 			if c.Detail, err = a.text(in.Detail); err != nil {
 				return err
 			}
-			c.Title, c.Plan, c.Phase, c.Category, c.Source = args[0], in.Plan, in.Phase, in.Category, in.Source
+			c.Title, c.Plan, c.Phase, c.Category, c.Source, c.Area = args[0], in.Plan, in.Phase, in.Category, in.Source, in.Area
 			return a.write(op, c)
 		},
 	}
 	c.Flags().StringVar(&in.Plan, "plan", "", "the plan it belongs to (optional)")
 	c.Flags().StringVar(&in.Phase, "phase", "", "the phase it belongs to (optional; implies the plan)")
 	c.Flags().StringVar(&in.Category, "category", "", "a free-text category")
+	c.Flags().StringVar(&in.Area, "area", "", "where in the code it is: a path or glob (lib/app_web/live/**); work there pulls it in")
 	c.Flags().StringVar(&in.Source, "source", "", "where it came from (a conversation, a file, a commit)")
 	c.Flags().StringVar(&in.Detail, "detail", "", "a short note, kept as the item's notes (- reads stdin)")
 	return c
@@ -735,7 +735,7 @@ func commitCmd(a *app) *cobra.Command {
 	var in mull.CommitIn
 	c := &cobra.Command{
 		Use:   "commit <id>",
-		Short: "Commit a captured item as work, optionally moving it to a plan or phase (--plan none: unplanned). Only the human commits",
+		Short: "Commit a queued item as work, optionally moving it to a plan or phase (--plan none: unplanned)",
 		Args:  exact(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			in.ID = args[0]
@@ -745,22 +745,6 @@ func commitCmd(a *app) *cobra.Command {
 	c.Flags().StringVar(&in.Plan, "plan", "", "move it to this plan (none: unplanned work)")
 	c.Flags().StringVar(&in.Phase, "phase", "", "move it to this phase (implies the plan)")
 	c.Flags().BoolVar(&in.OnRequest, "on-request", false, "an agent committing this on the human's explicit instruction")
-	return c
-}
-
-func triageCmd(a *app) *cobra.Command {
-	var in mull.TriageIn
-	c := &cobra.Command{
-		Use:   "triage [id...]",
-		Short: "Stamp captured items as triaged with the human (--all: the whole backlog, or one plan's with --plan). See mull guide triage",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			in.IDs = mull.SplitIDs(args)
-			return a.write("triage", &in)
-		},
-	}
-	c.Flags().BoolVar(&in.All, "all", false, "every captured item in the project, or in --plan")
-	c.Flags().StringVar(&in.Plan, "plan", "", "with --all: only this plan's backlog (none: captures tagged to no plan)")
-	c.Flags().BoolVar(&in.OnRequest, "on-request", false, "an agent stamping these after triaging them with the human")
 	return c
 }
 
@@ -1057,7 +1041,7 @@ func guideCmd(a *app) *cobra.Command {
 	var asText bool
 	c := &cobra.Command{
 		Use:   "guide <" + strings.Join(guide.Names(), "|") + ">",
-		Short: "A procedure or reference: agents (for AGENTS.md), supervisor, intake, triage (the backlog, with the human), json (output shapes)",
+		Short: "A procedure or reference: agents (for AGENTS.md), supervisor, intake, json (output shapes)",
 		Args:  exact(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			g, err := guide.Get(args[0]) // as written: guides are copied into shared files (AGENTS.md)
@@ -1152,6 +1136,7 @@ func doneCmd(a *app) *cobra.Command {
 	c.Flags().StringVar(&summary, "summary", "", "required: one line on what changed (- reads stdin)")
 	c.Flags().StringVar(&rules, "rules", "", "required: none, or which rules the work touched and how (touching one makes it high risk)")
 	c.Flags().StringVar(&in.Slowed, "slowed", "", "what slowed the work down, if anything (one line)")
+	c.Flags().StringSliceVar(&in.Covers, "covers", nil, "queued or committed items this work also did: they're done with it")
 	c.Flags().StringVar(&tour, "tour", "", "optional: what to look at and what to see, one step per line (- reads stdin)")
 	c.Flags().StringVar(&design, "design", "", "optional: how it was built and why, when it isn't obvious (- reads stdin)")
 	c.Flags().StringVar(&in.Override, "override", "", "HUMAN ONLY: finish despite failing or missing checks, with the reason")

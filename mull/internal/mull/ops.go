@@ -76,7 +76,7 @@ type opDef struct {
 }
 
 var ops = map[string]opDef{
-	"plan new":      {func() Input { return &PlanNewIn{} }, "slug, title, summary, on-request"},
+	"plan new":      {func() Input { return &PlanNewIn{} }, "slug, title, summary, target, on-request"},
 	"plan agree":    {func() Input { return &PlanAgreeIn{} }, "slug, on-request"},
 	"plan close":    {func() Input { return &PlanCloseIn{} }, "slug"},
 	"plan doc":      {func() Input { return &PlanDocIn{} }, "slug, doc"},
@@ -97,10 +97,9 @@ var ops = map[string]opDef{
 	"decided":       {func() Input { return &DecidedIn{} }, "text, item, plan, source, detail, human, on-request"},
 	"ask":           {func() Input { return &CaptureIn{kind: model.KindQuestion} }, "text, default, by, item, plan, source, detail"},
 	"loose":         {func() Input { return &CaptureIn{kind: model.KindLoose} }, "retired: use bug or idea"},
-	"bug":           {func() Input { return &CaptureItemIn{kind: model.ItemBug} }, "title, plan, phase, category, source, detail"},
-	"idea":          {func() Input { return &CaptureItemIn{kind: model.ItemIdea} }, "title, plan, phase, category, source, detail"},
+	"bug":           {func() Input { return &CaptureItemIn{kind: model.ItemBug} }, "title, area, plan, phase, category, source, detail"},
+	"idea":          {func() Input { return &CaptureItemIn{kind: model.ItemIdea} }, "title, area, plan, phase, category, source, detail"},
 	"commit":        {func() Input { return &CommitIn{} }, "id, plan, phase, on-request"},
-	"triage":        {func() Input { return &TriageIn{} }, "ids, all, plan, on-request"},
 	"start":         {func() Input { return &StartIn{} }, "id"},
 	"release":       {func() Input { return &ReleaseIn{} }, "id"},
 	"accept":        {func() Input { return &AcceptIn{} }, "ids, follow-up, on-request"},
@@ -482,6 +481,7 @@ type CaptureItemIn struct {
 	Category string `json:"category"`
 	Source   string `json:"source"`
 	Detail   string `json:"detail"`
+	Area     string `json:"area"`
 	kind     string
 }
 
@@ -496,7 +496,7 @@ func (in *CaptureItemIn) run(m *Mull, s *state) (any, string, error) {
 		}
 		title = in.Text
 	}
-	i, err := m.captureItem(s, NewCapture{Kind: in.kind, Title: title, Plan: in.Plan, Phase: in.Phase,
+	i, err := m.captureItem(s, NewCapture{Area: in.Area, Kind: in.kind, Title: title, Plan: in.Plan, Phase: in.Phase,
 		Category: in.Category, Source: in.Source, Detail: in.Detail})
 	if err != nil {
 		return nil, "", err
@@ -517,22 +517,6 @@ func (in *CommitIn) refFields() ([]*string, []*IDList) {
 func (in *CommitIn) run(m *Mull, s *state) (any, string, error) {
 	r, err := m.commit(s, CommitInput{ID: in.ID, Plan: in.Plan, Phase: in.Phase, OnRequest: in.OnRequest})
 	return r, in.ID, err
-}
-
-// TriageIn stamps captured items as triaged: ids, or all (in plan).
-type TriageIn struct {
-	IDs       IDList `json:"ids"`
-	All       bool   `json:"all"`
-	Plan      string `json:"plan"`
-	OnRequest bool   `json:"on-request"`
-}
-
-func (in *TriageIn) refFields() ([]*string, []*IDList) {
-	return []*string{&in.Plan}, []*IDList{&in.IDs}
-}
-func (in *TriageIn) run(m *Mull, s *state) (any, string, error) {
-	r, err := m.triage(s, TriageInput{IDs: in.IDs, All: in.All, Plan: in.Plan, OnRequest: in.OnRequest})
-	return r, "", err
 }
 
 type StartIn struct {

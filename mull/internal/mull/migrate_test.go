@@ -255,7 +255,7 @@ func TestMigrate(t *testing.T) {
 	c := captured["bb01"]
 	if c.State != model.StateCaptured || c.Plan != "launch" || c.Title != "Footer links to old pricing" ||
 		c.Source != "session 3" || !strings.Contains(c.Notes, "Three links.") || !strings.Contains(c.Notes, "aa01") ||
-		c.Created != "2026-11-03T00:00:00Z" || c.Triaged != "" {
+		c.Created != "2026-11-03T00:00:00Z" {
 		t.Errorf("bb01's item = %+v", c)
 	}
 	if e := must[Shown](t)(m.Show("bb01")).Entry; e.Settled == nil || e.Settled.Action != model.ActDo || e.Settled.Item != c.ID {

@@ -34,9 +34,11 @@ type View struct {
 	// (mull worktrees lists them), when there are any.
 	PrunableWorktrees *Prunable `json:"prunable_worktrees,omitempty"`
 	Legacy            *Legacy   `json:"legacy,omitempty"`
-	Untriaged         int       `json:"untriaged"`             // the whole project's untriaged captured items, with --plan too
-	LastTriage        string    `json:"last_triage,omitempty"` // the latest triage stamp on any item
-	Format            int       `json:"format"`                // the data's storage format (see model.Format)
+	Queue             int       `json:"queue"` // the whole project's captured items, the agents' queue, with --plan too
+	// Clusters are areas where queued work piles up: a sign the design
+	// there is wrong.
+	Clusters []Cluster `json:"clusters,omitempty"`
+	Format   int       `json:"format"` // the data's storage format (see model.Format)
 	// MigrationRequired means writes are refused until mull migrate: the
 	// data, or some of its records, are from before Model v2.
 	MigrationRequired bool `json:"migration_required,omitempty"`
@@ -136,13 +138,11 @@ func (m *Mull) Board(plan string) (View, error) {
 			v.UnlinkedRecent = g.Unlinked[:min(n, unlinkedListSize)]
 		}
 		for _, i := range s.items {
-			if untriaged(i) {
-				v.Untriaged++
-			}
-			if i.Triaged > v.LastTriage {
-				v.LastTriage = i.Triaged
+			if queued(i) {
+				v.Queue++
 			}
 		}
+		v.Clusters = s.clusters()
 		var legacy Legacy
 		for _, e := range s.entries {
 			if e.Settled != nil {
@@ -415,11 +415,7 @@ func progressText(p Progress) string {
 		parts = append(parts, fmt.Sprintf("%d ready", p.Ready))
 	}
 	if p.Captured > 0 {
-		c := fmt.Sprintf("%d captured", p.Captured)
-		if p.Untriaged > 0 {
-			c += fmt.Sprintf(" (%d untriaged)", p.Untriaged)
-		}
-		parts = append(parts, c)
+		parts = append(parts, fmt.Sprintf("%d queued", p.Captured))
 	}
 	return strings.Join(parts, " · ")
 }
@@ -474,12 +470,11 @@ func (v View) Text(now time.Time) string {
 		b.WriteString("\nUNPLANNED\n")
 		writeBoard(&b, *v.Unplanned, now)
 	}
-	if v.Untriaged > 0 {
-		line := plural(v.Untriaged, "captured item") + " untriaged (triage with the human: mull guide triage)"
-		if t, ok := parseTime(v.LastTriage); ok {
-			line += " · last triage " + t.Format("2006-01-02")
+	if v.Queue > 0 {
+		fmt.Fprintf(&b, "\nQUEUE  %s (agents' work: mull list --state captured)\n", plural(v.Queue, "item"))
+		for _, c := range v.Clusters {
+			fmt.Fprintf(&b, "  %d queued in %s: %s\n", c.Count, c.Area, strings.Join(c.Items, ", "))
 		}
-		fmt.Fprintf(&b, "\nBACKLOG  %s\n", line)
 	}
 	if l := v.Legacy; l != nil {
 		var parts []string

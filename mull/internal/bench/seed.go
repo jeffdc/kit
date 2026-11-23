@@ -388,8 +388,7 @@ func (g *gen) itemEvents(p *planSlot, f fate) {
 		}
 		if f == fateCaptured {
 			if g.rnd.Float64() < 0.5 {
-				at := g.after(created, time.Hour, 7*24*time.Hour)
-				g.at(at, "triage "+i.ID, func(c *commit) { i.Triaged = ts(at); put(c, at) })
+				_ = g.after(created, time.Hour, 7*24*time.Hour) // was a triage stamp; kept so the seed draws the same
 			}
 			return
 		}

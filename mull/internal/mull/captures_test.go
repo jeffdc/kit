@@ -42,21 +42,19 @@ func TestCaptureBugsAndIdeas(t *testing.T) {
 	}
 }
 
-func TestCommitIsTheHumans(t *testing.T) {
+// The queue is the agents': anyone commits a capture to work.
+func TestCommitQueuedWork(t *testing.T) {
 	m, _ := setup(t)
 	agreedPlan(t, m, "launch", "Public launch", "")
 	ph := must[*model.Phase](t)(m.PhaseAdd("launch", "Billing", "", nil))
 	bug := must[ItemView](t)(m.CaptureItem(NewCapture{Kind: model.ItemBug, Title: "Two h1s"}))
 
-	_, err := m.Commit(CommitInput{ID: bug.ID})
-	wantCode(t, err, CodeNotAllowed)
-
 	// Committed untagged, a bug is unplanned work, and ready.
-	v := must[ItemView](t)(m.Commit(CommitInput{ID: bug.ID, OnRequest: true}))
+	v := must[ItemView](t)(m.Commit(CommitInput{ID: bug.ID}))
 	if v.State != model.StateCommitted || v.Plan != "" || !v.Ready || v.Kind != model.ItemBug {
 		t.Fatalf("committed = %+v", v)
 	}
-	_, err = m.Commit(CommitInput{ID: bug.ID, OnRequest: true})
+	_, err := m.Commit(CommitInput{ID: bug.ID, OnRequest: true})
 	wantCode(t, err, CodeState)
 
 	// Committing can move it: to a phase, or from a phase to another plan.
@@ -109,7 +107,7 @@ func TestUnplannedWork(t *testing.T) {
 	if u == nil || u.Progress.Done != 1 || u.Progress.Committed != 1 || u.Progress.Captured != 1 || u.NeedsYou.Questions != 1 {
 		t.Fatalf("unplanned board = %+v", u)
 	}
-	if text := v.Text(m.Now()); !strings.Contains(text, "UNPLANNED") || !strings.Contains(text, "1 captured") {
+	if text := v.Text(m.Now()); !strings.Contains(text, "UNPLANNED") || !strings.Contains(text, "1 queued") {
 		t.Fatalf("view text:\n%s", text)
 	}
 }
@@ -133,9 +131,8 @@ func TestCapturesInBatch(t *testing.T) {
 	if i := item(t, m, results[3].ID); i.Kind != model.ItemIdea || i.Title != "Dark mode" || i.Notes != "Asked for twice." || i.State != model.StateCaptured {
 		t.Fatalf("idea = %+v", i)
 	}
-	_, err = m.Batch(strings.NewReader(`{"op": "commit", "id": "`+results[3].ID+`"}`), true)
-	if e := batchErr(t, err); e.Lines[0].Code != CodeNotAllowed {
-		t.Fatalf("lines = %+v", e.Lines)
+	if _, err = m.Batch(strings.NewReader(`{"op": "commit", "id": "`+results[3].ID+`"}`), true); err != nil {
+		t.Fatalf("an agent commits queued work: %v", err)
 	}
 }
 
@@ -153,7 +150,7 @@ func TestCaptureTitleInBatch(t *testing.T) {
 	}
 	_, err = m.Batch(strings.NewReader(`{"op": "idea", "name": "Dark mode"}`), true)
 	e := batchErr(t, err)
-	if msg := e.Lines[0].Error; e.Lines[0].Code != CodeInvalid || !strings.Contains(msg, "fields: title, plan, phase") || strings.Contains(msg, "text") {
+	if msg := e.Lines[0].Error; e.Lines[0].Code != CodeInvalid || !strings.Contains(msg, "fields: title, area, plan, phase") || strings.Contains(msg, "text") {
 		t.Fatalf("unknown field: lines = %+v", e.Lines)
 	}
 }

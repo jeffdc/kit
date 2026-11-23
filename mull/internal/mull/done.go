@@ -506,6 +506,7 @@ type DoneInput struct {
 	Summary  string   // one line: what changed
 	Rules    string   // required: "none", or which rules the work touched and how
 	Slowed   string   // optional: what slowed the work down
+	Covers   []string // queued or committed items this work also did: done with it
 	Tour     []string // optional: what to look at and what to see
 	Design   string   // optional: how it was built and why
 	Override string   // human only: finish despite failing or missing checks, with a reason
@@ -682,6 +683,23 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 			out.Item = s.itemView(i)
 			return nil
 		}
+		covered, err := m.cover(s, id, in.Covers)
+		if err != nil {
+			return err
+		}
+		rep.Covered = covered
+		skip := map[string]bool{}
+		for _, c := range covered {
+			skip[c] = true
+		}
+		for _, q := range s.queueNear(changedPaths(changes), skip) {
+			rep.Nearby = append(rep.Nearby, q.ID)
+		}
+		if data, err = model.Encode(rep, renderReport(rep, i.Title)); err != nil {
+			return err
+		}
+		s.tx.Put(out.ReportPath, data)
+		out.Report = rep
 		landed := risk.Band != model.RiskHigh && len(decisions) == 0
 		i.State, i.Updated = model.StateInReview, m.now()
 		if landed {
@@ -899,6 +917,12 @@ func renderShortReport(r model.Report, title string) string {
 	}
 	if len(r.InScope) > 0 {
 		fmt.Fprintf(&b, "- **Rules in scope:** %s\n", strings.Join(r.InScope, ", "))
+	}
+	if len(r.Covered) > 0 {
+		fmt.Fprintf(&b, "- **Also covered:** %s\n", strings.Join(r.Covered, ", "))
+	}
+	if len(r.Nearby) > 0 {
+		fmt.Fprintf(&b, "- **Queued nearby:** %s\n", strings.Join(r.Nearby, ", "))
 	}
 	if n := len(r.Shared); n > 0 {
 		var paths []string

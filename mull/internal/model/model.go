@@ -219,23 +219,27 @@ type Claim struct {
 // untriaged. Needs are from before Model v2 only (items have no needs):
 // they are read and shown, and mull migrate removes them.
 type Item struct {
-	ID       string   `yaml:"-" json:"id"`
-	Plan     string   `yaml:"plan,omitempty" json:"plan,omitempty"`
-	Phase    string   `yaml:"phase,omitempty" json:"phase,omitempty"`
-	Rank     int      `yaml:"rank,omitempty" json:"rank,omitempty"` // order in its group, lower first; 0 is unranked (see mull rank)
-	Title    string   `yaml:"title" json:"title"`
-	State    string   `yaml:"stage" json:"state"`
-	Kind     string   `yaml:"kind,omitempty" json:"kind,omitempty"`
-	Category string   `yaml:"category,omitempty" json:"category,omitempty"`
-	Source   string   `yaml:"source,omitempty" json:"source,omitempty"`
-	Needs    []string `yaml:"needs,omitempty" json:"needs,omitempty"`
-	Docs     []string `yaml:"docs,omitempty" json:"docs,omitempty"`
-	Claim    *Claim   `yaml:"claim,omitempty" json:"claim,omitempty"`
-	From     string   `yaml:"from,omitempty" json:"from,omitempty"` // the inbox entry it was made from, or the done item it follows up
-	Triaged  string   `yaml:"triaged,omitempty" json:"triaged,omitempty"`
-	Created  string   `yaml:"created" json:"created"`
-	Updated  string   `yaml:"updated" json:"updated"`
-	Notes    string   `yaml:"-" json:"notes,omitempty"`
+	ID       string `yaml:"-" json:"id"`
+	Plan     string `yaml:"plan,omitempty" json:"plan,omitempty"`
+	Phase    string `yaml:"phase,omitempty" json:"phase,omitempty"`
+	Rank     int    `yaml:"rank,omitempty" json:"rank,omitempty"` // order in its group, lower first; 0 is unranked (see mull rank)
+	Title    string `yaml:"title" json:"title"`
+	State    string `yaml:"stage" json:"state"`
+	Kind     string `yaml:"kind,omitempty" json:"kind,omitempty"`
+	Category string `yaml:"category,omitempty" json:"category,omitempty"`
+	// Area is where in the code the item is: a path or glob (lib/oaks_web/live/**).
+	// Queued work is pulled into briefs, and clustered, by area.
+	Area string `yaml:"area,omitempty" json:"area,omitempty"`
+	// CoveredBy is the item whose work covered this one: done with it.
+	CoveredBy string   `yaml:"covered_by,omitempty" json:"covered_by,omitempty"`
+	Source    string   `yaml:"source,omitempty" json:"source,omitempty"`
+	Needs     []string `yaml:"needs,omitempty" json:"needs,omitempty"`
+	Docs      []string `yaml:"docs,omitempty" json:"docs,omitempty"`
+	Claim     *Claim   `yaml:"claim,omitempty" json:"claim,omitempty"`
+	From      string   `yaml:"from,omitempty" json:"from,omitempty"` // the inbox entry it was made from, or the done item it follows up
+	Created   string   `yaml:"created" json:"created"`
+	Updated   string   `yaml:"updated" json:"updated"`
+	Notes     string   `yaml:"-" json:"notes,omitempty"`
 	// Legacy means the record was read in format 1 (see Format).
 	Legacy bool `yaml:"-" json:"-"`
 }
@@ -542,6 +546,10 @@ type Report struct {
 	// the rules whose scope the change touched.
 	RuleChecks []RuleResult `yaml:"rule_checks,omitempty" json:"rule_checks,omitempty"`
 	InScope    []string     `yaml:"in_scope,omitempty" json:"in_scope,omitempty"`
+	// Covered are the queued or committed items this work also did, now
+	// done with it; Nearby the queued items in the area it changed.
+	Covered []string `yaml:"covered,omitempty" json:"covered,omitempty"`
+	Nearby  []string `yaml:"nearby,omitempty" json:"nearby,omitempty"`
 }
 
 // Paths of records on the mull branch.

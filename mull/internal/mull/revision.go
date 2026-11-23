@@ -619,7 +619,6 @@ func itemChange(a, b *model.Item) (Change, bool) {
 		f.short("category", a.Category, b.Category)
 		f.short("source", a.Source, b.Source)
 		f.short("claim", claimOf(a), claimOf(b))
-		f.short("triaged", a.Triaged, b.Triaged)
 		f.short("docs", list(a.Docs), list(b.Docs))
 		f.short("needs", list(a.Needs), list(b.Needs))
 		f.short("from", a.From, b.From)

@@ -46,8 +46,8 @@ func TestSummary(t *testing.T) {
 	if n := sum.NeedsYou; n.Questions != 1 || n.Decisions != 1 || n.Reviews != 0 || n.Older != 2 {
 		t.Errorf("needs you = %+v (the legacy loose end is not counted)", n)
 	}
-	if sum.Agents != 1 || sum.Untriaged != 1 {
-		t.Errorf("agents = %d, untriaged = %d", sum.Agents, sum.Untriaged)
+	if sum.Agents != 1 || sum.Queue != 1 {
+		t.Errorf("agents = %d, queue = %d", sum.Agents, sum.Queue)
 	}
 	tip := gittest.Git(t, dir, "rev-parse", "refs/heads/mull")
 	at, _ := time.Parse(time.RFC3339, gittest.Git(t, dir, "log", "-1", "--format=%cI", tip))

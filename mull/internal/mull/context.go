@@ -40,9 +40,12 @@ type ContextItem struct {
 	// PlanRules and PhaseRules are the human's standing rules for work in
 	// the item's plan and phase, in full: the worker follows the plan's,
 	// then the phase's.
-	PlanRules      string        `json:"plan_rules,omitempty"`
-	PhaseRules     string        `json:"phase_rules,omitempty"`
-	OpenQuestions  []BriefEntry  `json:"open_questions,omitempty"`
+	PlanRules     string       `json:"plan_rules,omitempty"`
+	PhaseRules    string       `json:"phase_rules,omitempty"`
+	OpenQuestions []BriefEntry `json:"open_questions,omitempty"`
+	// Queue is the queued work bearing on the item: in its area, or tagged
+	// to its phase. Fix what's small as you go, and say so with done --covers.
+	Queue          []BriefItem   `json:"queue,omitempty"`
 	ItemDecisions  []BriefDecide `json:"item_decisions,omitempty"`
 	LastReport     string        `json:"last_report,omitempty"`
 	LastReportPass *bool         `json:"last_report_passed,omitempty"`
@@ -191,6 +194,7 @@ func (m *Mull) Context(itemID string) (Context, error) {
 			if e := s.phases[i.Phase]; e != nil {
 				ci.PhaseTitle, ci.PhaseSummary, ci.PhaseDoc, ci.PhaseRules = e.Title, e.Summary, e.Doc, e.Rules
 			}
+			ci.Queue = s.queueFor(i)
 			for _, id := range sortedKeys(s.entries) {
 				e := s.entries[id]
 				if e.Item == itemID && e.Kind == model.KindQuestion && e.Settled == nil {

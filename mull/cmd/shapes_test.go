@@ -23,13 +23,13 @@ var (
 	planKeys      = keys{[]string{"slug", "title", "state", "created", "updated"}, []string{"summary", "target", "preview", "doc", "rules", "checks", "shared"}}
 	targetKeys    = keys{[]string{"branch", "from", "found", "ahead_of_release"}, nil}
 	phaseKeys     = keys{[]string{"id", "plan", "title", "created", "updated"}, []string{"needs", "from", "summary", "doc"}}
-	itemKeys      = keys{[]string{"id", "title", "state", "created", "updated"}, []string{"plan", "phase", "rank", "kind", "category", "source", "needs", "docs", "claim", "from", "triaged", "notes"}}
+	itemKeys      = keys{[]string{"id", "title", "state", "created", "updated"}, []string{"plan", "phase", "rank", "kind", "category", "source", "needs", "docs", "claim", "from", "notes"}}
 	itemViewKeys  = itemKeys.plus(keys{[]string{"ready"}, []string{"blocked_by"}})
 	captureKeys   = itemViewKeys.plus(keys{[]string{"similar"}, nil})
 	phaseViewKeys = phaseKeys.plus(keys{[]string{"progress", "complete"}, []string{"blocked_by"}})
 	entryKeys     = keys{[]string{"id", "kind", "text", "plan", "by", "created"}, []string{"item", "source", "settled", "decisions", "detail", "landed", "default", "due"}}
 	configKeys    = keys{[]string{"format", "integration", "release", "remote", "done_checks", "layers", "risk"}, nil}
-	progressKeys  = keys{[]string{"total", "captured", "untriaged", "committed", "active", "in_review", "done", "dropped", "ready"}, nil}
+	progressKeys  = keys{[]string{"total", "captured", "committed", "active", "in_review", "done", "dropped", "ready"}, nil}
 	reportKeys    = keys{[]string{"item", "n", "passed", "commit", "at", "by", "summary", "checks"}, []string{"override", "base", "tour", "warnings", "changes", "shared", "design", "decisions", "rules", "slowed", "risk", "risk_why", "sampled", "rule_checks", "in_scope"}}
 )
 
@@ -186,8 +186,7 @@ func TestOutputShapes(t *testing.T) {
 	bug := shape(captureKeys, "bug", "Flaky login test", "--category", "tests")
 	h1s := shape(captureKeys, "bug", "Two h1s on home", "--phase", id(phase))
 	shape(itemViewKeys, "commit", id(bug), "--on-request")
-	tr := shape(keys{[]string{"items"}, nil}, "triage", id(h1s), "--on-request")
-	checkKeys(t, "triage.items[0]", first(t, "items", tr["items"]), itemViewKeys)
+	_ = h1s
 	shape(captureKeys, "bug", "Untriaged for the view", "--plan", "launch")
 	dup := shape(captureKeys, "bug", "The login tests are flaky")
 	checkKeys(t, "bug.similar[0]", first(t, "similar", dup["similar"]), keys{[]string{"id", "title"}, nil})
@@ -224,8 +223,8 @@ func TestOutputShapes(t *testing.T) {
 	acc := shape(keys{[]string{"entries", "items", "follow_up"}, nil}, "accept", dn["review_entry"].(string), "--on-request")
 	checkKeys(t, "accept.entries[0]", first(t, "entries", acc["entries"]), entryKeys)
 
-	v := shape(keys{[]string{"generated", "integration", "integration_found", "release", "ahead_of_release", "plans", "unlinked_commits_this_week", "untriaged", "format"},
-		[]string{"unlinked_recent", "unplanned", "legacy", "last_triage", "migration_required", "prunable_worktrees"}}, "view")
+	v := shape(keys{[]string{"generated", "integration", "integration_found", "release", "ahead_of_release", "plans", "unlinked_commits_this_week", "queue", "format"},
+		[]string{"unlinked_recent", "unplanned", "legacy", "migration_required", "prunable_worktrees"}}, "view")
 	board := first(t, "view.plans", v["plans"])
 	boardKeys := keys{[]string{"slug", "title", "target", "progress", "phases", "unfiled", "problems", "in_flight", "needs_you"}, []string{"state", "preview"}}
 	checkKeys(t, "view.plans[0]", board, boardKeys)
@@ -240,7 +239,7 @@ func TestOutputShapes(t *testing.T) {
 	cx = shape(keys{[]string{"worktree", "branch", "protocol", "my_claims", "plans", "ready", "active", "rules", "item"}, nil}, "context", "--item", id(b))
 	ci := cx["item"].(map[string]any)
 	checkKeys(t, "context.item", ci, itemViewKeys.plus(keys{[]string{"target"}, []string{"preview", "shared", "phase_title", "phase_summary", "phase_doc",
-		"plan_rules", "phase_rules", "open_questions", "item_decisions", "last_report", "last_report_passed"}}))
+		"plan_rules", "phase_rules", "open_questions", "queue", "item_decisions", "last_report", "last_report_passed"}}))
 	checkKeys(t, "context.item.target", ci["target"], targetKeys)
 	if ci["preview"] != "http://localhost:4100" {
 		t.Errorf("context.item.preview = %v", ci["preview"])

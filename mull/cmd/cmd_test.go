@@ -194,7 +194,7 @@ func TestCLIEndToEnd(t *testing.T) {
 	if ctx := r.ok("context", "--item", item); ctx["item"].(map[string]any)["id"] != item {
 		t.Fatalf("context = %v", ctx)
 	}
-	for _, g := range []string{"agents", "supervisor", "intake", "triage", "json"} {
+	for _, g := range []string{"agents", "supervisor", "intake", "json"} {
 		if gv := r.ok("guide", g); gv["guide"] != g || !strings.Contains(gv["text"].(string), "mull") {
 			t.Fatalf("guide %s = %v", g, gv)
 		}
@@ -205,14 +205,12 @@ func TestCLIEndToEnd(t *testing.T) {
 		!strings.Contains(g, `--source "human,`) {
 		t.Fatal("guide agents lacks the human-feedback rule")
 	}
-	// Model v2 rules each guide must keep: who captures and commits, how done is
-	// called, where the backlog is triaged, migrating old data first, and how a
-	// worktree is made and removed (mull itself never does either).
+	// What each guide must keep: the brief and done's three answers, the
+	// runner owning worktrees, and the intake drafting the rulebook.
 	for g, wants := range map[string][]string{
-		"agents":     {"Anyone captures; only the human commits", "--design -", "mull guide triage", "phase_doc", "from the tip of the item's plan's target", "mull never creates or removes worktrees"},
-		"supervisor": {"mull guide triage", "mull set <id> plan", "with or without `--on-request`", "mull never creates or removes them", "git branch -d <id>-<short-name>", "Never force either"},
-		"intake":     {"mull migrate --dry-run", "plan agree", "phase doc"},
-		"triage":     {"--on-request", "mull migrate"},
+		"agents":     {"mull context --item", "mull start <id>", "--rules none", "--covers", "--default", "RULES.md", "--area"},
+		"supervisor": {"never merge by hand or remove worktrees", "mull rules ratchet <ID> --grow --on-request", "mull hooks", "--here"},
+		"intake":     {"Draft RULES.md", "mull config risk", "plan/<slug>", "mull guide agents"},
 	} {
 		text := r.ok("guide", g)["text"].(string)
 		for _, want := range wants {
@@ -390,35 +388,6 @@ func TestScopeRules(t *testing.T) {
 	}
 	// Captures need no scope.
 	r.ok("bug", "untagged")
-}
-
-func TestTriageCommand(t *testing.T) {
-	r := run{t: t, dir: gittest.NewRepo(t)}
-	r.ok("init")
-	r.ok("plan", "new", "alpha", "Alpha", "--on-request")
-	a := id(r.ok("bug", "Crash on empty list"))
-	b := id(r.ok("idea", "Dark mode"))
-	// Tag a capture to a plan without committing it.
-	if s := r.ok("set", b, "plan", "alpha"); s["item"].(map[string]any)["plan"] != "alpha" {
-		t.Fatalf("set plan = %v", s)
-	}
-	r.fails("not_allowed", "triage", a)
-	r.fails("invalid_argument", "triage", "--on-request")
-	if tr := r.ok("triage", a, "--on-request"); len(tr["items"].([]any)) != 1 {
-		t.Fatalf("triage = %v", tr)
-	}
-	if l := r.ok("list", "--untriaged")["items"].([]any); len(l) != 1 || id(l[0].(map[string]any)) != b {
-		t.Fatalf("list --untriaged = %v", l)
-	}
-	if v := r.ok("view"); v["untriaged"] != float64(1) || v["last_triage"] == nil {
-		t.Fatalf("view = %v", v)
-	}
-	if tr := r.ok("triage", "--all", "--plan", "alpha", "--on-request"); len(tr["items"].([]any)) != 1 {
-		t.Fatalf("triage --all = %v", tr)
-	}
-	if v := r.ok("view"); v["untriaged"] != float64(0) {
-		t.Fatalf("view = %v", v)
-	}
 }
 
 // The intake guide's example batch is the one agents copy: it must run as written.

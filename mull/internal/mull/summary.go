@@ -17,9 +17,9 @@ type Summary struct {
 	AheadOfRelease   int           `json:"ahead_of_release"`
 	Plans            []SummaryPlan `json:"plans"` // plans not done: active, then shaping
 	NeedsYou         NeedsYou      `json:"needs_you"`
-	Blocking         int           `json:"blocking"` // open questions on active or ready work: Needs you's first tier
-	Agents           int           `json:"agents"`   // active items
-	Untriaged        int           `json:"untriaged"`
+	Blocking         int           `json:"blocking"`    // open questions on active or ready work: Needs you's first tier
+	Agents           int           `json:"agents"`      // active items
+	Queue            int           `json:"queue"`       // captured items: the agents' queue
 	Commit           string        `json:"commit"`      // the mull branch's tip
 	LastChange       string        `json:"last_change"` // its commit time
 	Format           int           `json:"format"`
@@ -61,8 +61,8 @@ func (m *Mull) summary(s *state) (Summary, error) {
 		if i.State == model.StateActive {
 			out.Agents++
 		}
-		if untriaged(i) {
-			out.Untriaged++
+		if i.State == model.StateCaptured {
+			out.Queue++
 		}
 	}
 	now := m.Now().UTC()

@@ -369,7 +369,6 @@ func TestOverviewTreeAndLists(t *testing.T) {
 	must[*model.Plan](t)(m.PlanNew("ideas", "Ideas", "", true)) // shaping: listed after the active plans
 	must[StartResult](t)(m.Start(f.unplannedReady.ID))
 	must[ItemView](t)(m.CaptureItem(NewCapture{Kind: model.ItemBug, Title: "Typo", Category: "docs", Plan: "launch"}))
-	must[TriageResult](t)(m.Triage(TriageInput{IDs: []string{f.unplannedBug.ID}, OnRequest: true}))
 
 	ov := must[Overview](t)(m.Overview())
 	var slugs []string
@@ -379,7 +378,7 @@ func TestOverviewTreeAndLists(t *testing.T) {
 	if !reflect.DeepEqual(slugs, []string{"general", "launch", "ideas"}) {
 		t.Errorf("plans = %v", slugs)
 	}
-	if ov.Counts.Unplanned != 1 || ov.Counts.Backlog != 3 || ov.Counts.Untriaged != 2 || ov.Counts.LastTriage == "" {
+	if ov.Counts.Unplanned != 1 || ov.Counts.Backlog != 3 {
 		t.Errorf("counts = %+v", ov.Counts)
 	}
 	if len(ov.Agents) != 2 || ov.Summary.Agents != 2 || ov.Summary.Blocking != 3 {
@@ -446,13 +445,13 @@ func TestOverviewTreeAndLists(t *testing.T) {
 	}
 
 	bl := must[Backlog](t)(m.BacklogPage(""))
-	if len(bl.Items) != 3 || bl.Bugs != 2 || bl.Ideas != 1 || bl.Untriaged != 2 || bl.LastTriage == "" {
+	if len(bl.Items) != 3 || bl.Bugs != 2 || bl.Ideas != 1 {
 		t.Fatalf("backlog = %+v", bl)
 	}
 	for i := 1; i < len(bl.Items); i++ {
 		x, y := bl.Items[i-1], bl.Items[i]
-		if x.Created < y.Created || x.Created == y.Created && !x.Untriaged && y.Untriaged {
-			t.Errorf("backlog order = %+v (newest first, untriaged first within a moment)", bl.Items)
+		if x.Created < y.Created {
+			t.Errorf("backlog order = %+v (newest first)", bl.Items)
 		}
 	}
 	if !reflect.DeepEqual(bl.Categories, []string{"", "docs"}) || len(bl.Plans) != 1 || bl.Plans[0].Slug != "launch" {
