@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"strconv"
+	"strings"
+	"time"
 
 	"mull/internal/model"
 )
@@ -41,6 +44,10 @@ type CaptureInput struct {
 	Plan   string // the plan, when there is no item (optional for ideas)
 	Source string // where it came from
 	Detail string // more detail: for a decision, why
+	// Default, on a question (required), is what the agent does if the
+	// human doesn't answer; By is when that default stands: a duration
+	// from now (36h, 2d) or a date (2026-12-01).
+	Default, By string
 }
 
 // Capture files an inbox entry.
@@ -68,11 +75,49 @@ func (m *Mull) capture(s *state, in CaptureInput) (*model.Entry, error) {
 	if in.Item == "" && in.Plan == "" && s.openPlans() > 1 {
 		return nil, errf(CodeScope, "this repository has more than one plan: say what the entry is about with --item or --plan")
 	}
-	return m.newEntry(s, in.Kind, in.Text, in.Item, in.Plan, in.Source, in.Detail)
+	var due string
+	if in.Kind == model.KindQuestion {
+		var err error
+		if due, err = m.parseDue(in.By); err != nil {
+			return nil, err
+		}
+	}
+	e, err := m.newEntry(s, in.Kind, in.Text, in.Item, in.Plan, in.Source, in.Detail)
+	if err != nil || in.Kind != model.KindQuestion {
+		return e, err
+	}
+	e.Default, e.Due = strings.TrimSpace(in.Default), due
+	return e, s.putEntry(e)
 }
 
-// decided records a decision. An agent's own (human false) is left open for
-// the human to ratify, usually with its item's review. The human's own (human
+// parseDue turns --by into an RFC 3339 time: a duration from now (36h, 2d)
+// or a date (2026-12-01, the end of that day UTC). Empty is no deadline.
+func (m *Mull) parseDue(by string) (string, error) {
+	by = strings.TrimSpace(by)
+	if by == "" {
+		return "", nil
+	}
+	now := m.Now().UTC()
+	if n, ok := strings.CutSuffix(by, "d"); ok {
+		if d, err := strconv.Atoi(n); err == nil && d > 0 {
+			return now.Add(time.Duration(d) * 24 * time.Hour).Format(time.RFC3339), nil
+		}
+	}
+	if d, err := time.ParseDuration(by); err == nil && d > 0 {
+		return now.Add(d).Format(time.RFC3339), nil
+	}
+	if t, err := time.Parse("2006-01-02", by); err == nil {
+		return t.Add(24*time.Hour - time.Second).Format(time.RFC3339), nil
+	}
+	if t, err := time.Parse(time.RFC3339, by); err == nil {
+		return t.UTC().Format(time.RFC3339), nil
+	}
+	return "", errf(CodeInvalid, "--by %q: give a duration (36h, 2d) or a date (2026-12-01)", by)
+}
+
+// decided records a decision. An agent's own (human false) is noted at once:
+// it goes into its item's done report and the decision log, never to the
+// human's inbox (anything that needs the human is a question: mull ask). The human's own (human
 // true), made in conversation and recorded by an agent on request, is settled
 // at once as decided: straight into the decision log, never in the inbox and
 // never carried by a review.
@@ -81,7 +126,12 @@ func (m *Mull) decided(s *state, in CaptureInput, human, onRequest bool) (*model
 		if onRequest {
 			return nil, errf(CodeInvalid, "--on-request goes with --human, for a decision the human made; an agent's own decision needs neither")
 		}
-		return m.capture(s, in)
+		e, err := m.capture(s, in)
+		if err != nil {
+			return nil, err
+		}
+		e.Settled = &model.Settlement{Action: model.ActNote, By: m.Worktree(), At: e.Created}
+		return e, s.putEntry(e)
 	}
 	if !m.asked(onRequest) {
 		return nil, errf(CodeNotAllowed, "only the human makes their own decisions: pass --on-request when the human decided this in conversation (for a choice you made, drop --human)")
@@ -201,6 +251,28 @@ func (m *Mull) sendBack(s *state, r *model.Entry, i *model.Item, reason string, 
 	return s.putItem(i)
 }
 
+// sendBackLanded settles a review of work that already landed (medium risk,
+// or sampled) by filing a follow-up item: the landed item stays done, and
+// the follow-up, in its plan and phase, carries the reason.
+func (m *Mull) sendBackLanded(s *state, r *model.Entry, i *model.Item, in DoInput) (DoResult, error) {
+	if in.Reason == "" {
+		return DoResult{}, errf(CodeInvalid, "say what's wrong with the landed work (--reason); it becomes a follow-up item")
+	}
+	if r.Settled != nil && r.Settled.Action != model.ActPark {
+		return DoResult{}, errf(CodeSettled, "inbox entry %s is already settled (%s)", r.ID, r.Settled.Action)
+	}
+	f, err := m.addItem(s, NewItem{FollowUp: i.ID, Title: "Fix " + i.ID + ": " + in.Reason,
+		Notes: fmt.Sprintf("Sent back from the %s review of landed work %s (%s): %s", r.Landed, i.ID, r.ID, in.Reason)})
+	if err != nil {
+		return DoResult{}, err
+	}
+	if err := m.settle(s, r, model.ActDo, in.Reason, f.ID, in.SettleOpts); err != nil {
+		return DoResult{}, err
+	}
+	v := s.itemView(f)
+	return DoResult{Entry: r, Item: &v}, nil
+}
+
 func retiredKind(kind string) bool { return kind == model.KindLoose || kind == model.KindIdea }
 
 // SettleOpts are the common options for settling.
@@ -234,8 +306,22 @@ func (s *state) openReview(itemID string) *model.Entry {
 	return nil
 }
 
+// sessionDecisions returns the decisions an agent noted for the item since
+// its claim (since), oldest first: what its done report lists.
+func (s *state) sessionDecisions(itemID, since string) []*model.Entry {
+	var out []*model.Entry
+	for _, e := range s.itemEntries(itemID) {
+		if e.Kind == model.KindDecision && e.Settled != nil && e.Settled.Action == model.ActNote && e.Created >= since {
+			out = append(out, e)
+		}
+	}
+	sort.SliceStable(out, func(a, b int) bool { return out[a].Created < out[b].Created })
+	return out
+}
+
 // openDecisions returns the item's unsettled decision entries, oldest first:
-// what a review filed now would carry. Parked decisions are left out.
+// what a review filed now would carry. Parked decisions are left out. Only
+// decisions from before the redesign are open: an agent's are noted.
 func (s *state) openDecisions(itemID string) []*model.Entry {
 	var out []*model.Entry
 	for _, e := range s.itemEntries(itemID) {
@@ -309,6 +395,9 @@ func (m *Mull) accept(s *state, refs []string, followUp string, o SettleOpts) (A
 			entry = s.openReview(ref)
 		default:
 			return out, errf(CodeNotFound, "no inbox entry or item %q", ref)
+		}
+		if entry != nil && entry.Landed != "" {
+			item = nil // the work landed already: accepting says it looked fine
 		}
 		if item != nil {
 			if err := m.acceptItem(s, item, o); err != nil {
@@ -467,6 +556,9 @@ func (m *Mull) do(s *state, in DoInput) (DoResult, error) {
 		i, err := s.item(e.Item)
 		if err != nil {
 			return DoResult{}, err
+		}
+		if e.Landed != "" {
+			return m.sendBackLanded(s, e, i, in)
 		}
 		if i.State != model.StateInReview {
 			return DoResult{}, errf(CodeState, "item %s is %s; only items in review can be sent back", i.ID, i.State)
@@ -632,10 +724,14 @@ type Decision struct {
 	Human     bool   `json:"human,omitempty"` // the human settled it themselves; By is their name
 	OnRequest bool   `json:"on_request,omitempty"`
 	At        string `json:"at"`
+	// Noted means an agent's own choice, noted as made and never put to
+	// the human; Why is the agent's reason.
+	Noted bool   `json:"noted,omitempty"`
+	Why   string `json:"why,omitempty"`
 }
 
-// Decisions returns the decision log, newest first: ratified agent decisions
-// and the human's own decisions.
+// Decisions returns the decision log, newest first: the human's own
+// decisions, agent decisions they ratified, and agents' noted choices.
 func (m *Mull) Decisions(plan string) ([]Decision, error) {
 	out := []Decision{}
 	err := m.view(func(s *state) error {
@@ -656,6 +752,8 @@ func (m *Mull) Decisions(plan string) ([]Decision, error) {
 				d.Decision = e.Settled.Note
 			case e.Settled.Action == model.ActAccept && e.Kind == model.KindDecision:
 				d.Decision = e.Text
+			case e.Settled.Action == model.ActNote && e.Kind == model.KindDecision:
+				d.Decision, d.Noted, d.Why = e.Text, true, e.Detail
 			default:
 				continue
 			}

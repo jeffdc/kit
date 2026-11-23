@@ -10,15 +10,14 @@ import (
 
 // Context is the compact briefing an agent reads at the start of a session.
 type Context struct {
-	Worktree  string        `json:"worktree"`
-	Branch    string        `json:"branch"`
-	Protocol  []string      `json:"protocol"`
-	Item      *ContextItem  `json:"item,omitempty"`
-	MyClaims  []BriefItem   `json:"my_claims"`
-	Plans     []BriefPlan   `json:"plans"`
-	Ready     []BriefItem   `json:"ready"`
-	Active    []BriefItem   `json:"active"`
-	Decisions []BriefDecide `json:"decisions"`
+	Worktree string       `json:"worktree"`
+	Branch   string       `json:"branch"`
+	Protocol []string     `json:"protocol"`
+	Item     *ContextItem `json:"item,omitempty"`
+	MyClaims []BriefItem  `json:"my_claims"`
+	Plans    []BriefPlan  `json:"plans"`
+	Ready    []BriefItem  `json:"ready"`
+	Active   []BriefItem  `json:"active"`
 }
 
 // ContextItem is the item a session works on, with what bears on it.
@@ -83,19 +82,17 @@ type BriefDecide struct {
 	Decision string `json:"decision"`
 }
 
-const (
-	contextReadyLimit     = 15
-	contextDecisionsLimit = 20
-)
+const contextReadyLimit = 15
 
 var protocol = []string{
-	"Use only the mull CLI; never read or edit the mull branch or its files.",
-	"One item per session: mull start <id>; branch <id>-<name>; end each commit message with 'Mull: <id>'.",
-	"Read the decisions below before deciding anything they settle, and the item's docs and phase_doc for intent.",
-	"Capture as you go: mull decided / mull ask with --item <id>; anything out of scope with mull bug (wrong) / mull idea (a possibility) --source \"item <id>\". Captures go to the backlog; only the human commits them.",
-	"Don't change plans, phases or their docs, rules or checks, add items, or commit or retag captures unless the human asks; propose with mull ask.",
-	"Finish only with mull done <id> --summary ... --tour ... --design - (design notes on stdin: how and why); it runs the hard checks, and the item is in review until accepted. Never claim done in prose.",
-	"Settle inbox entries only on the human's explicit instruction, with --on-request. mull sync after done.",
+	"Use only the mull CLI; never read or edit the mull branch.",
+	"One item per session: branch <id>-<name> from the item's target, then mull start <id>. End each commit message with 'Mull: <id>'.",
+	"Decide locally. Note a choice worth keeping with mull decided --item <id>: it goes in your report, not to the human.",
+	"Ask (mull ask --default ... --by ...) only about a rule conflict or something hard to undo, and keep working meanwhile.",
+	"Fix small problems in the area you're changing as part of your change. File the rest in one line: mull bug or mull idea --source \"item <id>\".",
+	"Don't change plans, phases, rules or checks, and don't settle inbox entries, unless the human asks (then add --on-request).",
+	"Finish with mull done <id> --summary \"<one line>\" --rules none (or the rule and how). It runs the checks once and lands low and medium risk work; high risk waits for review. Never claim done in prose.",
+	"mull sync after done.",
 }
 
 // rulesProtocol is the protocol's last line when the item's plan or phase
@@ -106,7 +103,7 @@ const rulesProtocol = "Follow the item's plan_rules, then its phase_rules: the h
 func (m *Mull) Context(itemID string) (Context, error) {
 	wt := m.Worktree()
 	c := Context{Worktree: wt, Branch: m.repo.Branch(), Protocol: protocol,
-		MyClaims: []BriefItem{}, Plans: []BriefPlan{}, Ready: []BriefItem{}, Active: []BriefItem{}, Decisions: []BriefDecide{}}
+		MyClaims: []BriefItem{}, Plans: []BriefPlan{}, Ready: []BriefItem{}, Active: []BriefItem{}}
 	decisions, err := m.Decisions("")
 	if err != nil {
 		return c, err
@@ -206,15 +203,12 @@ func (m *Mull) Context(itemID string) (Context, error) {
 	if err != nil {
 		return c, err
 	}
+	// Only the item's own decisions: the whole log is for the human to pull
+	// from (mull decisions), not for every session to read.
 	sort.SliceStable(decisions, func(a, b int) bool { return decisions[a].At > decisions[b].At })
 	for _, d := range decisions {
-		bd := BriefDecide{ID: d.ID, Item: d.Item, Context: d.Context, Decision: d.Decision}
 		if c.Item != nil && d.Item == itemID {
-			c.Item.ItemDecisions = append(c.Item.ItemDecisions, bd)
-			continue
-		}
-		if len(c.Decisions) < contextDecisionsLimit {
-			c.Decisions = append(c.Decisions, bd)
+			c.Item.ItemDecisions = append(c.Item.ItemDecisions, BriefDecide{ID: d.ID, Item: d.Item, Context: d.Context, Decision: d.Decision})
 		}
 	}
 	return c, nil

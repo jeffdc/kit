@@ -86,7 +86,7 @@ func TestDoneTourAgainstPreview(t *testing.T) {
 	gittest.Commit(t, dir, "web/tree.html", "<h1>Tree</h1>\n", "Tree page", "Mull: "+it.ID)
 
 	tour := []string{"Open /trees/quercus-alba", "Then http://localhost:4001/maps: see the pin"}
-	res := must[DoneResult](t)(m.Done(it.ID, DoneInput{Summary: "Adds the tree page.", Tour: tour, Design: "A template."}))
+	res := must[DoneResult](t)(m.Done(it.ID, DoneInput{Rules: reviewRules, Summary: "Adds the tree page.", Tour: tour, Design: "A template."}))
 	if res.Item.State != model.StateInReview {
 		t.Fatalf("a warning stopped done: %+v", res.Item)
 	}
@@ -105,7 +105,7 @@ func TestDoneTourAgainstPreview(t *testing.T) {
 		"1. Open http://localhost:4000/trees/quercus-alba\n",
 		"2. Then http://localhost:4001/maps: see the pin\n",
 		"**Warning:** tour step 2 gives http://localhost:4001/maps,",
-		"### Checks (run by mull)",
+		"- **Checks:** ",
 	} {
 		if !strings.Contains(out.Text, s) {
 			t.Errorf("report text lacks %q:\n%s", s, out.Text)
@@ -146,7 +146,7 @@ func TestReportTextUnplanned(t *testing.T) {
 	it := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "none", Title: "Loose"}))
 	must[StartResult](t)(m.Start(it.ID))
 	gittest.Commit(t, dir, "a.txt", "a\n", "A", "Mull: "+it.ID)
-	res := must[DoneResult](t)(m.Done(it.ID, DoneInput{Summary: "S.", Tour: []string{"Open /a"}, Design: "D."}))
+	res := must[DoneResult](t)(m.Done(it.ID, DoneInput{Rules: reviewRules, Summary: "S.", Tour: []string{"Open /a"}, Design: "D."}))
 	if len(res.Warnings) != 0 {
 		t.Errorf("warnings = %q", res.Warnings)
 	}

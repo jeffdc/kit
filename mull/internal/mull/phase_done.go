@@ -38,11 +38,11 @@ func (m *Mull) Finish(id string, in DoneInput) (any, error) {
 // notes trimmed.
 func doneText(in DoneInput) (string, error) {
 	if strings.TrimSpace(in.Summary) == "" {
-		return "", errf(CodeInvalid, "done needs a summary: a few sentences on what changed and how it fits")
+		return "", errf(CodeInvalid, "done needs a summary: one line on what changed")
 	}
 	design := strings.TrimSpace(in.Design)
-	if design == "" || strings.EqualFold(strings.TrimRight(design, "."), "none") {
-		return "", errf(CodeDesignRequired, "done needs design notes with --design: how it was built and why (the approach, the shape of the code, what was rejected)")
+	if strings.EqualFold(strings.TrimRight(design, "."), "none") {
+		design = ""
 	}
 	return design, nil
 }

@@ -18,12 +18,12 @@ func finishItem(t *testing.T, m *Mull, dir, id string, files ...string) {
 	for _, f := range files {
 		gittest.Commit(t, dir, f, f+" from "+id+"\n", "Change "+f, "Mull: "+id)
 	}
-	must[DoneResult](t)(m.Done(id, DoneInput{Summary: "Did " + id + ".", Tour: []string{"Open /"}, Design: "Plain."}))
+	must[DoneResult](t)(m.Done(id, DoneInput{Rules: reviewRules, Summary: "Did " + id + ".", Tour: []string{"Open /"}, Design: "Plain."}))
 	must[AcceptResult](t)(m.Accept([]string{id}, "", SettleOpts{OnRequest: true}))
 }
 
 func phaseDone(m *Mull, id string) (PhaseDoneResult, error) {
-	return m.PhaseDone(id, DoneInput{Summary: "The pages fit together.", Tour: []string{"Open /pages"}, Design: "Read the combined diff."})
+	return m.PhaseDone(id, DoneInput{Rules: reviewRules, Summary: "The pages fit together.", Tour: []string{"Open /pages"}, Design: "Read the combined diff."})
 }
 
 func TestPhaseDoneFilesTheIntegrationReview(t *testing.T) {
@@ -60,10 +60,8 @@ func TestPhaseDoneFilesTheIntegrationReview(t *testing.T) {
 	wantErr(t, err, "tip of its target, main")
 	gittest.Git(t, dir, "checkout", "-q", "main")
 
-	// Design notes and, with UI files in the diff, a tour.
-	_, err = m.PhaseDone(ph.ID, DoneInput{Summary: "Fits.", Design: "none"})
-	wantCode(t, err, CodeDesignRequired)
-	_, err = m.PhaseDone(ph.ID, DoneInput{Summary: "Fits.", Design: "Read it."})
+	// With UI files in the diff, a tour.
+	_, err = m.PhaseDone(ph.ID, DoneInput{Rules: reviewRules, Summary: "Fits.", Design: "Read it."})
 	wantCode(t, err, CodeTourRequired)
 
 	res := must[PhaseDoneResult](t)(phaseDone(m, ph.ID))
@@ -212,12 +210,12 @@ func TestPhaseDoneFailedChecksFilesNothing(t *testing.T) {
 func TestFinishTakesAnItemOrAPhase(t *testing.T) {
 	m, _ := setup(t)
 	ph := must[*model.Phase](t)(m.PhaseAdd("general", "Pages", "", nil))
-	_, err := m.Finish(ph.ID, DoneInput{Summary: "Fits.", Design: "Read it."})
+	_, err := m.Finish(ph.ID, DoneInput{Rules: reviewRules, Summary: "Fits.", Design: "Read it."})
 	wantErr(t, err, "doesn't need an integration review")
 	it := must[ItemView](t)(m.ItemAdd(NewItem{Phase: ph.ID, Title: "Home page"}))
-	_, err = m.Finish(it.ID, DoneInput{Summary: "Fits.", Design: "Read it."})
+	_, err = m.Finish(it.ID, DoneInput{Rules: reviewRules, Summary: "Fits.", Design: "Read it."})
 	wantErr(t, err, "not started")
-	_, err = m.Finish("beef", DoneInput{Summary: "Fits.", Design: "Read it."})
+	_, err = m.Finish("beef", DoneInput{Rules: reviewRules, Summary: "Fits.", Design: "Read it."})
 	wantCode(t, err, CodeNotFound)
 }
 

@@ -25,7 +25,8 @@ const (
 	CodeCycle              = "dependency_cycle"    // the needs would form a cycle
 	CodeScope              = "scope_required"      // say which plan or item this is about
 	CodeTourRequired       = "tour_required"       // UI files changed and no tour was given
-	CodeDesignRequired     = "design_required"     // done was given no design notes
+	CodeDesignRequired     = "design_required"     // retired: design notes are optional since the redesign
+	CodeRulesRequired      = "rules_required"      // done was given no --rules answer
 	CodeNoChecks           = "no_checks"           // no hard checks are configured
 	CodeDirty              = "dirty_tree"          // uncommitted or untracked changes
 	CodeChecksFailed       = "checks_failed"       // the hard checks failed

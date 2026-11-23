@@ -22,7 +22,7 @@ func TestPlanSharedFlaggedByDone(t *testing.T) {
 	gittest.Commit(t, dir, "app/layout.css", "/* account */\n", "Layout", "Mull: "+it.ID)
 	gittest.Commit(t, dir, "lib/shared/button/button.go", "package button\n", "Button", "Mull: "+it.ID)
 	gittest.Commit(t, dir, "app/account.css", "/* account */\n", "Account", "Mull: "+it.ID)
-	res := must[DoneResult](t)(m.Done(it.ID, DoneInput{Summary: "The account page.", Design: "One page."}))
+	res := must[DoneResult](t)(m.Done(it.ID, DoneInput{Rules: reviewRules, Summary: "The account page.", Design: "One page."}))
 	want := []model.SharedChange{
 		{Status: "A", Path: "app/layout.css", Glob: "app/layout.css"},
 		{Status: "A", Path: "lib/shared/button/button.go", Glob: "lib/shared/**"},
@@ -38,7 +38,7 @@ func TestPlanSharedFlaggedByDone(t *testing.T) {
 	if len(rep.Shared) != 2 {
 		t.Errorf("stored report shared = %+v", rep.Shared)
 	}
-	for _, s := range []string{"**Shared files:** 2 changed", "### Shared files changed", "- A app/layout.css (shared: `app/layout.css`)", "- A lib/shared/button/button.go (shared: `lib/shared/**`)"} {
+	for _, s := range []string{"**Shared files:** 2 changed", "app/layout.css, lib/shared/button/button.go"} {
 		if !strings.Contains(text, s) {
 			t.Errorf("report text lacks %q:\n%s", s, text)
 		}
@@ -51,14 +51,14 @@ func TestPlanSharedUnflagged(t *testing.T) {
 	// With no shared globs, or none matching, the report flags nothing.
 	it := startWork(t, m, dir, "Webhook")
 	gittest.Commit(t, dir, "lib/hook.go", "package lib\n", "Hook", "Mull: "+it.ID)
-	res := must[DoneResult](t)(m.Done(it.ID, DoneInput{Summary: "The hook.", Design: "One handler."}))
+	res := must[DoneResult](t)(m.Done(it.ID, DoneInput{Rules: reviewRules, Summary: "The hook.", Design: "One handler."}))
 	if res.Report.Shared != nil {
 		t.Fatalf("no globs: shared = %+v", res.Report.Shared)
 	}
 	must[*model.Plan](t)(m.PlanShared("general", []string{"app/**"}))
 	it2 := startWork(t, m, dir, "Retry")
 	gittest.Commit(t, dir, "lib/retry.go", "package lib\n", "Retry", "Mull: "+it2.ID)
-	res = must[DoneResult](t)(m.Done(it2.ID, DoneInput{Summary: "Retries.", Design: "A loop."}))
+	res = must[DoneResult](t)(m.Done(it2.ID, DoneInput{Rules: reviewRules, Summary: "Retries.", Design: "A loop."}))
 	if res.Report.Shared != nil {
 		t.Fatalf("no match: shared = %+v", res.Report.Shared)
 	}

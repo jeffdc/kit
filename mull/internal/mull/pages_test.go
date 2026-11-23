@@ -514,7 +514,7 @@ func TestItemPageReviewPacket(t *testing.T) {
 		t.Errorf("before done: %+v", page)
 	}
 
-	res := must[DoneResult](t)(m.Done(it.ID, DoneInput{Summary: "Adds invoices.", Design: "Plain structs."}))
+	res := must[DoneResult](t)(m.Done(it.ID, DoneInput{Rules: reviewRules, Summary: "Adds invoices.", Design: "Plain structs."}))
 	must[*model.Entry](t)(m.Decide(other.ID, "Cache for a minute", SettleOpts{OnRequest: true}))
 
 	page = must[ItemPage](t)(m.ItemPage(it.ID))
@@ -555,7 +555,7 @@ func TestItemPageReviewPacket(t *testing.T) {
 	must[StartResult](t)(m.Start(it.ID))
 	must[model.Config](t)(m.ConfigChecks([]string{"exit 1"}, true))
 	gittest.Commit(t, dir, "lib/invoice_test.go", "package x\n", "Test", "Mull: "+it.ID)
-	_, err := m.Done(it.ID, DoneInput{Summary: "Adds invoices, tested.", Design: "Plain structs."})
+	_, err := m.Done(it.ID, DoneInput{Rules: reviewRules, Summary: "Adds invoices, tested.", Design: "Plain structs."})
 	wantCode(t, err, CodeChecksFailed)
 	page = must[ItemPage](t)(m.ItemPage(it.ID))
 	if page.Review == nil || page.Review.Entry != nil || page.Review.Report.N != 2 || page.Review.Report.Passed || len(page.Reports) != 2 {

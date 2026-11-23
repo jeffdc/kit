@@ -60,10 +60,10 @@ func TestDecidedHuman(t *testing.T) {
 	_, err = m.Accept([]string{e.ID}, "", SettleOpts{OnRequest: true})
 	wantCode(t, err, CodeSettled)
 
-	// An agent's own decision is unchanged: open, in the inbox.
+	// An agent's own decision is noted at once: never in the inbox.
 	own := decidedEntry(t, must[any](t)(m.Exec("decided", &DecidedIn{Text: "Retry three times", Item: it.ID})))
-	if own.Settled != nil {
-		t.Fatalf("agent decision settled: %+v", own.Settled)
+	if own.Settled == nil || own.Settled.Action != model.ActNote || own.Settled.Human {
+		t.Fatalf("agent decision = %+v", own.Settled)
 	}
 }
 
@@ -88,8 +88,8 @@ func TestDecidedHumanInBatch(t *testing.T) {
 	if st := results[1].Result.(*model.Entry).Settled; st == nil || st.Action != model.ActDecide || !st.OnRequest {
 		t.Fatalf("human decision = %+v", results[1].Result)
 	}
-	if st := results[2].Result.(*model.Entry).Settled; st != nil {
-		t.Fatalf("agent decision settled: %+v", st)
+	if st := results[2].Result.(*model.Entry).Settled; st == nil || st.Action != model.ActNote {
+		t.Fatalf("agent decision = %+v", st)
 	}
 
 	// Without on-request the line fails, and nothing is written.

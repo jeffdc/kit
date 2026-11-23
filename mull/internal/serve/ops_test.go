@@ -206,7 +206,7 @@ func inReview(t *testing.T, dir string) (item, review, dec string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	done, err := m.Done(it.ID, mull.DoneInput{Summary: "built", Design: "simply"})
+	done, err := m.Done(it.ID, mull.DoneInput{Rules: reviewRules, Summary: "built", Design: "simply"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -273,7 +273,7 @@ func TestOpsIntegrationReview(t *testing.T) {
 			t.Fatal(err)
 		}
 		gittest.Commit(t, dir, "page-"+id+".txt", id+"\n", "Work on "+id, "Mull: "+id)
-		if _, err := m.Done(id, mull.DoneInput{Summary: "built", Design: "simply"}); err != nil {
+		if _, err := m.Done(id, mull.DoneInput{Rules: reviewRules, Summary: "built", Design: "simply"}); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := m.Accept([]string{id}, "", mull.SettleOpts{OnRequest: true}); err != nil {
@@ -282,7 +282,7 @@ func TestOpsIntegrationReview(t *testing.T) {
 	}
 	file := func() string {
 		t.Helper()
-		res, err := m.PhaseDone(ph.ID, mull.DoneInput{Summary: "The pages fit.", Tour: []string{"none"}, Design: "Read the diff."})
+		res, err := m.PhaseDone(ph.ID, mull.DoneInput{Rules: reviewRules, Summary: "The pages fit.", Tour: []string{"none"}, Design: "Read the diff."})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -588,3 +588,6 @@ func TestOpsRank(t *testing.T) {
 	rec = post(t, h, url, opsBody(t, tipOf(t, dir), map[string]any{"op": "rank", "group": "none", "ids": ids[:2]}), nil)
 	wantMullError(t, "a partial order", rec, 400, mull.CodeBatchInvalid)
 }
+
+// reviewRules makes done score an item high risk, so it waits for review.
+const reviewRules = "R0 (test: wait for review)"

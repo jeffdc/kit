@@ -107,6 +107,18 @@ const (
 	ActDo     = "do"
 	ActDrop   = "drop"
 	ActPark   = "park"
+	// ActNote records an agent's own decision as made: it goes into its
+	// item's done report and the decision log, never to the human's inbox.
+	ActNote = "note"
+)
+
+// Risk bands, scored by done from mechanical signals only (see RiskConfig).
+// High waits for the human's review before it lands; medium and low land at
+// once, medium always shown to the human afterwards and low sampled.
+const (
+	RiskLow    = "low"
+	RiskMedium = "medium"
+	RiskHigh   = "high"
 )
 
 var (
@@ -316,6 +328,15 @@ type Entry struct {
 	// item's open decisions when mull done filed it. Accepting the review
 	// ratifies those still unsettled.
 	Decisions []string `yaml:"decisions,omitempty" json:"decisions,omitempty"`
+	// Landed, on a review, means the work landed without waiting for it:
+	// done scored it medium risk, or sampled it from low. Accepting says it
+	// looked fine; sending it back files a follow-up item.
+	Landed string `yaml:"landed,omitempty" json:"landed,omitempty"`
+	// Default, on a question, is what the agent will do if the human doesn't
+	// answer, and Due is when that default stands (RFC 3339; empty: no
+	// deadline).
+	Default string `yaml:"default,omitempty" json:"default,omitempty"`
+	Due     string `yaml:"due,omitempty" json:"due,omitempty"`
 	// Phase, on a review, makes it an integration review of that phase
 	// rather than of an item, and Items are the done items it covers.
 	// Accepted, it completes the phase while every done item in the phase
@@ -336,6 +357,64 @@ type Config struct {
 	Remote      string              `yaml:"remote" json:"remote"`
 	DoneChecks  []string            `yaml:"done_checks" json:"done_checks"`
 	Layers      map[string][]string `yaml:"layers" json:"layers"`
+	// Risk is how done scores risk. Unset fields take the defaults.
+	Risk RiskConfig `yaml:"risk,omitempty" json:"risk"`
+}
+
+// RiskConfig is how done scores an item's risk from its diff.
+//   - High: a changed file matches one of High, or the agent says the work
+//     touched a rule. It waits for the human's review.
+//   - Medium: more than MaxLines lines or MaxFiles files changed. It lands,
+//     and is always shown to the human.
+//   - Low: everything else. It lands; Sample percent of it is shown.
+type RiskConfig struct {
+	High     []string `yaml:"high,omitempty" json:"high"`
+	MaxLines int      `yaml:"max_lines,omitempty" json:"max_lines"`
+	MaxFiles int      `yaml:"max_files,omitempty" json:"max_files"`
+	// Sample is the percent of low-risk work shown to the human, chosen
+	// from the item and its commit so the same work always draws the same.
+	// Unset is the default; a negative value samples nothing.
+	Sample int `yaml:"sample,omitempty" json:"sample"`
+}
+
+// DefaultHighRisk is the high-risk paths a repository starts with: the rules
+// and checks that judge work, CI and hooks, dependencies, and data
+// migrations. It's a starting point the human grows and shrinks
+// (mull config risk).
+var DefaultHighRisk = []string{
+	"RULES.md", ".mull/**",
+	".github/**", ".githooks/**", "**/Makefile", "Makefile",
+	"go.mod", "**/go.mod", "mix.exs", "**/mix.exs", "mix.lock", "**/mix.lock",
+	"package.json", "**/package.json",
+	"**/migrations/**",
+	"**/auth/**",
+}
+
+// Defaults for RiskConfig's unset fields.
+const (
+	DefaultMaxLines = 400
+	DefaultMaxFiles = 15
+	DefaultSample   = 20
+)
+
+// Effective returns rc with unset fields filled from the defaults.
+func (rc RiskConfig) Effective() RiskConfig {
+	if rc.High == nil {
+		rc.High = append([]string{}, DefaultHighRisk...)
+	}
+	if rc.MaxLines == 0 {
+		rc.MaxLines = DefaultMaxLines
+	}
+	if rc.MaxFiles == 0 {
+		rc.MaxFiles = DefaultMaxFiles
+	}
+	switch {
+	case rc.Sample == 0:
+		rc.Sample = DefaultSample
+	case rc.Sample < 0:
+		rc.Sample = 0
+	}
+	return rc
 }
 
 // CheckResult is one hard-check command's outcome.
@@ -425,6 +504,16 @@ type Report struct {
 	// required it have none.
 	Design    string           `yaml:"design,omitempty" json:"design,omitempty"`
 	Decisions []ReportDecision `yaml:"decisions,omitempty" json:"decisions,omitempty"`
+	// Rules is the agent's answer to "did this touch a rule?": "none", or
+	// which rules and how. Slowed is what slowed the work down, if anything.
+	// Reports from before the redesign have neither.
+	Rules  string `yaml:"rules,omitempty" json:"rules,omitempty"`
+	Slowed string `yaml:"slowed,omitempty" json:"slowed,omitempty"`
+	// Risk is the band done scored (low, medium, high) and RiskWhy what
+	// put it there; Sampled means low-risk work drawn for the human to see.
+	Risk    string   `yaml:"risk,omitempty" json:"risk,omitempty"`
+	RiskWhy []string `yaml:"risk_why,omitempty" json:"risk_why,omitempty"`
+	Sampled bool     `yaml:"sampled,omitempty" json:"sampled,omitempty"`
 }
 
 // Paths of records on the mull branch.

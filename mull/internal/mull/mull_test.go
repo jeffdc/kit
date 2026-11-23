@@ -661,3 +661,7 @@ func TestReviewSendBack(t *testing.T) {
 	_, err = m.Decide(review.ID, "x", SettleOpts{})
 	wantErr(t, err, "already settled")
 }
+
+// reviewRules makes done score an item high risk, so it waits for review:
+// the tests of reviewing, accepting and sending back use it.
+const reviewRules = "R0 (test: wait for review)"

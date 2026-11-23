@@ -28,7 +28,7 @@ func TestPlanChecksRunAfterConfig(t *testing.T) {
 	if len(only.Results) != 1 || planRuns() != 0 {
 		t.Fatalf("check without an item = %+v", only)
 	}
-	res := must[DoneResult](t)(m.Done(it.ID, DoneInput{Summary: "Adds the hook.", Design: "One handler."}))
+	res := must[DoneResult](t)(m.Done(it.ID, DoneInput{Rules: reviewRules, Summary: "Adds the hook.", Design: "One handler."}))
 	got := res.Report.Checks.Results
 	if len(got) != 2 || got[0].Command != cfgCheck || got[1].Command != planCheck || !res.Report.Passed {
 		t.Fatalf("done ran %+v", got)
@@ -43,7 +43,7 @@ func TestPlanChecksRunAfterConfig(t *testing.T) {
 	}
 	out, err := m.ReportText(it.ID, 0)
 	text := out.Text
-	if err != nil || !strings.Contains(text, "`"+planCheck+"`: pass") {
+	if err != nil || !strings.Contains(text, "`"+planCheck+"` pass") {
 		t.Errorf("report text lacks the plan's check (%v):\n%s", err, text)
 	}
 }
@@ -59,7 +59,7 @@ func TestPlanChecksOnlyForThePlansItems(t *testing.T) {
 	// An item in general, and one with no plan, don't run other's checks.
 	it := startWork(t, m, dir, "Webhook")
 	gittest.Commit(t, dir, "lib/hook.go", "package lib\n", "Hook", "Mull: "+it.ID)
-	if res := must[DoneResult](t)(m.Done(it.ID, DoneInput{Summary: "Hook.", Design: "One handler."})); len(res.Report.Checks.Results) != 1 {
+	if res := must[DoneResult](t)(m.Done(it.ID, DoneInput{Rules: reviewRules, Summary: "Hook.", Design: "One handler."})); len(res.Report.Checks.Results) != 1 {
 		t.Fatalf("general item ran %+v", res.Report.Checks.Results)
 	}
 	loose := must[ItemView](t)(m.ItemAdd(NewItem{Plan: model.NoPlan, Title: "Typo"}))
@@ -72,7 +72,7 @@ func TestPlanChecksOnlyForThePlansItems(t *testing.T) {
 	ot := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "other", Title: "Page"}))
 	must[StartResult](t)(m.Start(ot.ID))
 	gittest.Commit(t, dir, "lib/page.go", "package lib\n", "Page", "Mull: "+ot.ID)
-	res, err := m.Done(ot.ID, DoneInput{Summary: "Page.", Design: "A page."})
+	res, err := m.Done(ot.ID, DoneInput{Rules: reviewRules, Summary: "Page.", Design: "A page."})
 	var failed *ErrChecksFailed
 	if !errors.As(err, &failed) || res.Report.Passed || len(res.Report.Checks.Results) != 2 || res.Report.Checks.Results[1].Exit != 3 {
 		t.Fatalf("done in other = %v, %+v", err, res.Report.Checks)
@@ -84,7 +84,7 @@ func TestPlanChecksOnlyForThePlansItems(t *testing.T) {
 	// With no config checks, a plan's own are enough to prove done.
 	must[model.Config](t)(m.ConfigChecks(nil, true))
 	must[*model.Plan](t)(m.PlanChecks("other", []string{"true"}, true))
-	if res := must[DoneResult](t)(m.Done(ot.ID, DoneInput{Summary: "Page.", Design: "A page."})); !res.Report.Passed || len(res.Report.Checks.Results) != 1 {
+	if res := must[DoneResult](t)(m.Done(ot.ID, DoneInput{Rules: reviewRules, Summary: "Page.", Design: "A page."})); !res.Report.Passed || len(res.Report.Checks.Results) != 1 {
 		t.Fatalf("done on plan checks only = %+v", res.Report)
 	}
 	_, err = m.Check("")

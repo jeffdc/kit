@@ -31,6 +31,67 @@ func (m *Mull) ConfigChecks(commands []string, onRequest bool) (model.Config, er
 	return m.configTx("config checks", func(s *state) (model.Config, error) { return m.configChecks(s, commands, onRequest) })
 }
 
+// RiskInput changes how done scores risk. Nil High keeps the list; an empty
+// High clears it. Add and Remove change it a glob at a time. Zero numbers
+// keep the current value.
+type RiskInput struct {
+	High, Add, Remove          []string
+	MaxLines, MaxFiles, Sample int
+	OnRequest                  bool
+}
+
+// ConfigRisk changes how done scores risk. Risk decides what lands without
+// review, so only the human changes it: an agent must say they asked.
+func (m *Mull) ConfigRisk(in RiskInput) (model.Config, error) {
+	return m.configTx("config risk", func(s *state) (model.Config, error) { return m.configRisk(s, in) })
+}
+
+func (m *Mull) configRisk(s *state, in RiskInput) (model.Config, error) {
+	if !m.asked(in.OnRequest) {
+		return model.Config{}, errf(CodeNotAllowed, "only the human changes how risk is scored, since it decides what lands without review: pass --on-request when the human has asked for this change")
+	}
+	return s.changeConfig(func(c *model.Config) error {
+		rc := c.Risk.Effective()
+		if in.High != nil {
+			rc.High = nil
+			in.Add = append(append([]string{}, in.High...), in.Add...)
+		}
+		for _, g := range in.Add {
+			g = strings.TrimSpace(g)
+			if g == "" || slices.Contains(rc.High, g) {
+				continue
+			}
+			if _, err := globRegexp(g); err != nil {
+				return errf(CodeInvalid, "bad glob %q: %v", g, err)
+			}
+			rc.High = append(rc.High, g)
+		}
+		for _, g := range in.Remove {
+			rc.High = slices.DeleteFunc(rc.High, func(h string) bool { return h == strings.TrimSpace(g) })
+		}
+		if rc.High == nil {
+			rc.High = []string{}
+		}
+		if in.MaxLines < 0 || in.MaxFiles < 0 || in.Sample > 100 {
+			return errf(CodeInvalid, "max lines and files are positive, and sample is a percent (0 to 100)")
+		}
+		if in.MaxLines > 0 {
+			rc.MaxLines = in.MaxLines
+		}
+		if in.MaxFiles > 0 {
+			rc.MaxFiles = in.MaxFiles
+		}
+		switch {
+		case in.Sample > 0:
+			rc.Sample = in.Sample
+		case in.Sample < 0: // sample nothing
+			rc.Sample = -1
+		}
+		c.Risk = rc
+		return nil
+	})
+}
+
 // ConfigLayer sets a layer's path globs; no globs removes the layer.
 func (m *Mull) ConfigLayer(name string, globs []string) (model.Config, error) {
 	return m.configTx("config layer "+name, func(s *state) (model.Config, error) { return m.configLayer(s, name, globs) })
@@ -414,9 +475,11 @@ func (m *Mull) runCheck(command string) model.CheckResult {
 
 // DoneInput is what the agent supplies when finishing an item.
 type DoneInput struct {
-	Summary  string
-	Tour     []string // what to click and what to see; required when UI files changed
-	Design   string   // how it was built and why; always required
+	Summary  string   // one line: what changed
+	Rules    string   // required: "none", or which rules the work touched and how
+	Slowed   string   // optional: what slowed the work down
+	Tour     []string // optional: what to look at and what to see
+	Design   string   // optional: how it was built and why
 	Override string   // human only: finish despite failing or missing checks, with a reason
 }
 
@@ -426,8 +489,11 @@ type DoneResult struct {
 	ReportPath string       `json:"report_path"`
 	Item       ItemView     `json:"item"`
 	Review     string       `json:"review_entry,omitempty"`
-	Warnings   []string     `json:"warnings,omitempty"` // soft: they never stop done, and the report carries them too
-	Reminder   string       `json:"reminder,omitempty"`
+	// Landed means the work didn't wait for review: done scored it low or
+	// medium risk, and the item is done.
+	Landed   bool     `json:"landed"`
+	Warnings []string `json:"warnings,omitempty"` // soft: they never stop done, and the report carries them too
+	Reminder string   `json:"reminder,omitempty"`
 }
 
 // ErrChecksFailed means the hard checks failed: the item stays active, or,
@@ -452,6 +518,9 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 	design, err := doneText(in)
 	if err != nil {
 		return out, err
+	}
+	if strings.TrimSpace(in.Rules) == "" {
+		return out, errf(CodeRulesRequired, "done needs --rules: none, or which rules the work touched and how (touching one makes it high risk, so it waits for review)")
 	}
 	wt := m.Worktree()
 	var cfg model.Config
@@ -501,13 +570,7 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 	if err != nil {
 		return out, err
 	}
-	if len(in.Tour) == 0 {
-		for _, lc := range changes {
-			if lc.Layer == "ui" {
-				return out, errf(CodeTourRequired, "UI files changed (%d); give a short UI tour with --tour: what to click and what to see", len(lc.Files))
-			}
-		}
-	}
+	risk := scoreRisk(cfg.Risk.Effective(), changes, in.Rules, id, checks.Commit)
 
 	warnings := tourWarnings(in.Tour, preview)
 	finished := checks.Passed || in.Override != ""
@@ -521,15 +584,18 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 		}
 		n := len(s.tx.List(fmt.Sprintf("reports/%s-", id))) + 1
 		decisions := s.openDecisions(id)
+		noted := s.sessionDecisions(id, claim.At)
 		rep := model.Report{
 			Item: id, N: n, Passed: checks.Passed, Override: in.Override, Commit: checks.Commit, Base: base,
 			At: m.now(), By: wt, Summary: strings.TrimSpace(in.Summary), Tour: in.Tour, Checks: checks,
 			Design: design, Changes: changes, Warnings: warnings,
+			Rules: strings.TrimSpace(in.Rules), Slowed: strings.TrimSpace(in.Slowed),
+			Risk: risk.Band, RiskWhy: risk.Why, Sampled: risk.Sampled,
 		}
 		if p := s.plans[i.Plan]; p != nil {
 			rep.Shared = sharedChanges(changes, p.Shared)
 		}
-		for _, d := range decisions {
+		for _, d := range append(append([]*model.Entry{}, noted...), decisions...) {
 			rep.Decisions = append(rep.Decisions, model.ReportDecision{ID: d.ID, Text: d.Text, Detail: d.Detail})
 		}
 		data, err := model.Encode(rep, renderReport(rep, i.Title))
@@ -543,13 +609,35 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 			out.Item = s.itemView(i)
 			return nil
 		}
+		landed := risk.Band != model.RiskHigh && len(decisions) == 0
 		i.State, i.Updated = model.StateInReview, m.now()
+		if landed {
+			i.State = model.StateDone
+			out.Landed = true
+		}
 		if err := s.putItem(i); err != nil {
 			return err
 		}
-		e, err := m.newEntry(s, model.KindReview, "Review: "+i.Title, id, "", out.ReportPath, "")
+		out.Item = s.itemView(i)
+		if landed && risk.Band == model.RiskLow && !risk.Sampled {
+			return nil // landed, and not drawn for the human to see
+		}
+		text := "Review: " + i.Title
+		if landed {
+			text = "Look: " + i.Title
+		}
+		e, err := m.newEntry(s, model.KindReview, text, id, "", out.ReportPath, "")
 		if err != nil {
 			return err
+		}
+		if landed {
+			e.Landed = model.RiskMedium
+			if risk.Sampled {
+				e.Landed = "sampled"
+			}
+			if err := s.putEntry(e); err != nil {
+				return err
+			}
 		}
 		if len(decisions) > 0 {
 			for _, d := range decisions {
@@ -570,8 +658,13 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 	if !finished {
 		return out, &ErrChecksFailed{Report: out.ReportPath}
 	}
-	out.Reminder = m.personal("Show the human (or the supervisor) the report and the UI tour; they accept or send it back. " +
-		"Accepting the review also ratifies the decisions it carries. Capture anything out of scope you noticed with mull bug \"...\" or mull idea \"...\" --source \"item " + id + "\"")
+	if out.Landed {
+		out.Reminder = "Done: " + risk.Band + " risk, so it didn't wait for review."
+	} else if risk.Band == model.RiskHigh {
+		out.Reminder = m.personal("High risk, so it waits for the human's review: " + strings.Join(risk.Why, "; ") + ".")
+	} else {
+		out.Reminder = m.personal("It carries open decisions from before the redesign, so it waits for the human's review.")
+	}
 	return out, nil
 }
 
@@ -658,6 +751,95 @@ func (m *Mull) diffChanges(cfg model.Config, base, commit string, paths []string
 }
 
 func renderReport(r model.Report, title string) string {
+	if r.Phase == "" && r.Risk != "" {
+		return renderShortReport(r, title)
+	}
+	return renderLongReport(r, title)
+}
+
+// renderShortReport renders a report made since the redesign: what changed,
+// the rule answer, the risk and why, and only the parts that were given.
+func renderShortReport(r model.Report, title string) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "# %s (%s)\n\n", title, r.Item)
+	status := "checks passed"
+	switch {
+	case !r.Passed && r.Override != "":
+		status = "OVERRIDDEN, checks did not pass: " + r.Override
+	case !r.Passed:
+		status = "checks FAILED; the item stays active"
+	}
+	risk := r.Risk + " risk"
+	if r.Sampled {
+		risk += ", sampled"
+	}
+	fmt.Fprintf(&b, "%s\n\n", r.Summary)
+	fmt.Fprintf(&b, "- **Status:** %s, %s, commit %s\n", status, risk, short(r.Commit))
+	for _, w := range r.RiskWhy {
+		fmt.Fprintf(&b, "- **Why %s:** %s\n", r.Risk, w)
+	}
+	fmt.Fprintf(&b, "- **Rules:** %s\n", r.Rules)
+	if r.Slowed != "" {
+		fmt.Fprintf(&b, "- **Slowed by:** %s\n", r.Slowed)
+	}
+	files, added, removed := 0, 0, 0
+	for _, lc := range r.Changes {
+		for _, f := range lc.Files {
+			files++
+			added += f.Added
+			removed += f.Removed
+		}
+	}
+	fmt.Fprintf(&b, "- **Changed:** %d files, +%d −%d\n", files, added, removed)
+	var checks []string
+	for _, c := range r.Checks.Results {
+		mark := "pass"
+		if c.Exit != 0 {
+			mark = fmt.Sprintf("FAIL (exit %d)", c.Exit)
+		}
+		checks = append(checks, fmt.Sprintf("`%s` %s, %.1fs", c.Command, mark, float64(c.DurationMS)/1000))
+	}
+	if len(checks) > 0 {
+		fmt.Fprintf(&b, "- **Checks:** %s\n", strings.Join(checks, "; "))
+	}
+	if n := len(r.Shared); n > 0 {
+		var paths []string
+		for _, f := range r.Shared {
+			paths = append(paths, f.Path)
+		}
+		fmt.Fprintf(&b, "- **Shared files:** %d changed that the plan lists as shared: %s\n", n, strings.Join(paths, ", "))
+	}
+	for _, w := range r.Warnings {
+		fmt.Fprintf(&b, "- **Warning:** %s\n", w)
+	}
+	for _, c := range r.Checks.Results {
+		if c.Exit != 0 {
+			fmt.Fprintf(&b, "\n`%s` exited %d:\n\n```\n%s\n```\n", c.Command, c.Exit, c.Tail)
+		}
+	}
+	if len(r.Tour) > 0 {
+		b.WriteString("\n### Look at\n\n")
+		for k, step := range r.Tour {
+			fmt.Fprintf(&b, "%d. %s\n", k+1, step)
+		}
+	}
+	if len(r.Decisions) > 0 {
+		b.WriteString("\n### Decisions\n\n")
+		for _, d := range r.Decisions {
+			fmt.Fprintf(&b, "- %s", d.Text)
+			if d.Detail != "" {
+				fmt.Fprintf(&b, " (why: %s)", d.Detail)
+			}
+			b.WriteString("\n")
+		}
+	}
+	if r.Design != "" {
+		fmt.Fprintf(&b, "\n### Design notes\n\n%s\n", r.Design)
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
+func renderLongReport(r model.Report, title string) string {
 	var b strings.Builder
 	status := "PASSED"
 	switch {

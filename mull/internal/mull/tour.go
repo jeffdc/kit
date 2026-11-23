@@ -108,10 +108,13 @@ func resolveReportText(text string, tour []string, preview string) string {
 	if previewBase(preview) == "" || len(tour) == 0 {
 		return text
 	}
-	const heading = "### UI tour\n"
+	heading := "### UI tour\n"
 	start := strings.Index(text, heading)
 	if start < 0 {
-		return text
+		heading = "### Look at\n" // reports since the redesign
+		if start = strings.Index(text, heading); start < 0 {
+			return text
+		}
 	}
 	start += len(heading)
 	end := len(text)

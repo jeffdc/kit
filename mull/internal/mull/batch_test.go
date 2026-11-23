@@ -131,8 +131,9 @@ func TestBatchIntakeSized(t *testing.T) {
 	if i8 := item(t, m, created["i8"]); i8.Phase != created["e3"] || i8.Ready || i8.BlockedBy[0] != created["e2"] {
 		t.Errorf("item 8 = %+v", i8)
 	}
-	if n := len(must[[]*model.Entry](t)(m.Inbox(InboxFilter{Plan: "taxogall"}))); n != 13 {
-		t.Errorf("inbox has %d entries for the plan, want 13", n)
+	// The 7 questions; the 6 decisions are noted, never in the inbox.
+	if n := len(must[[]*model.Entry](t)(m.Inbox(InboxFilter{Plan: "taxogall"}))); n != 7 {
+		t.Errorf("inbox has %d entries for the plan, want 7", n)
 	}
 	if n := len(must[[]ItemView](t)(m.ItemList(ItemFilter{Plan: "taxogall", State: model.StateCaptured}))); n != 7 {
 		t.Errorf("%d captured bugs for the plan, want 7", n)

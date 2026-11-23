@@ -46,19 +46,16 @@ func TestDoneHappyPathCacheAndTour(t *testing.T) {
 	gittest.Commit(t, dir, "test/invoices_test.go", "package x\n", "Test it", "Mull: "+it.ID)
 	gittest.Commit(t, dir, "lib/billing/invoice.go", "package billing\n", "Model", "Mull: "+it.ID)
 
-	_, err := m.Done(it.ID, DoneInput{Summary: "Adds the invoices page.", Design: "A static page."})
-	wantErr(t, err, "UI files changed")
-	if runs() != 1 {
-		t.Fatalf("checks ran %d times, want 1", runs())
-	}
-
-	res := must[DoneResult](t)(m.Done(it.ID, DoneInput{
+	res := must[DoneResult](t)(m.Done(it.ID, DoneInput{Rules: reviewRules,
 		Summary: "Adds the invoices page.",
 		Tour:    []string{"Open /invoices", "See the empty state"},
 		Design:  "A static page.",
 	}))
 	if runs() != 1 {
-		t.Fatalf("the cached pass for the same tree was not reused: %d runs", runs())
+		t.Fatalf("checks ran %d times, want 1", runs())
+	}
+	if _, err := m.Check(it.ID); err != nil || runs() != 1 {
+		t.Fatalf("the cached pass for the same tree was not reused: %d runs (%v)", runs(), err)
 	}
 	if res.Item.State != model.StateInReview || res.Review == "" || !res.Report.Passed || res.Report.N != 1 {
 		t.Fatalf("done = %+v", res)
@@ -79,9 +76,8 @@ func TestDoneHappyPathCacheAndTour(t *testing.T) {
 	if rep.Design != "A static page." {
 		t.Errorf("report design = %q", rep.Design)
 	}
-	for _, s := range []string{"Status:** PASSED", "## What was built", "1. Open /invoices", "## How it was built",
-		"### Design notes\n\nA static page.", "### Decisions made in the session\n\nNone recorded.",
-		"**ui**: 1 files", "A web/invoices.html (+1 −0)"} {
+	for _, s := range []string{"checks passed, high risk", "1. Open /invoices", "### Design notes\n\nA static page.",
+		"**Changed:** 3 files, +3 −0"} {
 		if !strings.Contains(text, s) {
 			t.Errorf("report lacks %q:\n%s", s, text)
 		}
@@ -103,7 +99,7 @@ func TestDoneFailureKeepsItemActive(t *testing.T) {
 	it := startWork(t, m, dir, "Webhook")
 	gittest.Commit(t, dir, "hook.go", "package x\n", "Webhook", "Mull: "+it.ID)
 
-	_, err := m.Done(it.ID, DoneInput{Summary: "Webhook handler.", Design: "One handler."})
+	_, err := m.Done(it.ID, DoneInput{Rules: reviewRules, Summary: "Webhook handler.", Design: "One handler."})
 	var failed *ErrChecksFailed
 	if !errors.As(err, &failed) || failed.Report != model.ReportPath(it.ID, 1) {
 		t.Fatalf("got %v, want ErrChecksFailed for report 1", err)
@@ -129,7 +125,7 @@ func TestDoneFailureKeepsItemActive(t *testing.T) {
 
 	// Fix the check; a new command list means the old result is not reused.
 	must[model.Config](t)(m.ConfigChecks([]string{"true"}, true))
-	res := must[DoneResult](t)(m.Done(it.ID, DoneInput{Summary: "Webhook handler.", Design: "One handler."}))
+	res := must[DoneResult](t)(m.Done(it.ID, DoneInput{Rules: reviewRules, Summary: "Webhook handler.", Design: "One handler."}))
 	if res.Report.N != 2 || !res.Report.Passed {
 		t.Fatalf("second attempt = %+v", res.Report)
 	}
@@ -137,40 +133,40 @@ func TestDoneFailureKeepsItemActive(t *testing.T) {
 
 func TestDoneGuards(t *testing.T) {
 	m, dir := setup(t)
-	_, err := m.Done("abcd", DoneInput{})
+	_, err := m.Done("abcd", DoneInput{Rules: reviewRules})
 	wantErr(t, err, "needs a summary")
-	for _, design := range []string{"", "  ", "none", "None."} {
-		_, err = m.Done("abcd", DoneInput{Summary: "x", Design: design})
-		wantCode(t, err, CodeDesignRequired)
+	for _, rules := range []string{"", "  "} {
+		_, err = m.Done("abcd", DoneInput{Rules: rules, Summary: "x"})
+		wantCode(t, err, CodeRulesRequired)
 	}
 
 	it := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "general", Title: "A"}))
-	_, err = m.Done(it.ID, DoneInput{Summary: "x", Design: "y"})
+	_, err = m.Done(it.ID, DoneInput{Rules: reviewRules, Summary: "x", Design: "y"})
 	wantErr(t, err, "not started")
 
 	must[StartResult](t)(m.Start(it.ID))
-	_, err = m.Done(it.ID, DoneInput{Summary: "x", Design: "y"})
+	_, err = m.Done(it.ID, DoneInput{Rules: reviewRules, Summary: "x", Design: "y"})
 	wantErr(t, err, "no hard checks configured")
 
 	must[model.Config](t)(m.ConfigChecks([]string{"true"}, true))
 	if err := os.WriteFile(filepath.Join(dir, "dirty.txt"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	_, err = m.Done(it.ID, DoneInput{Summary: "x", Design: "y"})
+	_, err = m.Done(it.ID, DoneInput{Rules: reviewRules, Summary: "x", Design: "y"})
 	wantErr(t, err, "uncommitted or untracked")
 	gittest.Git(t, dir, "add", "dirty.txt")
 	gittest.Git(t, dir, "commit", "-q", "-m", "commit it")
 
 	wt := gittest.AddWorktree(t, dir, "other")
 	other := openAt(t, wt)
-	_, err = other.Done(it.ID, DoneInput{Summary: "x", Design: "y"})
+	_, err = other.Done(it.ID, DoneInput{Rules: reviewRules, Summary: "x", Design: "y"})
 	wantErr(t, err, "claimed by "+dir)
 }
 
 func TestDoneOverrideWithoutChecks(t *testing.T) {
 	m, dir := setup(t)
 	it := startWork(t, m, dir, "Docs tweak")
-	res := must[DoneResult](t)(m.Done(it.ID, DoneInput{Summary: "Docs only.", Design: "Prose only.", Override: "no checks in this repo yet"}))
+	res := must[DoneResult](t)(m.Done(it.ID, DoneInput{Rules: reviewRules, Summary: "Docs only.", Design: "Prose only.", Override: "no checks in this repo yet"}))
 	if res.Item.State != model.StateInReview || res.Report.Passed || res.Report.Override == "" {
 		t.Fatalf("override done = %+v", res)
 	}
@@ -216,7 +212,7 @@ func TestReviewCarriesDecisions(t *testing.T) {
 	elsewhere := decision(t, m, other.ID, "Not this item's")
 	gittest.Commit(t, dir, "hook.go", "package x\n", "Webhook", "Mull: "+it.ID)
 
-	res := must[DoneResult](t)(m.Done(it.ID, DoneInput{Summary: "Webhook handler.", Design: "One handler, retries in a loop."}))
+	res := must[DoneResult](t)(m.Done(it.ID, DoneInput{Rules: reviewRules, Summary: "Webhook handler.", Design: "One handler, retries in a loop."}))
 	want := sameIDs(d1.ID, d2.ID, d3.ID)
 	var got []string
 	for _, d := range res.Report.Decisions {
@@ -234,7 +230,7 @@ func TestReviewCarriesDecisions(t *testing.T) {
 	}
 	out, _ := m.ReportText(it.ID, 0)
 	text := out.Text
-	for _, s := range []string{"One handler, retries in a loop.", "**" + d2.ID + "** Retry three times", "Why: why Retry three times"} {
+	for _, s := range []string{"One handler, retries in a loop.", "- Retry three times (why: why Retry three times)"} {
 		if !strings.Contains(text, s) {
 			t.Errorf("report lacks %q:\n%s", s, text)
 		}
@@ -283,7 +279,7 @@ func TestSentBackDecisionsStayOpen(t *testing.T) {
 	must[model.Config](t)(m.ConfigChecks([]string{"true"}, true))
 	it := startWork(t, m, dir, "Webhook")
 	d1 := decision(t, m, it.ID, "Store raw payloads")
-	first := must[DoneResult](t)(m.Done(it.ID, DoneInput{Summary: "Webhook handler.", Design: "One handler."}))
+	first := must[DoneResult](t)(m.Done(it.ID, DoneInput{Rules: reviewRules, Summary: "Webhook handler.", Design: "One handler."}))
 	must[DoResult](t)(m.Do(DoInput{ID: first.Review, Reason: "No tests"}))
 	if entry(t, m, d1.ID).Settled != nil {
 		t.Fatal("sending the review back settled its decision")
@@ -291,7 +287,7 @@ func TestSentBackDecisionsStayOpen(t *testing.T) {
 
 	must[StartResult](t)(m.Start(it.ID))
 	d2 := decision(t, m, it.ID, "Table-driven tests")
-	second := must[DoneResult](t)(m.Done(it.ID, DoneInput{Summary: "Webhook handler, tested.", Design: "One handler."}))
+	second := must[DoneResult](t)(m.Done(it.ID, DoneInput{Rules: reviewRules, Summary: "Webhook handler, tested.", Design: "One handler."}))
 	if got := entry(t, m, second.Review).Decisions; sameIDs(got...) != sameIDs(d1.ID, d2.ID) {
 		t.Fatalf("second review carries %v", got)
 	}

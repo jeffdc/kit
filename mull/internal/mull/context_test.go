@@ -32,9 +32,6 @@ func TestContextBriefing(t *testing.T) {
 	if len(ctx.Item.ItemDecisions) != 1 || ctx.Item.ItemDecisions[0].Decision != "Store raw payloads" {
 		t.Errorf("item decisions = %+v", ctx.Item.ItemDecisions)
 	}
-	if len(ctx.Decisions) != 1 || ctx.Decisions[0].Decision != "Monthly only for launch" {
-		t.Errorf("other decisions = %+v", ctx.Decisions)
-	}
 	if len(ctx.MyClaims) != 1 || ctx.MyClaims[0].ID != a.ID || len(ctx.Active) != 1 {
 		t.Errorf("claims = %+v active = %+v", ctx.MyClaims, ctx.Active)
 	}

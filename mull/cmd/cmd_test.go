@@ -111,8 +111,10 @@ func TestCLIEndToEnd(t *testing.T) {
 	}
 
 	r.ok("decided", "Any admin can undo anyone's decision", "--item", item, "--detail", "Simplest rule")
-	q := id(r.ok("ask", "Did split undos run on preview?", "--item", item))
-	later := id(r.ok("ask", "Should the canonical URL be a link header?", "--plan", "taxogall", "--source", "2c8c"))
+	r.fails("invalid_argument", "ask", "Did split undos run on preview?", "--item", item) // no --default
+	r.fails("invalid_argument", "ask", "Did split undos run on preview?", "--item", item, "--default", "Assume yes", "--by", "soon")
+	q := id(r.ok("ask", "Did split undos run on preview?", "--item", item, "--default", "Assume yes", "--by", "2d"))
+	later := id(r.ok("ask", "Should the canonical URL be a link header?", "--plan", "taxogall", "--source", "2c8c", "--default", "Meta tag"))
 	// Loose ends and inbox ideas are retired; the old commands point at captures.
 	if e := r.fails("retired", "loose", "Canonical URL emitted as meta", "--plan", "taxogall"); !strings.Contains(e["error"].(string), "mull bug") {
 		t.Fatalf("loose = %v", e)
@@ -120,19 +122,26 @@ func TestCLIEndToEnd(t *testing.T) {
 	r.fails("retired", "ideas")
 	r.ok("bug", "Canonical URL emitted as meta", "--plan", "taxogall", "--source", "2c8c")
 
-	// inbox is JSON by default; --text renders it.
-	if n := len(r.ok("inbox")["entries"].([]any)); n != 3 {
+	// inbox is JSON by default; --text renders it. The agent's own decision
+	// is noted, not filed for the human: only the two questions need them.
+	entries := r.ok("inbox")["entries"].([]any)
+	if n := len(entries); n != 2 {
 		t.Fatalf("inbox has %d entries", n)
 	}
+	for _, x := range entries {
+		if e := x.(map[string]any); e["id"] == q && (e["default"] != "Assume yes" || e["due"] == nil) {
+			t.Fatalf("question = %v", e)
+		}
+	}
 	text, _, code := r.mull("", "inbox", "--text")
-	if code != 0 || !strings.Contains(text, "DECISIONS (1)") || !strings.Contains(text, "QUESTIONS (2)") {
+	if code != 0 || strings.Contains(text, "DECISIONS") || !strings.Contains(text, "QUESTIONS (2)") {
 		t.Fatalf("inbox --text:\n%s", text)
 	}
 
 	r.ok("decide", q, "No compatibility path needed", "--on-request")
 	r.ok("park", later, "after release")
-	if n := len(r.ok("decisions")["decisions"].([]any)); n != 1 {
-		t.Fatalf("decision log has %d entries", n)
+	if n := len(r.ok("decisions")["decisions"].([]any)); n != 2 {
+		t.Fatalf("decision log has %d entries, want the noted one and the decided question", n)
 	}
 	r.fails("dependency_cycle", "need", phase, release)
 	// Needs exist between phases only.
@@ -145,11 +154,14 @@ func TestCLIEndToEnd(t *testing.T) {
 	r.ok("config", "checks", "true", "--on-request")
 	r.ok("config", "layer", "ui", "web/**")
 	gittest.Commit(t, r.dir, "web/tree.html", "x\n", "Tree edits", "Mull: "+item)
-	r.fails("design_required", "done", item, "--summary", "Tree edits become Facts.", "--tour", "Open the tree")
-	r.fails("usage", "done", item, "--summary", "Tree edits become Facts.", "--tour", "-", "--design", "-")
-	r.fails("tour_required", "done", item, "--summary", "Tree edits become Facts.", "--design", "Edits are Facts.")
+	r.fails("rules_required", "done", item, "--summary", "Tree edits become Facts.", "--tour", "Open the tree")
+	r.fails("usage", "done", item, "--summary", "Tree edits become Facts.", "--rules", "none", "--tour", "-", "--design", "-")
 	done := r.okIn("Every edit is written as a Fact.\n\nThe tree reads Facts back.\n", "done", item,
-		"--summary", "Tree edits become Facts.", "--tour", "1. Open the tree\n2. Rename a genus", "--design", "-")
+		"--summary", "Tree edits become Facts.", "--rules", "R2: edits are Facts", "--slowed", "nothing",
+		"--tour", "1. Open the tree\n2. Rename a genus", "--design", "-")
+	if rep := done["report"].(map[string]any); rep["risk"] != "high" || rep["rules"] != "R2: edits are Facts" || rep["slowed"] != "nothing" || done["landed"] != false {
+		t.Fatalf("done = %v", done)
+	}
 	if tour := done["report"].(map[string]any)["tour"].([]any); len(tour) != 2 || tour[0] != "Open the tree" {
 		t.Fatalf("tour = %v", tour)
 	}
@@ -160,11 +172,8 @@ func TestCLIEndToEnd(t *testing.T) {
 	if ds := done["report"].(map[string]any)["decisions"].([]any); len(ds) != 1 {
 		t.Fatalf("report decisions = %v", ds)
 	}
-	if text, _, _ := r.mull("", "inbox", "--text"); !strings.Contains(text, "carries decisions") {
-		t.Fatalf("inbox --text:\n%s", text)
-	}
 	rep := r.ok("report", item)
-	if !strings.Contains(rep["text"].(string), "Status:** PASSED") || rep["report"].(map[string]any)["passed"] != true {
+	if !strings.Contains(rep["text"].(string), "checks passed, high risk") || rep["report"].(map[string]any)["passed"] != true {
 		t.Fatalf("report = %v", rep)
 	}
 	md, _, _ := r.mull("", "report", item, "--text")
@@ -178,7 +187,7 @@ func TestCLIEndToEnd(t *testing.T) {
 		t.Fatalf("view plans = %v", plans)
 	}
 	board, _, code := r.mull("", "view", "--text")
-	if code != 0 || !strings.Contains(board, "TAXOGALL") || !strings.Contains(board, "NEEDS YOU  1 review · 1 decision") {
+	if code != 0 || !strings.Contains(board, "TAXOGALL") || !strings.Contains(board, "NEEDS YOU  1 review") {
 		t.Fatalf("view --text:\n%s", board)
 	}
 
@@ -250,8 +259,8 @@ func TestUsageErrorsHaveACode(t *testing.T) {
 	if st, _ := e["settled"].(map[string]any); st["action"] != "decide" || st["note"] != "y" || st["on_request"] != true {
 		t.Fatalf("decided --human = %v", e)
 	}
-	if n := len(r.ok("inbox")["entries"].([]any)); n != 1 {
-		t.Fatalf("inbox has %d entries, want only the agent's decision", n)
+	if n := len(r.ok("inbox")["entries"].([]any)); n != 0 {
+		t.Fatalf("inbox has %d entries, want none: an agent's decision is noted, and the human's settled", n)
 	}
 }
 
@@ -373,16 +382,15 @@ func TestScopeRules(t *testing.T) {
 	r := run{t: t, dir: gittest.NewRepo(t)}
 	r.ok("init")
 	// With no plan, an entry without scope is about the whole project.
-	if e := r.ok("ask", "no plans yet"); e["plan"] != "" {
+	if e := r.ok("ask", "no plans yet", "--default", "d"); e["plan"] != "" {
 		t.Fatalf("entry = %v", e)
 	}
 	r.ok("plan", "new", "alpha", "Alpha", "--on-request")
 	r.ok("plan", "agree", "alpha", "--on-request")
 	r.ok("plan", "new", "beta", "Beta", "--on-request")
-	for _, verb := range []string{"decided", "ask"} {
-		r.fails("scope_required", verb, "about something")
-	}
-	if e := r.ok("ask", "about beta", "--plan", "beta"); e["plan"] != "beta" {
+	r.fails("scope_required", "decided", "about something")
+	r.fails("scope_required", "ask", "about something", "--default", "d")
+	if e := r.ok("ask", "about beta", "--plan", "beta", "--default", "d"); e["plan"] != "beta" {
 		t.Fatalf("entry = %v", e)
 	}
 	phase := id(r.ok("phase", "add", "E", "--plan", "alpha"))
@@ -390,7 +398,7 @@ func TestScopeRules(t *testing.T) {
 	if it["plan"] != "alpha" {
 		t.Fatalf("plan not inferred from phase: %v", it)
 	}
-	if e := r.ok("ask", "about the item", "--item", id(it)); e["plan"] != "alpha" {
+	if e := r.ok("ask", "about the item", "--item", id(it), "--default", "d"); e["plan"] != "alpha" {
 		t.Fatalf("entry plan not inferred from item: %v", e)
 	}
 	r.fails("invalid_argument", "add", "y", "--phase", phase, "--plan", "beta")

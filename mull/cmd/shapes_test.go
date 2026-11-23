@@ -27,10 +27,10 @@ var (
 	itemViewKeys  = itemKeys.plus(keys{[]string{"ready"}, []string{"blocked_by"}})
 	captureKeys   = itemViewKeys.plus(keys{[]string{"similar"}, nil})
 	phaseViewKeys = phaseKeys.plus(keys{[]string{"progress", "complete"}, []string{"blocked_by"}})
-	entryKeys     = keys{[]string{"id", "kind", "text", "plan", "by", "created"}, []string{"item", "source", "settled", "decisions", "detail"}}
-	configKeys    = keys{[]string{"format", "integration", "release", "remote", "done_checks", "layers"}, nil}
+	entryKeys     = keys{[]string{"id", "kind", "text", "plan", "by", "created"}, []string{"item", "source", "settled", "decisions", "detail", "landed", "default", "due"}}
+	configKeys    = keys{[]string{"format", "integration", "release", "remote", "done_checks", "layers", "risk"}, nil}
 	progressKeys  = keys{[]string{"total", "captured", "untriaged", "committed", "active", "in_review", "done", "dropped", "ready"}, nil}
-	reportKeys    = keys{[]string{"item", "n", "passed", "commit", "at", "by", "summary", "checks"}, []string{"override", "base", "tour", "warnings", "changes", "shared", "design", "decisions"}}
+	reportKeys    = keys{[]string{"item", "n", "passed", "commit", "at", "by", "summary", "checks"}, []string{"override", "base", "tour", "warnings", "changes", "shared", "design", "decisions", "rules", "slowed", "risk", "risk_why", "sampled"}}
 )
 
 func checkKeys(t *testing.T, what string, v any, k keys) {
@@ -167,14 +167,15 @@ func TestOutputShapes(t *testing.T) {
 	shape(itemViewKeys, "release", id(b))
 
 	dec := shape(entryKeys, "decided", "Store raw payloads", "--item", id(a), "--detail", "replay")
-	q := shape(entryKeys, "ask", "Annual plans?", "--plan", "launch")
-	lo := shape(entryKeys, "ask", "Fix the footer's old pricing links?", "--plan", "launch")
-	lo2 := shape(entryKeys, "ask", "Two h1s: which one stays?", "--plan", "launch")
+	q := shape(entryKeys, "ask", "Annual plans?", "--plan", "launch", "--default", "d")
+	lo := shape(entryKeys, "ask", "Fix the footer's old pricing links?", "--plan", "launch", "--default", "d")
+	lo2 := shape(entryKeys, "ask", "Two h1s: which one stays?", "--plan", "launch", "--default", "d")
 	inb := shape(keys{[]string{"entries"}, nil}, "inbox")
 	checkKeys(t, "inbox[0]", first(t, "entries", inb["entries"]), entryKeys)
 
-	acc := shape(keys{[]string{"entries", "items", "follow_up"}, nil}, "accept", id(dec))
-	checkKeys(t, "accept.entries[0]", first(t, "entries", acc["entries"]), entryKeys)
+	if st, _ := dec["settled"].(map[string]any); st["action"] != "note" {
+		t.Errorf("an agent's decision is noted at once: %v", dec)
+	}
 	shape(entryKeys, "decide", id(q), "Monthly first")
 	do := shape(keys{[]string{"entry"}, []string{"item", "phase"}}, "do", id(lo))
 	checkKeys(t, "do.entry", do["entry"], entryKeys)
@@ -190,7 +191,7 @@ func TestOutputShapes(t *testing.T) {
 	shape(captureKeys, "bug", "Untriaged for the view", "--plan", "launch")
 	dup := shape(captureKeys, "bug", "The login tests are flaky")
 	checkKeys(t, "bug.similar[0]", first(t, "similar", dup["similar"]), keys{[]string{"id", "title"}, nil})
-	lo3 := shape(entryKeys, "ask", "A pricing page?", "--plan", "launch")
+	lo3 := shape(entryKeys, "ask", "A pricing page?", "--plan", "launch", "--default", "d")
 	promo := shape(keys{[]string{"entry"}, []string{"item", "phase"}}, "do", id(lo3), "--as", "phase")
 	checkKeys(t, "do --as phase .phase", promo["phase"], phaseViewKeys)
 	shape(entryKeys, "park", id(lo2), "after launch")
@@ -198,7 +199,7 @@ func TestOutputShapes(t *testing.T) {
 	checkKeys(t, "drop.items[0]", first(t, "items", drop["items"]), itemViewKeys)
 	ds := shape(keys{[]string{"decisions"}, nil}, "decisions")
 	checkKeys(t, "decisions[0]", first(t, "decisions", ds["decisions"]),
-		keys{[]string{"id", "plan", "kind", "context", "decision", "by", "at"}, []string{"item", "human", "on_request"}})
+		keys{[]string{"id", "plan", "kind", "context", "decision", "by", "at"}, []string{"item", "human", "on_request", "noted", "why"}})
 
 	// Finish work.
 	r.ok("start", id(a))
@@ -206,8 +207,8 @@ func TestOutputShapes(t *testing.T) {
 	ck := shape(keys{[]string{"tree", "commit", "at", "by", "passed", "results", "cached"}, nil}, "check", "--item", id(a))
 	checkKeys(t, "check.results[0]", first(t, "results", ck["results"]), keys{[]string{"command", "exit", "duration_ms"}, []string{"tail"}})
 	r.ok("decided", "Retry three times", "--item", id(a), "--detail", "Stripe's advice")
-	dn := shapeIn("One handler.\n", keys{[]string{"report", "report_path", "item"}, []string{"review_entry", "warnings", "reminder"}},
-		"done", id(a), "--summary", "Webhook handler.", "--tour", "none", "--design", "-")
+	dn := shapeIn("One handler.\n", keys{[]string{"report", "report_path", "item", "landed"}, []string{"review_entry", "warnings", "reminder"}},
+		"done", id(a), "--summary", "Webhook handler.", "--rules", "R0 test: wait for review", "--tour", "none", "--design", "-")
 	checkKeys(t, "done.item", dn["item"], itemViewKeys)
 	rp := shape(keys{[]string{"report", "text"}, []string{"preview"}}, "report", id(a))
 	checkKeys(t, "report.report", rp["report"], reportKeys)
@@ -217,9 +218,11 @@ func TestOutputShapes(t *testing.T) {
 		keys{[]string{"id", "text"}, []string{"detail"}})
 	rv := shape(keys{[]string{"type"}, []string{"entry"}}, "show", dn["review_entry"].(string))
 	checkKeys(t, "show review", rv["entry"], entryKeys)
-	if ds, _ := rv["entry"].(map[string]any)["decisions"].([]any); len(ds) != 1 {
-		t.Errorf("review entry decisions = %v", ds)
+	if ds, _ := rv["entry"].(map[string]any)["decisions"].([]any); len(ds) != 0 {
+		t.Errorf("review entry decisions = %v: noted decisions are in the report, not carried", ds)
 	}
+	acc := shape(keys{[]string{"entries", "items", "follow_up"}, nil}, "accept", dn["review_entry"].(string), "--on-request")
+	checkKeys(t, "accept.entries[0]", first(t, "entries", acc["entries"]), entryKeys)
 
 	v := shape(keys{[]string{"generated", "integration", "integration_found", "release", "ahead_of_release", "plans", "unlinked_commits_this_week", "untriaged", "format"},
 		[]string{"unlinked_recent", "unplanned", "legacy", "last_triage", "migration_required", "prunable_worktrees"}}, "view")
@@ -230,11 +233,11 @@ func TestOutputShapes(t *testing.T) {
 	checkKeys(t, "view.unplanned", v["unplanned"], boardKeys)
 	checkKeys(t, "view.needs_you", board.(map[string]any)["needs_you"],
 		keys{[]string{"reviews", "decisions", "questions", "older_than_a_week", "parked"}, nil})
-	cx := shape(keys{[]string{"worktree", "branch", "protocol", "my_claims", "plans", "ready", "active", "decisions"}, []string{"item"}}, "context")
+	cx := shape(keys{[]string{"worktree", "branch", "protocol", "my_claims", "plans", "ready", "active"}, []string{"item"}}, "context")
 	cp := first(t, "context.plans", cx["plans"])
 	checkKeys(t, "context.plans[0]", cp, keys{[]string{"slug", "title", "state", "target"}, []string{"preview", "phases"}})
 	checkKeys(t, "context.plans[0].target", cp.(map[string]any)["target"], targetKeys)
-	cx = shape(keys{[]string{"worktree", "branch", "protocol", "my_claims", "plans", "ready", "active", "decisions", "item"}, nil}, "context", "--item", id(b))
+	cx = shape(keys{[]string{"worktree", "branch", "protocol", "my_claims", "plans", "ready", "active", "item"}, nil}, "context", "--item", id(b))
 	ci := cx["item"].(map[string]any)
 	checkKeys(t, "context.item", ci, itemViewKeys.plus(keys{[]string{"target"}, []string{"preview", "shared", "phase_title", "phase_summary", "phase_doc",
 		"plan_rules", "phase_rules", "open_questions", "item_decisions", "last_report", "last_report_passed"}}))
@@ -251,7 +254,7 @@ func TestOutputShapes(t *testing.T) {
 	worker := &run{t: t, dir: wt}
 	worker.ok("start", id(wtItem))
 	gittest.Commit(t, wt, "receipts.txt", "receipts", "Receipts", "Mull: "+id(wtItem))
-	worker.ok("done", id(wtItem), "--summary", "Receipts.", "--tour", "none", "--design", "Plain.")
+	worker.ok("done", id(wtItem), "--summary", "Receipts.", "--rules", "R0 test: wait for review", "--tour", "none", "--design", "Plain.")
 	gittest.Git(t, r.dir, "merge", "-q", "--no-ff", "--no-edit", id(wtItem)+"-receipts")
 	gittest.Git(t, r.dir, "branch", "-f", "launch-site", "main") // the plan's target
 	r.ok("accept", id(wtItem), "--on-request")
@@ -302,7 +305,7 @@ func TestPhaseDoneShapes(t *testing.T) {
 	it := id(r.ok("add", "Home page", "--phase", ph))
 	r.ok("start", it)
 	gittest.Commit(t, r.dir, "home.txt", "home\n", "Home", "Mull: "+it)
-	r.ok("done", it, "--summary", "Home.", "--tour", "none", "--design", "Plain.")
+	r.ok("done", it, "--summary", "Home.", "--rules", "R0 test: wait for review", "--tour", "none", "--design", "Plain.")
 	r.ok("accept", it, "--on-request")
 
 	r.fails("not_found", "do", ph) // a phase is no entry: do takes its review

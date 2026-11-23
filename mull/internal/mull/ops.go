@@ -95,7 +95,7 @@ var ops = map[string]opDef{
 	"need":          {func() Input { return &NeedIn{add: true} }, "id, needs"},
 	"unneed":        {func() Input { return &NeedIn{} }, "id, needs"},
 	"decided":       {func() Input { return &DecidedIn{} }, "text, item, plan, source, detail, human, on-request"},
-	"ask":           {func() Input { return &CaptureIn{kind: model.KindQuestion} }, "text, item, plan, source, detail"},
+	"ask":           {func() Input { return &CaptureIn{kind: model.KindQuestion} }, "text, default, by, item, plan, source, detail"},
 	"loose":         {func() Input { return &CaptureIn{kind: model.KindLoose} }, "retired: use bug or idea"},
 	"bug":           {func() Input { return &CaptureItemIn{kind: model.ItemBug} }, "title, plan, phase, category, source, detail"},
 	"idea":          {func() Input { return &CaptureItemIn{kind: model.ItemIdea} }, "title, plan, phase, category, source, detail"},
@@ -111,6 +111,7 @@ var ops = map[string]opDef{
 	"config set":    {func() Input { return &ConfigSetIn{} }, "key, value"},
 	"config checks": {func() Input { return &ConfigChecksIn{} }, "commands, on-request"},
 	"config layer":  {func() Input { return &ConfigLayerIn{} }, "name, globs"},
+	"config risk":   {func() Input { return &ConfigRiskIn{} }, "high, add, remove, max-lines, max-files, sample, on-request"},
 }
 
 // OpNames lists the ops batch accepts.
@@ -415,17 +416,19 @@ func (in *NeedIn) run(m *Mull, s *state) (any, string, error) {
 }
 
 type CaptureIn struct {
-	Text   string `json:"text"`
-	Item   string `json:"item"`
-	Plan   string `json:"plan"`
-	Source string `json:"source"`
-	Detail string `json:"detail"`
-	kind   string
+	Text    string `json:"text"`
+	Item    string `json:"item"`
+	Plan    string `json:"plan"`
+	Source  string `json:"source"`
+	Detail  string `json:"detail"`
+	Default string `json:"default"`
+	By      string `json:"by"`
+	kind    string
 }
 
 func (in *CaptureIn) refFields() ([]*string, []*IDList) { return []*string{&in.Item, &in.Plan}, nil }
 func (in *CaptureIn) run(m *Mull, s *state) (any, string, error) {
-	e, err := m.capture(s, CaptureInput{Kind: in.kind, Text: in.Text, Item: in.Item, Plan: in.Plan, Source: in.Source, Detail: in.Detail})
+	e, err := m.capture(s, CaptureInput{Kind: in.kind, Text: in.Text, Item: in.Item, Plan: in.Plan, Source: in.Source, Detail: in.Detail, Default: in.Default, By: in.By})
 	if err != nil {
 		return nil, "", err
 	}
@@ -645,6 +648,26 @@ type ConfigLayerIn struct {
 func (in *ConfigLayerIn) refFields() ([]*string, []*IDList) { return nil, nil }
 func (in *ConfigLayerIn) run(m *Mull, s *state) (any, string, error) {
 	c, err := m.configLayer(s, in.Name, in.Globs)
+	return c, "", err
+}
+
+type ConfigRiskIn struct {
+	High      *StrList `json:"high"`
+	Add       StrList  `json:"add"`
+	Remove    StrList  `json:"remove"`
+	MaxLines  int      `json:"max-lines"`
+	MaxFiles  int      `json:"max-files"`
+	Sample    int      `json:"sample"`
+	OnRequest bool     `json:"on-request"`
+}
+
+func (in *ConfigRiskIn) refFields() ([]*string, []*IDList) { return nil, nil }
+func (in *ConfigRiskIn) run(m *Mull, s *state) (any, string, error) {
+	ri := RiskInput{Add: in.Add, Remove: in.Remove, MaxLines: in.MaxLines, MaxFiles: in.MaxFiles, Sample: in.Sample, OnRequest: in.OnRequest}
+	if in.High != nil {
+		ri.High = append([]string{}, (*in.High)...)
+	}
+	c, err := m.configRisk(s, ri)
 	return c, "", err
 }
 

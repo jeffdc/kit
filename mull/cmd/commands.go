@@ -190,13 +190,33 @@ func configCmd(a *app) *cobra.Command {
 	checks.Flags().BoolVar(&checksIn.OnRequest, "on-request", false, "an agent changing the checks on the human's explicit instruction")
 	layer := &cobra.Command{
 		Use:   "layer <name> [glob...]",
-		Short: "Set a layer's path globs for done reports (no globs removes it; a layer named ui makes tours required)",
+		Short: "Set a layer's path globs for done reports (no globs removes it)",
 		Args:  atLeast(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.write("config layer", &mull.ConfigLayerIn{Name: args[0], Globs: args[1:]})
 		},
 	}
-	c.AddCommand(set, checks, layer)
+	var riskIn mull.ConfigRiskIn
+	var noSample bool
+	risk := &cobra.Command{
+		Use:   "risk",
+		Short: "Change how done scores risk: the high-risk paths (wait for review), the size that makes work medium (lands, always shown), and the percent of low-risk work sampled. Only the human changes it",
+		Args:  noArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if noSample {
+				riskIn.Sample = -1
+			}
+			return a.write("config risk", &riskIn)
+		},
+	}
+	risk.Flags().StringSliceVar((*[]string)(&riskIn.Add), "add", nil, "add high-risk path globs")
+	risk.Flags().StringSliceVar((*[]string)(&riskIn.Remove), "remove", nil, "remove high-risk path globs")
+	risk.Flags().IntVar(&riskIn.MaxLines, "max-lines", 0, "lines changed above which work is medium risk")
+	risk.Flags().IntVar(&riskIn.MaxFiles, "max-files", 0, "files changed above which work is medium risk")
+	risk.Flags().IntVar(&riskIn.Sample, "sample", 0, "percent of low-risk work shown to the human (1 to 100)")
+	risk.Flags().BoolVar(&noSample, "no-sample", false, "sample no low-risk work")
+	risk.Flags().BoolVar(&riskIn.OnRequest, "on-request", false, "an agent changing risk on the human's explicit instruction")
+	c.AddCommand(set, checks, layer, risk)
 	return c
 }
 
@@ -624,10 +644,10 @@ func releaseCmd(a *app) *cobra.Command {
 
 func captureCmd(a *app, op string) *cobra.Command {
 	short := map[string]string{
-		"decided": "Record a decision you made that the human didn't (--detail: why), or with --human --on-request one the human made",
-		"ask":     "Ask the human something",
+		"decided": "Note a decision you made (--detail: why): it goes in your done report, not to the human. With --human --on-request, record one the human made",
+		"ask":     "Ask the human a question only they can answer: a rule conflict or something hard to undo. Give your default and when it stands",
 	}[op]
-	var item, plan, source, detail string
+	var item, plan, source, detail, deflt, by string
 	var human, onRequest bool
 	c := &cobra.Command{
 		Use: op + " <text>", Short: short, Args: exact(1),
@@ -642,10 +662,18 @@ func captureCmd(a *app, op string) *cobra.Command {
 				di.Human, di.OnRequest = human, onRequest
 				return a.write(op, di)
 			}
+			if op == "ask" && strings.TrimSpace(deflt) == "" {
+				return &mull.Error{Code: mull.CodeInvalid, Msg: "a question needs --default: what you'll do if nobody answers. Ask only about a rule conflict or something hard to undo; decide the rest yourself and note it with mull decided"}
+			}
 			ci := in.(*mull.CaptureIn)
 			ci.Text, ci.Item, ci.Plan, ci.Source, ci.Detail = args[0], item, plan, source, d
+			ci.Default, ci.By = deflt, by
 			return a.write(op, ci)
 		},
+	}
+	if op == "ask" {
+		c.Flags().StringVar(&deflt, "default", "", "required: what you'll do if nobody answers")
+		c.Flags().StringVar(&by, "by", "", "when your default stands: a duration (36h, 2d) or a date (2026-12-01)")
 	}
 	if op == "decided" {
 		c.Flags().BoolVar(&human, "human", false, "the human made this decision (in conversation): settled at once, into the decision log (needs --on-request)")
@@ -1010,26 +1038,29 @@ func failedCommand(rs []model.CheckResult) string {
 
 func doneCmd(a *app) *cobra.Command {
 	var in mull.DoneInput
-	var summary, tour, design string
+	var summary, tour, design, rules string
 	c := &cobra.Command{
 		Use:   "done <item-id|phase-id>",
-		Short: "Finish an item, or file a phase's integration review: run the hard checks, write the done report, and file it for review",
+		Short: "Finish an item: run the hard checks once, score its risk, and land it (low, medium) or file it for review (high)",
 		Args:  exact(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			stdin := 0
-			for _, s := range []string{summary, tour, design} {
+			for _, s := range []string{summary, tour, design, rules} {
 				if s == "-" {
 					stdin++
 				}
 			}
 			if stdin > 1 {
-				return &mull.Error{Code: mull.CodeUsage, Msg: "only one of --summary, --tour and --design can read stdin; give the others inline"}
+				return &mull.Error{Code: mull.CodeUsage, Msg: "only one of --summary, --rules, --tour and --design can read stdin; give the others inline"}
 			}
 			var err error
 			if in.Summary, err = a.text(summary); err != nil {
 				return err
 			}
 			if in.Design, err = a.text(design); err != nil {
+				return err
+			}
+			if in.Rules, err = a.text(rules); err != nil {
 				return err
 			}
 			t, err := a.text(tour)
@@ -1045,9 +1076,11 @@ func doneCmd(a *app) *cobra.Command {
 			return a.read(func(m *mull.Mull) (any, error) { return m.Finish(args[0], in) })
 		},
 	}
-	c.Flags().StringVar(&summary, "summary", "", "what changed and how it fits (- reads stdin)")
-	c.Flags().StringVar(&tour, "tour", "", "UI tour, one step per line: what to click and what to see (- reads stdin)")
-	c.Flags().StringVar(&design, "design", "", "required: design notes, how it was built and why (- reads stdin)")
+	c.Flags().StringVar(&summary, "summary", "", "required: one line on what changed (- reads stdin)")
+	c.Flags().StringVar(&rules, "rules", "", "required: none, or which rules the work touched and how (touching one makes it high risk)")
+	c.Flags().StringVar(&in.Slowed, "slowed", "", "what slowed the work down, if anything (one line)")
+	c.Flags().StringVar(&tour, "tour", "", "optional: what to look at and what to see, one step per line (- reads stdin)")
+	c.Flags().StringVar(&design, "design", "", "optional: how it was built and why, when it isn't obvious (- reads stdin)")
 	c.Flags().StringVar(&in.Override, "override", "", "HUMAN ONLY: finish despite failing or missing checks, with the reason")
 	return c
 }
