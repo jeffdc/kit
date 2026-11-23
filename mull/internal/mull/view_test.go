@@ -117,6 +117,41 @@ func TestBoardFromGit(t *testing.T) {
 			t.Errorf("view text lacks %q:\n%s", s, text)
 		}
 	}
+
+	// mull serve shows the same problems: the overview every plan's (in
+	// work order), the plan's sheet its own, an item's sheet the item's,
+	// each with where the item sits.
+	rowsText := func(rows []ProblemRow) string {
+		var out []string
+		for _, r := range rows {
+			out = append(out, r.Item+" "+r.Kind+" "+r.Text)
+		}
+		return strings.Join(out, "\n")
+	}
+	var boardText []string
+	for _, p := range board.Problems {
+		boardText = append(boardText, p.Item+" "+p.Kind+" "+p.Text)
+	}
+	ov := must[Overview](t)(m.Overview())
+	if got, want := rowsText(ov.Problems), strings.Join(boardText, "\n"); got != want {
+		t.Errorf("overview problems:\n%s\nwant (the board's):\n%s", got, want)
+	}
+	if r := ov.Problems[0]; r.Title != "A unmerged" || r.State != model.StateActive || r.Plan != "launch" || r.PlanTitle != "Public launch" ||
+		r.Phase != phase.ID || r.PhaseTitle != "Billing" {
+		t.Errorf("overview problem row = %+v", r)
+	}
+	if pp := must[PlanPage](t)(m.PlanPage("launch")); rowsText(pp.Problems) != strings.Join(boardText, "\n") {
+		t.Errorf("plan page problems:\n%s", rowsText(pp.Problems))
+	}
+	if pp := must[PlanPage](t)(m.PlanPage("general")); len(pp.Problems) != 0 {
+		t.Errorf("general's plan page problems = %+v", pp.Problems)
+	}
+	if ip := must[ItemPage](t)(m.ItemPage(d.ID)); len(ip.Problems) != 1 || ip.Problems[0].Kind != "done-not-in-git" {
+		t.Errorf("item page problems for D = %+v", ip.Problems)
+	}
+	if ip := must[ItemPage](t)(m.ItemPage(b.ID)); len(ip.Problems) != 0 {
+		t.Errorf("item page problems for B = %+v", ip.Problems)
+	}
 }
 
 func TestBoardWithNoPlansAndMissingIntegration(t *testing.T) {

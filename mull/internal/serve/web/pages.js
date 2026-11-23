@@ -7,6 +7,7 @@ import { esc, href, agoSpan, needsTotal, needsBreakdown, plural, size } from "./
 import { titleBlock, projectHead, liveField } from "./title.js";
 import { schedule } from "./needs.js";
 import { plansColumn } from "./plans.js";
+import { problemsSection } from "./problems.js";
 import { revisionSchedule } from "./revision.js";
 import { unplannedBody, backlogBody } from "./lists.js";
 import { planSubs, planSheet, planStatus, planDoc, planBacklog } from "./plan.js";
@@ -116,8 +117,8 @@ function errorRow(pr) {
   return `<tr class="waits"><td>${esc(pr.name)}<span class="meta">${esc(pr.path)}</span></td><td colspan="7">${why}</td></tr>`;
 }
 
-// pageProject is a project's Overview: the revision schedule, then Needs
-// you beside the Plans column.
+// pageProject is a project's Overview: its notes, the problems with its
+// work, the revision schedule, then Needs you beside the Plans column.
 export function pageProject(state, pr) {
   const data = state.data.get(pr.id);
   const head = projectHead(pr, data, "overview", state.live);
@@ -141,7 +142,7 @@ export function pageProject(state, pr) {
   const prune = wt
     ? `<p class="note">${plural(wt.count, "worktree")} (${size(wt.bytes)}) left behind by done work can be removed: ${wt.count === 1 ? "its item is" : "their items are"} accepted, the work is on the target, and nothing is uncommitted. <code>mull worktrees</code> lists them with the commands that remove them.</p>`
     : "";
-  return head + `<div class="page">${migrate}${prune}${revisionSchedule(pr.id, data.revision, entryHref)}<div class="cols">
+  return head + `<div class="page">${migrate}${prune}${problemsSection(pr.id, ov.problems)}${revisionSchedule(pr.id, data.revision, entryHref)}<div class="cols">
     <section id="needs"><div class="hd"><h2>Needs you</h2><span class="lab">${ny.open} open${ny.parked ? ` · ${ny.parked} parked` : ""} · ranked by what it unblocks</span></div>${schedule(ny, { pid: pr.id, changes: ch })}</section>
     <aside>${plansColumn(pr.id, ov, ch)}</aside>
   </div></div>`;

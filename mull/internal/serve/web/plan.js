@@ -12,6 +12,7 @@ import { renderDoc } from "./doc.js";
 import { rankTable, col, backlogBody } from "./lists.js";
 import { writeButton, editWrite } from "./write.js";
 import { captureButton, captureBar } from "./capture.js";
+import { problemsSection } from "./problems.js";
 
 const stamp = n => n ? ` <span class="stamp">${n} blocking</span>` : "";
 const crumbsFor = pid => [`<a href="${href.home()}">All projects</a>`, `<a href="${esc(href.project(pid))}">${esc(pid)}</a>`];
@@ -71,7 +72,7 @@ export function planStatus(pid, page, ch) {
   const unfiled = page.unfiled.length
     ? `<section><div class="hd"><h2>Not in a phase</h2><span class="lab">Committed to this plan without a phase · in rank order</span></div>${rankTable(pid, page.unfiled, page.plan.slug, [col.id(), col.title(pid), col.stage()], { changes: ch })}</section>`
     : "";
-  return `${intro}${table}<div class="cols">
+  return `${intro}${problemsSection(pid, page.problems, { inPlan: true })}${table}<div class="cols">
     <section id="needs"><div class="hd"><h2>Needs you</h2><span class="lab">This plan · ranked</span></div>${schedule(page.needs_you, { pid, changes: ch, noPlan: true })}</section>
     <aside><div class="hd"><h2>What's next</h2><span class="lab">Phases that can start now</span></div>${nextBlock(pid, page, ch)}</aside>
   </div>${unfiled}`;

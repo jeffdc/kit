@@ -1,5 +1,6 @@
 // A phase's sheet: where it stands, its items and what's captured for it,
-// what needs you about it, and its doc and rules, which are edited in place.
+// what needs you about it, its integration review's packet when it has a
+// report (review.js), and its doc and rules, which are edited in place.
 
 import { esc, href, tag, cells, shortTitle, copyId } from "./html.js";
 import { titleBlock } from "./title.js";
@@ -8,6 +9,7 @@ import { renderDoc } from "./doc.js";
 import { itemTable, rankTable, col } from "./lists.js";
 import { editWrite } from "./write.js";
 import { rulesSection } from "./rules.js";
+import { reviewPacket } from "./review.js";
 
 // titleOf finds a phase's title in the project's tree (for needs, which the
 // API gives as IDs).
@@ -34,7 +36,8 @@ export function phaseSheet(pr, data, page) {
   const waits = st.state === "waits" && st.waits_for.length
     ? `<p class="sub" style="margin:0">Waits for ${st.waits_for.map(w => `<a href="${esc(href.phase(pid, w.id))}">${esc(w.title)}</a>`).join(", ")} to be done.</p>`
     : st.state === "awaiting-review"
-      ? `<p class="sub" style="margin:0">Every item is done. The phase is complete, and the phases that need it can start, once its integration review is accepted.</p>`
+      ? `<p class="sub" style="margin:0">Every item is done. The phase is complete, and the phases that need it can start, once its integration review is accepted${
+        page.review?.entry && !page.review.entry.settled ? `: it's <a href="${esc(href.phase(pid, ph.id))}" data-review>below</a>` : `. An agent files it with <code>mull done ${esc(ph.id)}</code> at the tip of the plan's target`}.</p>`
       : "";
   const captured = page.captured.length
     ? `<div class="hd" style="margin-top:24px"><h2>Captured for this phase</h2><span class="lab">Not committed yet</span></div>${itemTable(pid, page.captured, [col.id(), col.title(pid, "Captured"), col.kind(), col.category()], { changes: ch })}`
@@ -52,6 +55,7 @@ export function phaseSheet(pr, data, page) {
       <section><div class="hd"><h2>Items</h2><span class="lab">One session each · in rank order</span></div>${rankTable(pid, page.items, ph.id, [col.id(), col.title(pid), col.stage()], { changes: ch, empty: "No items yet. They're written when this phase comes up." })}${captured}</section>
       <aside id="needs"><div class="hd"><h2>Needs you</h2><span class="lab">This phase</span></div>${schedule(page.needs_you, { pid, changes: ch, noPlan: true, noPhase: true })}</aside>
     </div>
+    ${page.review ? reviewPacket(pid, page, { phase: ph }) : ""}
     <section><div class="hd ed"><h2><span class="${docCloud.trim()}">The phase doc</span></h2><span class="lab">Its design, shared with the agents</span>${edit.button}</div><div class="doc-wrap">${edit.form || doc}</div></section>
     ${rulesSection({ pid, kind: "phase", key: `edit-phaserules:${pid}:${ph.id}`, op: { op: "phase rules", id: ph.id }, rules: ph.rules, title: ph.title,
       refs: page.doc_refs, cloud: ch ? ch.cls(c => c.type === "phase_rules" && c.id === ph.id) : "" })}

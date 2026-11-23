@@ -239,53 +239,21 @@ func (s *state) board(p *model.Plan, g *gitState, now time.Time) PlanBoard {
 
 	for _, i := range items {
 		ig := s.gitOf(g, i)
-		last, hasLast := parseTime(ig.LastActivity)
-		recent := hasLast && now.Sub(last) <= recentActivity
 		switch i.State {
 		case model.StateActive:
 			f := FlightLine{ID: i.ID, Title: i.Title, State: i.State, Branches: ig.Branches,
 				Commits: ig.Unmerged + ig.Landed, LastActivity: ig.LastActivity}
 			if i.Claim != nil {
 				f.Worktree = filepath.Base(i.Claim.Worktree)
-				if at, ok := parseTime(i.Claim.At); ok && now.Sub(at) > idleClaimAfter &&
-					(!hasLast || now.Sub(last) > idleClaimAfter) {
-					b.Problems = append(b.Problems, Problem{Kind: "idle-claim", Item: i.ID,
-						Text: fmt.Sprintf("claimed %s ago by %s, no linked commits for a day", ago(now, at), f.Worktree)})
-				}
-			}
-			if rep := s.latestReport(i.ID); rep != nil && !rep.Passed && rep.Override == "" {
-				b.Problems = append(b.Problems, Problem{Kind: "failed-done", Item: i.ID,
-					Text: fmt.Sprintf("done attempt %d failed its checks (%s)", rep.N, model.ReportPath(i.ID, rep.N))})
 			}
 			b.InFlight = append(b.InFlight, f)
 		case model.StateCaptured, model.StateCommitted:
-			if ig.Unmerged > 0 && recent {
+			if unclaimedWork(ig, now) {
 				b.InFlight = append(b.InFlight, FlightLine{ID: i.ID, Title: i.Title, State: i.State,
 					Branches: ig.Branches, Commits: ig.Unmerged, LastActivity: ig.LastActivity})
-				b.Problems = append(b.Problems, Problem{Kind: "unclaimed-work", Item: i.ID,
-					Text: "has recent commits but nobody has claimed it"})
-			}
-		case model.StateInReview, model.StateDone:
-			if ig.afterAccept > 0 && now.Sub(ig.lastAfterAccept) <= recentActivity && !s.followedUpSince(i.ID, ig.lastAfterAccept) {
-				b.Problems = append(b.Problems, Problem{Kind: "work-after-accept", Item: i.ID,
-					Text: fmt.Sprintf("accepted, but %s carrying its trailer came after (last %s ago); later work needs its own item: mull add --follow-up %s",
-						plural(ig.afterAccept, "commit"), ago(now, ig.lastAfterAccept), i.ID)})
-			}
-			// Accepted work belongs on the target, so a done item with none
-			// there is a problem at once; in review it may not be merged
-			// yet, so that waits notInGitAfter.
-			if !ig.SeenInGit {
-				up, ok := parseTime(i.Updated)
-				switch {
-				case i.State == model.StateDone:
-					b.Problems = append(b.Problems, Problem{Kind: "done-not-in-git", Item: i.ID,
-						Text: fmt.Sprintf("accepted, but none of its work is on %s", ig.Target)})
-				case ok && now.Sub(up) > notInGitAfter:
-					b.Problems = append(b.Problems, Problem{Kind: "done-not-in-git", Item: i.ID,
-						Text: fmt.Sprintf("%s %s ago, but none of its work is on %s", i.State, ago(now, up), ig.Target)})
-				}
 			}
 		}
+		b.Problems = append(b.Problems, s.itemProblems(i, ig, now)...)
 	}
 
 	for _, o := range g.overlapsOf(p.Slug) {
@@ -300,6 +268,62 @@ func (s *state) board(p *model.Plan, g *gitState, now time.Time) PlanBoard {
 		b.NeedsYou.add(e, now)
 	}
 	return b
+}
+
+// unclaimedWork reports whether an item nobody holds has recent commits
+// that aren't on its target.
+func unclaimedWork(ig ItemGit, now time.Time) bool {
+	last, ok := parseTime(ig.LastActivity)
+	return ig.Unmerged > 0 && ok && now.Sub(last) <= recentActivity
+}
+
+// itemProblems lists what's wrong with item i, from the record and what
+// git says about it (ig): every problem kind but overlap, which is a pair's
+// (see overlapProblem). mull view shows them in each plan's block, and
+// mull serve on the project overview, the plan's sheet and the item's.
+func (s *state) itemProblems(i *model.Item, ig ItemGit, now time.Time) []Problem {
+	var out []Problem
+	last, hasLast := parseTime(ig.LastActivity)
+	switch i.State {
+	case model.StateActive:
+		if i.Claim != nil {
+			if at, ok := parseTime(i.Claim.At); ok && now.Sub(at) > idleClaimAfter &&
+				(!hasLast || now.Sub(last) > idleClaimAfter) {
+				out = append(out, Problem{Kind: "idle-claim", Item: i.ID,
+					Text: fmt.Sprintf("claimed %s ago by %s, no linked commits for a day", ago(now, at), filepath.Base(i.Claim.Worktree))})
+			}
+		}
+		if rep := s.latestReport(i.ID); rep != nil && !rep.Passed && rep.Override == "" {
+			out = append(out, Problem{Kind: "failed-done", Item: i.ID,
+				Text: fmt.Sprintf("done attempt %d failed its checks (%s)", rep.N, model.ReportPath(i.ID, rep.N))})
+		}
+	case model.StateCaptured, model.StateCommitted:
+		if unclaimedWork(ig, now) {
+			out = append(out, Problem{Kind: "unclaimed-work", Item: i.ID,
+				Text: "has recent commits but nobody has claimed it"})
+		}
+	case model.StateInReview, model.StateDone:
+		if ig.afterAccept > 0 && now.Sub(ig.lastAfterAccept) <= recentActivity && !s.followedUpSince(i.ID, ig.lastAfterAccept) {
+			out = append(out, Problem{Kind: "work-after-accept", Item: i.ID,
+				Text: fmt.Sprintf("accepted, but %s carrying its trailer came after (last %s ago); later work needs its own item: mull add --follow-up %s",
+					plural(ig.afterAccept, "commit"), ago(now, ig.lastAfterAccept), i.ID)})
+		}
+		// Accepted work belongs on the target, so a done item with none
+		// there is a problem at once; in review it may not be merged
+		// yet, so that waits notInGitAfter.
+		if !ig.SeenInGit {
+			up, ok := parseTime(i.Updated)
+			switch {
+			case i.State == model.StateDone:
+				out = append(out, Problem{Kind: "done-not-in-git", Item: i.ID,
+					Text: fmt.Sprintf("accepted, but none of its work is on %s", ig.Target)})
+			case ok && now.Sub(up) > notInGitAfter:
+				out = append(out, Problem{Kind: "done-not-in-git", Item: i.ID,
+					Text: fmt.Sprintf("%s %s ago, but none of its work is on %s", i.State, ago(now, up), ig.Target)})
+			}
+		}
+	}
+	return out
 }
 
 // followedUpSince reports whether an item following up id (from set to it)
