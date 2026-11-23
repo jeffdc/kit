@@ -1,8 +1,8 @@
 ---
 title: 'Supervised work: targets, previews, rules, worktrees'
-state: active
+state: done
 created: "2026-11-22T15:27:46Z"
-updated: "2026-11-22T18:10:47Z"
+updated: "2026-11-23T15:36:00Z"
 preview: http://localhost:6899
 ---
 
