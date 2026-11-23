@@ -18,7 +18,13 @@ func setup(t *testing.T) (*Mull, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := m.Init("main", "main"); err != nil {
+	// Work lands on main; the release branch is another, so the runner
+	// may land there.
+	if _, err := m.Init("main", "release"); err != nil {
+		t.Fatal(err)
+	}
+	// Tests run more items at once than the default cap.
+	if _, err := m.configTx("parallel", func(s *state) (model.Config, error) { return m.configSet(s, "parallel", "50", true) }); err != nil {
 		t.Fatal(err)
 	}
 	// Init creates no plans; most tests want an agreed one to put work in.

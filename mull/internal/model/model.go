@@ -197,11 +197,6 @@ type Phase struct {
 	// Rules are the phase's standing rules for its workers, after its
 	// plan's: their own file (PhaseRulesPath), like the doc.
 	Rules string `yaml:"-" json:"rules,omitempty"`
-	// IntegrationReview means the phase needs an integration review (the
-	// human's call): once all its items are done, it isn't complete, and
-	// phases that need it stay blocked, until an integration review of it
-	// is accepted.
-	IntegrationReview bool `yaml:"integration_review,omitempty" json:"integration_review,omitempty"`
 	// Legacy means the record was read in format 1, from epics/ (see Format).
 	Legacy bool `yaml:"-" json:"-"`
 }
@@ -359,7 +354,22 @@ type Config struct {
 	Layers      map[string][]string `yaml:"layers" json:"layers"`
 	// Risk is how done scores risk. Unset fields take the defaults.
 	Risk RiskConfig `yaml:"risk,omitempty" json:"risk"`
+	// Worktrees is the directory start makes item worktrees in; empty is a
+	// sibling of the main worktree named <repo>.work.
+	Worktrees string `yaml:"worktrees,omitempty" json:"worktrees,omitempty"`
+	// Setup are shell commands start runs in a new worktree before claiming
+	// it, such as copying dependencies; MULL_MAIN is the main worktree.
+	Setup []string `yaml:"setup,omitempty" json:"setup,omitempty"`
+	// Parallel caps how many items can be active at once; 0 is the default.
+	Parallel int `yaml:"parallel,omitempty" json:"parallel,omitempty"`
 }
+
+// DefaultParallel is how many items can be active at once by default.
+const DefaultParallel = 3
+
+// DefaultStanding is the branch unplanned work lands on when config's
+// integration branch is the release branch, where mull never lands work.
+const DefaultStanding = "next"
 
 // RiskConfig is how done scores an item's risk from its diff.
 //   - High: a changed file matches one of High, or the agent says the work

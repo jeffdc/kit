@@ -66,14 +66,11 @@ type PlanBoard struct {
 
 // PhaseLine is a phase's progress line.
 type PhaseLine struct {
-	ID       string   `json:"id"`
-	Title    string   `json:"title"`
-	Progress Progress `json:"progress"`
-	Complete bool     `json:"complete"`
-	// AwaitingIntegrationReview: built, but not complete until its
-	// integration review is accepted.
-	AwaitingIntegrationReview bool     `json:"awaiting_integration_review,omitempty"`
-	BlockedBy                 []string `json:"blocked_by,omitempty"`
+	ID        string   `json:"id"`
+	Title     string   `json:"title"`
+	Progress  Progress `json:"progress"`
+	Complete  bool     `json:"complete"`
+	BlockedBy []string `json:"blocked_by,omitempty"`
 }
 
 // FlightLine is an item being worked on.
@@ -234,7 +231,7 @@ func (s *state) board(p *model.Plan, g *gitState, now time.Time) PlanBoard {
 	for _, e := range phases {
 		ev := s.phaseView(e)
 		b.Phases = append(b.Phases, PhaseLine{ID: e.ID, Title: e.Title, Progress: ev.Progress, Complete: ev.Complete,
-			AwaitingIntegrationReview: ev.AwaitingIntegrationReview, BlockedBy: ev.BlockedBy})
+			BlockedBy: ev.BlockedBy})
 	}
 
 	for _, i := range items {
@@ -538,8 +535,6 @@ func writeBoard(b *strings.Builder, p PlanBoard, now time.Time) {
 			status := progressText(e.Progress)
 			if e.Complete {
 				status = "complete"
-			} else if e.AwaitingIntegrationReview {
-				status = "awaiting integration review"
 			} else if len(e.BlockedBy) > 0 {
 				status += " · blocked by " + strings.Join(e.BlockedBy, ", ")
 			}

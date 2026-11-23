@@ -41,7 +41,7 @@ func TestSyncFirstPushSendsOnlyTheMullBranch(t *testing.T) {
 	var pushed []string
 	m.pushHook = func(args []string) { pushed = args }
 	res := must[SyncResult](t)(m.Sync(false))
-	if res.Action != "pushed" || res.Pushed != 4 { // init, plan new, plan agree, add
+	if res.Action != "pushed" || res.Pushed != 5 { // init, parallel, plan new, plan agree, add
 		t.Fatalf("sync = %+v", res)
 	}
 	local := gittest.Git(t, dir, "rev-parse", store.Ref)

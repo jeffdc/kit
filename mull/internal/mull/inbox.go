@@ -24,7 +24,7 @@ var allowed = map[string][]string{
 	model.KindDecision: {model.ActAccept, model.ActDecide, model.ActDrop, model.ActPark},
 	model.KindQuestion: {model.ActDecide, model.ActDo, model.ActDrop, model.ActPark},
 	model.KindLoose:    {model.ActDecide, model.ActDo, model.ActDrop, model.ActPark},
-	model.KindReview:   {model.ActAccept, model.ActDo, model.ActPark},
+	model.KindReview:   {model.ActAccept, model.ActDo, model.ActDrop, model.ActPark},
 }
 
 func allows(kind, action string) bool {
@@ -338,6 +338,7 @@ type AcceptResult struct {
 	Entries  []*model.Entry `json:"entries"`
 	Items    []ItemView     `json:"items"`
 	FollowUp *ItemView      `json:"follow_up"`
+	Warnings []string       `json:"warnings,omitempty"`
 }
 
 // Accept ratifies decisions and accepts reviewed work. refs may be decision
@@ -348,12 +349,30 @@ type AcceptResult struct {
 // applies only when accepting a single reviewed item.
 func (m *Mull) Accept(refs []string, followUp string, o SettleOpts) (AcceptResult, error) {
 	var out AcceptResult
+	type landing struct{ id, target, release, commit string }
+	var lands []landing
 	err := m.update(fmt.Sprintf("accept %v", refs), func(s *state) error {
 		var err error
+		lands = nil
 		out, err = m.accept(s, refs, followUp, o)
+		for _, v := range out.Items {
+			if rep := s.latestReport(v.ID); rep != nil && rep.Passed {
+				target, _ := s.targetOf(v.Plan)
+				lands = append(lands, landing{v.ID, target, s.release(), rep.Commit})
+			}
+		}
 		return err
 	})
-	return out, err
+	if err != nil {
+		return out, err
+	}
+	// Accepted work lands on its target now, as done lands low-risk work.
+	for _, l := range lands {
+		if ok, why := m.landItem(l.target, l.release, l.commit); !ok {
+			out.Warnings = append(out.Warnings, fmt.Sprintf("%s is accepted but not on %s yet: %s", l.id, l.target, why))
+		}
+	}
+	return out, nil
 }
 
 func (m *Mull) accept(s *state, refs []string, followUp string, o SettleOpts) (AcceptResult, error) {
@@ -370,18 +389,8 @@ func (m *Mull) accept(s *state, refs []string, followUp string, o SettleOpts) (A
 		var entry *model.Entry
 		var item *model.Item
 		switch {
-		case s.entries[ref] != nil && s.entries[ref].Phase != "", s.phases[ref] != nil:
-			r := s.entries[ref]
-			if r == nil {
-				if r = s.openIntegrationReview(ref); r == nil {
-					return out, errf(CodeState, "phase %s has no open integration review to accept (mull done %s files one)", ref, ref)
-				}
-			}
-			if err := m.acceptPhaseReview(s, r, o); err != nil {
-				return out, err
-			}
-			out.Entries = append(out.Entries, r)
-			continue
+		case s.entries[ref] != nil && s.entries[ref].Phase != "":
+			return out, errf(CodeRetired, "entry %s is an integration review of a phase: those are retired (drop it)", ref)
 		case s.entries[ref] != nil:
 			entry = s.entries[ref]
 			if entry.Kind == model.KindReview {
@@ -540,7 +549,7 @@ func (m *Mull) do(s *state, in DoInput) (DoResult, error) {
 		return DoResult{}, err
 	}
 	if e.Kind == model.KindReview && e.Phase != "" {
-		return m.sendBackPhase(s, e, in)
+		return DoResult{}, errf(CodeRetired, "entry %s is an integration review of a phase: those are retired (drop it)", e.ID)
 	}
 	as := in.As
 	if as == "" {

@@ -27,6 +27,9 @@ const (
 	CodeTourRequired       = "tour_required"       // UI files changed and no tour was given
 	CodeDesignRequired     = "design_required"     // retired: design notes are optional since the redesign
 	CodeRulesRequired      = "rules_required"      // done was given no --rules answer
+	CodeAtCapacity         = "at_capacity"         // as many items are active as config's parallel allows
+	CodeSetupFailed        = "setup_failed"        // a setup command failed in a new worktree
+	CodeBehindTarget       = "behind_target"       // the item's branch lacks its target's tip: merge the target in
 	CodeNoChecks           = "no_checks"           // no hard checks are configured
 	CodeDirty              = "dirty_tree"          // uncommitted or untracked changes
 	CodeChecksFailed       = "checks_failed"       // the hard checks failed

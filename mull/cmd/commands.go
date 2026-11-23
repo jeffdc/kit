@@ -82,7 +82,7 @@ func initCmd(a *app) *cobra.Command {
 			})
 		},
 	}
-	c.Flags().StringVar(&integration, "integration", "main", "branch where work lands")
+	c.Flags().StringVar(&integration, "integration", "next", "branch where unplanned work lands (never the release branch)")
 	c.Flags().StringVar(&release, "release", "main", "branch where work ships")
 	return c
 }
@@ -172,12 +172,26 @@ func configCmd(a *app) *cobra.Command {
 			return a.read(func(m *mull.Mull) (any, error) { return m.Config() })
 		},
 	}
+	var setOnRequest bool
 	set := &cobra.Command{
-		Use: "set <integration|release|remote> <value>", Short: "Set a branch or the remote", Args: exact(2),
+		Use:   "set <integration|release|remote|worktrees|parallel> <value>",
+		Short: "Set a branch, the remote, where start makes worktrees, or how many items may be active at once (parallel: the human's)",
+		Args:  exact(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return a.write("config set", &mull.ConfigSetIn{Key: args[0], Value: args[1]})
+			return a.write("config set", &mull.ConfigSetIn{Key: args[0], Value: args[1], OnRequest: setOnRequest})
 		},
 	}
+	set.Flags().BoolVar(&setOnRequest, "on-request", false, "an agent changing parallel on the human's explicit instruction")
+	var setupIn mull.ConfigSetupIn
+	setup := &cobra.Command{
+		Use:   "setup [command...]",
+		Short: "Replace the commands start runs in a new worktree before claiming it, such as copying dependencies (MULL_MAIN is the main worktree). Only the human changes them",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			setupIn.Commands = args
+			return a.write("config setup", &setupIn)
+		},
+	}
+	setup.Flags().BoolVar(&setupIn.OnRequest, "on-request", false, "an agent changing setup on the human's explicit instruction")
 	var checksIn mull.ConfigChecksIn
 	checks := &cobra.Command{
 		Use:   "checks [command...]",
@@ -216,7 +230,7 @@ func configCmd(a *app) *cobra.Command {
 	risk.Flags().IntVar(&riskIn.Sample, "sample", 0, "percent of low-risk work shown to the human (1 to 100)")
 	risk.Flags().BoolVar(&noSample, "no-sample", false, "sample no low-risk work")
 	risk.Flags().BoolVar(&riskIn.OnRequest, "on-request", false, "an agent changing risk on the human's explicit instruction")
-	c.AddCommand(set, checks, layer, risk)
+	c.AddCommand(set, checks, setup, layer, risk)
 	return c
 }
 
@@ -487,10 +501,9 @@ func phaseCmd(a *app) *cobra.Command {
 	onRequestFlag(deleteCmd, &del.OnRequest)
 	var setIn mull.PhaseSetIn
 	set := &cobra.Command{
-		Use: "set <id> <title|summary|integration-review> <value>",
-		Short: "Change a phase's field. integration-review on means that once its items are done it awaits an integration review, " +
-			"and isn't complete (phases that need it stay blocked) until one is accepted; only the human turns it on or off. Value - reads stdin",
-		Args: exact(3),
+		Use:   "set <id> <title|summary> <value>",
+		Short: "Change a phase's title or summary. Value - reads stdin",
+		Args:  exact(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			val, err := a.text(args[2])
 			if err != nil {
@@ -500,7 +513,6 @@ func phaseCmd(a *app) *cobra.Command {
 			return a.write("phase set", &setIn)
 		},
 	}
-	set.Flags().BoolVar(&setIn.OnRequest, "on-request", false, "an agent changing integration-review on the human's explicit instruction")
 	c.AddCommand(add, list, set, doc, rules, deleteCmd)
 	return c
 }
@@ -594,7 +606,7 @@ func readyCmd(a *app) *cobra.Command {
 func setCmd(a *app) *cobra.Command {
 	return &cobra.Command{
 		Use:   "set <slug|id> <field> <value>",
-		Short: "Change a field (plan: title, summary, target, preview; phase: title, summary, integration-review (the human's: mull phase set); item: title, notes, category, phase, doc; captured item: plan too, none untags, and kind bug or idea). Value - reads stdin",
+		Short: "Change a field (plan: title, summary, target, preview; phase: title, summary; item: title, notes, category, phase, doc; captured item: plan too, none untags, and kind bug or idea). Value - reads stdin",
 		Args:  exact(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			val, err := a.text(args[2])
@@ -623,12 +635,17 @@ func needCmd(a *app, add bool) *cobra.Command {
 }
 
 func startCmd(a *app) *cobra.Command {
-	return &cobra.Command{
-		Use: "start <id>", Short: "Claim an item for this worktree and mark it active", Args: exact(1),
+	c := &cobra.Command{
+		Use:   "start <id>",
+		Short: "Start an item: make its branch from its target and a worktree for it, run the project's setup there, and claim it for that worktree (--here: claim it here, on this branch)",
+		Args:  exact(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return a.write("start", &mull.StartIn{ID: args[0]})
+			here, _ := cmd.Flags().GetBool("here")
+			return a.read(func(m *mull.Mull) (any, error) { return m.StartWork(args[0], here) })
 		},
 	}
+	c.Flags().Bool("here", false, "claim it for this worktree, on the branch checked out: small work done in place")
+	return c
 }
 
 func releaseCmd(a *app) *cobra.Command {
@@ -956,14 +973,26 @@ func viewCmd(a *app) *cobra.Command {
 }
 
 func worktreesCmd(a *app) *cobra.Command {
-	return &cobra.Command{
+	var prune bool
+	c := &cobra.Command{
 		Use:   "worktrees",
-		Short: "The claim worktrees, with their item, state and size, and which can be removed (read-only)",
+		Short: "The item worktrees, with their item, state and size; --prune removes those whose work is all on a target (start and done prune too)",
 		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if prune {
+				return a.read(func(m *mull.Mull) (any, error) {
+					removed, err := m.Prune()
+					if removed == nil {
+						removed = []string{}
+					}
+					return map[string]any{"removed": removed}, err
+				})
+			}
 			return a.read(func(m *mull.Mull) (any, error) { return m.Worktrees() })
 		},
 	}
+	c.Flags().BoolVar(&prune, "prune", false, "remove the worktrees whose work is all on a target, and their branches")
+	return c
 }
 
 func contextCmd(a *app) *cobra.Command {
@@ -1040,7 +1069,7 @@ func doneCmd(a *app) *cobra.Command {
 	var in mull.DoneInput
 	var summary, tour, design, rules string
 	c := &cobra.Command{
-		Use:   "done <item-id|phase-id>",
+		Use:   "done <id>",
 		Short: "Finish an item: run the hard checks once, score its risk, and land it (low, medium) or file it for review (high)",
 		Args:  exact(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -1073,7 +1102,7 @@ func doneCmd(a *app) *cobra.Command {
 					in.Tour = append(in.Tour, line)
 				}
 			}
-			return a.read(func(m *mull.Mull) (any, error) { return m.Finish(args[0], in) })
+			return a.read(func(m *mull.Mull) (any, error) { return m.Done(args[0], in) })
 		},
 	}
 	c.Flags().StringVar(&summary, "summary", "", "required: one line on what changed (- reads stdin)")

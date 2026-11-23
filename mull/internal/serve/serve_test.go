@@ -61,7 +61,7 @@ func TestProjects(t *testing.T) {
 	if len(byPath) != 3 {
 		t.Fatalf("projects = %+v", list.Projects)
 	}
-	if p := byPath[good]; p.Error != nil || p.Summary == nil || p.Summary.Integration != "main" || p.Name != filepath.Base(good) {
+	if p := byPath[good]; p.Error != nil || p.Summary == nil || p.Summary.Integration != "next" || p.Name != filepath.Base(good) {
 		t.Errorf("good project = %+v", p)
 	}
 	if p := byPath[bare]; p.Summary != nil || p.Error == nil || p.Error.Code != mull.CodeNotInitialized {

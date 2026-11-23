@@ -106,7 +106,7 @@ func TestCLIEndToEnd(t *testing.T) {
 	if shown := r.ok("show", second); shown["type"] != "item" || shown["item"].(map[string]any)["ready"] != false {
 		t.Fatalf("show = %v", shown)
 	}
-	if r.ok("start", item)["item"].(map[string]any)["state"] != "active" {
+	if r.ok("start", item, "--here")["item"].(map[string]any)["state"] != "active" {
 		t.Fatal("start did not activate")
 	}
 
@@ -330,7 +330,7 @@ func TestPlanChecksCommands(t *testing.T) {
 	r.ok("plan", "new", "launch", "Launch", "--on-request")
 	r.ok("plan", "agree", "launch", "--on-request")
 	it := r.ok("add", "Webhook", "--plan", "launch")["id"].(string)
-	r.ok("start", it)
+	r.ok("start", it, "--here")
 	// Only the plan has checks: check without --item has none to run.
 	r.fails("no_checks", "check")
 	// An agent may not change the checks that judge its work unasked.
@@ -356,25 +356,6 @@ func TestPlanChecksCommands(t *testing.T) {
 	r.fails("not_found", "check", "--item", "ffff")
 	if p := r.ok("plan", "checks", "launch", "--on-request"); p["checks"] != nil {
 		t.Fatalf("cleared plan checks = %v", p)
-	}
-}
-
-func TestPhaseSetIntegrationReview(t *testing.T) {
-	r := run{t: t, dir: gittest.NewRepo(t)}
-	r.ok("init")
-	r.ok("plan", "new", "launch", "Launch", "--on-request")
-	r.ok("plan", "agree", "launch", "--on-request")
-	ph := r.ok("phase", "add", "Pages", "--plan", "launch")["id"].(string)
-	r.fails("not_allowed", "phase", "set", ph, "integration-review", "on")
-	r.fails("not_allowed", "set", ph, "integration-review", "on")
-	r.fails("invalid_argument", "phase", "set", ph, "integration-review", "maybe", "--on-request")
-	r.fails("not_found", "phase", "set", "launch", "title", "Launch")
-	set := r.ok("phase", "set", ph, "integration-review", "on", "--on-request")
-	if p := set["phase"].(map[string]any); set["type"] != "phase" || p["integration_review"] != true || p["complete"] != false {
-		t.Fatalf("phase set = %v", set)
-	}
-	if p := r.ok("phase", "set", ph, "integration-review", "off", "--on-request")["phase"].(map[string]any); p["integration_review"] != nil {
-		t.Fatalf("phase set off = %v", p)
 	}
 }
 

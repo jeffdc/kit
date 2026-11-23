@@ -80,11 +80,11 @@ func (m *Mull) now() string { return m.Now().UTC().Format(time.RFC3339) }
 
 // Init creates the mull branch with a config, in the current format.
 func (m *Mull) Init(integration, release string) (*model.Config, error) {
-	if integration == "" {
-		integration = "main"
-	}
 	if release == "" {
 		release = "main"
+	}
+	if integration == "" {
+		integration = model.DefaultStanding
 	}
 	cfg := &model.Config{
 		Format:      model.Format,

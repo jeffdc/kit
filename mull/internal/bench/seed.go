@@ -220,7 +220,7 @@ type planSlot struct {
 func (g *gen) plan() {
 	s := g.size
 	g.at(g.start, "init", func(c *commit) {
-		b, err := yaml.Marshal(model.Config{Format: model.Format, Integration: "main", Release: "main",
+		b, err := yaml.Marshal(model.Config{Format: model.Format, Integration: "main", Release: "release",
 			Remote: "origin", DoneChecks: []string{"true"}})
 		if err != nil {
 			panic(err)

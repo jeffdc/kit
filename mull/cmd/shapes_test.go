@@ -162,7 +162,7 @@ func TestOutputShapes(t *testing.T) {
 	nd = shape(keys{[]string{"type", "phase"}, nil}, "unneed", id(golive), id(phase))
 	checkKeys(t, "unneed.phase", nd["phase"], phaseViewKeys)
 
-	st := shape(keys{[]string{"item", "warnings"}, nil}, "start", id(b))
+	st := shape(keys{[]string{"item", "warnings", "worktree", "branch", "target"}, []string{"pruned"}}, "start", id(b), "--here")
 	checkKeys(t, "start.item", st["item"], itemViewKeys)
 	shape(itemViewKeys, "release", id(b))
 
@@ -202,12 +202,12 @@ func TestOutputShapes(t *testing.T) {
 		keys{[]string{"id", "plan", "kind", "context", "decision", "by", "at"}, []string{"item", "human", "on_request", "noted", "why"}})
 
 	// Finish work.
-	r.ok("start", id(a))
+	r.ok("start", id(a), "--here")
 	gittest.Commit(t, r.dir, "app/layout.css", "/* webhook */\n", "Layout", "Mull: "+id(a))
 	ck := shape(keys{[]string{"tree", "commit", "at", "by", "passed", "results", "cached"}, nil}, "check", "--item", id(a))
 	checkKeys(t, "check.results[0]", first(t, "results", ck["results"]), keys{[]string{"command", "exit", "duration_ms"}, []string{"tail"}})
 	r.ok("decided", "Retry three times", "--item", id(a), "--detail", "Stripe's advice")
-	dn := shapeIn("One handler.\n", keys{[]string{"report", "report_path", "item", "landed"}, []string{"review_entry", "warnings", "reminder"}},
+	dn := shapeIn("One handler.\n", keys{[]string{"report", "report_path", "item", "landed", "merged"}, []string{"review_entry", "warnings", "reminder", "merge_error", "pruned"}},
 		"done", id(a), "--summary", "Webhook handler.", "--rules", "R0 test: wait for review", "--tour", "none", "--design", "-")
 	checkKeys(t, "done.item", dn["item"], itemViewKeys)
 	rp := shape(keys{[]string{"report", "text"}, []string{"preview"}}, "report", id(a))
@@ -252,7 +252,7 @@ func TestOutputShapes(t *testing.T) {
 	wtItem := shape(itemViewKeys, "add", "Receipts", "--phase", id(phase))
 	wt := gittest.AddWorktree(t, r.dir, id(wtItem)+"-receipts")
 	worker := &run{t: t, dir: wt}
-	worker.ok("start", id(wtItem))
+	worker.ok("start", id(wtItem), "--here")
 	gittest.Commit(t, wt, "receipts.txt", "receipts", "Receipts", "Mull: "+id(wtItem))
 	worker.ok("done", id(wtItem), "--summary", "Receipts.", "--rules", "R0 test: wait for review", "--tour", "none", "--design", "Plain.")
 	gittest.Git(t, r.dir, "merge", "-q", "--no-ff", "--no-edit", id(wtItem)+"-receipts")
@@ -288,47 +288,6 @@ func TestOutputShapes(t *testing.T) {
 	// Errors: a JSON object with a code on stderr, nothing on stdout.
 	e := r.fails("not_found", "show", "ffff")
 	checkKeys(t, "error", e, keys{[]string{"code", "error"}, []string{"lines"}})
-}
-
-// TestMigrateShapes runs mull migrate on data written as the mull before
-// Model v2 wrote it (format 1), straight through the store.
-// A phase's integration review: done on the phase, its report, and the
-// review entry, accepted by the phase's ID.
-func TestPhaseDoneShapes(t *testing.T) {
-	r := run{t: t, dir: gittest.NewRepo(t)}
-	r.ok("init")
-	r.ok("config", "checks", "true", "--on-request")
-	r.ok("plan", "new", "launch", "Launch", "--on-request")
-	r.ok("plan", "agree", "launch", "--on-request")
-	ph := id(r.ok("phase", "add", "Pages", "--plan", "launch"))
-	r.ok("phase", "set", ph, "integration-review", "on", "--on-request")
-	it := id(r.ok("add", "Home page", "--phase", ph))
-	r.ok("start", it)
-	gittest.Commit(t, r.dir, "home.txt", "home\n", "Home", "Mull: "+it)
-	r.ok("done", it, "--summary", "Home.", "--rules", "R0 test: wait for review", "--tour", "none", "--design", "Plain.")
-	r.ok("accept", it, "--on-request")
-
-	r.fails("not_found", "do", ph) // a phase is no entry: do takes its review
-	dn := r.okIn("Read the combined diff.\n", "done", ph, "--summary", "Fits.", "--tour", "none", "--design", "-")
-	checkKeys(t, "done <phase>", dn, keys{[]string{"report", "report_path", "phase"}, []string{"review_entry", "warnings", "reminder"}})
-	pv := phaseViewKeys.plus(keys{nil, []string{"integration_review", "awaiting_integration_review"}})
-	checkKeys(t, "done <phase>.phase", dn["phase"], pv)
-	phaseReportKeys := keys{[]string{"phase", "items", "n", "passed", "commit", "at", "by", "summary", "checks"},
-		[]string{"override", "base", "tour", "warnings", "changes", "shared", "design"}}
-	checkKeys(t, "done <phase>.report", dn["report"], phaseReportKeys)
-	checkKeys(t, "done <phase>.report.items[0]", first(t, "items", dn["report"].(map[string]any)["items"]), keys{[]string{"id", "title"}, nil})
-	rp := r.ok("report", ph)
-	checkKeys(t, "report <phase>", rp, keys{[]string{"report", "text"}, []string{"preview"}})
-	checkKeys(t, "report <phase>.report", rp["report"], phaseReportKeys)
-	ek := entryKeys.plus(keys{nil, []string{"phase", "items"}})
-	rv := r.ok("show", dn["review_entry"].(string))
-	checkKeys(t, "show <integration review>", rv["entry"], ek)
-	r.fails("not_allowed", "accept", ph)
-	acc := r.ok("accept", ph, "--on-request")
-	checkKeys(t, "accept <phase>.entries[0]", first(t, "entries", acc["entries"]), ek)
-	if p := r.ok("show", ph)["phase"].(map[string]any); p["complete"] != true {
-		t.Fatalf("phase after accept = %v", p)
-	}
 }
 
 func TestMigrateShapes(t *testing.T) {

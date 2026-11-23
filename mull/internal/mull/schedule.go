@@ -30,9 +30,6 @@ const (
 func (s *state) phaseState(e *model.Phase) string {
 	switch {
 	case s.phaseBuilt(e.ID):
-		if s.awaitsIntegrationReview(e.ID) {
-			return PhaseAwaiting
-		}
 		return PhaseDone
 	case len(s.blockedBy(e.Needs)) > 0:
 		return PhaseWaits

@@ -585,7 +585,6 @@ func phaseChange(a, b *model.Phase) (Change, bool) {
 		f.short("title", a.Title, b.Title)
 		f.short("needs", list(a.Needs), list(b.Needs))
 		f.short("from", a.From, b.From)
-		f.short("integration_review", onOff(a.IntegrationReview), onOff(b.IntegrationReview))
 		f.text("summary", a.Summary, b.Summary)
 		return f
 	}, func(p *model.Phase, c *Change) {

@@ -142,9 +142,6 @@ func (m *Mull) Context(itemID string) (Context, error) {
 				if e := s.phases[id]; e.Plan == slug {
 					ev := s.phaseView(e)
 					progress := progressText(ev.Progress)
-					if ev.AwaitingIntegrationReview {
-						progress += " · awaiting integration review"
-					}
 					bp.Phases = append(bp.Phases, BriefPhase{ID: id, Title: e.Title, Progress: progress, BlockedBy: ev.BlockedBy})
 				}
 			}

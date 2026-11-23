@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,7 +22,7 @@ import (
 
 // ConfigSet changes one scalar config key: integration, release or remote.
 func (m *Mull) ConfigSet(key, value string) (model.Config, error) {
-	return m.configTx("config set "+key, func(s *state) (model.Config, error) { return m.configSet(s, key, value) })
+	return m.configTx("config set "+key, func(s *state) (model.Config, error) { return m.configSet(s, key, value, false) })
 }
 
 // ConfigChecks replaces the list of hard-check commands done runs. The
@@ -92,6 +93,22 @@ func (m *Mull) configRisk(s *state, in RiskInput) (model.Config, error) {
 	})
 }
 
+// ConfigSetup replaces the commands start runs in a new worktree. They run
+// on the machine, so only the human changes them.
+func (m *Mull) ConfigSetup(commands []string, onRequest bool) (model.Config, error) {
+	return m.configTx("config setup", func(s *state) (model.Config, error) { return m.configSetup(s, commands, onRequest) })
+}
+
+func (m *Mull) configSetup(s *state, commands []string, onRequest bool) (model.Config, error) {
+	if !m.asked(onRequest) {
+		return model.Config{}, errf(CodeNotAllowed, "only the human changes the setup commands: pass --on-request when the human has asked for this change")
+	}
+	return s.changeConfig(func(c *model.Config) error {
+		c.Setup = trimCommands(commands)
+		return nil
+	})
+}
+
 // ConfigLayer sets a layer's path globs; no globs removes the layer.
 func (m *Mull) ConfigLayer(name string, globs []string) (model.Config, error) {
 	return m.configTx("config layer "+name, func(s *state) (model.Config, error) { return m.configLayer(s, name, globs) })
@@ -107,7 +124,10 @@ func (m *Mull) configTx(msg string, fn func(s *state) (model.Config, error)) (mo
 	return out, err
 }
 
-func (m *Mull) configSet(s *state, key, value string) (model.Config, error) {
+func (m *Mull) configSet(s *state, key, value string, onRequest bool) (model.Config, error) {
+	if key == "parallel" && !m.asked(onRequest) {
+		return model.Config{}, errf(CodeNotAllowed, "only the human changes how many items may be active at once: pass --on-request when the human has asked")
+	}
 	return s.changeConfig(func(c *model.Config) error {
 		switch key {
 		case "integration":
@@ -116,8 +136,16 @@ func (m *Mull) configSet(s *state, key, value string) (model.Config, error) {
 			c.Release = value
 		case "remote":
 			c.Remote = value
+		case "worktrees":
+			c.Worktrees = value
+		case "parallel":
+			n, err := strconv.Atoi(value)
+			if err != nil || n < 1 {
+				return errf(CodeInvalid, "parallel is how many items may be active at once: a number from 1")
+			}
+			c.Parallel = n
 		default:
-			return errf(CodeInvalid, "settable keys are integration, release and remote (use 'config checks' and 'config layer' for the rest)")
+			return errf(CodeInvalid, "settable keys are integration, release, remote, worktrees and parallel (use 'config checks', 'config setup', 'config risk' and 'config layer' for the rest)")
 		}
 		if value == "" {
 			return errf(CodeInvalid, "%s cannot be empty", key)
@@ -490,10 +518,27 @@ type DoneResult struct {
 	Item       ItemView     `json:"item"`
 	Review     string       `json:"review_entry,omitempty"`
 	// Landed means the work didn't wait for review: done scored it low or
-	// medium risk, and the item is done.
-	Landed   bool     `json:"landed"`
-	Warnings []string `json:"warnings,omitempty"` // soft: they never stop done, and the report carries them too
-	Reminder string   `json:"reminder,omitempty"`
+	// medium risk, and the item is done. Merged means it's on its target
+	// now; MergeError says why not.
+	Landed     bool     `json:"landed"`
+	Merged     bool     `json:"merged"`
+	MergeError string   `json:"merge_error,omitempty"`
+	Pruned     []string `json:"pruned,omitempty"`
+	Warnings   []string `json:"warnings,omitempty"` // soft: they never stop done, and the report carries them too
+	Reminder   string   `json:"reminder,omitempty"`
+}
+
+// doneText checks done's summary and design notes, and returns the design
+// notes trimmed.
+func doneText(in DoneInput) (string, error) {
+	if strings.TrimSpace(in.Summary) == "" {
+		return "", errf(CodeInvalid, "done needs a summary: one line on what changed")
+	}
+	design := strings.TrimSpace(in.Design)
+	if strings.EqualFold(strings.TrimRight(design, "."), "none") {
+		design = ""
+	}
+	return design, nil
 }
 
 // ErrChecksFailed means the hard checks failed: the item stays active, or,
@@ -526,9 +571,9 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 	var cfg model.Config
 	var claim model.Claim
 	var commands []string
-	var target, preview string
+	var target, preview, release string
 	err = m.view(func(s *state) error {
-		cfg = s.config
+		cfg, release = s.config, s.release()
 		i, err := s.item(id)
 		if err != nil {
 			return err
@@ -546,6 +591,18 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 	})
 	if err != nil {
 		return out, err
+	}
+
+	// Work lands by fast-forward, so the target only ever holds trees that
+	// passed the checks: a branch without the target's tip merges it first,
+	// before the checks spend their time.
+	if target != release && claim.Branch != target {
+		head, _ := m.repo.RefCommit("HEAD")
+		if behind, err := m.behindTarget(target, head); err != nil {
+			return out, err
+		} else if behind {
+			return out, errf(CodeBehindTarget, "%s has moved on since this branch was made: merge it in (git merge %s), then finish again", target, target)
+		}
 	}
 
 	var checks model.CheckRun
@@ -659,7 +716,15 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 		return out, &ErrChecksFailed{Report: out.ReportPath}
 	}
 	if out.Landed {
-		out.Reminder = "Done: " + risk.Band + " risk, so it didn't wait for review."
+		out.Merged, out.MergeError = m.landItem(target, release, checks.Commit)
+		if pruned, _ := m.Prune(); len(pruned) > 0 {
+			out.Pruned = pruned
+		}
+	}
+	if out.Landed && out.Merged {
+		out.Reminder = "Done and on " + target + ": " + risk.Band + " risk, so it didn't wait for review. mull sync."
+	} else if out.Landed {
+		out.Reminder = "Done (" + risk.Band + " risk), but not on " + target + " yet: " + out.MergeError
 	} else if risk.Band == model.RiskHigh {
 		out.Reminder = m.personal("High risk, so it waits for the human's review: " + strings.Join(risk.Why, "; ") + ".")
 	} else {

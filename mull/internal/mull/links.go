@@ -67,10 +67,25 @@ const (
 	TargetFromIntegration = "integration"
 )
 
-// integration is config's integration branch, main when unset.
+// integration is where unplanned work (and a plan with no target) lands:
+// config's integration branch (main when unset), unless that's the release
+// branch, where mull never lands work; then the standing branch, next.
 func (s *state) integration() string {
-	if s.config.Integration != "" {
-		return s.config.Integration
+	b := s.config.Integration
+	if b == "" {
+		b = "main"
+	}
+	if b == s.release() {
+		return model.DefaultStanding
+	}
+	return b
+}
+
+// release is config's release branch, main when unset: where work ships,
+// and where mull never lands work.
+func (s *state) release() string {
+	if s.config.Release != "" {
+		return s.config.Release
 	}
 	return "main"
 }

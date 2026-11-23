@@ -742,26 +742,8 @@ func (m *Mull) setPhase(s *state, e *model.Phase, field, value string, onRequest
 		e.Title = value
 	case "summary":
 		e.Summary = value
-	case "integration-review":
-		var on bool
-		switch value {
-		case "on":
-			on = true
-		case "off":
-		default:
-			return SetResult{}, errf(CodeInvalid, "integration-review is on or off, not %q", value)
-		}
-		if !m.asked(onRequest) {
-			return SetResult{}, errf(CodeNotAllowed, "only the human decides whether a phase needs an integration review: "+
-				"when they have asked for this change, run mull phase set %s integration-review %s --on-request", e.ID, value)
-		}
-		if on == e.IntegrationReview {
-			v := s.phaseView(e) // unchanged: write nothing
-			return SetResult{Type: "phase", Phase: &v}, nil
-		}
-		e.IntegrationReview = on
 	default:
-		return SetResult{}, errf(CodeInvalid, "a phase's settable fields are title, summary and integration-review")
+		return SetResult{}, errf(CodeInvalid, "a phase's settable fields are title and summary")
 	}
 	e.Updated = m.now()
 	if err := s.putPhase(e); err != nil {
@@ -1012,7 +994,19 @@ func (m *Mull) Start(id string) (StartResult, error) {
 }
 
 func (m *Mull) start(s *state, id string) (StartResult, error) {
-	wt, branch := m.Worktree(), m.repo.Branch()
+	if n, max := s.activeCount(id), s.parallel(); n >= max {
+		if i := s.items[id]; i == nil || i.State != model.StateActive {
+			return StartResult{}, errf(CodeAtCapacity, "%d items are active, the most at once (%d): finish or release one first. %s", n, max,
+				m.personal("Only the human raises the cap (mull config set parallel <n> --on-request)."))
+		}
+	}
+	base, _ := m.repo.RefCommit("HEAD")
+	return m.startAt(s, id, m.Worktree(), m.repo.Branch(), base)
+}
+
+// startAt claims an item for worktree wt, working on branch from commit
+// base.
+func (m *Mull) startAt(s *state, id, wt, branch, base string) (StartResult, error) {
 	out := StartResult{Warnings: []string{}}
 	i, err := s.item(id)
 	if err != nil {
@@ -1045,7 +1039,6 @@ func (m *Mull) start(s *state, id string) (StartResult, error) {
 		// Committed work from before shaping plans refused it.
 		out.Warnings = append(out.Warnings, m.personal(fmt.Sprintf("started while plan %q is shaping: the human hasn't agreed it", i.Plan)))
 	}
-	base, _ := m.repo.RefCommit("HEAD")
 	now := m.now()
 	if i.State == model.StateCaptured { // committing it: it joins its group's open work, last
 		if err := s.place(i, "", "", now); err != nil {

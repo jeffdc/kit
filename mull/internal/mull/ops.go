@@ -108,10 +108,11 @@ var ops = map[string]opDef{
 	"do":            {func() Input { return &DoIn{} }, "id, plan, phase, as, reason, on-request"},
 	"drop":          {func() Input { return &DropIn{} }, "ids, reason, on-request"},
 	"park":          {func() Input { return &ParkIn{} }, "id, reason, on-request"},
-	"config set":    {func() Input { return &ConfigSetIn{} }, "key, value"},
+	"config set":    {func() Input { return &ConfigSetIn{} }, "key, value, on-request"},
 	"config checks": {func() Input { return &ConfigChecksIn{} }, "commands, on-request"},
 	"config layer":  {func() Input { return &ConfigLayerIn{} }, "name, globs"},
 	"config risk":   {func() Input { return &ConfigRiskIn{} }, "high, add, remove, max-lines, max-files, sample, on-request"},
+	"config setup":  {func() Input { return &ConfigSetupIn{} }, "commands, on-request"},
 }
 
 // OpNames lists the ops batch accepts.
@@ -619,13 +620,25 @@ func (in *ParkIn) run(m *Mull, s *state) (any, string, error) {
 }
 
 type ConfigSetIn struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
+	Key       string `json:"key"`
+	Value     string `json:"value"`
+	OnRequest bool   `json:"on-request"`
 }
 
 func (in *ConfigSetIn) refFields() ([]*string, []*IDList) { return nil, nil }
 func (in *ConfigSetIn) run(m *Mull, s *state) (any, string, error) {
-	c, err := m.configSet(s, in.Key, in.Value)
+	c, err := m.configSet(s, in.Key, in.Value, in.OnRequest)
+	return c, "", err
+}
+
+type ConfigSetupIn struct {
+	Commands  StrList `json:"commands"`
+	OnRequest bool    `json:"on-request"`
+}
+
+func (in *ConfigSetupIn) refFields() ([]*string, []*IDList) { return nil, nil }
+func (in *ConfigSetupIn) run(m *Mull, s *state) (any, string, error) {
+	c, err := m.configSetup(s, in.Commands, in.OnRequest)
 	return c, "", err
 }
 
