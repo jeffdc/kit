@@ -38,7 +38,7 @@ Project            a repo
 
 - "Epic" is renamed "phase" everywhere.
 - `mull serve` is a Go server inside mull that imports its own packages, listens on `127.0.0.1` at a fixed port, and serves plain JS modules and CSS embedded in the binary (no Node build step). Live updates come over SSE from a watch on each repo's `refs/heads/mull`.
-- Repos are found with no configuration: any `mull` command registers its repo in `~/.config/mull/repos`.
+- Repos are found with no configuration: any `mull` command registers its repo in `~/.config/mull/repos`, unless it's in the system's temporary directory. `mull unregister` takes one off.
 - "Last looked" is kept by `mull serve` in `~/.config/mull/`, per machine, never on the mull branch.
 - `http://localhost` is fine; no HTTPS needed.
 - Mostly read-first: an action copies the mull command to run, except the human's own steps that have moved onto the page (approving, answering, deciding and settling reviews so far; the `mull-ui-edit` plan moves the rest), which save as the human.
