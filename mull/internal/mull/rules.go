@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -169,10 +170,15 @@ func (m *Mull) Rules() (RulesOut, error) {
 
 // runRules runs every checked rule's check in this worktree, comparing a
 // ratcheted one's violations with its ratchet file.
-func (m *Mull) runRules(rules []Rule) []model.RuleResult {
+func (m *Mull) runRules(rules []Rule, passed []string) []model.RuleResult {
 	var out []model.RuleResult
 	for _, r := range rules {
 		if r.Advisory {
+			continue
+		}
+		if r.Ratchet == "" && slices.Contains(passed, r.Check) {
+			// The hard checks ran it already, and it passed.
+			out = append(out, model.RuleResult{ID: r.ID, Passed: true})
 			continue
 		}
 		rr := model.RuleResult{ID: r.ID}
@@ -333,7 +339,7 @@ func (m *Mull) CheckRules() (RuleCheckOut, error) {
 	if err != nil {
 		return RuleCheckOut{}, err
 	}
-	out := RuleCheckOut{Passed: true, Results: m.runRules(rules)}
+	out := RuleCheckOut{Passed: true, Results: m.runRules(rules, nil)}
 	if out.Results == nil {
 		out.Results = []model.RuleResult{}
 	}
@@ -341,6 +347,35 @@ func (m *Mull) CheckRules() (RuleCheckOut, error) {
 		out.Passed = out.Passed && r.Passed
 	}
 	return out, nil
+}
+
+// grownRatchets lists the ratcheted rules whose ratchet file gained a
+// violation between base and the worktree: hiding a new violation by
+// editing the file, which only the human may do. Shrinking one is fine.
+func (m *Mull) grownRatchets(rules []Rule, base string) []string {
+	var out []string
+	for _, r := range rules {
+		if r.Ratchet == "" {
+			continue
+		}
+		before := map[string]bool{}
+		if b, code, err := m.repo.RunStatus(nil, nil, "show", base+":"+r.Ratchet); err == nil && code == 0 {
+			for _, l := range strings.Split(string(b), "\n") {
+				if l = strings.TrimSpace(l); l != "" && !strings.HasPrefix(l, "#") {
+					before[l] = true
+				}
+			}
+		} else {
+			continue // a new ratchet: RULES.md changed too, which is high risk already
+		}
+		for v := range readRatchet(filepath.Join(m.repo.Dir, r.Ratchet)) {
+			if !before[v] {
+				out = append(out, r.ID)
+				break
+			}
+		}
+	}
+	return out
 }
 
 // rulesInScope lists the rules whose scope matches a changed file.

@@ -149,3 +149,29 @@ func TestDoneRunsTheRulebook(t *testing.T) {
 }
 
 func asErr[T error](err error, target *T) bool { return errors.As(err, target) }
+
+func TestRatchetGrowthIsHighRiskShrinkIsNot(t *testing.T) {
+	m, dir := riskSetup(t)
+	gittest.Commit(t, dir, "RULES.md", rulebook, "Rules")
+	gittest.Commit(t, dir, "web/a.html", `<div class="page-local">`, "A")
+	gittest.Commit(t, dir, "web/b.html", `<div class="page-local">`, "B")
+	gittest.Commit(t, dir, ".mull/ratchets/R1.txt", "web/a.html\nweb/b.html\n", "Baseline")
+
+	// Fixing one and shrinking the ratchet lands.
+	fix := startWork(t, m, dir, "Fix b")
+	gittest.Commit(t, dir, "web/b.html", `<div class="card">`, "Fix", "Mull: "+fix.ID)
+	gittest.Commit(t, dir, ".mull/ratchets/R1.txt", "web/a.html\n", "Shrink", "Mull: "+fix.ID)
+	res := must[DoneResult](t)(m.Done(fix.ID, DoneInput{Summary: "Fixed b.", Rules: "none"}))
+	if res.Report.Risk == model.RiskHigh || !res.Landed {
+		t.Fatalf("a shrink: %+v", res.Report)
+	}
+
+	// Hiding a new one by growing the file waits for review.
+	hide := startWork(t, m, dir, "Add c")
+	gittest.Commit(t, dir, "web/c.html", `<div class="page-local">`, "C", "Mull: "+hide.ID)
+	gittest.Commit(t, dir, ".mull/ratchets/R1.txt", "web/a.html\nweb/c.html\n", "Grow", "Mull: "+hide.ID)
+	res = must[DoneResult](t)(m.Done(hide.ID, DoneInput{Summary: "Added c.", Rules: "none"}))
+	if res.Report.Risk != model.RiskHigh || !strings.Contains(strings.Join(res.Report.RiskWhy, " "), "ratchet grew: R1") {
+		t.Fatalf("a growth: %+v", res.Report)
+	}
+}

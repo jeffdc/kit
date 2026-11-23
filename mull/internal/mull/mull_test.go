@@ -215,9 +215,18 @@ func TestPhaseNeeds(t *testing.T) {
 	if y.Ready {
 		t.Fatal("an item in a blocked phase should not be ready")
 	}
-	must[DropResult](t)(m.Drop([]string{x.ID}, "not needed", SettleOpts{}))
+	// Work all dropped is a phase cut back to an outline: not built, so it
+	// still blocks. Done work, with or without drops, completes it.
+	must[DropResult](t)(m.Drop([]string{x.ID}, "back to an outline", SettleOpts{}))
+	if item(t, m, y.ID).Ready {
+		t.Fatal("phase 1 with all its work dropped isn't built; phase 2 waits")
+	}
+	w := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "general", Phase: p1.ID, Title: "w"}))
+	must[StartResult](t)(m.Start(w.ID))
+	markInReview(t, m, w.ID)
+	must[AcceptResult](t)(m.Accept([]string{w.ID}, "", SettleOpts{OnRequest: true}))
 	if !item(t, m, y.ID).Ready {
-		t.Fatal("phase 1 complete (all dropped) should unblock phase 2's items")
+		t.Fatal("phase 1 done (one done, one dropped) should unblock phase 2's items")
 	}
 	// An empty phase is never complete.
 	empty := must[*model.Phase](t)(m.PhaseAdd("general", "Empty", "", nil))

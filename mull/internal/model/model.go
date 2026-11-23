@@ -421,7 +421,7 @@ type RiskConfig struct {
 // migrations. It's a starting point the human grows and shrinks
 // (mull config risk).
 var DefaultHighRisk = []string{
-	"RULES.md", ".mull/**",
+	"RULES.md",
 	".github/**", ".githooks/**", "**/Makefile", "Makefile",
 	"go.mod", "**/go.mod", "mix.exs", "**/mix.exs", "mix.lock", "**/mix.lock",
 	"package.json", "**/package.json",

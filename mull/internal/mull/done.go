@@ -656,10 +656,17 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 	if err != nil {
 		return out, err
 	}
+	if grown := m.grownRatchets(rulebook, base); len(grown) > 0 {
+		risk = Risk{Band: model.RiskHigh, Why: append(risk.Why, "a ratchet grew: "+strings.Join(grown, ", ")+" (only the human grows one)")}
+	}
 	var ruleRuns []model.RuleResult
 	rulesPassed := true
 	if checks.Passed {
-		ruleRuns = m.runRules(rulebook)
+		var ran []string
+		for _, c := range checks.Results {
+			ran = append(ran, c.Command)
+		}
+		ruleRuns = m.runRules(rulebook, ran)
 		for _, r := range ruleRuns {
 			rulesPassed = rulesPassed && r.Passed
 		}

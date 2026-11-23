@@ -32,7 +32,9 @@ func (s *state) phaseItems(phaseID string) []*model.Item {
 // phaseBuilt reports whether every item committed to a phase is finished
 // (done or dropped), and there is at least one.
 func (s *state) phaseBuilt(phaseID string) bool {
-	committed := 0
+	// At least one item done: a phase whose work was all dropped (cut back
+	// to an outline) isn't built.
+	done := 0
 	for _, i := range s.phaseItems(phaseID) {
 		if i.State == model.StateCaptured {
 			continue
@@ -40,9 +42,11 @@ func (s *state) phaseBuilt(phaseID string) bool {
 		if !finished(i) {
 			return false
 		}
-		committed++
+		if i.State == model.StateDone {
+			done++
+		}
 	}
-	return committed > 0
+	return done > 0
 }
 
 // phaseComplete reports whether a phase is done: built.
