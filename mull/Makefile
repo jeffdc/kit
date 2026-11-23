@@ -1,4 +1,4 @@
-.PHONY: all build test race fmt fmt-check vet install clean dev dev-stop dev-demo dev-reset bench
+.PHONY: all build test race fmt fmt-check vet install clean dev dev-stop dev-demo dev-reset
 
 VERSION := $(shell git describe --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -X mull/cmd.Version=$(VERSION)
@@ -48,8 +48,8 @@ DEV_PORT ?= 6899
 
 dev: build dev-demo dev-stop
 	@cd $(DEV)/demo && { XDG_CONFIG_HOME=$(DEV)/cfg $(CURDIR)/mull serve --port $(DEV_PORT) >$(DEV)/serve.log 2>&1 </dev/null & echo $$! >$(DEV)/serve.pid; }
-	@for i in $$(seq 50); do curl -sf localhost:$(DEV_PORT)/api/build >/dev/null && break; sleep 0.1; done
-	@curl -sf localhost:$(DEV_PORT)/api/build >/dev/null || { echo "mull serve didn't start; see $(DEV)/serve.log"; exit 1; }
+	@for i in $$(seq 50); do curl -sf localhost:$(DEV_PORT)/api/projects >/dev/null && break; sleep 0.1; done
+	@curl -sf localhost:$(DEV_PORT)/api/projects >/dev/null || { echo "mull serve didn't start; see $(DEV)/serve.log"; exit 1; }
 	@echo "mull serve (dev) on http://localhost:$(DEV_PORT)/#/demo, pid $$(cat $(DEV)/serve.pid), log $(DEV)/serve.log"
 
 dev-stop:
@@ -65,12 +65,3 @@ dev-demo: build
 dev-reset: dev-stop
 	rm -rf $(DEV)
 	@$(MAKE) --no-print-directory dev
-
-# bench times every page mull serve shows, in-process and over HTTP, with git calls counted: on this repository's own mull branch (read only) and on a seeded one of BENCH_SIZE (small, medium or large), kept in .dev/bench/ and reused. BENCH_FLAGS passes flags through, e.g. BENCH_FLAGS="-url http://127.0.0.1:6855" to time the installed server too, or -json.
-BENCH_SIZE ?= large
-BENCH_REPOS ?= $(shell git rev-parse --show-toplevel)
-BENCH_FLAGS ?=
-
-bench:
-	@go run ./scripts/bench seed -size $(BENCH_SIZE) -dir $(DEV)/bench/$(BENCH_SIZE)
-	@go run ./scripts/bench run $(BENCH_FLAGS) $(BENCH_REPOS) $(DEV)/bench/$(BENCH_SIZE)

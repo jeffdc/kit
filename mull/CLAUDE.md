@@ -1,53 +1,39 @@
 # mull
 
-Guidance for any agent working on mull's code. The design is `docs/design.md` (and `docs/serve/` for `mull serve`). Read it before changing behaviour.
+Guidance for any agent working on mull's code. The design is `docs/redesign.md`. Read it before changing behaviour.
 
 ## What mull is
 
-The record of a program, kept on a dedicated git branch (`mull`) in the project's repo:
-- **plans** (top level, plain-English slugs);
-- **phases** (big pieces of a plan; called epics before Model v2);
-- **items** (one agent, one session);
-- **a backlog** of captured items (bugs and ideas) that aren't work until the human commits them;
-- **an inbox** of decisions, questions and reviews that need the human;
-- **mull serve,** the human's view: a local web UI of every registered repository.
-
-Agents and humans use it only through the CLI. Data commands print JSON; errors go to stderr as `{"code", "error"}` (see `internal/guide/json.md`).
+The record of a program run with agents, kept on a dedicated git branch (`mull`) in the project's repo: plans, phases and items; the agents' queue of bugs and ideas; and an inbox of what needs the human (questions with a default, reviews of high-risk work). Beside it in the repo: RULES.md, the rulebook. mull runs the work through git (branches, worktrees, landing) and shows the human one surface: `mull status` or `mull serve`.
 
 ## Rules
 
 - **Any LLM, any harness.** No feature may depend on Claude Code, Codex or any other harness. The only interfaces are the CLI and git.
 - **Never touch the working tree or the real index** when writing mull data. All writes go through `internal/store` (git plumbing plus a compare-and-swap on `refs/heads/mull`).
-- **The only ref mull may write or push is `refs/heads/mull`.** It's a constant (`store.Ref`), and must stay one.
+- **The store writes, and sync pushes, only `refs/heads/mull`.** It's a constant (`store.Ref`), and must stay one.
+- **The runner writes local code branches only, never the release branch, and never pushes.** `start` makes an item's branch and worktree (and the target, from the release branch, if it's missing), `done` and `accept` fast-forward the target, and pruning removes merged worktrees and their branches. Changed with Jeff on 2026-11-23 for the redesign (`docs/redesign.md`).
 - **Installed as `mull`** with `make install` (cutover done 2026-11-09). The old binary is kept as `mull1` for reading old `.mull/` data.
 
 ## Layout
 
-- `cmd/`: the Cobra CLI. Thin: it parses flags and prints, and the logic lives in `internal/mull`.
+- `cmd/`: the Cobra CLI. Thin: it parses flags and prints; the logic lives in `internal/core`.
+- `internal/core`: mull itself: records, plans, phases, items, the inbox, done (checks, rules, risk), the runner (branches, worktrees, landing), the surface, the map and audits, batch and sync.
 - `internal/git`: runs the `git` CLI. Every git call goes through here.
-- `internal/store`: the `mull` branch. Load a snapshot, and update with compare-and-swap and retry.
-- `internal/model`: records and their file format (YAML frontmatter plus a markdown body).
-- `internal/mull`: operations: plans, phases, items, needs and readiness, claims, the inbox, the decision log.
+- `internal/store`: the `mull` branch: load a snapshot, update with compare-and-swap and retry.
 - `internal/gittest`: throwaway repos and worktrees for tests, isolated from global git config.
-- `internal/registry`, `internal/seen` and `internal/human`: per-machine state in `~/.config/mull/` (the repositories on mull, when the human last looked at each, and the name they go by: `mull name`), never on the mull branch.
+- `internal/registry`, `internal/seen`, `internal/human`: per-machine state in `~/.config/mull/` (registered repositories, the human's last look, their name), never on the mull branch.
 - `internal/launchagent`: `mull serve --install`, the macOS LaunchAgent.
-- `internal/bench` and `scripts/bench`: `make bench`. Seeds large repositories (through git fast-import, as mull's writes would have built them) and times every page mull serve shows, counting git calls.
-- `internal/serve`: `mull serve`, the human's web UI (Go server; plain JS modules, CSS and fonts in `web/`, embedded). Its design lives in `docs/serve/`: `direction.md` (the contract), `PRODUCT.md`, `prototype.html`, and `DESIGN.md`, the design system as built. Read `DESIGN.md` before changing the UI; it's there rather than at the project root, where impeccable looks first.
+- `internal/ui`: `mull serve`, the human's web UI: a small Go server and plain JS in `web/`, embedded. Read `docs/serve/DESIGN.md` before changing it.
+- `internal/guide`: the guides `mull guide` prints.
 
 ## Build and test
 
 ```bash
 make build      # ./mull
 make test       # go test ./...
-make race       # with the race detector
 make fmt vet
-make dev        # build and (re)start a scratch mull serve on a seeded demo repo: http://localhost:6899/#/demo
-make dev-stop   # stop it; make dev-reset starts again from a fresh demo repo
-make bench      # time every serve page on this repo's mull branch and a seeded large one (.dev/bench/); see the Makefile for flags
 ```
 
-To try a UI change, use `make dev`, not a hand-started server: it serves this tree's build on port 6899 from `.dev/` (ignored), with its own config dir so the real registry and last-looked state are never touched, and it stops only the server it started (by its PID file). Don't start, kill or `pkill` servers at the prompt; the human's permissions ask on every kill.
-
-Measure before and after any change meant to make reads faster, with `make bench`, and put the numbers in the done report.
+To try a UI change, run `mull serve` with `HOME` and `XDG_CONFIG_HOME` pointing at a scratch directory, so the real registry and last look are never touched. Don't start, kill or `pkill` servers at the prompt.
 
 Tests always use temporary repositories (`gittest.NewRepo`). Never run tests against a real repository's `mull` branch.

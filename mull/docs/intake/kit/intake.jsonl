@@ -1,0 +1,3 @@
+{"op": "config set", "key": "integration", "value": "next"}
+{"op": "plan set", "slug": "forage-rework", "field": "target", "value": "plan/forage-rework"}
+{"op": "config risk", "add": ["mull/internal/store/**", "mull/internal/core/sync.go"], "on-request": true}

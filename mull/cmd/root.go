@@ -14,9 +14,9 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"mull/internal/core"
 	"mull/internal/guide"
 	"mull/internal/human"
-	"mull/internal/mull"
 	"mull/internal/registry"
 )
 
@@ -32,7 +32,7 @@ type app struct {
 	unregistered bool
 }
 
-func (a *app) open() (*mull.Mull, error) { return mull.Open(a.dir) }
+func (a *app) open() (*core.Mull, error) { return core.Open(a.dir) }
 
 func (a *app) json(v any) error {
 	enc := json.NewEncoder(a.stdout)
@@ -54,18 +54,18 @@ func (a *app) text(s string) (string, error) {
 
 // classify turns any error into a coded mull error, recognising cobra's own
 // command-line errors as usage errors.
-func classify(err error) *mull.Error {
-	var me *mull.Error
+func classify(err error) *core.Error {
+	var me *core.Error
 	if errors.As(err, &me) {
 		return me
 	}
 	msg := err.Error()
 	for _, p := range []string{"unknown command", "unknown flag", "unknown shorthand", "flag needs an argument", "invalid argument", "required flag"} {
 		if strings.HasPrefix(msg, p) {
-			return &mull.Error{Code: mull.CodeUsage, Msg: msg}
+			return &core.Error{Code: core.CodeUsage, Msg: msg}
 		}
 	}
-	return mull.AsError(err)
+	return core.AsError(err)
 }
 
 // Execute runs mull with args in dir and returns the process exit code.
@@ -87,7 +87,7 @@ func Execute(args []string, dir string, stdin io.Reader, stdout, stderr io.Write
 		if name, herr := human.Name(); herr == nil && name != "" {
 			// mull's own words in this machine's name for the human (mull name).
 			e.Msg = guide.Personal(e.Msg, name)
-			e.Lines = append([]mull.LineError(nil), e.Lines...)
+			e.Lines = append([]core.LineError(nil), e.Lines...)
 			for i := range e.Lines {
 				e.Lines[i].Error = guide.Personal(e.Lines[i].Error, name)
 			}
@@ -103,7 +103,7 @@ func Execute(args []string, dir string, stdin io.Reader, stdout, stderr io.Write
 func Main() {
 	dir, err := os.Getwd()
 	if err != nil {
-		b, _ := json.Marshal(&mull.Error{Code: mull.CodeInternal, Msg: err.Error()})
+		b, _ := json.Marshal(&core.Error{Code: core.CodeInternal, Msg: err.Error()})
 		fmt.Fprintln(os.Stderr, string(b))
 		os.Exit(1)
 	}
@@ -117,25 +117,17 @@ func newRoot(a *app) *cobra.Command {
 		Long: `The record of a program: plans, phases, items, and the inbox of what needs you.
 
 Every command prints JSON; errors are {"code","error"} on stderr with exit 1.
-Shapes and error codes: mull guide json. Many writes at once: mull batch.`,
+Agents: mull guide agents. The human's view: mull status, or mull serve.`,
 		Version:       Version,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
 	root.SetFlagErrorFunc(func(c *cobra.Command, err error) error { return usage(err) })
-	root.AddCommand(
-		initCmd(a), versionCmd(a), nameCmd(a), syncCmd(a), migrateCmd(a), viewCmd(a), configCmd(a), batchCmd(a),
-		checkCmd(a), doneCmd(a), reportCmd(a), contextCmd(a), guideCmd(a),
-		planCmd(a), phaseCmd(a),
-		addCmd(a), showCmd(a), listCmd(a), setCmd(a), dropCmd(a),
-		needCmd(a, true), needCmd(a, false), rankCmd(a), readyCmd(a),
-		startCmd(a), releaseCmd(a),
-		captureCmd(a, "decided"), captureCmd(a, "ask"),
-		captureItemCmd(a, "bug"), captureItemCmd(a, "idea"), commitCmd(a), triageCmd(a),
-		retiredCmd("loose", `capture it as an item with mull bug "..." or mull idea "..." (--source says where it came from)`),
-		retiredCmd("ideas", "captured ideas are items (mull list --kind idea); older inbox ideas: mull inbox --kind idea"),
-		inboxCmd(a), acceptCmd(a), decideCmd(a), doCmd(a), parkCmd(a),
-		decisionsCmd(a), worktreesCmd(a), serveCmd(a), unregisterCmd(a),
-	)
+	root.AddCommand(initCmd(a), versionCmd(a), nameCmd(a), syncCmd(a), configCmd(a), batchCmd(a), guideCmd(a),
+		planCmd(a), phaseCmd(a), serveCmd(a), unregisterCmd(a))
+	for _, group := range [][]*cobra.Command{addCmds(a), itemCmds(a), workCmds(a), inboxCmds(a), viewCmds(a)} {
+		root.AddCommand(group...)
+	}
+
 	return root
 }

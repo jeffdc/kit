@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"testing"
 
+	"mull/internal/core"
 	"mull/internal/gittest"
-	"mull/internal/mull"
 )
 
 func TestDirFollowsXDGConfigHome(t *testing.T) {
@@ -43,7 +43,7 @@ func TestRegisterOnlyReposOnMull(t *testing.T) {
 		t.Fatalf("registered %v before the repo had a mull branch", got)
 	}
 
-	m, err := mull.Open(repo)
+	m, err := core.Open(repo)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +201,7 @@ func TestRemove(t *testing.T) {
 func onMull(t *testing.T) string {
 	t.Helper()
 	dir := gittest.NewRepo(t)
-	m, err := mull.Open(dir)
+	m, err := core.Open(dir)
 	if err != nil {
 		t.Fatal(err)
 	}

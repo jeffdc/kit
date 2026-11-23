@@ -29,13 +29,13 @@ func TestCommandsRegisterTheirRepo(t *testing.T) {
 	t.Cleanup(registry.SetTempRoots(nil)) // as if the test's repos weren't temporary
 	dir := gittest.NewRepo(t)
 	r := run{t, dir}
-	r.fails("not_initialized", "view") // no mull branch: not registered
+	r.fails("not_initialized", "status") // no mull branch: not registered
 	if got, _ := registry.Repos(); len(got) != 0 {
 		t.Fatalf("registered %v without a mull branch", got)
 	}
 	r.ok("init")
 	wt := gittest.AddWorktree(t, dir, "abcd-work")
-	run{t, wt}.ok("view")
+	run{t, wt}.ok("status")
 	if got, _ := registry.Repos(); !reflect.DeepEqual(got, []string{dir}) {
 		t.Errorf("registry = %v, want [%s] (once, by the main worktree)", got, dir)
 	}
@@ -45,8 +45,8 @@ func TestCommandsNeverRegisterTemporaryRepos(t *testing.T) {
 	dir := gittest.NewRepo(t) // under the system's temporary directory
 	r := run{t, dir}
 	r.ok("init")
-	r.ok("view")
-	run{t, gittest.AddWorktree(t, dir, "abcd-work")}.ok("view")
+	r.ok("status")
+	run{t, gittest.AddWorktree(t, dir, "abcd-work")}.ok("status")
 	if got, _ := registry.Repos(); len(got) != 0 {
 		t.Errorf("registry = %v, want nothing from the temporary directory", got)
 	}
@@ -99,7 +99,7 @@ func TestUnregister(t *testing.T) {
 	}
 
 	// Any other command registers it again.
-	run{t, a}.ok("view")
+	run{t, a}.ok("status")
 	if got, _ := registry.Repos(); !reflect.DeepEqual(got, []string{a}) {
 		t.Errorf("registry = %v, want [%s] after a command in it", got, a)
 	}

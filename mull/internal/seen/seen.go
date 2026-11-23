@@ -11,29 +11,16 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"sync"
 
 	"mull/internal/registry"
 )
 
-// Look is the last time the human looked at a repository: the mull branch
-// commit they saw, and when they marked it seen (or when mull serve first
-// read the repository, for the baseline).
+// Look is the last time the human looked at a repository: when they marked
+// it seen (Commit is kept from older files, unused).
 type Look struct {
-	Commit string `json:"commit"`
+	Commit string `json:"commit,omitempty"`
 	At     string `json:"at"`
-	// Acked are the records the human acted on since (from mull serve), each
-	// with the commit that acted, so their changes up to it aren't clouded.
-	Acked []Ack `json:"acked,omitempty"`
-}
-
-// Ack is one record the human acted on: its type and ID, as a revision's
-// change names it, and the commit that acted.
-type Ack struct {
-	Type   string `json:"type"`
-	ID     string `json:"id"`
-	Commit string `json:"commit"`
 }
 
 // file is the state file's content.
@@ -67,8 +54,7 @@ func Get(repo string) (l Look, ok bool, err error) {
 	return l, ok, nil
 }
 
-// Mark records l as repo's last look. It replaces the look, acks and all:
-// marking seen acknowledges everything.
+// Mark records l as repo's last look.
 func Mark(repo string, l Look) error {
 	mu.Lock()
 	defer mu.Unlock()
@@ -78,48 +64,6 @@ func Mark(repo string, l Look) error {
 	}
 	f.Repos[repo] = l
 	return write(f)
-}
-
-// Acknowledge adds acks to repo's last look, each replacing any earlier ack
-// of the same record. A repository with no look yet is left alone: its
-// baseline, when mull serve first reads it, takes in everything up to then.
-func Acknowledge(repo string, acks []Ack) error {
-	mu.Lock()
-	defer mu.Unlock()
-	f, err := read()
-	if err != nil {
-		return err
-	}
-	l, ok := f.Repos[repo]
-	if !ok || len(acks) == 0 {
-		return nil
-	}
-	merged := make([]Ack, 0, len(l.Acked)+len(acks))
-	for _, old := range l.Acked {
-		if !slices.ContainsFunc(acks, func(a Ack) bool { return a.Type == old.Type && a.ID == old.ID }) {
-			merged = append(merged, old)
-		}
-	}
-	l.Acked = append(merged, acks...)
-	f.Repos[repo] = l
-	return write(f)
-}
-
-// Baseline records l as repo's last look if it has none, or if its look is
-// still the stale one the caller found ("" for none). Otherwise someone
-// marked it meanwhile, and that look is kept. It returns the look in effect.
-func Baseline(repo string, l Look, stale string) (Look, error) {
-	mu.Lock()
-	defer mu.Unlock()
-	f, err := read()
-	if err != nil {
-		return Look{}, err
-	}
-	if cur, ok := f.Repos[repo]; ok && cur.Commit != stale {
-		return cur, nil
-	}
-	f.Repos[repo] = l
-	return l, write(f)
 }
 
 func read() (*file, error) {
