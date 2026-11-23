@@ -5,6 +5,12 @@ plan: supervised-work
 item: da55
 by: /Users/jeff/dev/kit/.claude/worktrees/agent-a9f8572dfcd4bab5f
 created: "2026-11-23T14:13:12Z"
+settled:
+  action: accept
+  note: with review 2d43
+  by: Jeff
+  human: true
+  at: "2026-11-23T15:35:33Z"
 ---
 
 Any LLM, any harness: a name pattern would tie mull to one harness; a branch that tracks nothing can't be linked
