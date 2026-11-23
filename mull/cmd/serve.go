@@ -18,11 +18,75 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"mull/internal/git"
 	"mull/internal/launchagent"
 	"mull/internal/mull"
 	"mull/internal/registry"
 	"mull/internal/serve"
 )
+
+func unregisterCmd(a *app) *cobra.Command {
+	return &cobra.Command{
+		Use:   "unregister [<path>]",
+		Short: "Take a repository (default: this one) off this machine's registry, so mull serve stops showing it",
+		Long: `Take a repository off this machine's registry, so mull serve stops showing it.
+
+The repository is the one containing path (default: the current directory),
+by its main worktree, as every command registers it; a path registered as it
+is (one since deleted, say) is removed as given. mull serve drops it on its
+next read of the registry. It prints {path, registry, removed}: removed is
+false when the path wasn't registered. Running any mull command in the
+repository again registers it again, unless it lives in the system's
+temporary directory, which is never registered.`,
+		Args: upTo(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			a.unregistered = true
+			path := a.dir
+			if len(args) == 1 {
+				path = args[0]
+				if !filepath.IsAbs(path) {
+					path = filepath.Join(a.dir, path)
+				}
+			}
+			path = filepath.Clean(path)
+			paths := []string{path}
+			if r, err := filepath.EvalSymlinks(path); err == nil && r != path {
+				paths = append(paths, r)
+			}
+			repos, err := registry.Repos()
+			if err != nil {
+				return err
+			}
+			if !listed(repos, paths) {
+				if r, err := git.Open(path); err == nil {
+					path = r.MainWorktree()
+					paths = []string{path}
+				}
+			}
+			removed, err := registry.Remove(paths...)
+			if err != nil {
+				return err
+			}
+			file, err := registry.File()
+			if err != nil {
+				return err
+			}
+			return a.json(map[string]any{"path": path, "registry": file, "removed": removed})
+		},
+	}
+}
+
+// listed reports whether any of paths is in repos.
+func listed(repos, paths []string) bool {
+	for _, r := range repos {
+		for _, p := range paths {
+			if r == p {
+				return true
+			}
+		}
+	}
+	return false
+}
 
 func serveCmd(a *app) *cobra.Command {
 	var port int
@@ -35,7 +99,8 @@ func serveCmd(a *app) *cobra.Command {
 Listens on 127.0.0.1 only (default port ` + strconv.Itoa(serve.DefaultPort) + `) and runs until interrupted.
 It prints {url, registry, repos} once it is listening. Repositories are found
 with no configuration: every mull command registers its repository in the
-registry file. The page updates live: mull serve watches each repository's
+registry file (except one in the system's temporary directory), and mull
+unregister takes one off. The page updates live: mull serve watches each repository's
 mull branch, and the registry, and tells the page what changed. mull serve
 never writes mull data; the only thing it writes is when you last looked at
 each repository, beside the registry.

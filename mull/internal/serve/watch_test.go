@@ -107,6 +107,13 @@ func TestWatchRegistry(t *testing.T) {
 		t.Fatal(err)
 	}
 	announced(t, w, s, id) // removed
+
+	register(t, dir)
+	announced(t, w, s, id)
+	if removed, err := registry.Remove(dir); err != nil || !removed {
+		t.Fatalf("Remove = %v, %v", removed, err)
+	}
+	announced(t, w, s, id) // removed by mull unregister (a rename into place)
 }
 
 // TestFlushOnlyWhenTheBranchMoves drives the watcher by hand, with no run

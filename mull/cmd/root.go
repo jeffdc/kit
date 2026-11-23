@@ -27,6 +27,9 @@ type app struct {
 	stdin  io.Reader
 	stdout io.Writer
 	dir    string
+	// unregistered is set by mull unregister, so Execute doesn't add the
+	// repository straight back.
+	unregistered bool
 }
 
 func (a *app) open() (*mull.Mull, error) { return mull.Open(a.dir) }
@@ -74,8 +77,11 @@ func Execute(args []string, dir string, stdin io.Reader, stdout, stderr io.Write
 	root.SetErr(stderr)
 	err := root.Execute()
 	// Every command registers its repository for mull serve (after running,
-	// so init counts). It is best effort and never fails the command.
-	_ = registry.Register(dir)
+	// so init counts), except unregister. It is best effort and never fails
+	// the command.
+	if !a.unregistered {
+		_ = registry.Register(dir)
+	}
 	if err != nil {
 		e := *classify(err)
 		if name, herr := human.Name(); herr == nil && name != "" {
@@ -129,7 +135,7 @@ Shapes and error codes: mull guide json. Many writes at once: mull batch.`,
 		retiredCmd("loose", `capture it as an item with mull bug "..." or mull idea "..." (--source says where it came from)`),
 		retiredCmd("ideas", "captured ideas are items (mull list --kind idea); older inbox ideas: mull inbox --kind idea"),
 		inboxCmd(a), acceptCmd(a), decideCmd(a), doCmd(a), parkCmd(a),
-		decisionsCmd(a), worktreesCmd(a), serveCmd(a),
+		decisionsCmd(a), worktreesCmd(a), serveCmd(a), unregisterCmd(a),
 	)
 	return root
 }
