@@ -209,7 +209,7 @@ func TestCLIEndToEnd(t *testing.T) {
 	// runner owning worktrees, and the intake drafting the rulebook.
 	for g, wants := range map[string][]string{
 		"agents":     {"mull context --item", "mull start <id>", "--rules none", "--covers", "--default", "RULES.md", "--area"},
-		"supervisor": {"never merge by hand or remove worktrees", "mull rules ratchet <ID> --grow --on-request", "mull hooks", "--here"},
+		"supervisor": {"never merge into a target by hand or remove worktrees", "mull rules ratchet <ID> --grow --on-request", "mull hooks", "--here"},
 		"intake":     {"Draft RULES.md", "mull config risk", "plan/<slug>", "mull guide agents"},
 	} {
 		text := r.ok("guide", g)["text"].(string)
