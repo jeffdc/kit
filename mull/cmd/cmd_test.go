@@ -194,7 +194,7 @@ func TestCLIEndToEnd(t *testing.T) {
 	if ctx := r.ok("context", "--item", item); ctx["item"].(map[string]any)["id"] != item {
 		t.Fatalf("context = %v", ctx)
 	}
-	for _, g := range []string{"agents", "supervisor", "intake", "json"} {
+	for _, g := range []string{"agents", "supervisor", "auditor", "intake", "json"} {
 		if gv := r.ok("guide", g); gv["guide"] != g || !strings.Contains(gv["text"].(string), "mull") {
 			t.Fatalf("guide %s = %v", g, gv)
 		}

@@ -93,6 +93,21 @@ func (m *Mull) configRisk(s *state, in RiskInput) (model.Config, error) {
 	})
 }
 
+// ConfigMap sets the commands that print the code's connections (edges)
+// and the declared ones (allowed); empty clears one. The map judges work,
+// so only the human changes it.
+func (m *Mull) ConfigMap(edges, allowed string, onRequest bool) (model.Config, error) {
+	return m.configTx("config map", func(s *state) (model.Config, error) {
+		if !m.asked(onRequest) {
+			return model.Config{}, errf(CodeNotAllowed, "only the human sets how the map is read: pass --on-request when the human has asked for this change")
+		}
+		return s.changeConfig(func(c *model.Config) error {
+			c.Map = model.MapConfig{Edges: strings.TrimSpace(edges), Allowed: strings.TrimSpace(allowed)}
+			return nil
+		})
+	})
+}
+
 // ConfigSetup replaces the commands start runs in a new worktree. They run
 // on the machine, so only the human changes them.
 func (m *Mull) ConfigSetup(commands []string, onRequest bool) (model.Config, error) {
@@ -573,8 +588,9 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 	var claim model.Claim
 	var commands []string
 	var target, preview, release string
+	var snap *model.MapSnapshot
 	err = m.view(func(s *state) error {
-		cfg, release = s.config, s.release()
+		cfg, release, snap = s.config, s.release(), s.snapshot()
 		i, err := s.item(id)
 		if err != nil {
 			return err
@@ -628,7 +644,11 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 	if err != nil {
 		return out, err
 	}
-	risk := scoreRisk(cfg.Risk.Effective(), changes, in.Rules, id, checks.Commit)
+	newEdges, err := m.newEdges(cfg.Map, snap)
+	if err != nil {
+		return out, err
+	}
+	risk := scoreRisk(cfg.Risk.Effective(), changes, in.Rules, id, checks.Commit, newEdges)
 
 	// The rulebook's checks run once the hard checks pass, against the
 	// same clean tree.
@@ -664,7 +684,7 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 			Design: design, Changes: changes, Warnings: warnings,
 			Rules: strings.TrimSpace(in.Rules), Slowed: strings.TrimSpace(in.Slowed),
 			Risk: risk.Band, RiskWhy: risk.Why, Sampled: risk.Sampled,
-			RuleChecks: ruleRuns, InScope: rulesInScope(rulebook, changes),
+			RuleChecks: ruleRuns, InScope: rulesInScope(rulebook, changes), NewEdges: newEdges,
 		}
 		if p := s.plans[i.Plan]; p != nil {
 			rep.Shared = sharedChanges(changes, p.Shared)
@@ -923,6 +943,9 @@ func renderShortReport(r model.Report, title string) string {
 	}
 	if len(r.Nearby) > 0 {
 		fmt.Fprintf(&b, "- **Queued nearby:** %s\n", strings.Join(r.Nearby, ", "))
+	}
+	if len(r.NewEdges) > 0 {
+		fmt.Fprintf(&b, "- **New connections:** %s\n", strings.Join(r.NewEdges, "; "))
 	}
 	if n := len(r.Shared); n > 0 {
 		var paths []string

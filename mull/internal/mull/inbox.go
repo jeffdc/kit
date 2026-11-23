@@ -349,7 +349,10 @@ type AcceptResult struct {
 // applies only when accepting a single reviewed item.
 func (m *Mull) Accept(refs []string, followUp string, o SettleOpts) (AcceptResult, error) {
 	var out AcceptResult
-	type landing struct{ id, target, release, commit string }
+	type landing struct {
+		id, target, release, commit string
+		edges                       []string
+	}
 	var lands []landing
 	err := m.update(fmt.Sprintf("accept %v", refs), func(s *state) error {
 		var err error
@@ -358,7 +361,7 @@ func (m *Mull) Accept(refs []string, followUp string, o SettleOpts) (AcceptResul
 		for _, v := range out.Items {
 			if rep := s.latestReport(v.ID); rep != nil && rep.Passed {
 				target, _ := s.targetOf(v.Plan)
-				lands = append(lands, landing{v.ID, target, s.release(), rep.Commit})
+				lands = append(lands, landing{v.ID, target, s.release(), rep.Commit, rep.NewEdges})
 			}
 		}
 		return err
@@ -370,6 +373,10 @@ func (m *Mull) Accept(refs []string, followUp string, o SettleOpts) (AcceptResul
 	for _, l := range lands {
 		if ok, why := m.landItem(l.target, l.release, l.commit); !ok {
 			out.Warnings = append(out.Warnings, fmt.Sprintf("%s is accepted but not on %s yet: %s", l.id, l.target, why))
+		}
+		// The new connections it made are part of the map now.
+		if err := m.addEdges(l.edges); err != nil {
+			out.Warnings = append(out.Warnings, fmt.Sprintf("recording %s's new connections: %v", l.id, err))
 		}
 	}
 	return out, nil

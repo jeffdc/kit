@@ -20,11 +20,15 @@ var intake string
 //go:embed json.md
 var jsonRef string
 
+//go:embed auditor.md
+var auditor string
+
 var guides = map[string]string{
 	"agents":     agents,
 	"supervisor": supervisor,
 	"intake":     intake,
 	"json":       jsonRef,
+	"auditor":    auditor,
 }
 
 // Get returns the named guide.

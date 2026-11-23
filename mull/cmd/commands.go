@@ -231,7 +231,20 @@ func configCmd(a *app) *cobra.Command {
 	risk.Flags().IntVar(&riskIn.Sample, "sample", 0, "percent of low-risk work shown to the human (1 to 100)")
 	risk.Flags().BoolVar(&noSample, "no-sample", false, "sample no low-risk work")
 	risk.Flags().BoolVar(&riskIn.OnRequest, "on-request", false, "an agent changing risk on the human's explicit instruction")
-	c.AddCommand(set, checks, setup, layer, risk)
+	var mapEdges, mapAllowed string
+	var mapOnRequest bool
+	mapc := &cobra.Command{
+		Use:   "map",
+		Short: "Set the commands that print the code's connections (--edges, one 'from -> to' per line) and the declared ones (--allowed). Only the human changes them",
+		Args:  noArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.read(func(m *mull.Mull) (any, error) { return m.ConfigMap(mapEdges, mapAllowed, mapOnRequest) })
+		},
+	}
+	mapc.Flags().StringVar(&mapEdges, "edges", "", "command printing the connections the code has")
+	mapc.Flags().StringVar(&mapAllowed, "allowed", "", "command printing the declared connections (e.g. cat docs/map.txt)")
+	mapc.Flags().BoolVar(&mapOnRequest, "on-request", false, "an agent changing the map on the human's explicit instruction")
+	c.AddCommand(set, checks, setup, layer, risk, mapc)
 	return c
 }
 
@@ -992,6 +1005,46 @@ func statusCmd(a *app) *cobra.Command {
 	return c
 }
 
+func mapCmd(a *app) *cobra.Command {
+	var record, onRequest bool
+	c := &cobra.Command{
+		Use:   "map",
+		Short: "The code's connections between parts, from config's map commands: against the declared ones, and new or gone since the last recording (--record --on-request sets it)",
+		Args:  noArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.read(func(m *mull.Mull) (any, error) { return m.Map(record, onRequest) })
+		},
+	}
+	c.Flags().BoolVar(&record, "record", false, "record the connections now as what changes are judged against (the human's call)")
+	c.Flags().BoolVar(&onRequest, "on-request", false, "an agent recording the map on the human's explicit instruction")
+	return c
+}
+
+func auditCmd(a *app) *cobra.Command {
+	c := &cobra.Command{
+		Use:   "audit",
+		Short: "The latest audit of the code against the rulebook and the map (mull guide auditor says how to make one)",
+		Args:  noArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.read(func(m *mull.Mull) (any, error) { return m.Audit() })
+		},
+	}
+	record := &cobra.Command{
+		Use:   "record -",
+		Short: "Record an audit: its findings as markdown on stdin",
+		Args:  exact(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			text, err := a.text(args[0])
+			if err != nil {
+				return err
+			}
+			return a.read(func(m *mull.Mull) (any, error) { return m.RecordAudit(text) })
+		},
+	}
+	c.AddCommand(record)
+	return c
+}
+
 func rulebookCmd(a *app) *cobra.Command {
 	c := &cobra.Command{
 		Use:   "rules",
@@ -1076,7 +1129,7 @@ func guideCmd(a *app) *cobra.Command {
 	var asText bool
 	c := &cobra.Command{
 		Use:   "guide <" + strings.Join(guide.Names(), "|") + ">",
-		Short: "A procedure or reference: agents (for AGENTS.md), supervisor, intake, json (output shapes)",
+		Short: "A procedure or reference: agents (for AGENTS.md), supervisor, auditor, intake, json (output shapes)",
 		Args:  exact(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			g, err := guide.Get(args[0]) // as written: guides are copied into shared files (AGENTS.md)

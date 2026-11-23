@@ -36,6 +36,18 @@ type Surface struct {
 	// Flow is how the work moved since: what landed, what slowed it, what
 	// came back.
 	Flow Flow `json:"flow"`
+	// NewEdges are connections between parts that work added since; Audit
+	// is the latest audit, and Stale says it's over two weeks old.
+	NewEdges []string `json:"new_edges"`
+	Audit    *Audited `json:"audit,omitempty"`
+}
+
+// Audited is the latest audit, as the surface shows it: when, and its
+// first lines.
+type Audited struct {
+	At      string `json:"at"`
+	Summary string `json:"summary"`
+	Stale   bool   `json:"stale,omitempty"`
 }
 
 // Call is one thing the human acts on.
@@ -122,7 +134,7 @@ func (m *Mull) Surface(since string) (Surface, error) {
 	}
 	out := Surface{Since: since, Generated: now.Format(time.RFC3339), Calls: []Call{}, Rules: []RuleTrend{},
 		Advisory: []string{}, Clusters: []Cluster{}, Problems: []ProblemRow{}, Plans: []PlanHill{},
-		Flow: Flow{Landed: []Landing{}, Slowed: []Slowed{}}}
+		Flow: Flow{Landed: []Landing{}, Slowed: []Slowed{}}, NewEdges: []string{}}
 	rules, err := m.readRules()
 	if err != nil {
 		return out, err
@@ -162,6 +174,20 @@ func (m *Mull) Surface(since string) (Surface, error) {
 			out.Problems = rows
 		}
 		out.Flow = s.flow(reports, since)
+		for _, r := range reports {
+			if r.At > since {
+				out.NewEdges = append(out.NewEdges, r.NewEdges...)
+			}
+		}
+		out.NewEdges = dedupe(out.NewEdges)
+		if b, ok := s.tx.Get(model.AuditPath); ok {
+			text := strings.TrimSpace(string(b))
+			a := &Audited{At: auditDate(text), Summary: auditSummary(text)}
+			if t, ok := parseTime(a.At); ok && now.Sub(t) > 14*24*time.Hour {
+				a.Stale = true
+			}
+			out.Audit = a
+		}
 		return nil
 	})
 	return out, err
@@ -376,6 +402,9 @@ func (v Surface) Text() string {
 	if len(trend) > 0 {
 		b.WriteString("\nTRENDING WORSE\n" + strings.Join(trend, "\n") + "\n")
 	}
+	for _, e := range v.NewEdges {
+		trend = append(trend, "  new connection "+e)
+	}
 	if len(v.Advisory) > 0 {
 		fmt.Fprintf(&b, "\n%d rules have no check: %s\n", len(v.Advisory), strings.Join(v.Advisory, "; "))
 	}
@@ -395,6 +424,17 @@ func (v Surface) Text() string {
 			}
 		}
 	}
+	if a := v.Audit; a != nil {
+		at := a.At
+		if t, ok := parseTime(a.At); ok {
+			at = t.Format("2006-01-02")
+		}
+		stale := ""
+		if a.Stale {
+			stale = ", over two weeks old"
+		}
+		fmt.Fprintf(&b, "\nAUDIT %s%s\n  %s\n", at, stale, strings.ReplaceAll(a.Summary, "\n", "\n  "))
+	}
 	f := v.Flow
 	fmt.Fprintf(&b, "\nFLOW  %d landed, %d active of %d", len(f.Landed), f.Active, f.Parallel)
 	if f.MedianMinutes > 0 {
@@ -408,4 +448,20 @@ func (v Surface) Text() string {
 		fmt.Fprintf(&b, "  slowed %s: %s\n", sl.Item, sl.Text)
 	}
 	return strings.TrimRight(b.String(), "\n")
+}
+
+// auditSummary is an audit's first few lines of findings, after its date.
+func auditSummary(text string) string {
+	var out []string
+	for _, l := range strings.Split(text, "\n") {
+		l = strings.TrimSpace(l)
+		if l == "" || strings.HasPrefix(l, "Audited:") || strings.HasPrefix(l, "#") {
+			continue
+		}
+		out = append(out, l)
+		if len(out) == 3 {
+			break
+		}
+	}
+	return strings.Join(out, "\n")
 }

@@ -366,6 +366,31 @@ type Config struct {
 	Setup []string `yaml:"setup,omitempty" json:"setup,omitempty"`
 	// Parallel caps how many items can be active at once; 0 is the default.
 	Parallel int `yaml:"parallel,omitempty" json:"parallel,omitempty"`
+	// Map is how mull reads the code's map; unset, there's none.
+	Map MapConfig `yaml:"map,omitempty" json:"map"`
+}
+
+// MapConfig is how mull reads the code's map: the connections between its
+// parts. Edges prints the connections the code has now, one "from -> to"
+// per line (from the compiler's boundary checks, an import graph); Allowed,
+// optional, prints the ones the human declared. Both run in the worktree.
+type MapConfig struct {
+	Edges   string `yaml:"edges,omitempty" json:"edges,omitempty"`
+	Allowed string `yaml:"allowed,omitempty" json:"allowed,omitempty"`
+}
+
+// MapPath is where the map's last recorded edges live on the mull branch,
+// and AuditPath the latest audit.
+const (
+	MapPath   = "map.json"
+	AuditPath = "audit.md"
+)
+
+// MapSnapshot is the map as last recorded: the connections the code had.
+type MapSnapshot struct {
+	Commit string   `json:"commit"`
+	At     string   `json:"at"`
+	Edges  []string `json:"edges"`
 }
 
 // DefaultParallel is how many items can be active at once by default.
@@ -550,6 +575,9 @@ type Report struct {
 	// done with it; Nearby the queued items in the area it changed.
 	Covered []string `yaml:"covered,omitempty" json:"covered,omitempty"`
 	Nearby  []string `yaml:"nearby,omitempty" json:"nearby,omitempty"`
+	// NewEdges are connections between parts the change adds to the map,
+	// against its last recording: each makes the work high risk.
+	NewEdges []string `yaml:"new_edges,omitempty" json:"new_edges,omitempty"`
 }
 
 // Paths of records on the mull branch.
@@ -592,6 +620,8 @@ var dataPaths = []*regexp.Regexp{
 	regexp.MustCompile(`^rules/phases/[0-9a-f]{4}\.md$`),
 	regexp.MustCompile(`^reports/[0-9a-f]{4}-[0-9]+\.md$`),
 	regexp.MustCompile(`^checks/[0-9a-f]{40}([0-9a-f]{24})?\.json$`),
+	regexp.MustCompile(`^map\.json$`),
+	regexp.MustCompile(`^audit\.md$`),
 }
 
 // ValidDataPath reports whether path is one mull's records may occupy on the

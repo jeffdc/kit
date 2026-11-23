@@ -28,7 +28,7 @@ var (
 	captureKeys   = itemViewKeys.plus(keys{[]string{"similar"}, nil})
 	phaseViewKeys = phaseKeys.plus(keys{[]string{"progress", "complete"}, []string{"blocked_by"}})
 	entryKeys     = keys{[]string{"id", "kind", "text", "plan", "by", "created"}, []string{"item", "source", "settled", "decisions", "detail", "landed", "default", "due"}}
-	configKeys    = keys{[]string{"format", "integration", "release", "remote", "done_checks", "layers", "risk"}, nil}
+	configKeys    = keys{[]string{"format", "integration", "release", "remote", "done_checks", "layers", "risk", "map"}, []string{"worktrees", "setup", "parallel"}}
 	progressKeys  = keys{[]string{"total", "captured", "committed", "active", "in_review", "done", "dropped", "ready"}, nil}
 	reportKeys    = keys{[]string{"item", "n", "passed", "commit", "at", "by", "summary", "checks"}, []string{"override", "base", "tour", "warnings", "changes", "shared", "design", "decisions", "rules", "slowed", "risk", "risk_why", "sampled", "rule_checks", "in_scope"}}
 )

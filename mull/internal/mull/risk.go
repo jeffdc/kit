@@ -22,10 +22,13 @@ type Risk struct {
 // agent's rule-contact line; anything but "none" makes the work high risk.
 // The sample draw is fixed by the item and its commit, so the same work
 // always draws the same.
-func scoreRisk(rc model.RiskConfig, changes []model.LayerChanges, rules, item, commit string) Risk {
+func scoreRisk(rc model.RiskConfig, changes []model.LayerChanges, rules, item, commit string, newEdges []string) Risk {
 	var why []string
 	if !noRules(rules) {
 		why = append(why, "the work touched a rule: "+strings.TrimSpace(rules))
+	}
+	for _, e := range newEdges {
+		why = append(why, "a new connection between parts: "+e)
 	}
 	files, lines := 0, 0
 	var high []string
