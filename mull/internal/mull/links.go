@@ -109,7 +109,9 @@ type targets struct {
 // readTargets reads every target branch; heads are the branch tips.
 func (m *Mull) readTargets(s *state, heads map[string]string) targets {
 	t := targets{tips: map[string]string{}, ahead: map[string]int{}}
-	names := []string{s.integration()}
+	// The release branch too: work on it has shipped, wherever it was meant
+	// to land.
+	names := []string{s.integration(), s.release()}
 	for _, slug := range sortedKeys(s.plans) {
 		b, _ := s.targetOf(slug)
 		names = append(names, b)
@@ -286,6 +288,8 @@ func (m *Mull) readGit(s *state) (*gitState, error) {
 		targetOf[id], _ = s.targetOf(i.Plan)
 	}
 	known := func(id string) bool { return s.items[id] != nil }
+	release := s.release()
+	onIts := func(id, b string) bool { return targetOf[id] == b || b == release }
 	weekAgo := m.Now().Add(-7 * 24 * time.Hour).UTC().Format(time.RFC3339)
 	accepted := s.acceptedAt()
 	counted := map[string]bool{} // sha and item, so a commit on several branches counts once
@@ -331,7 +335,7 @@ func (m *Mull) readGit(s *state) (*gitState, error) {
 		for _, c := range commits {
 			afterAccept(c)
 			for _, id := range c.trailers {
-				if known(id) && targetOf[id] == b {
+				if known(id) && onIts(id, b) {
 					landed(id, c)
 				}
 			}
@@ -344,7 +348,7 @@ func (m *Mull) readGit(s *state) (*gitState, error) {
 				break
 			}
 			if mm := mergeID.FindStringSubmatch(c.subject); mm != nil && known(mm[1]) {
-				if targetOf[mm[1]] == b {
+				if onIts(mm[1], b) {
 					landed(mm[1], c)
 				}
 			} else if b == g.Integration && len(c.parents) <= 1 && len(c.trailers) == 0 && c.date >= weekAgo {

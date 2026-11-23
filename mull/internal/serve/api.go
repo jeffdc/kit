@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"mull/internal/mull"
+	"mull/internal/seen"
 )
 
 // registerAPI adds the read-only endpoints for one project's pages. Each
@@ -50,5 +51,18 @@ func registerAPI(mux *http.ServeMux, repos Repos) {
 	})
 	page("/api/projects/{project}/backlog", func(m *mull.Mull, r *http.Request) (any, error) {
 		return m.BacklogPage(r.URL.Query().Get("plan"))
+	})
+	// The surface: what changed since the human last looked here.
+	page("/api/projects/{project}/surface", func(m *mull.Mull, r *http.Request) (any, error) {
+		since := r.URL.Query().Get("since")
+		if since == "" {
+			if look, ok, err := seen.Get(m.MainWorktree()); err == nil && ok {
+				since = look.At
+			}
+		}
+		return m.Surface(since)
+	})
+	page("/api/projects/{project}/rules", func(m *mull.Mull, r *http.Request) (any, error) {
+		return m.Rules()
 	})
 }

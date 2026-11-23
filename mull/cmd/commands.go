@@ -12,6 +12,7 @@ import (
 	"mull/internal/human"
 	"mull/internal/model"
 	"mull/internal/mull"
+	"mull/internal/seen"
 )
 
 // ---- Argument validators that report usage errors with a code ----
@@ -953,6 +954,40 @@ func viewCmd(a *app) *cobra.Command {
 		},
 	}
 	c.Flags().StringVar(&plan, "plan", "", "only this plan (done plans too)")
+	c.Flags().BoolVar(&asText, "text", false, "render for a human instead of JSON")
+	return c
+}
+
+func statusCmd(a *app) *cobra.Command {
+	var since string
+	var asText bool
+	c := &cobra.Command{
+		Use:   "status",
+		Short: "The human's view since they last looked (or --since): what needs them, what's trending worse, where each plan stands, and how work moved",
+		Args:  noArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			m, err := a.open()
+			if err != nil {
+				return err
+			}
+			from := since
+			if from == "" {
+				if look, ok, err := seen.Get(m.MainWorktree()); err == nil && ok {
+					from = look.At
+				}
+			}
+			v, err := m.Surface(from)
+			if err != nil {
+				return err
+			}
+			if asText {
+				_, err = fmt.Fprintln(a.stdout, v.Text())
+				return err
+			}
+			return a.json(v)
+		},
+	}
+	c.Flags().StringVar(&since, "since", "", "from this time (RFC 3339) instead of the last look in mull serve")
 	c.Flags().BoolVar(&asText, "text", false, "render for a human instead of JSON")
 	return c
 }
