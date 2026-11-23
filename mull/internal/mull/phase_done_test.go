@@ -110,6 +110,15 @@ func TestPhaseDoneFilesTheIntegrationReview(t *testing.T) {
 	if page.NeedsYou.Open != 1 || page.NeedsYou.Tiers[0].Key != TierReview || page.NeedsYou.Tiers[0].Entries[0].Phase != ph.ID {
 		t.Fatalf("phase page needs you = %+v", page.NeedsYou)
 	}
+	// And its page has the review packet, as an item's has.
+	pk := page.Review
+	if pk == nil || pk.Entry == nil || pk.Entry.ID != r.ID || pk.Entry.Settled != nil || pk.Report.N != 1 || pk.Report.Phase != ph.ID ||
+		len(pk.Report.Items) != 2 || len(pk.Decisions) != 0 || pk.Target != "main" || len(pk.Tour) != 1 {
+		t.Fatalf("phase page review = %+v", pk)
+	}
+	if len(page.Reports) != 1 || !page.Reports[0].Passed {
+		t.Errorf("phase page reports = %+v", page.Reports)
+	}
 
 	// One open integration review at a time.
 	_, err = phaseDone(m, ph.ID)
@@ -138,6 +147,10 @@ func TestPhaseDoneFilesTheIntegrationReview(t *testing.T) {
 	if v := phaseViewOf(t, m, ph.ID); v.AwaitingIntegrationReview || v.Complete {
 		t.Fatalf("phase after send back = %+v", v)
 	}
+	if pk := must[PhasePage](t)(m.PhasePage(ph.ID)).Review; pk == nil || pk.Entry == nil || pk.Entry.Settled == nil ||
+		pk.Entry.Settled.Action != model.ActDo || pk.Entry.Settled.Item != fix.ID {
+		t.Fatalf("phase page review after send back = %+v", pk)
+	}
 	_, err = m.Accept([]string{ph.ID}, "", SettleOpts{OnRequest: true})
 	wantCode(t, err, CodeState)
 
@@ -147,6 +160,10 @@ func TestPhaseDoneFilesTheIntegrationReview(t *testing.T) {
 	res = must[PhaseDoneResult](t)(phaseDone(m, ph.ID))
 	if res.Report.N != 2 || len(res.Report.Items) != 3 {
 		t.Fatalf("second report = %+v", res.Report)
+	}
+	page = must[PhasePage](t)(m.PhasePage(ph.ID))
+	if pk := page.Review; pk == nil || pk.Entry == nil || pk.Entry.ID != res.Review || pk.Entry.Settled != nil || pk.Report.N != 2 || len(page.Reports) != 2 {
+		t.Fatalf("phase page review after the second done = %+v, reports %+v", pk, page.Reports)
 	}
 	h := human(t, m, dir)
 	acc := must[AcceptResult](t)(h.Accept([]string{ph.ID}, "", SettleOpts{}))

@@ -63,8 +63,15 @@ git checkout -q main
 m add "Drop or park a Needs you entry with a reason" --plan web
 m bug "The footer overlaps the last result on small screens" --plan web --source "demo"
 # Unplanned work: one open, and two finished (done, and dropped), which are
-# archived at once, under the sheet index's Archive.
-m add "Fix the login redirect" --plan none
+# archived at once, under the sheet index's Archive. The open one has a
+# commit on its branch that nobody claimed, and the done one none of its
+# work on main: two problems on the overview.
+login=$(id add "Fix the login redirect" --plan none)
+git checkout -q -b "$login-redirect"
+echo "redirect" >login.txt
+git add login.txt
+git commit -q -m "Try a fix for the login redirect" -m "Mull: $login"
+git checkout -q main
 fav=$(id add "Add a favicon" --plan none)
 m start "$fav"
 m done "$fav" --summary "A favicon." --tour none --design "An SVG in the page head."
@@ -82,17 +89,18 @@ m plan set web target web-next
 pass=$(id phase add "Design pass" --plan web --summary "One look across every page.")
 m phase set "$pass" integration-review on --on-request
 header=$(id add "Shared page header" --phase "$pass")
-m start "$header"
 git checkout -q web-next
-git commit -q --allow-empty -m "Shared page header" -m "Mull: $header"
-git checkout -q main
+m start "$header"
+echo "<header>demo</header>" >app/header.html
+git add app/header.html
+git commit -q -m "Shared page header" -m "Mull: $header"
 m done "$header" --summary "One header for every page." --tour none --design "A shared partial."
 m accept "$header" --on-request
 m need "$launch" "$pass"
 # Its integration review, filed at web-next's tip as a supervisor would:
-# it waits in Needs you, on the phase.
-git checkout -q web-next
-m done "$pass" --summary "The header reads the same on every page." --tour none --design "Read the combined diff on web-next; one header partial, used everywhere."
+# it waits in Needs you, on the phase, and its packet is on the phase's
+# sheet.
+m done "$pass" --summary "The header reads the same on every page." --tour "Open /settings, then /mail: the header is the same on both" --design "Read the combined diff on web-next; one header partial, used everywhere."
 git checkout -q main
 # Two agents at work on branches that both change the page layout: an
 # overlap in the Plans column.

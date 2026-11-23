@@ -292,6 +292,9 @@ main { min-width: 0; display: flex; flex-direction: column; }
 .hd h2 { font-size: 19px; font-weight: 750; font-stretch: 95%; letter-spacing: -.01em; }
 .note { margin: 0; padding: 9px 12px; border: 1px solid var(--ink); font-size: 13px; max-width: 120ch; }
 .note code { font-size: 12px; }
+/* problems: ink and grey only, never clouded (problems.js) */
+table.probs .pb { color: var(--ink); font-size: 13px; overflow-wrap: anywhere; }
+.note.pbn .lab { margin-right: 4px; color: var(--ink); }
 
 /* the Needs you schedule */
 .sch { display: flex; flex-direction: column; container-type: inline-size; }
@@ -509,6 +512,7 @@ table.t.files code { font-size: 11.5px; overflow-wrap: anywhere; }
 .s-pass { background: var(--green); color: var(--ground); border-color: var(--green); }
 .decn { display: grid; grid-template-columns: 54px minmax(0, 1fr) auto; gap: 4px 8px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 13px; align-items: start; }
 .decn .why { grid-column: 2 / 4; color: var(--mut); font-size: 12px; }
+.decn.cov { align-items: center; }
 .decn-acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 
 /* the model: a help sheet */

@@ -199,6 +199,56 @@ type Overview struct {
 	// Worktrees counts the claim worktrees that can be removed (see mull
 	// worktrees), when there are any.
 	Worktrees *Prunable `json:"prunable_worktrees,omitempty"`
+	// Problems are what's wrong with work in the plans not done and
+	// unplanned work, as mull view lists them, overlaps aside (Overlaps).
+	Problems []ProblemRow `json:"problems"`
+}
+
+// ProblemRow is a problem on an item, with where the item sits, for mull
+// serve: any kind mull view lists but overlap, which serve shows as pairs.
+type ProblemRow struct {
+	Problem
+	Title      string `json:"title"` // the item's
+	State      string `json:"state"`
+	Plan       string `json:"plan,omitempty"`
+	PlanTitle  string `json:"plan_title,omitempty"`
+	Phase      string `json:"phase,omitempty"`
+	PhaseTitle string `json:"phase_title,omitempty"`
+}
+
+// problemRows lists the problems on items, in work order within each of
+// plans (by slug; "" is unplanned work), plans in the order given.
+func (s *state) problemRows(g *gitState, now time.Time, plans ...string) []ProblemRow {
+	out := []ProblemRow{}
+	for _, slug := range plans {
+		var items []*model.Item
+		for _, id := range sortedKeys(s.items) {
+			if i := s.items[id]; i.Plan == slug {
+				items = append(items, i)
+			}
+		}
+		s.workOrder(items)
+		for _, i := range items {
+			out = append(out, s.itemProblemRows(i, g, now)...)
+		}
+	}
+	return out
+}
+
+// itemProblemRows are item i's problems as rows.
+func (s *state) itemProblemRows(i *model.Item, g *gitState, now time.Time) []ProblemRow {
+	out := []ProblemRow{}
+	for _, pr := range s.itemProblems(i, s.gitOf(g, i), now) {
+		r := ProblemRow{Problem: pr, Title: i.Title, State: i.State, Plan: i.Plan, Phase: i.Phase}
+		if p := s.plans[i.Plan]; p != nil {
+			r.PlanTitle = p.Title
+		}
+		if ph := s.phases[i.Phase]; ph != nil {
+			r.PhaseTitle = ph.Title
+		}
+		out = append(out, r)
+	}
+	return out
 }
 
 // Overview reads the project overview.
@@ -216,10 +266,14 @@ func (m *Mull) Overview() (Overview, error) {
 		if err := m.readOverlaps(s, g); err != nil {
 			return err
 		}
-		out = Overview{Summary: sum, Counts: s.counts(m.Now()), NeedsYou: s.needsYou(nil), Plans: []PlanStatus{}, Agents: []AgentRow{}, Overlaps: g.overlaps}
+		now := m.Now()
+		out = Overview{Summary: sum, Counts: s.counts(now), NeedsYou: s.needsYou(nil), Plans: []PlanStatus{}, Agents: []AgentRow{}, Overlaps: g.overlaps}
+		var slugs []string
 		for _, p := range s.notDonePlans() {
 			out.Plans = append(out.Plans, s.planStatus(p, g))
+			slugs = append(slugs, p.Slug)
 		}
+		out.Problems = s.problemRows(g, now, append(slugs, "")...)
 		var active []*model.Item
 		for _, id := range sortedKeys(s.items) {
 			if i := s.items[id]; i.State == model.StateActive {
@@ -288,6 +342,9 @@ type PlanPage struct {
 	DocRefs   []DocRef        `json:"doc_refs"`
 	Backlog   int             `json:"backlog"` // captured items tagged to the plan
 	Untriaged int             `json:"untriaged"`
+	// Problems are what's wrong with the plan's work, as mull view lists
+	// them, overlaps aside (Status.Overlaps).
+	Problems []ProblemRow `json:"problems"`
 }
 
 // PlanPage reads one plan's page.
@@ -310,7 +367,8 @@ func (m *Mull) PlanPage(slug string) (PlanPage, error) {
 			Next:     []NextPhase{}, DocRefs: s.docRefs(p.Doc + "\n" + p.Rules),
 			Unfiled: s.itemRows(func(i *model.Item) bool {
 				return i.Plan == slug && i.Phase == "" && i.State != model.StateCaptured
-			})}
+			}),
+			Problems: s.problemRows(g, m.Now(), slug)}
 		for _, r := range out.Status.Now {
 			out.Next = append(out.Next, NextPhase{PhaseRow: r, Items: s.itemRows(func(i *model.Item) bool {
 				return i.Phase == r.ID && (i.State == model.StateActive || i.State == model.StateInReview || i.State == model.StateCommitted)
@@ -341,6 +399,10 @@ type PhasePage struct {
 	Captured  []ItemRow     `json:"captured"` // backlog tagged to the phase
 	NeedsYou  NeedsYouTiers `json:"needs_you"`
 	DocRefs   []DocRef      `json:"doc_refs"`
+	// Reports are its integration review's done attempts, oldest first,
+	// and Review the packet of the latest (see Review), when there is one.
+	Reports []ReportRef `json:"reports"`
+	Review  *Review     `json:"review,omitempty"`
 }
 
 // PhasePage reads one phase's page.
@@ -359,6 +421,7 @@ func (m *Mull) PhasePage(id string) (PhasePage, error) {
 		if p := s.plans[e.Plan]; p != nil {
 			out.PlanTitle, out.PlanState = p.Title, p.State
 		}
+		out.Review, out.Reports = s.packet(id, e.Plan, func(x *model.Entry) bool { return x.Phase == id })
 		for _, oid := range sortedKeys(s.phases) {
 			for _, n := range s.phases[oid].Needs {
 				if n == id {
@@ -383,6 +446,9 @@ type ItemPage struct {
 	NeedsYou   NeedsYouTiers `json:"needs_you"`
 	Reports    []ReportRef   `json:"reports"` // every done attempt, oldest first
 	Review     *Review       `json:"review,omitempty"`
+	// Problems are what's wrong with it, as mull view lists them, overlaps
+	// aside.
+	Problems []ProblemRow `json:"problems"`
 	// Archived means it's in the Archive: in a closed plan, or finished
 	// unplanned work with nothing open on it.
 	Archived bool `json:"archived,omitempty"`
@@ -399,7 +465,11 @@ type ReportRef struct {
 // tour and checks) and how (its design notes, the session's decisions as
 // they stand now, and files by layer). Entry is the review entry, settled
 // or not; a packet with no entry is a done attempt that wasn't filed for
-// review (its checks failed).
+// review (its checks failed). A phase's integration review has the same
+// packet, its report naming the done items it covers and carrying no
+// decisions.
+//
+// Target is the branch the work lands on: the plan's target.
 //
 // Tour is the report's tour, each step split into text and the paths in it,
 // resolved against Preview: the item's plan's preview as it is now, which
@@ -411,6 +481,7 @@ type Review struct {
 	Decisions []ReviewDecision `json:"decisions"`
 	Tour      [][]TourPart     `json:"tour,omitempty"`
 	Preview   string           `json:"preview,omitempty"`
+	Target    string           `json:"target"`
 }
 
 // ReviewDecision is a decision the review carries, with what has become of
@@ -442,6 +513,7 @@ func (m *Mull) ItemPage(id string) (ItemPage, error) {
 		}
 		out.Git = s.gitOf(g, i)
 		out.Review, out.Reports = s.review(i)
+		out.Problems = s.itemProblemRows(i, g, m.Now())
 		return nil
 	})
 	return out, err
@@ -450,13 +522,20 @@ func (m *Mull) ItemPage(id string) (ItemPage, error) {
 // review builds the item's review packet from its newest review entry and
 // the report it names, or from its latest report when no review was filed.
 func (s *state) review(i *model.Item) (*Review, []ReportRef) {
+	return s.packet(i.ID, i.Plan, func(e *model.Entry) bool { return e.Item == i.ID })
+}
+
+// packet builds the review packet of an item's or a phase's (id's) work,
+// in plan: from the newest review entry of its (as reviews says) and the
+// report it names, or from its latest report when no review was filed.
+func (s *state) packet(id, plan string, reviews func(*model.Entry) bool) (*Review, []ReportRef) {
 	refs := []ReportRef{}
 	reports := map[string]model.Report{}
 	latest := ""
-	for _, p := range s.tx.List("reports/" + i.ID + "-") {
+	for _, p := range s.tx.List("reports/" + id + "-") {
 		var r model.Report
 		b, _ := s.tx.Get(p)
-		if _, err := model.Decode(b, &r); err != nil || r.Item != i.ID {
+		if _, err := model.Decode(b, &r); err != nil || (r.Item != id && r.Phase != id) {
 			continue
 		}
 		reports[p] = r
@@ -469,7 +548,7 @@ func (s *state) review(i *model.Item) (*Review, []ReportRef) {
 	var entry *model.Entry
 	for _, id := range sortedKeys(s.entries) {
 		e := s.entries[id]
-		if e.Kind == model.KindReview && e.Item == i.ID && (entry == nil || e.Created >= entry.Created) {
+		if e.Kind == model.KindReview && reviews(e) && (entry == nil || e.Created >= entry.Created) {
 			entry = e
 		}
 	}
@@ -481,9 +560,10 @@ func (s *state) review(i *model.Item) (*Review, []ReportRef) {
 	}
 	rep := reports[latest]
 	out := &Review{Entry: entry, Report: rep, Decisions: []ReviewDecision{}}
-	if p := s.plans[i.Plan]; p != nil {
+	if p := s.plans[plan]; p != nil {
 		out.Preview = p.Preview
 	}
+	out.Target, _ = s.targetOf(plan)
 	out.Tour = resolveTour(rep.Tour, out.Preview)
 	for _, d := range rep.Decisions {
 		rd := ReviewDecision{ReportDecision: d}
