@@ -32,6 +32,9 @@ type ContextItem struct {
 	// recorded, never run or checked by mull.
 	Target  Target `json:"target"`
 	Preview string `json:"preview,omitempty"`
+	// Shared are the plan's shared globs: files its parallel work shares,
+	// which done flags, so the worker knows them before touching one.
+	Shared []string `json:"shared,omitempty"`
 	// PlanRules and PhaseRules are the human's standing rules for work in
 	// the item's plan and phase, in full: the worker follows the plan's,
 	// then the phase's.
@@ -177,7 +180,7 @@ func (m *Mull) Context(itemID string) (Context, error) {
 			}
 			ci := &ContextItem{ItemView: s.itemView(i), Target: s.target(i.Plan, targets)}
 			if p := s.plans[i.Plan]; p != nil {
-				ci.PlanRules, ci.Preview = p.Rules, p.Preview
+				ci.PlanRules, ci.Preview, ci.Shared = p.Rules, p.Preview, p.Shared
 			}
 			if e := s.phases[i.Phase]; e != nil {
 				ci.PhaseTitle, ci.PhaseSummary, ci.PhaseDoc, ci.PhaseRules = e.Title, e.Summary, e.Doc, e.Rules

@@ -91,7 +91,8 @@ function target(pid, c, entryHref) {
   switch (c.type) {
     case "item": return href.item(pid, c.id);
     case "phase": case "phase_doc": case "phase_rules": return href.phase(pid, c.id);
-    case "plan": case "plan_doc": case "plan_rules": return href.plan(pid, c.id);
+    case "plan": return href.plan(pid, c.id);
+    case "plan_doc": case "plan_rules": return `${href.plan(pid, c.id)}/doc`; // the Plan doc tab shows both
     case "entry": return entryHref(c.id) || (c.plan ? href.plan(pid, c.plan) : "");
   }
   return "";

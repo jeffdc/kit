@@ -143,3 +143,47 @@ func TestWorkAfterAcceptProblem(t *testing.T) {
 		t.Errorf("a week later: problem %q", k)
 	}
 }
+
+// A merge of main into an accepted item's branch, made to settle conflicts
+// before it lands, carries the item's trailer but isn't later work.
+func TestWorkAfterAcceptSkipsMerges(t *testing.T) {
+	m, dir := setup(t)
+	now := time.Now()
+	afterAccept := func(id string) *Problem {
+		t.Helper()
+		for _, p := range must[View](t)(m.Board("general")).Plans[0].Problems {
+			if p.Item == id && p.Kind == "work-after-accept" {
+				return &p
+			}
+		}
+		return nil
+	}
+	m.Now = func() time.Time { return now.Add(-time.Hour) }
+	i := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "general", Title: "Merged late"}))
+	branch := i.ID + "-late"
+	gittest.Git(t, dir, "checkout", "-q", "-b", branch)
+	t.Setenv("GIT_AUTHOR_DATE", now.Add(-2*time.Hour).Format(time.RFC3339))
+	gittest.Commit(t, dir, "late.txt", "late", "Do it", "Mull: "+i.ID)
+	markInReview(t, m, i.ID)
+	must[AcceptResult](t)(m.Accept([]string{i.ID}, "", SettleOpts{}))
+
+	// After acceptance: main moves on, and main is merged into the branch.
+	t.Setenv("GIT_AUTHOR_DATE", now.Format(time.RFC3339))
+	m.Now = func() time.Time { return now.Add(time.Minute) }
+	gittest.Git(t, dir, "checkout", "-q", "main")
+	gittest.Commit(t, dir, "other.txt", "other", "Other work on main")
+	gittest.Git(t, dir, "checkout", "-q", branch)
+	gittest.Git(t, dir, "merge", "-q", "--no-ff", "-m", "Merge main into "+branch, "-m", "Mull: "+i.ID, "main")
+	gittest.Git(t, dir, "checkout", "-q", "main")
+	if p := afterAccept(i.ID); p != nil {
+		t.Fatalf("a merge counted as work after acceptance: %+v", p)
+	}
+
+	// A plain commit after it still counts.
+	gittest.Git(t, dir, "checkout", "-q", branch)
+	gittest.Commit(t, dir, "more.txt", "more", "More", "Mull: "+i.ID)
+	gittest.Git(t, dir, "checkout", "-q", "main")
+	if p := afterAccept(i.ID); p == nil || !strings.Contains(p.Text, "1 commit carrying") {
+		t.Errorf("a later commit: problem %+v", p)
+	}
+}
