@@ -1,5 +1,5 @@
-// Item lists: the shared item table, a project's Unplanned and Backlog
-// sheets, and a plan's backlog. Whole rows are links; the title stays the
+// Item lists: the shared item table, a project's Unplanned and Queue
+// sheets, and a plan's queue. Whole rows are links; the title stays the
 // keyboard target. Changed items are clouded.
 
 import { esc, href, tag, itemStage, shortTitle, day, base, ago, plural, copyId } from "./html.js";
@@ -15,9 +15,10 @@ export const col = {
     // Only a live claim: once the work is in review or finished, no one holds it.
     const claim = it.claim && it.state === "active" ? `<span class="meta">${esc(base(it.claim.worktree))}${it.claim.branch ? ` · ${esc(it.claim.branch)}` : ""} · since ${esc(ago(it.claim.at))}</span>` : "";
     const qs = it.questions ? ` <span class="mut">· ${it.questions} open question${it.questions > 1 ? "s" : ""}</span>` : "";
-    return `<a class="ttl" href="${esc(link)}">${esc(it.title)}</a>${it.untriaged ? ` <span class="tag">untriaged</span>` : ""}${qs}${claim}`;
+    return `<a class="ttl" href="${esc(link)}">${esc(it.title)}</a>${qs}${claim}`;
   }],
   kind: () => ["Kind", it => esc(it.kind || "")],
+  area: () => ["Area", it => it.area ? `<code>${esc(it.area)}</code>` : `<span class="mut">none</span>`],
   stage: () => ["Stage", it => tag(itemStage(it))],
   category: () => ["Category", it => esc(it.category || "")],
   plan: (pid, plans) => ["Plan", it => it.plan
@@ -84,47 +85,23 @@ export function unplannedBody(pid, page, changes, all = false) {
   const ny = page.needs_you.tiers.length
     ? `<section id="needs"><div class="hd"><h2>Needs you</h2><span class="lab">On unplanned work</span></div>${schedule(page.needs_you, { pid, changes, noPlan: true })}</section>`
     : "";
-  return `<section><div class="hd"><h2>Unplanned work</h2><span class="lab">Committed, no plan, in rank order · a bug or idea started straight from the backlog lands here</span></div>${table}</section>${ny}`;
+  return `<section><div class="hd"><h2>Unplanned work</h2><span class="lab">Committed, no plan, in rank order · queued work started with no plan lands here</span></div>${table}</section>${ny}`;
 }
 
-// Backlog filters, per page (project or plan), kept while the page is open.
-const filters = new Map();
-export const filterOf = key => {
-  if (!filters.has(key)) filters.set(key, { kind: "all", untriaged: false, plan: "all", category: "all" });
-  return filters.get(key);
-};
-export const clearFilter = key => filters.delete(key);
-
-// backlogBody: the captured items, filtered by kind, triage, plan and
-// category. inPlan is the plan's slug on a plan's Backlog tab, where the
-// plan filter and column are left out.
-export function backlogBody(pid, page, changes, { key, inPlan = "" } = {}) {
-  const f = filterOf(key);
+// backlogBody: the queue, the agents' captured items, newest first, each
+// with its area (where in the code it is) if it has one. It's the agents'
+// to file and work, so it's a plain list: no filters, nothing to triage.
+// inPlan is the plan's slug on a plan's Queue tab, where the plan column
+// gives way to the phase.
+export function backlogBody(pid, page, changes, { inPlan = "" } = {}) {
   const plans = new Map(page.plans.map(p => [p.slug, p.title]));
   const all = page.items;
-  const list = all.filter(i =>
-    (f.kind === "all" || i.kind === f.kind) &&
-    (!f.untriaged || i.untriaged) &&
-    (inPlan || f.plan === "all" || (f.plan === "none" ? !i.plan : i.plan === f.plan)) &&
-    (f.category === "all" || (i.category || "") === f.category));
-  const count = k => all.filter(i => i.kind === k).length;
-  const seg = (v, label) => `<button data-filter="${esc(key)}" data-k="kind" data-v="${v}" aria-pressed="${f.kind === v}">${label}</button>`;
-  const opt = (v, label, cur) => `<option value="${esc(v)}"${cur === v ? " selected" : ""}>${esc(label)}</option>`;
-  const planSelect = inPlan ? "" : `<label>Plan <select data-filter="${esc(key)}" data-k="plan">${opt("all", "Any", f.plan)}${page.plans.map(p => opt(p.slug, shortTitle(p.title), f.plan)).join("")}${opt("none", "No plan", f.plan)}</select></label>`;
-  const triage = page.last_triage ? `last triage ${esc(day(page.last_triage))}` : "never triaged";
-  const cols = [col.id(), col.title(pid, "Captured"), col.kind(), wide(col.category()), wide(inPlan ? col.phase() : col.plan(pid, plans)), wide(col.from()), col.date()];
-  const table = list.length
-    ? itemTable(pid, list, cols, { changes })
-    : all.length
-      ? `<p class="empty">Nothing matches these filters. <button class="btn s" data-clear="${esc(key)}">Clear filters</button></p>`
-      : `<p class="empty">Nothing captured${inPlan ? " for this plan" : ""}.</p>`;
-  const other = inPlan ? ` · <a href="${esc(href.backlog(pid))}">the whole project's backlog</a>` : "";
-  return `<section><div class="hd"><h2>${inPlan ? "This plan's backlog" : "Backlog"}</h2><span class="lab">Captured, not committed · ${triage} · triage runs with an agent${other}</span></div>
-    ${all.length ? `<div class="filters">
-      <span class="seg" role="group" aria-label="Kind">${seg("all", `All ${all.length}`)}${seg("bug", `Bugs ${count("bug")}`)}${seg("idea", `Ideas ${count("idea")}`)}</span>
-      <label><input type="checkbox" data-filter="${esc(key)}" data-k="untriaged"${f.untriaged ? " checked" : ""}> Untriaged only (${page.untriaged})</label>
-      ${planSelect}
-      <label>Category <select data-filter="${esc(key)}" data-k="category">${opt("all", "Every category", f.category)}${page.categories.map(c => opt(c, c || "none", f.category)).join("")}</select></label>
-    </div>` : ""}
+  const cols = [col.id(), col.title(pid, "Queued"), col.kind(), col.area(), wide(inPlan ? col.phase() : col.plan(pid, plans)), wide(col.from()), col.date()];
+  const table = all.length
+    ? itemTable(pid, all, cols, { changes })
+    : `<p class="empty">Nothing queued${inPlan ? " for this plan" : ""}.</p>`;
+  const counts = all.length ? `${plural(page.bugs, "bug")} · ${plural(page.ideas, "idea")} · ` : "";
+  const other = inPlan ? ` · <a href="${esc(href.backlog(pid))}">the whole project's queue</a>` : "";
+  return `<section><div class="hd"><h2>${inPlan ? "This plan's queue" : "Queue"}</h2><span class="lab">${counts}the agents' own: they file it and work it, and work in an area pulls in what's queued there${other}</span></div>
     ${table}</section>`;
 }

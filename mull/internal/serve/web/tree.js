@@ -1,6 +1,6 @@
 // The sheet index: every project, drilling down plan → phase → item, with
-// Unplanned and Backlog under each project. A row is clouded when something
-// inside it changed and it's collapsed, or when it changed itself and none
+// Unplanned, the Queue and Rules under each project. A row is clouded when
+// something inside it changed and it's collapsed, or when it changed itself and none
 // of its open children shows the change. Consecutive clouded rows share
 // one cloud, as a drafter clouds a region.
 
@@ -62,7 +62,8 @@ function projectNode(pr, data) {
       kids.push({ key: `jo:${pid}`, label: "About the project", href: href.project(pid), match: () => false,
         meta: marks(tree.own.blocking, tree.own.needs_you, false, href.project(pid)) });
     }
-    kids.push({ key: `bl:${pid}`, label: "Backlog", href: href.backlog(pid), match: within.backlog(), meta: em(`${c.backlog}${c.untriaged ? ` · ${c.untriaged} new` : ""}`) });
+    kids.push({ key: `bl:${pid}`, label: "Queue", href: href.backlog(pid), match: within.backlog(), meta: em(c.backlog) });
+    kids.push({ key: `ru:${pid}`, label: "Rules", href: href.rules(pid), match: () => false });
     // Closed plans and finished unplanned work are archived: under Archive,
     // collapsed, newest first, the unplanned work in a group of its own.
     const plans = tree.archive || [], items = tree.archived_unplanned || [];
@@ -125,7 +126,7 @@ function flatten(node, depth, changes, out) {
 function keyFor(route) {
   if (!route.pid) return "home";
   const { pid, kind, id } = route;
-  return ({ "": `p:${pid}`, plans: `pl:${pid}:${id}`, phases: `ph:${pid}:${id}`, items: `it:${pid}:${id}`, unplanned: `un:${pid}`, backlog: `bl:${pid}` })[kind] || "";
+  return ({ "": `p:${pid}`, plans: `pl:${pid}:${id}`, phases: `ph:${pid}:${id}`, items: `it:${pid}:${id}`, unplanned: `un:${pid}`, backlog: `bl:${pid}`, rules: `ru:${pid}` })[kind] || "";
 }
 
 // expandFor opens the tree down to the route's row.

@@ -64,9 +64,9 @@ function needsField(pr) {
   return `<a class="mk" href="${esc(href.project(pr.id))}" data-needs><span class="ask">${n}</span></a>${b} <small>${esc(needsBreakdown(ny))}</small>`;
 }
 
-// projectHead: a project's title block and tabs, shared by its Overview,
-// Unplanned and Backlog sheets, with the Capture form under the tabs when
-// it's open.
+// projectHead: a project's title block and tabs, shared by its Surface,
+// Unplanned, Queue and Rules sheets, with the Capture form under the tabs
+// when it's open.
 export function projectHead(pr, data, tab, live) {
   const pid = pr.id;
   const head = titleBlock({ title: pid, crumbs: [`<a href="${href.home()}">All projects</a>`], fields: projectFields(pr, live) });
@@ -76,12 +76,15 @@ export function projectHead(pr, data, tab, live) {
     const on = tab === key;
     return `<a class="${on ? "on" : ""}${cloud}" href="${esc(link)}"${on ? ' aria-current="page"' : ""}>${label}${count !== undefined ? ` <em>${esc(count)}</em>` : ""}</a>`;
   };
-  const backlog = counts ? `${counts.backlog}${counts.untriaged ? ` · ${counts.untriaged} untriaged` : ""}` : undefined;
-  const changes = pr.revision?.changes || 0;
   return head + `<nav class="tabs" aria-label="Project sections">` +
-    t("overview", "Overview", href.project(pid)) +
+    t("surface", "Surface", href.project(pid)) +
     t("unplanned", "Unplanned", href.unplanned(pid), counts?.unplanned, ch ? ch.cls(within.unplanned()) : "") +
-    t("backlog", "Backlog", href.backlog(pid), backlog, ch ? ch.cls(within.backlog()) : "") +
-    `<div class="acts"><button class="btn" data-seen="${esc(pid)}"${changes ? "" : " disabled"} title="${changes ? "Clear the clouds: everything up to this revision is seen" : "Nothing new since you last looked"}">Mark revision seen</button>` +
-    `${captureButton(pid)}</div></nav>${captureBar(pid)}`;
+    t("backlog", "Queue", href.backlog(pid), counts?.backlog, ch ? ch.cls(within.backlog()) : "") +
+    t("rules", "Rules", href.rules(pid)) +
+    `<div class="acts">${seenButton(pid)}${captureButton(pid)}</div></nav>${captureBar(pid)}`;
 }
+
+// seenButton moves the human's last look to now: the clouds clear, and
+// the surface starts again from here.
+export const seenButton = pid =>
+  `<button class="btn" data-seen="${esc(pid)}" title="Move your last look to now: the clouds clear, and the surface starts again from here">Mark seen</button>`;

@@ -1,8 +1,6 @@
 // Revisions: what changed since the human last looked, as GET …/revision
-// lists it. Changes decides what every sheet clouds; the revision schedule
-// lists the changes themselves.
-
-import { esc, href, stageLabel, clock, plural, base, CHEVRON, copyId } from "./html.js";
+// lists it. Changes decides what every sheet clouds (the surface, from the
+// same last look, says what changed in words).
 
 const captured = c => c.type === "item" && c.state === "captured";
 const identity = c => `${c.type}:${c.id}:${c.at}:${c.change}`;
@@ -63,72 +61,4 @@ export function runs(parts, cloud, plain = h => h) {
   }
   flush();
   return out;
-}
-
-// The revision schedule: one row per changed record, newest first.
-export function revisionSchedule(pid, rev, entryHref) {
-  const changes = rev?.changes || [];
-  if (!changes.length) return "";
-  const rows = changes.map(c => {
-    const link = c.change === "removed" ? "" : target(pid, c, entryHref);
-    const title = esc(recordTitle(c));
-    return `<tr${link ? ` data-href="${esc(link)}"` : ""}><td>${c.type === "plan" || c.type === "plan_doc" || c.type === "plan_rules" ? "<code>plan</code>" : copyId(c.id)}</td>` +
-      `<td class="ttl">${link ? `<a href="${esc(link)}">${title}</a>` : title}</td><td class="mut">${esc(describe(c))}</td><td class="n mono mut">${esc(clock(c.at))}</td></tr>`;
-  }).join("");
-  return `<section><details class="revs" data-open="revs:${esc(pid)}"><summary class="hd"><h2>${CHEVRON} Revision ${rev.tip.number}</h2><span class="lab">${plural(changes.length, "change")} since you last looked, at ${esc(clock(rev.seen_at))}</span></summary>
-    <div class="tbl-wrap"><table class="t"><thead><tr><th style="width:70px">ID</th><th>Record</th><th>What changed</th><th class="n">At</th></tr></thead><tbody>${rows}</tbody></table></div></details></section>`;
-}
-
-function recordTitle(c) {
-  if (c.type === "plan_doc") return `${c.title}: plan doc`;
-  if (c.type === "phase_doc") return `${c.title}: phase doc`;
-  if (c.type === "plan_rules") return `${c.title}: plan rules`;
-  if (c.type === "phase_rules") return `${c.title}: phase rules`;
-  return c.title;
-}
-
-function target(pid, c, entryHref) {
-  switch (c.type) {
-    case "item": return href.item(pid, c.id);
-    case "phase": case "phase_doc": case "phase_rules": return href.phase(pid, c.id);
-    case "plan": return href.plan(pid, c.id);
-    case "plan_doc": case "plan_rules": return `${href.plan(pid, c.id)}/doc`; // the Plan doc tab shows both
-    case "entry": return entryHref(c.id) || (c.plan ? href.plan(pid, c.plan) : "");
-  }
-  return "";
-}
-
-// describe says what happened to a record, in a few words.
-export function describe(c) {
-  if (c.change === "removed") return "removed";
-  if (c.type === "plan_doc" || c.type === "phase_doc") return c.change === "added" ? "doc written" : "doc edited";
-  if (c.type === "plan_rules" || c.type === "phase_rules") return c.change === "added" ? "rules written" : "rules edited";
-  if (c.type === "entry") {
-    if (c.change === "added") return c.kind === "review" ? "filed for your review" : `new ${c.kind || "entry"}`;
-    if (c.state && c.state !== "open") return `settled: ${c.state}`;
-    return fields(c) || "edited";
-  }
-  if (c.change === "added") {
-    if (c.type === "item") return c.state === "captured" ? `captured: new ${c.kind || "item"}` : `added, ${stageLabel(c.state)}`;
-    if (c.type === "plan") return `new plan, ${c.state}`;
-    return "new phase";
-  }
-  return fields(c) || "edited";
-}
-
-function fields(c) {
-  return (c.fields || []).map(f => {
-    if (f.field === "state" && c.type === "item") {
-      if (f.to === "in-review") return "finished; waiting for your review";
-      if (f.to === "done") return "accepted, done";
-      if (f.to === "active") {
-        const claim = c.fields.find(g => g.field === "claim");
-        return `started${claim?.to ? ` in ${base(claim.to)}` : ""}`;
-      }
-      return `${stageLabel(f.from)} → ${stageLabel(f.to)}`;
-    }
-    if (f.field === "claim") return c.fields.some(g => g.field === "state") ? "" : (f.to ? `claimed in ${base(f.to)}` : "released");
-    if (f.from || f.to) return `${f.field}: ${f.from || "none"} → ${f.to || "none"}`;
-    return `${f.field} edited`;
-  }).filter(Boolean).join(" · ");
 }

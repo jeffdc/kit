@@ -1,9 +1,9 @@
 #!/bin/sh
 # Creates the demo repository make dev serves, if it isn't there: a scratch
-# git repo on mull with something in every Needs you tier, for trying the UI
-# by hand or from a headless browser. Usage: dev-demo.sh <dev dir> <mull>.
-# Everything lives under <dev dir>; its config dir keeps the registry and
-# last-looked state away from the real ones.
+# git repo on mull with something in every part of the surface, for trying
+# the UI by hand or from a headless browser. Usage: dev-demo.sh <dev dir>
+# <mull>. Everything lives under <dev dir>; its config dir keeps the
+# registry and last-looked state away from the real ones.
 set -eu
 dev=$1 mull=$2
 demo=$dev/demo
@@ -13,110 +13,120 @@ mkdir -p "$demo" "$dev/cfg"
 export XDG_CONFIG_HOME="$dev/cfg"
 cd "$demo"
 git init -q -b main
-git commit -q --allow-empty -m "demo"
 m() { "$mull" "$@" >/dev/null; }
 id() { "$mull" "$@" | sed -n 's/^  "id": "\([0-9a-f]*\)".*/\1/p' | head -1; }
+# work <id> <file> <content> <message> [done flags…]: starts the item in
+# its own worktree (the runner makes it), commits one file there and runs
+# done, from that worktree.
+work() {
+	item=$1 file=$2 content=$3 msg=$4
+	shift 4
+	wt=$("$mull" start "$item" | sed -n 's/.*"worktree": "\([^"]*\)".*/\1/p' | head -1)
+	mkdir -p "$wt/$(dirname "$file")"
+	printf '%s\n' "$content" >"$wt/$file"
+	git -C "$wt" add "$file"
+	git -C "$wt" commit -q -m "$msg" -m "Mull: $item"
+	(cd "$wt" && "$mull" done "$item" "$@" >/dev/null)
+}
+
+# The rulebook: a ratcheted check (no new TODOs in the app; one known), a
+# plain check, and two rules with no check (advisory).
+mkdir -p app scripts .mull/ratchets
+cat >RULES.md <<'EOF'
+# Rules
+
+## R1: Pages use the shared components
+
+- scope: app/**
+- check: scripts/check-todo
+- ratchet: yes
+
+A page that builds its own widgets drifts from the rest; each TODO marks one.
+
+## R2: No debug logs in the app
+
+- scope: app/**
+- check: test ! -e app/debug.log
+
+## R3: Keep each page under 300 lines
+
+- scope: app/**
+
+A hope until someone writes the check.
+
+## R4: Migrations can be rolled back
+
+- scope: db/**
+EOF
+printf '#!/bin/sh\ngrep -rl TODO app 2>/dev/null | sort\nexit 0\n' >scripts/check-todo
+chmod +x scripts/check-todo
+echo "<!-- TODO: use the shared header -->" >app/legacy.html
+echo "app/legacy.html" >.mull/ratchets/R1.txt
+git add RULES.md app scripts .mull
+git commit -q -m "demo"
 
 m init
 echo '{"op": "config checks", "commands": ["true"], "on-request": true}' | "$mull" batch >/dev/null
+# Migrations are high risk; over 30 lines is medium; no low-risk sample
+# yet (one is drawn below, on purpose).
+m config risk --add "db/**" --max-lines 30 --no-sample --on-request
+
 m plan new web "Web app" --summary "Search, mail and the account pages." --on-request
 m plan agree web --on-request
-# Its preview, the URL that serves its target: a digest's tour resolves
-# against it. Nothing runs there, as mull never runs or checks a preview.
-m plan set web preview http://localhost:4000
 m plan doc web - <<'EOF'
-The web app's search, mail and account pages. This doc is long enough to show how prose runs on the sheet, with the status margin beside it: search comes first because mail links into it.
+The web app's search, mail and account pages. Search comes first because mail links into it.
 EOF
-# A phase with a doc, for the phase sheet.
+search=$(id phase add "Search" --plan web --summary "Find anything from the top bar.")
+mailp=$(id phase add "Mail" --plan web --summary "Send and read mail.")
+account=$(id phase add "Account" --plan web --summary "Settings and invites.")
+billing=$(id phase add "Billing" --plan web --summary "Cards and invoices.")
 launch=$(id phase add "Launch" --plan web --summary "Turn the pages on for everyone.")
-m phase doc "$launch" - <<'EOF'
-Turn the flag on once search and mail are in. Done when the pages are live for everyone.
-EOF
+m need "$launch" "$mailp"
+# Billing has work cut but nothing started: it's still uphill.
+m add "Card payments" --phase "$billing"
 
-# A ready item with a question on it: the Blocking tier.
-mail=$(id add "Mailer" --plan web)
-m ask "Which queue do mails go through?" --item "$mail"
-# Decisions from an item, and from a planning session: the Decisions tier.
-search=$(id add "Search page" --plan web)
-m decided "Search runs on Postgres full-text, not a separate index" --item "$search"
-m decided "Results page 25 per page" --item "$search"
-m decided "Keep the API on /v2" --plan web --source "planning call"
-# An item in review carrying decisions: the Review tier and a packet. Its
-# tour gives a path (linked to the preview) and a stray local URL (which
-# done warns about). Its work, on its own branch, changes the page layout,
-# which the web plan lists as shared, so the packet flags it.
-m plan shared web "app/layout.css" "app/components/**"
-digest=$(id add "Digest job" --plan web)
-git checkout -q -b "$digest-job"
-m start "$digest"
-m decided "Digests skip users with no activity" --item "$digest"
-m decided "One digest per timezone batch" --item "$digest"
-mkdir -p app jobs
-echo "/* digest banner */" >app/layout.css
-echo "# nightly digest" >jobs/digest.sh
-git add app jobs
-git commit -q -m "Nightly digest job" -m "Mull: $digest"
-m done "$digest" --summary "A nightly digest job." --design "A cron job reading the activity table, and a banner slot in the layout for the digest notice." --tour "Open /settings/digest and turn the digest on
-Then http://localhost:4001/digests/today: see today's digest"
-git checkout -q main
-# A long title, and a captured bug for the backlog.
-m add "Drop or park a Needs you entry with a reason" --plan web
-m bug "The footer overlaps the last result on small screens" --plan web --source "demo"
-# Unplanned work: one open, and two finished (done, and dropped), which are
-# archived at once, under the sheet index's Archive. The open one has a
-# commit on its branch that nobody claimed, and the done one none of its
-# work on main: two problems on the overview.
+# Before the last look: search landed, with the rulebook's ratchet at one.
+results=$(id add "Search results page" --phase "$search")
+work "$results" app/search.html "<main>results</main>" "Search results page" --summary "A results page under the top bar." --rules none
+
+# The last look is here: what follows is new since.
+sleep 1
+tip=$(git rev-parse mull)
+printf '{"repos": {"%s": {"commit": "%s", "at": "%s"}}}\n' "$demo" "$tip" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$dev/cfg/mull/seen.json"
+sleep 1
+
+# High risk: a migration waits for review.
+invites=$(id add "Invites table" --phase "$account")
+work "$invites" db/001_invites.sql "create table invites (id int);" "Invites table" --summary "A table for pending invites, with its migration." --rules none
+# Medium: a big template lands, and is shown.
+templates=$(id add "Mail templates" --phase "$mailp")
+work "$templates" app/mail/templates.html "$(seq 1 40 | sed 's/.*/<p>line &<\/p>/')" "Mail templates" --summary "Forty templates for transactional mail." --rules none --slowed "The template fixtures took a while to generate"
+# Low, sampled: it lands, and a sample is drawn for a look.
+m config risk --sample 100 --on-request
+filters=$(id add "Search filters" --phase "$search")
+work "$filters" app/filters.html "<aside>filters</aside>" "Search filters" --summary "Filter results by date and author." --rules none
+m config risk --no-sample --on-request
+# Unplanned work: landed at low risk, not sampled, so it's only in Flow.
 login=$(id add "Fix the login redirect" --plan none)
-git checkout -q -b "$login-redirect"
-echo "redirect" >login.txt
-git add login.txt
-git commit -q -m "Try a fix for the login redirect" -m "Mull: $login"
-git checkout -q main
-fav=$(id add "Add a favicon" --plan none)
-m start "$fav"
-m done "$fav" --summary "A favicon." --tour none --design "An SVG in the page head."
-m accept "$fav" --on-request
-old=$(id add "Rename the settings page" --plan none)
-m drop "$old" --reason "Not needed after all" --on-request
-# The web plan lands on its own target branch, a commit ahead of main, with
-# the digest job's work merged into it.
-git checkout -q -b web-next
-git merge -q --no-ff --no-edit "$digest-job"
-git checkout -q main
-m plan set web target web-next
-# A phase that needs an integration review, its one item done and merged:
-# it awaits that review, and Launch, which needs it, waits.
-pass=$(id phase add "Design pass" --plan web --summary "One look across every page.")
-m phase set "$pass" integration-review on --on-request
-header=$(id add "Shared page header" --phase "$pass")
-git checkout -q web-next
-m start "$header"
-echo "<header>demo</header>" >app/header.html
-git add app/header.html
-git commit -q -m "Shared page header" -m "Mull: $header"
-m done "$header" --summary "One header for every page." --tour none --design "A shared partial."
-m accept "$header" --on-request
-m need "$launch" "$pass"
-# Its integration review, filed at web-next's tip as a supervisor would:
-# it waits in Needs you, on the phase, and its packet is on the phase's
-# sheet.
-m done "$pass" --summary "The header reads the same on every page." --tour "Open /settings, then /mail: the header is the same on both" --design "Read the combined diff on web-next; one header partial, used everywhere."
-git checkout -q main
-# Two agents at work on branches that both change the page layout: an
-# overlap in the Plans column.
-account=$(id add "Account page" --plan web)
-theme=$(id add "Dark theme" --plan web)
-for it in "$account:account" "$theme:theme"; do
-	item=${it%%:*} name=${it#*:}
-	git checkout -q -b "$item-$name" web-next
-	m start "$item"
-	mkdir -p app
-	echo "$name" >"app/$name.css"
-	echo "/* $name */" >app/layout.css
-	git add app
-	git commit -q -m "Start the $name work" -m "Mull: $item"
-done
-git checkout -q main
+work "$login" app/login.html "<form>login</form>" "Fix the login redirect" --summary "The redirect after login keeps the page you came from." --rules none
+# A new TODO breaks the ratchet: done fails, and R1 is failing (1 → 2).
+# It's the last done, as the surface counts each rule from the latest run.
+inbox=$(id add "Mail inbox" --phase "$mailp")
+work "$inbox" app/mail/inbox.html "<!-- TODO: shared list --><main>inbox</main>" "Mail inbox" --summary "The inbox list." --rules none 2>/dev/null || true
+
+# Questions: one with time left on its default, one lapsed.
+compose=$(id add "Compose mail" --phase "$mailp")
+m ask "Which queue do mails go through?" --item "$compose" --default "The existing Redis queue" --by 2d
+m ask "Keep the v1 search API?" --plan web --default "Keep it for a release, then remove it" --by 1s
+sleep 2
+
+# The agents' queue: three bugs in one area (a cluster), and two more.
+m bug "Results jump when filters load" --plan web --area "app/search/**"
+m bug "Empty search shows a spinner forever" --plan web --area "app/search/**"
+m bug "Search box loses focus on back" --plan web --area "app/search/**"
+m bug "The footer overlaps the last result on small screens" --plan web --source "demo"
+m idea "Saved searches" --plan web
+
 # A plan still shaping, for Agree this plan.
 m plan new pilot "Pilot with two teams" --summary "Try the web app with two teams before launch." --on-request
 echo "demo repo: $demo"

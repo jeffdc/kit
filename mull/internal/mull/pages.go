@@ -19,6 +19,7 @@ type ItemRow struct {
 	Ready      bool         `json:"ready,omitempty"`
 	Kind       string       `json:"kind,omitempty"`
 	Category   string       `json:"category,omitempty"`
+	Area       string       `json:"area,omitempty"` // where in the code it is (a path or glob), for queued work
 	Source     string       `json:"source,omitempty"`
 	Plan       string       `json:"plan,omitempty"`
 	Phase      string       `json:"phase,omitempty"`
@@ -32,7 +33,7 @@ type ItemRow struct {
 
 func (s *state) itemRow(i *model.Item) ItemRow {
 	r := ItemRow{ID: i.ID, Title: i.Title, State: i.State, Ready: s.itemView(i).Ready, Kind: i.Kind,
-		Category: i.Category, Source: i.Source, Plan: i.Plan, Phase: i.Phase, Claim: i.Claim,
+		Category: i.Category, Area: i.Area, Source: i.Source, Plan: i.Plan, Phase: i.Phase, Claim: i.Claim,
 		Created: i.Created, Updated: i.Updated}
 	if ph := s.phases[i.Phase]; ph != nil {
 		r.PhaseTitle = ph.Title

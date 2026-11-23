@@ -2,11 +2,13 @@ package serve
 
 import (
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"testing"
 
 	"mull/internal/model"
 	"mull/internal/mull"
+	"mull/internal/seen"
 )
 
 func TestAPIPages(t *testing.T) {
@@ -28,7 +30,7 @@ func TestAPIPages(t *testing.T) {
 	item, err := m.ItemAdd(mull.NewItem{Plan: "launch", Phase: phase.ID, Title: "Charge cards"})
 	ok(item, err)
 	ok(m.Capture(mull.CaptureInput{Kind: model.KindQuestion, Text: "Which processor?", Item: item.ID}))
-	ok(m.CaptureItem(mull.NewCapture{Kind: model.ItemBug, Title: "Footer", Plan: "launch"}))
+	ok(m.CaptureItem(mull.NewCapture{Kind: model.ItemBug, Title: "Footer", Plan: "launch", Area: "web/footer/**"}))
 	ok(m.ItemAdd(mull.NewItem{Plan: model.NoPlan, Title: "Unplanned fix"}))
 	dropped, err := m.ItemAdd(mull.NewItem{Plan: model.NoPlan, Title: "Unplanned fix, not needed"})
 	ok(dropped, err)
@@ -106,7 +108,7 @@ func TestAPIPages(t *testing.T) {
 	}
 	var bl mull.Backlog
 	decode("/api/projects/"+id+"/backlog", &bl)
-	if len(bl.Items) != 1 || bl.Bugs != 1 {
+	if len(bl.Items) != 1 || bl.Bugs != 1 || bl.Items[0].Area != "web/footer/**" {
 		t.Errorf("backlog = %+v", bl)
 	}
 	decode("/api/projects/"+id+"/backlog?plan=none", &bl)
@@ -132,5 +134,69 @@ func TestAPIPages(t *testing.T) {
 		if rec.Code != want.status || e.Code != want.code {
 			t.Errorf("GET %s: %d %s, want %d %s\n%s", path, rec.Code, e.Code, want.status, want.code, rec.Body)
 		}
+	}
+}
+
+// The surface reads from the human's last look, or ?since=; the rulebook
+// is RULES.md in the repository, advisory rules (no check) counted apart.
+func TestAPISurfaceAndRules(t *testing.T) {
+	dir := onMull(t)
+	m, err := mull.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.PlanNew("launch", "Public launch", "", true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.PlanAgree("launch", true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Capture(mull.CaptureInput{Kind: model.KindQuestion, Text: "Which processor?", Plan: "launch", Default: "Stripe", By: "2d"}); err != nil {
+		t.Fatal(err)
+	}
+	rules := "# Rules\n\n## R1: Pages use the components\n\n- scope: web/**\n- check: true\n\nOne look.\n\n## R2: Keep it small\n\nA hope.\n"
+	if err := os.WriteFile(filepath.Join(dir, "RULES.md"), []byte(rules), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	h := Handler(func() ([]string, error) { return []string{dir}, nil })
+	id := filepath.Base(dir)
+	decode := func(path string, v any) {
+		t.Helper()
+		rec := get(t, h, path)
+		if rec.Code != 200 {
+			t.Fatalf("GET %s: %d\n%s", path, rec.Code, rec.Body)
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), v); err != nil {
+			t.Fatalf("GET %s: %v", path, err)
+		}
+	}
+
+	look := "2026-01-02T03:04:05Z"
+	if err := seen.Mark(dir, seen.Look{At: look}); err != nil {
+		t.Fatal(err)
+	}
+	var sf mull.Surface
+	decode("/api/projects/"+id+"/surface", &sf)
+	if sf.Since != look {
+		t.Errorf("surface since = %q, want the last look %q", sf.Since, look)
+	}
+	if len(sf.Calls) != 1 || sf.Calls[0].Kind != "question" || sf.Calls[0].Default != "Stripe" || sf.Calls[0].Due == "" || sf.Calls[0].Lapsed {
+		t.Errorf("surface calls = %+v", sf.Calls)
+	}
+	if len(sf.Rules) != 1 || sf.Rules[0].ID != "R1" || len(sf.Advisory) != 1 {
+		t.Errorf("surface rules = %+v, advisory = %v", sf.Rules, sf.Advisory)
+	}
+	if len(sf.Plans) != 1 || sf.Plans[0].Slug != "launch" {
+		t.Errorf("surface plans = %+v", sf.Plans)
+	}
+	decode("/api/projects/"+id+"/surface?since=2026-02-01T00:00:00Z", &sf)
+	if sf.Since != "2026-02-01T00:00:00Z" {
+		t.Errorf("surface since with ?since = %q", sf.Since)
+	}
+
+	var rb mull.RulesOut
+	decode("/api/projects/"+id+"/rules", &rb)
+	if len(rb.Rules) != 2 || rb.Checked != 1 || rb.Advisory != 1 || !rb.Rules[1].Advisory || rb.Rules[0].Check != "true" {
+		t.Errorf("rules = %+v", rb)
 	}
 }
