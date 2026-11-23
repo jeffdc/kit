@@ -17,13 +17,13 @@ Advisory. The root Makefile only runs each tool's own targets.
 ## R3: Only mull's sync pushes, and only the mull branch
 
 - scope: mull/**
-- check: ! grep -rn --include="*.go" "\"push\"" mull/internal mull/cmd | grep -v _test.go | grep -v internal/mull/sync.go
+- check: ! grep -rn --include="*.go" "\"push\"" mull/internal mull/cmd | grep -v _test.go | grep -v internal/core/sync.go
 
 The store writes only `refs/heads/mull` and sync pushes only it. The runner writes local code branches and never pushes.
 
 ## R4: The runner never writes the release branch
 
-- scope: mull/internal/mull/runner.go, mull/internal/mull/done.go, mull/internal/mull/inbox.go
+- scope: mull/internal/core/runner.go, mull/internal/core/done.go, mull/internal/core/inbox.go
 
 Advisory: held by the runner's tests. Work lands on plan branches or `next`; only Jeff ships to main.
 
@@ -36,7 +36,7 @@ No mull feature depends on Claude Code, Codex or another harness. The only inter
 
 ## R6: mull's data writes never touch a working tree or the real index
 
-- scope: mull/internal/store/**, mull/internal/mull/**
+- scope: mull/internal/store/**, mull/internal/core/**
 
 Advisory: every write goes through internal/store (git plumbing and a compare-and-swap on the mull branch).
 
@@ -60,15 +60,15 @@ Advisory: the pre-push hook refuses it, whatever the prompt says.
 
 ## R10: mull serve's UI follows its design system
 
-- scope: mull/internal/serve/web/**
+- scope: mull/internal/ui/web/**
 
 Advisory: read `mull/docs/serve/DESIGN.md` before changing the UI, and use its components.
 
 ## R11: Measure before and after making reads faster
 
-- scope: mull/internal/mull/**, mull/internal/store/**
+- scope: mull/internal/core/**, mull/internal/store/**
 
-Advisory: `make bench` before and after, with the numbers in the done report.
+Advisory: time `mull status` on a large repository before and after, and put the numbers in the report.
 
 ## R12: Prose is never hard-wrapped
 
