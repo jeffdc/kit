@@ -33,10 +33,11 @@ export const href = {
   // all: with the archived (finished) work too.
   unplanned: (pid, all = false) => `#/${seg(pid)}/unplanned${all ? "/all" : ""}`,
   backlog: pid => `#/${seg(pid)}/backlog`,
+  rules: pid => `#/${seg(pid)}/rules`,
 };
 
 // Stage and state words, and the tag style each one takes.
-const LABEL = { "in-review": "in review", "awaiting-review": "awaiting integration review", go_live: "go live" };
+const LABEL = { "in-review": "in review", "awaiting-review": "awaiting review", go_live: "go live" };
 const STYLE = { "in-review": "review", "awaiting-review": "review", active: "active" };
 export const stageLabel = s => LABEL[s] || s || "";
 export const tag = (state, label) => `<span class="tag s-${esc(STYLE[state] || state)}">${esc(label || stageLabel(state))}</span>`;
@@ -60,9 +61,10 @@ export function size(n) {
 }
 
 // needsTotal is everything Needs you lists for a project summary: open
-// questions, reviews and decisions (parked ones aside).
-export const needsTotal = ny => (ny?.questions || 0) + (ny?.reviews || 0) + (ny?.decisions || 0);
-export const needsBreakdown = ny => [[ny?.questions, "question"], [ny?.reviews, "review"], [ny?.decisions, "decision"]]
+// questions and reviews (parked ones aside). Agents' decisions no longer
+// come to the human, so any left open from before aren't counted.
+export const needsTotal = ny => (ny?.questions || 0) + (ny?.reviews || 0);
+export const needsBreakdown = ny => [[ny?.questions, "question"], [ny?.reviews, "review"]]
   .filter(([n]) => n).map(([n, w]) => plural(n, w)).join(" · ");
 
 // marks: what a row holds for the human. The yellow stamp is blocking work;

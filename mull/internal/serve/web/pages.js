@@ -1,14 +1,12 @@
-// The sheets: all projects, and within a project its Overview, Unplanned
-// and Backlog tabs, and the plan, phase and item sheets. Each project sheet
-// reads one or two API pages (subsFor), which app.js loads into the
+// The sheets: all projects, and within a project its Surface, Unplanned,
+// Queue and Rules tabs, and the plan, phase and item sheets. Each project
+// sheet reads one or two API pages (subsFor), which app.js loads into the
 // project's data.pages.
 
-import { esc, href, agoSpan, needsTotal, needsBreakdown, plural, size } from "./html.js";
+import { esc, href, agoSpan, needsTotal, needsBreakdown } from "./html.js";
 import { titleBlock, projectHead, liveField } from "./title.js";
-import { schedule } from "./needs.js";
-import { plansColumn } from "./plans.js";
-import { problemsSection } from "./problems.js";
-import { revisionSchedule } from "./revision.js";
+import { surfaceBody } from "./surface.js";
+import { rulesBody } from "./rulebook.js";
 import { unplannedBody, backlogBody } from "./lists.js";
 import { planSubs, planSheet, planStatus, planDoc, planBacklog } from "./plan.js";
 import { phaseSheet } from "./phase.js";
@@ -19,7 +17,8 @@ const enc = encodeURIComponent;
 // subsFor: the API pages (paths under /api/projects/{id}) a route reads.
 export function subsFor(r) {
   switch (r.kind) {
-    case "": return [""];
+    case "": return ["surface"];
+    case "rules": return ["rules", "surface"]; // the surface for each rule's trend
     case "unplanned": return [r.id === "all" ? "unplanned?done=all" : "unplanned"];
     case "backlog": return [r.kind];
     case "plans": return planSubs({ ...r, id: enc(r.id) });
@@ -49,6 +48,8 @@ export function projectSheet(state, pr, r) {
   const [sub, sub2] = subsFor(r);
   switch (r.kind) {
     case "": return pageProject(state, pr);
+    case "rules":
+      return projectHead(pr, data, "rules", state.live) + `<div class="page">${need(data, sub, rb => rulesBody(rb, data.pages.get(sub2)?.value || null))}</div>`;
     case "unplanned":
       return projectHead(pr, data, "unplanned", state.live) + `<div class="page">${need(data, sub, p => unplannedBody(pid, p, ch, r.id === "all"))}</div>`;
     case "backlog":
@@ -83,7 +84,7 @@ export function pageHome(state) {
   }
   const rows = ok.map(pr => homeRow(pr, state.data.get(pr.id))).join("") + bad.map(errorRow).join("");
   return head + `<div class="page"><section><div class="hd"><h2>Projects</h2><span class="lab">Updates when any repo's mull branch moves</span></div>
-    <div class="tbl-wrap"><table class="t"><thead><tr><th>Project</th><th>Active plans</th><th class="n">Blocking</th><th class="n nl">Needs you</th><th class="n w">Agents</th><th class="n w">Untriaged</th><th class="n w">Revision</th><th class="n w">Last change</th></tr></thead>
+    <div class="tbl-wrap"><table class="t"><thead><tr><th>Project</th><th>Active plans</th><th class="n">Blocking</th><th class="n nl">Needs you</th><th class="n w">Agents</th><th class="n w">Queued</th><th class="n w">Revision</th><th class="n w">Last change</th></tr></thead>
     <tbody>${rows}</tbody></table></div></section></div>`;
 }
 
@@ -100,7 +101,7 @@ function homeRow(pr, data) {
   const changed = rev?.changes ? (data?.changes ? data.changes.clsOf(data.changes.list) : " cl") : "";
   return `<tr class="${changed.trim()}" data-href="${esc(link)}"><td><a class="ttl" href="${esc(link)}" style="font-size:15px">${esc(pid)}</a><span class="meta">${branch}</span></td>` +
     `<td>${plans}</td><td class="n">${s.blocking ? `<span class="stamp">${s.blocking}</span>` : "0"}</td><td class="n nl">${needsCell(s.needs_you, link)}</td>` +
-    `<td class="n w">${s.agents}</td><td class="n w">${s.untriaged}</td><td class="n w">${rev ? `Rev ${rev.number}` : ""}</td>` +
+    `<td class="n w">${s.agents}</td><td class="n w">${s.queue ?? ""}</td><td class="n w">${rev ? `Rev ${rev.number}` : ""}</td>` +
     `<td class="n mut w">${agoSpan(s.last_change)}</td></tr>`;
 }
 
@@ -117,35 +118,16 @@ function errorRow(pr) {
   return `<tr class="waits"><td>${esc(pr.name)}<span class="meta">${esc(pr.path)}</span></td><td colspan="7">${why}</td></tr>`;
 }
 
-// pageProject is a project's Overview: its notes, the problems with its
-// work, the revision schedule, then Needs you beside the Plans column.
+// pageProject is a project's Surface: what changed since the human last
+// looked (surface.js).
 export function pageProject(state, pr) {
   const data = state.data.get(pr.id);
-  const head = projectHead(pr, data, "overview", state.live);
-  const got = data?.pages?.get("");
-  const ov = got?.value;
-  if (!ov) return head + `<div class="page">${got?.error ? failed(got.error) : `<p class="empty">Loading…</p>`}</div>`;
-  const ch = data.changes;
-  const ny = ov.needs_you;
-  const rows = new Map();
-  for (const t of ny.tiers) for (const e of t.entries || t.groups?.flatMap(g => g.entries) || []) rows.set(e.id, e);
-  const entryHref = id => {
-    const e = rows.get(id);
-    if (!e) return "";
-    return e.item ? href.item(pr.id, e.item) : e.phase ? href.phase(pr.id, e.phase) : e.plan ? href.plan(pr.id, e.plan) : "";
-  };
-  const s = ov.summary;
-  const migrate = s.migration_required
+  const head = projectHead(pr, data, "surface", state.live);
+  const s = pr.summary;
+  const migrate = s?.migration_required
     ? `<p class="note">This project's mull data is format ${s.format}. mull reads it, but refuses every write until it's migrated: <code>mull migrate --dry-run --text</code> shows what would change.</p>`
     : "";
-  const wt = ov.prunable_worktrees;
-  const prune = wt
-    ? `<p class="note">${plural(wt.count, "worktree")} (${size(wt.bytes)}) left behind by done work can be removed: ${wt.count === 1 ? "its item is" : "their items are"} accepted, the work is on the target, and nothing is uncommitted. <code>mull worktrees</code> lists them with the commands that remove them.</p>`
-    : "";
-  return head + `<div class="page">${migrate}${prune}${problemsSection(pr.id, ov.problems)}${revisionSchedule(pr.id, data.revision, entryHref)}<div class="cols">
-    <section id="needs"><div class="hd"><h2>Needs you</h2><span class="lab">${ny.open} open${ny.parked ? ` · ${ny.parked} parked` : ""} · ranked by what it unblocks</span></div>${schedule(ny, { pid: pr.id, changes: ch })}</section>
-    <aside>${plansColumn(pr.id, ov, ch)}</aside>
-  </div></div>`;
+  return head + `<div class="page">${migrate}${need(data, "surface", sf => surfaceBody(pr.id, sf, data.changes))}</div>`;
 }
 
 export function pageNotFound(what) {

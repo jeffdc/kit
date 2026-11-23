@@ -1,56 +1,44 @@
-// An item's sheet: its title block, what's wrong with it (its problems),
-// what to do with a captured one, what needs you about it, the review
-// packet when it has a done report (review.js), and its notes. Editing its
-// title and notes, dropping a captured item, accepting or sending back a
-// review, and deciding a decision differently, write (write.js); starting
-// an item, which hands it to an agent, copies the mull command.
+// An item's sheet, read-only: its title block, what's wrong with it (its
+// problems), what's open on it, its done report when it has one
+// (review.js), and its notes. Agents write items; the human acts on the
+// project's surface (accepting, sending back, answering), which this sheet
+// links to.
 
 import { esc, href, tag, itemStage, shortTitle, plural, ago, base, copyId, day } from "./html.js";
 import { titleBlock } from "./title.js";
-import { schedule } from "./needs.js";
 import { markdown } from "./doc.js";
-import { textWrite, editWrite } from "./write.js";
-import { reviewPacket } from "./review.js";
+import { reportSection } from "./review.js";
 import { problemNotes } from "./problems.js";
 
 export function itemSheet(pr, data, page) {
   const pid = pr.id, it = page.item, ch = data.changes, g = page.git;
   const crumbs = [`<a href="${href.home()}">All projects</a>`, `<a href="${esc(href.project(pid))}">${esc(pid)}</a>`];
   if (it.plan) crumbs.push(`<a href="${esc(href.plan(pid, it.plan))}">${esc(shortTitle(page.plan_title || it.plan))}</a>`);
-  else crumbs.push(it.state === "captured" ? `<a href="${esc(href.backlog(pid))}">Backlog</a>` : `<a href="${esc(href.unplanned(pid))}">Unplanned</a>`);
+  else crumbs.push(it.state === "captured" ? `<a href="${esc(href.backlog(pid))}">Queue</a>` : `<a href="${esc(href.unplanned(pid))}">Unplanned</a>`);
   if (it.phase) crumbs.push(`<a href="${esc(href.phase(pid, it.phase))}">${esc(page.phase_title || it.phase)}</a>`);
   const waits = it.blocked_by?.length ? ` <small>waits for ${it.blocked_by.map(id => copyId(id)).join(", ")}</small>` : "";
   const fields = [
     ["Stage", `${tag(itemStage(it))}${waits}${page.archived ? ` <small>in the Archive</small>` : ""}`],
     ["ID", copyId(it.id)],
-    ["Kind", it.kind ? `${esc(it.kind)}${it.category ? ` <small>${esc(it.category)}</small>` : ""}` : `<span class="mut">work item</span>`],
+    ["Kind", it.kind ? `${esc(it.kind)}${it.area ? ` <small><code>${esc(it.area)}</code></small>` : ""}` : `<span class="mut">work item</span>`],
     claimField(it),
     ["From", it.source ? `<small>${esc(it.source)}</small>` : `<span class="mut">${it.state === "captured" ? "not given" : "planning"}</span>`],
     ["Git", gitField(g)],
   ];
-  // Its title and notes are edited in place, captured or committed: the
-  // backlog is where Jeff writes things down before an agent is involved.
-  const editTitle = editWrite({ pid, key: `edit-title:${pid}:${it.id}`, ops: [{ op: "set", id: it.id, field: "title" }], field: "value",
-    value: it.title, required: true, label: "Edit title", save: "Save title", placeholder: "What it is, in a line.", done: `Saved the title of ${it.id}.` });
-  const head = titleBlock({ title: it.title, crumbs, fields, long: true, edit: editTitle, cloud: ch ? ch.cls(c => c.type === "item" && c.id === it.id) : "" });
-  // A captured item: start it (a copy, as starting hands it to an agent) or
-  // drop it (a write). Committing it and triage happen with an agent.
-  const drop = it.state === "captured" ? textWrite({ pid, key: `dropitem:${pid}:${it.id}`, ops: [{ op: "drop", ids: [it.id] }], field: "reason", small: false,
-    label: "Drop", save: "Drop it for good", done: `Dropped ${it.id}.`,
-    placeholder: "Why it isn't needed. It goes into the item's notes; dropping can't be undone." }) : null;
-  const acts = drop
-    ? `<div><div class="acts-row"><button class="btn p" data-cmd="mull start ${esc(it.id)}">Start it now</button>${drop.button}<span class="sub">Starting it skips planning; it keeps this ID through review and done. Committing it to a plan, and triage, happen with an agent.</span></div>${drop.form}</div>`
-    : "";
-  const ny = page.needs_you.tiers.length
-    ? `<section id="needs"><div class="hd"><h2>Needs you</h2><span class="lab">On this item</span></div>${schedule(page.needs_you, { pid, changes: ch, noPlan: true, noPhase: true })}</section>`
-    : "";
+  const head = titleBlock({ title: it.title, crumbs, fields, long: true, cloud: ch ? ch.cls(c => c.type === "item" && c.id === it.id) : "" });
   const docs = it.docs?.length ? `<p class="sub">Docs: ${it.docs.map(d => `<code>${esc(d)}</code>`).join(", ")}</p>` : "";
-  const editNotes = editWrite({ pid, key: `edit-notes:${pid}:${it.id}`, ops: [{ op: "set", id: it.id, field: "notes" }], field: "value", long: true,
-    value: it.notes, label: it.notes ? "Edit notes" : "Write notes", save: "Save notes", done: `Saved the notes of ${it.id}.`,
-    placeholder: "Markdown. What it is and why, and anything the agent who takes it on should know." });
-  const notes = `<section><div class="hd ed"><h2>Notes</h2><span class="lab">The brief an agent works from</span>${editNotes.button}</div>
-    ${editNotes.form || `<div class="prose notes">${it.notes ? markdown(it.notes, pid) : `<p class="ph-empty">${it.state === "captured" ? "One line is enough to capture. Write more here whenever you like, or leave it to the agent who starts it." : "No notes."}</p>`}</div>`}${docs}</section>`;
-  return head + `<div class="page">${problemNotes(page.problems)}${acts}${ny}${page.review ? reviewPacket(pid, page, { it }) : ""}${notes}</div>`;
+  const notes = `<section><div class="hd"><h2>Notes</h2><span class="lab">The brief an agent works from</span></div>
+    <div class="prose notes">${it.notes ? markdown(it.notes, pid) : `<p class="ph-empty">No notes.</p>`}</div>${docs}</section>`;
+  return head + `<div class="page">${problemNotes(page.problems)}${openOn(pid, page.needs_you)}${page.review ? reportSection(pid, page) : ""}${notes}</div>`;
+}
+
+// openOn: what's open on the item (a question, or its work waiting), as a
+// note pointing at the surface, where it's settled.
+function openOn(pid, ny) {
+  const entries = (ny?.tiers || []).filter(t => t.key !== "decide").flatMap(t => t.entries || []);
+  if (!entries.length) return "";
+  const list = entries.map(e => `${copyId(e.id)} ${esc(e.kind === "review" ? "Its work waits for you" : e.text)}`).join("; ");
+  return `<p class="note"><span class="lab">Needs you · ${plural(entries.length, "call")}</span> ${list}. <a href="${esc(href.project(pid))}" data-needs>Settle it on the surface</a>.</p>`;
 }
 
 // claimField: who holds the item while it's active; once the work is in

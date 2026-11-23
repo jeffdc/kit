@@ -9,7 +9,6 @@ import { esc, ago, href } from "./html.js";
 import { Changes } from "./revision.js";
 import { renderTree, expandFor, toggle, reveal } from "./tree.js";
 import { pageHome, projectSheet, subsFor, pageNotFound, pageUnreadable } from "./pages.js";
-import { filterOf, clearFilter } from "./lists.js";
 import { pageModel } from "./model.js";
 import { writeState, setWrite, disarm, toggleMore, canSave, discard } from "./write.js";
 import { openSearch, findScope } from "./search.js";
@@ -23,7 +22,7 @@ const state = {
   focusNeeds: "",    // a stamp was clicked: the sheet (hash) to open at its Needs you
   focusReview: "",   // a Review link was clicked: the item sheet (hash) to open at its review packet
 };
-// What the human opened or closed (tiers, groups, the revision schedule),
+// What the human opened or closed (tiers, groups, the flow),
 // by data-open key, so live re-renders keep it.
 const opened = new Map();
 
@@ -42,7 +41,8 @@ function route() {
   const [pid = null, kind = "", id = "", sub = ""] = parts;
   return { pid, kind, id, sub };
 }
-const KINDS = new Set(["", "plans", "phases", "items", "unplanned", "backlog"]);
+const KINDS = new Set(["", "plans", "phases", "items", "unplanned", "backlog", "rules"]);
+const LISTS = new Set(["unplanned", "backlog", "rules"]); // a project's tabs, which take no ID
 
 // ---- loading
 
@@ -127,8 +127,8 @@ function page(r) {
   const pr = state.projects.find(p => p.id === r.pid);
   if (!pr) return pageNotFound(`No project “${r.pid}” is registered with mull serve.`);
   if (pr.error) return pageUnreadable(pr);
-  if (!KINDS.has(r.kind) || (r.kind !== "" && r.kind !== "unplanned" && r.kind !== "backlog" && !r.id) ||
-    (r.kind === "unplanned" && r.id && r.id !== "all")) return pageNotFound("That isn't a sheet in this set.");
+  if (!KINDS.has(r.kind) || (r.kind !== "" && !LISTS.has(r.kind) && !r.id) ||
+    (r.kind === "unplanned" && r.id && r.id !== "all") || ((r.kind === "backlog" || r.kind === "rules") && r.id)) return pageNotFound("That isn't a sheet in this set.");
   return projectSheet(state, pr, r);
 }
 
@@ -268,8 +268,9 @@ async function copyID(btn) {
 
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
-// markSeen marks the revision this page showed as seen. Its clouds fade
-// first, the tree's with them; anything newer stays clouded.
+// markSeen marks the revision this page showed as seen, which moves the
+// last look to now. Its clouds fade first, the tree's with them; anything
+// newer stays clouded. The surface is read again, from the new look.
 async function markSeen(pid, btn) {
   const d = state.data.get(pid);
   const commit = d?.revision?.tip.commit;
@@ -280,7 +281,8 @@ async function markSeen(pid, btn) {
     const [rev] = await Promise.all([api.seen(pid, commit), wait(360)]);
     useRevision(pid, rev);
     render();
-    toast(`Revision ${rev.since.number} marked seen. New changes will be clouded.`);
+    toast(`Marked seen at revision ${rev.since.number}. The surface starts again from now, and new changes will be clouded.`);
+    loadProject(pid);
   } catch (err) {
     clouds.forEach(el => el.classList.remove("fading"));
     btn.disabled = false;
@@ -392,7 +394,7 @@ function submitCapture(form) {
     keepDraft(pid); // and the draft is gone from the browser too
     const id = rep.results?.[0]?.id;
     const bl = ops[0].plan ? `${href.plan(pid, ops[0].plan)}/backlog` : href.backlog(pid);
-    return `Captured ${kind}${id ? ` <a href="${esc(href.item(pid, id))}"><code>${esc(id)}</code></a>` : ""}${ops[0].plan ? " for this plan" : ""}. It's at the top of the <a href="${esc(bl)}">backlog</a>.`;
+    return `Captured ${kind}${id ? ` <a href="${esc(href.item(pid, id))}"><code>${esc(id)}</code></a>` : ""}${ops[0].plan ? " for this plan" : ""}. It's at the top of the <a href="${esc(bl)}">queue</a>.`;
   }, { ...s, open: true, error: "" });
 }
 
@@ -432,15 +434,8 @@ document.addEventListener("toggle", ev => {
   if (ev.target.dataset?.rows) showRows(ev.target);
 }, true);
 
-// Backlog filters: the kind buttons, the checkbox and the selects.
-function setFilter(el) {
-  const f = filterOf(el.dataset.filter), k = el.dataset.k;
-  f[k] = el.type === "checkbox" ? el.checked : el.dataset.v ?? el.value;
-  render();
-}
 document.addEventListener("change", ev => {
-  if (ev.target.matches("select[data-filter], input[data-filter]")) setFilter(ev.target);
-  // Capture on a plan's sheet: cleared, it goes to the backlog untagged.
+  // Capture on a plan's sheet: cleared, it goes to the queue untagged.
   const cp = ev.target.closest("input[data-cap-plan]");
   if (cp) { setDraft(cp.form.dataset.capture, "untag", cp.checked ? "" : cp.dataset.capPlan); render(); }
 });
@@ -511,10 +506,6 @@ document.addEventListener("click", ev => {
     if (state.focusReview === location.hash) { ev.preventDefault(); showReview(); }
     return; // otherwise the hash change renders the item, which shows its packet
   }
-  const fb = t.closest("button[data-filter]");
-  if (fb) { setFilter(fb); return; }
-  const clear = t.closest("[data-clear]");
-  if (clear) { clearFilter(clear.dataset.clear); render(); return; }
   const seen = t.closest("[data-seen]");
   if (seen) { markSeen(seen.dataset.seen, seen); return; }
   const cmd = t.closest("[data-cmd]");

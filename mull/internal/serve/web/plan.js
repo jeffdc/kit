@@ -1,11 +1,11 @@
 // A plan's sheet: its title block and three tabs. Status is where it stands
 // (the phases in schedule order, what needs you, what's next), Plan doc is
 // the shared doc with its status margin, then the plan's rules for its
-// workers, and Backlog is what's captured for it.
+// workers, and Queue is what's queued for it.
 
 import { esc, href, tag, cells, plural, itemStage, clock, CHEVRON, copyId } from "./html.js";
 import { rulesSection } from "./rules.js";
-import { titleBlock, targetField } from "./title.js";
+import { titleBlock, targetField, seenButton } from "./title.js";
 import { within } from "./revision.js";
 import { schedule } from "./needs.js";
 import { renderDoc } from "./doc.js";
@@ -32,8 +32,8 @@ export function planSheet(pr, r, data, page, body) {
       : p.state === "done" ? `${tag("done", "closed")} <small>in the Archive</small>` : tag(p.state)],
     ["Target", targetField(st.target, pr.summary?.release)],
     ["Phases", st.phases ? `${st.built} of ${st.phases} done` : `<span class="mut">none yet</span>`],
-    // status.now also holds the phases awaiting their integration review,
-    // which can't start: they're built.
+    // status.now can also hold a phase left awaiting a review from before
+    // integration reviews were retired: it's built, so it can't start.
     ["Can start now", (n => n ? plural(n, "phase") : `<span class="mut">none</span>`)(st.now.filter(ph => ph.state === "now").length)],
     ["Go live", st.go_live ? `<a href="${esc(href.phase(pid, st.go_live.id))}">${esc(st.go_live.title)}</a>` : `<span class="mut">not set</span>`],
     ["Open questions", `${st.questions}${stamp(st.blocking)}`],
@@ -50,18 +50,17 @@ export function planSheet(pr, r, data, page, body) {
     const on = tab === key;
     return `<a class="${on ? "on" : ""}${cloud}" href="${esc(link)}"${on ? ' aria-current="page"' : ""}>${label}${count !== undefined ? ` <em>${esc(count)}</em>` : ""}</a>`;
   };
-  const changes = data.revision?.changes.length || 0;
   const closed = p.state === "done"; // in the Archive: capture from the project instead
   const nav = `<nav class="tabs" aria-label="Plan sections">` +
     t("status", "Status", base, st.questions ? plural(st.questions, "question") : undefined) +
     t("doc", "Plan doc", `${base}/doc`, undefined, tabCloud) +
-    t("backlog", "Backlog", `${base}/backlog`, `${page.backlog}${page.untriaged ? ` · ${page.untriaged} untriaged` : ""}`) +
+    t("backlog", "Queue", `${base}/backlog`, page.backlog) +
     `<div class="acts">${p.state === "shaping" ? writeButton({ pid, key: `agree:${pid}:${slug}`, ops: [{ op: "plan agree", slug }], small: false,
       label: "Agree this plan", ask: "Agree it?", done: `Agreed ${p.title}: it's active now, so it can have phases and work.` }) : ""}` +
     (p.state === "active" ? writeButton({ pid, key: `close:${pid}:${slug}`, ops: [{ op: "plan close", slug }], small: false,
       label: "Close and archive", ask: st.built < st.phases ? `Close with ${plural(st.phases - st.built, "phase")} not done?` : "Close it?",
       done: `Closed ${p.title}: it's in the Archive now.` }) : "") +
-    `<button class="btn" data-seen="${esc(pid)}"${changes ? "" : " disabled"}>Mark revision seen</button>${closed ? "" : captureButton(pid)}</div></nav>`;
+    `${seenButton(pid)}${closed ? "" : captureButton(pid)}</div></nav>`;
   return head + nav + (closed ? "" : captureBar(pid, { slug, title: p.title })) + `<div class="page">${body(tab)}</div>`;
 }
 
@@ -121,7 +120,7 @@ function nextBlock(pid, page, ch) {
       return `<div class="ag nx${ch ? ch.cls(within.item(i.id)) : ""}" data-href="${esc(link)}">${copyId(i.id, `<a href="${esc(link)}"><code>${esc(i.id)}</code></a>`)}<a href="${esc(link)}" class="clip">${esc(i.title)}</a>${tag(itemStage(i))}</div>`;
     }).join("");
     return `<div class="plan"><div class="ph"><h3><a href="${esc(href.phase(pid, ph.id))}">${esc(ph.title)}</a>${stamp(ph.blocking)}</h3><span class="mono mut">${total ? `${p.done}/${total}` : ""}</span></div>
-      <div class="nx-list">${rows || `<div class="sub">${ph.state === "awaiting-review" ? "Every item is done. It's complete once its integration review is accepted." : "No open items."}</div>`}${more ? `<div class="sub">and ${more} more ready</div>` : ""}</div></div>`;
+      <div class="nx-list">${rows || `<div class="sub">${ph.state === "awaiting-review" ? "Every item is done." : "No open items."}</div>`}${more ? `<div class="sub">and ${more} more ready</div>` : ""}</div></div>`;
   }).join("");
 }
 
@@ -139,4 +138,4 @@ export function planDoc(pid, page, ch) {
       refs: page.doc_refs, cloud: ch ? ch.cls(c => c.type === "plan_rules" && c.id === p.slug) : "" });
 }
 
-export const planBacklog = (pid, slug, bl, ch) => backlogBody(pid, bl, ch, { key: `plan:${pid}:${slug}`, inPlan: slug });
+export const planBacklog = (pid, slug, bl, ch) => backlogBody(pid, bl, ch, { inPlan: slug });

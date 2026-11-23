@@ -1,81 +1,35 @@
-// The Plans column of a project's overview: for each plan not done, what's
-// built, what can start now, what's next, the go-live phase, the agents
-// at work and the work in flight that overlaps, as a labelled definition
-// list.
+// Plans on a project's surface: each plan not done, its phases as a hill
+// (GET …/surface's plans). Uphill is still being worked out (nothing
+// started yet), downhill is executing; those are what Jeff reads, so they
+// get rows with their progress. Waiting (blocked by another phase) and done
+// are shown quietly, as a line each.
 
-import { esc, href, tag, cells, plural, ago, copyId, stageLabel } from "./html.js";
+import { esc, href, cells, plural } from "./html.js";
 import { within } from "./revision.js";
-import { targetField } from "./title.js";
 
-const stamp = n => n ? `<span class="stamp">${n} blocking</span>` : "";
-
-export function plansColumn(pid, overview, changes) {
-  const plans = overview.plans || [];
-  const loose = (overview.agents || []).filter(a => !a.plan);
-  const looseOverlaps = (overview.overlaps || []).filter(o => o.items.some(i => !i.plan));
-  const release = overview.summary?.release;
-  const blocks = plans.map(ps => plan(pid, ps, changes, release));
-  if (loose.length || looseOverlaps.length) {
-    const rows = [];
-    if (loose.length) rows.push(["Agents", `<div>${loose.map(a => agent(pid, a, changes)).join("")}</div>`]);
-    if (looseOverlaps.length) rows.push(["Overlap", `<div>${looseOverlaps.map(o => overlap(pid, o)).join("")}</div>`]);
-    blocks.push(`<div class="plan"><div class="ph"><h3><a href="${esc(href.unplanned(pid))}">Unplanned work</a></h3></div>
-      <div class="dl">${rows.map(([l, v]) => `<span class="lab">${esc(l)}</span>${v}`).join("")}</div></div>`);
-  }
-  const body = blocks.length ? blocks.join("") : `<p class="empty">No plans in progress.</p>`;
-  return `<div class="hd"><h2>Plans</h2><span class="lab">${plural(plans.length, "plan")} in progress</span></div>${body}`;
+export function plansSection(pid, plans, changes) {
+  const body = plans.length
+    ? `<div class="hills">${plans.map(p => plan(pid, p, changes)).join("")}</div>`
+    : `<p class="empty">No plans in progress.</p>`;
+  return `<section id="plans"><div class="hd"><h2>Plans</h2><span class="lab">${plural(plans.length, "plan")} in progress · uphill is still being worked out, downhill is executing</span></div>${body}</section>`;
 }
 
-function plan(pid, ps, ch, release) {
-  const rows = [];
-  if (ps.target?.from === "plan") rows.push(["Target", `<div>${targetField(ps.target, release)}</div>`]);
+function plan(pid, p, ch) {
   const cl = pred => ch ? ch.cls(pred) : "";
-  if (ps.state === "shaping") {
-    rows.push(["State", `<div>Plan doc in progress<div class="sub">${plural(ps.questions, "open question")} · ${ps.phases ? plural(ps.phases, "phase") : "no phases yet"}</div></div>`]);
-  } else {
-    if (ps.built) rows.push(["Built", `<div class="sub">${ps.built} of ${plural(ps.phases, "phase")} done</div>`]);
-    if (ps.now.length) {
-      rows.push([`Now · ${ps.now.length}`, `<div>${ps.now.map(ph => {
-        const p = ph.progress, total = p.total - p.dropped, link = href.phase(pid, ph.id);
-        return `<div class="pr${cl(within.phase(ph.id))}" data-href="${esc(link)}"><a href="${esc(link)}"><span>${esc(ph.title)}</span>${stamp(ph.blocking)}</a>${cells(p)}<em${ph.state === "awaiting-review" ? ` title="awaiting integration review"` : ""}>${ph.state === "awaiting-review" ? "review" : total ? `${p.done}/${total}` : ""}</em></div>`;
-      }).join("")}</div>`]);
-    }
-    if (ps.next.length) {
-      rows.push(["Next", `<div>${ps.next.map(ph => `<div><a class="${cl(within.phase(ph.id)).trim()}" href="${esc(href.phase(pid, ph.id))}">${esc(ph.title)}</a>` +
-        `<div class="sub">waits for ${ph.waits_for.map(w => esc(w.title)).join(", ")}</div></div>`).join("")}</div>`]);
-    }
-    const gl = ps.go_live;
-    if (gl) {
-      const w = gl.waits_for.length;
-      const state = gl.state === "done" ? "done" : w ? `waits for ${plural(w, "phase")}` : "can start";
-      rows.push(["Go live", `<div><a class="${cl(within.phase(gl.id)).trim()}" href="${esc(href.phase(pid, gl.id))}">${esc(gl.title)}</a><div class="sub">${state}</div></div>`]);
-    }
-    if (!ps.phases) rows.push(["Phases", `<div class="sub">none yet</div>`]);
-    else if (!ps.now.length && !ps.next.length && !gl && ps.built < ps.phases) rows.push(["Now", `<div class="sub">nothing can start</div>`]);
-  }
-  if (ps.agents.length) rows.push(["Agents", `<div>${ps.agents.map(a => agent(pid, a, ch)).join("")}</div>`]);
-  if (ps.overlaps?.length) rows.push(["Overlap", `<div>${ps.overlaps.map(o => overlap(pid, o)).join("")}</div>`]);
-  const state = ps.state === "active" ? tag("now", "active") : tag(ps.state);
-  return `<div class="plan"><div class="ph"><h3><a class="${cl(within.planRecord(ps.slug)).trim()}" href="${esc(href.plan(pid, ps.slug))}">${esc(ps.title)}</a></h3>${state}</div>
+  const by = hill => p.phases.filter(ph => ph.hill === hill);
+  const row = ph => {
+    const g = ph.progress, total = g.total - g.dropped, link = href.phase(pid, ph.id);
+    return `<div class="pr${cl(within.phase(ph.id))}" data-href="${esc(link)}"><a href="${esc(link)}"><span>${esc(ph.title)}</span></a>${cells(g)}<em>${total ? `${g.done}/${total}` : ""}</em></div>`;
+  };
+  const quiet = list => `<div class="sub">${list.map(ph => `<a href="${esc(href.phase(pid, ph.id))}">${esc(ph.title)}</a>`).join(", ")}</div>`;
+  const rows = [];
+  const up = by("uphill"), down = by("downhill"), waiting = by("waiting"), done = by("done");
+  if (up.length) rows.push(["Uphill", `<div>${up.map(row).join("")}</div>`]);
+  if (down.length) rows.push(["Downhill", `<div>${down.map(row).join("")}</div>`]);
+  if (waiting.length) rows.push(["Waiting", quiet(waiting)]);
+  if (done.length) rows.push(["Done", `<div class="sub" title="${esc(done.map(ph => ph.title).join("\n"))}">${plural(done.length, "phase")}</div>`]);
+  if (!p.phases.length) rows.push(["Phases", `<div class="sub">none yet</div>`]);
+  const ship = p.ahead_of_release ? ` · ${plural(p.ahead_of_release, "commit")} to ship` : "";
+  return `<div class="plan"><div class="ph"><h3><a class="${cl(within.planRecord(p.slug)).trim()}" href="${esc(href.plan(pid, p.slug))}">${esc(p.title)}</a></h3><span class="sub">${p.target ? `<code>${esc(p.target)}</code>` : ""}${ship}</span></div>
     <div class="dl">${rows.map(([l, v]) => `<span class="lab">${esc(l)}</span>${v}`).join("")}</div></div>`;
-}
-
-function agent(pid, a, ch) {
-  const link = href.item(pid, a.id);
-  const since = a.claim?.at ? ago(a.claim.at).replace(/ ago$/, "") : "";
-  const sub = [since, plural(a.commits, "commit")].filter(Boolean).join(" · ");
-  return `<div class="ag${ch ? ch.cls(within.item(a.id)) : ""}" data-href="${esc(link)}">${copyId(a.id, `<a href="${esc(link)}"><code>${esc(a.id)}</code></a>`)}` +
-    `<span title="${esc(a.phase_title ? `${a.phase_title}: ${a.title}` : a.title)}">${esc(a.title)}</span><span class="sub">${esc(sub)}</span></div>`;
-}
-
-// overlap: two items in flight whose branches changed the same files, and
-// the first few of those files (all of them on hover). Derived from git,
-// not a record, so it's never clouded.
-const overlapShown = 3;
-function overlap(pid, o) {
-  const ids = o.items.map(i => copyId(i.id, `<a href="${esc(href.item(pid, i.id))}" title="${esc(`${i.title} (${stageLabel(i.state)})`)}"><code>${esc(i.id)}</code></a>`));
-  const shown = o.files.slice(0, overlapShown).map(f => `<code>${esc(f)}</code>`).join(", ");
-  const more = o.files.length > overlapShown ? ` and ${o.files.length - overlapShown} more` : "";
-  return `<div class="ov"><div>${ids.join(` <span class="mut">and</span> `)} <span class="sub">both change ${plural(o.files.length, "file")}</span></div>` +
-    `<div class="sub" title="${esc(o.files.join("\n"))}">${shown}${more}</div></div>`;
 }

@@ -1,6 +1,6 @@
 // Problems: what's wrong with work, as mull view lists it under PROBLEMS,
 // found from the record and git (overlaps aside: they're pairs, shown in
-// the Plans column and a plan's title block). A problem needs a look, not an
+// a plan's title block). A problem needs a look, not an
 // answer, so it isn't in Needs you, and it takes no hue: ink and grey only.
 // It's derived each time, never a record, so it's never clouded.
 
@@ -16,11 +16,16 @@ const KIND = {
 };
 const kindLabel = k => KIND[k]?.[0] || k;
 
-// problemsSection: a schedule of problems on the project overview (every
-// plan's and unplanned work's) or a plan's Status tab (its own, so inPlan
-// leaves the plan out of each row). Nothing when there are none.
+// problemsSection: a schedule of problems on a plan's Status tab (its own,
+// so inPlan leaves the plan out of each row). Nothing when there are none.
 export function problemsSection(pid, rows, { inPlan = false } = {}) {
   if (!rows?.length) return "";
+  return `<section id="problems"><div class="hd"><h2>Problems</h2><span class="lab">Found in the record and git · ${rows.length}</span></div>${problemsTable(pid, rows, { inPlan })}</section>`;
+}
+
+// problemsTable: the problems' table alone, as the project's surface shows
+// them under Trending worse (every plan's and unplanned work's).
+export function problemsTable(pid, rows, { inPlan = false } = {}) {
   const body = rows.map(p => {
     const link = href.item(pid, p.item);
     const where = inPlan ? (p.phase_title ? esc(p.phase_title) : "")
@@ -31,8 +36,7 @@ export function problemsSection(pid, rows, { inPlan = false } = {}) {
       `<td class="w">${tag(itemStage(p))}</td>` +
       `<td><span class="lab">${esc(kindLabel(p.kind))}</span><span class="meta pb">${esc(p.text)}</span></td></tr>`;
   }).join("");
-  return `<section id="problems"><div class="hd"><h2>Problems</h2><span class="lab">Found in the record and git · ${rows.length}</span></div>
-    <div class="tbl-wrap"><table class="t probs"><thead><tr><th style="width:70px">ID</th><th>Item</th><th class="w">Stage</th><th>What's wrong</th></tr></thead><tbody>${body}</tbody></table></div></section>`;
+  return `<div class="tbl-wrap"><table class="t probs"><thead><tr><th style="width:70px">ID</th><th>Item</th><th class="w">Stage</th><th>What's wrong</th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 // problemNotes: an item's own problems, each an ink note at the top of its
