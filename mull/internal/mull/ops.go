@@ -151,6 +151,7 @@ type PlanNewIn struct {
 	Slug      string `json:"slug"`
 	Title     string `json:"title"`
 	Summary   string `json:"summary"`
+	Target    string `json:"target"`
 	OnRequest bool   `json:"on-request"`
 }
 
@@ -159,6 +160,17 @@ func (in *PlanNewIn) run(m *Mull, s *state) (any, string, error) {
 	p, err := m.planNew(s, in.Slug, in.Title, in.Summary, in.OnRequest)
 	if err != nil {
 		return nil, "", err
+	}
+	if t := in.Target; t != "" && t != "none" {
+		if t == "own" {
+			t = "plan/" + p.Slug
+		}
+		if p.Target, err = m.checkTarget(t); err != nil {
+			return nil, "", err
+		}
+		if err := s.putPlan(p); err != nil {
+			return nil, "", err
+		}
 	}
 	return p, p.Slug, nil
 }

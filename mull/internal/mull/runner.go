@@ -382,3 +382,59 @@ func (m *Mull) landItem(target, release, commit string) (bool, string) {
 	}
 	return true, ""
 }
+
+// HookResult is what mull hooks did.
+type HookResult struct {
+	Path      string `json:"path"`
+	Installed bool   `json:"installed"`
+	Note      string `json:"note,omitempty"`
+}
+
+const hookMark = "# mull: release guard"
+
+// InstallHook installs a pre-push hook that refuses any push to the release
+// branch, so no agent ever pushes there; the human ships with
+// git push --no-verify, or through their forge. A pre-push hook mull didn't
+// write is left alone.
+func (m *Mull) InstallHook() (HookResult, error) {
+	var release string
+	if err := m.view(func(s *state) error { release = s.release(); return nil }); err != nil {
+		return HookResult{}, err
+	}
+	dir, _ := m.repo.Output(nil, nil, "config", "core.hooksPath")
+	if dir == "" {
+		common, err := m.repo.Output(nil, nil, "rev-parse", "--path-format=absolute", "--git-common-dir")
+		if err != nil {
+			return HookResult{}, err
+		}
+		dir = filepath.Join(common, "hooks")
+	} else if !filepath.IsAbs(dir) {
+		dir = filepath.Join(m.repo.MainWorktree(), dir)
+	}
+	path := filepath.Join(dir, "pre-push")
+	out := HookResult{Path: path}
+	if b, err := os.ReadFile(path); err == nil && !bytes.Contains(b, []byte(hookMark)) {
+		out.Note = fmt.Sprintf("a pre-push hook mull didn't write is there, so mull leaves it: make sure it refuses pushes to %s", release)
+		return out, nil
+	}
+	script := fmt.Sprintf(`#!/bin/sh
+%s
+# Installed by mull hooks: refuses any push to %[2]s, the release branch.
+# Ship with git push --no-verify, or through your forge.
+while read local_ref local_sha remote_ref remote_sha; do
+  if [ "$remote_ref" = "refs/heads/%[2]s" ]; then
+    echo "mull: refusing to push to %[2]s, the release branch" >&2
+    exit 1
+  fi
+done
+exit 0
+`, hookMark, release)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return out, err
+	}
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		return out, err
+	}
+	out.Installed = true
+	return out, nil
+}

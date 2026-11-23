@@ -2,6 +2,7 @@ package mull
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -184,5 +185,31 @@ func TestStandingBranchForUnplannedWork(t *testing.T) {
 	res := must[StartWorkResult](t)(m.StartWork(it.ID, false))
 	if res.Target != model.DefaultStanding {
 		t.Fatalf("unplanned work lands on %s, want next", res.Target)
+	}
+}
+
+func TestHookRefusesPushToRelease(t *testing.T) {
+	m, dir := runnerSetup(t)
+	res := must[HookResult](t)(m.InstallHook())
+	if !res.Installed {
+		t.Fatalf("hook = %+v", res)
+	}
+	remote := t.TempDir()
+	gittest.Git(t, remote, "init", "-q", "--bare")
+	gittest.Git(t, dir, "remote", "add", "up", remote)
+	cmd := exec.Command("git", "push", "-q", "up", "main")
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err == nil || !strings.Contains(string(out), "refusing to push to main") {
+		t.Fatalf("push to main went through: %s", out)
+	}
+	gittest.Git(t, dir, "branch", "-q", "plan/web", "main")
+	gittest.Git(t, dir, "push", "-q", "up", "plan/web")
+
+	// Another hook is left alone.
+	if err := os.WriteFile(res.Path, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if again := must[HookResult](t)(m.InstallHook()); again.Installed || again.Note == "" {
+		t.Fatalf("hook = %+v", again)
 	}
 }

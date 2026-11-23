@@ -284,6 +284,7 @@ func planCmd(a *app) *cobra.Command {
 		},
 	}
 	newC.Flags().StringVar(&in.Summary, "summary", "", "high-level summary (- reads stdin)")
+	newC.Flags().StringVar(&in.Target, "target", "own", "the branch its work lands on: own (plan/<slug>, made from the release branch when work starts), none (config's integration branch), or a branch name")
 	newC.Flags().BoolVar(&in.OnRequest, "on-request", false, "an agent creating it on the human's explicit instruction")
 	list := &cobra.Command{
 		Use: "list", Short: "List plans with progress", Args: noArgs,
@@ -970,6 +971,17 @@ func viewCmd(a *app) *cobra.Command {
 	c.Flags().StringVar(&plan, "plan", "", "only this plan (done plans too)")
 	c.Flags().BoolVar(&asText, "text", false, "render for a human instead of JSON")
 	return c
+}
+
+func hooksCmd(a *app) *cobra.Command {
+	return &cobra.Command{
+		Use:   "hooks",
+		Short: "Install a pre-push hook that refuses pushes to the release branch (a pre-push hook mull didn't write is left alone)",
+		Args:  noArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.read(func(m *mull.Mull) (any, error) { return m.InstallHook() })
+		},
+	}
 }
 
 func worktreesCmd(a *app) *cobra.Command {
