@@ -27,8 +27,9 @@ import (
 type Mull struct {
 	repo  *git.Repo
 	store *store.Store
-	human string // set when the human acts themselves (mull serve)
-	batch *state // set inside a batch: writes go to its one transaction
+	human string    // set when the human acts themselves (mull serve)
+	batch *state    // set inside a batch: writes go to its one transaction
+	after *[]func() // inside a batch: git work to do once it commits
 	// Now is the clock; tests replace it.
 	Now      func() time.Time
 	pushHook func(args []string) // tests only: the exact git push arguments

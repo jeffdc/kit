@@ -48,8 +48,8 @@ DEV_PORT ?= 6899
 
 dev: build dev-demo dev-stop
 	@cd $(DEV)/demo && { XDG_CONFIG_HOME=$(DEV)/cfg $(CURDIR)/mull serve --port $(DEV_PORT) >$(DEV)/serve.log 2>&1 </dev/null & echo $$! >$(DEV)/serve.pid; }
-	@for i in $$(seq 50); do curl -sf localhost:$(DEV_PORT)/api/build >/dev/null && break; sleep 0.1; done
-	@curl -sf localhost:$(DEV_PORT)/api/build >/dev/null || { echo "mull serve didn't start; see $(DEV)/serve.log"; exit 1; }
+	@for i in $$(seq 50); do curl -sf localhost:$(DEV_PORT)/api/projects >/dev/null && break; sleep 0.1; done
+	@curl -sf localhost:$(DEV_PORT)/api/projects >/dev/null || { echo "mull serve didn't start; see $(DEV)/serve.log"; exit 1; }
 	@echo "mull serve (dev) on http://localhost:$(DEV_PORT)/#/demo, pid $$(cat $(DEV)/serve.pid), log $(DEV)/serve.log"
 
 dev-stop:

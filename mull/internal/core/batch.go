@@ -71,6 +71,7 @@ func (m *Mull) Batch(r io.Reader, dryRun bool) ([]BatchResult, error) {
 		return nil, &Error{Code: CodeBatchInvalid, Msg: fmt.Sprintf("%d lines failed; nothing was written", len(errs)), Lines: errs}
 	}
 	var out []BatchResult
+	var after []func()
 	errDry := errors.New("dry run")
 	_, err := m.store.Write("mull: batch", func(tx *store.Tx) error {
 		s, err := load(tx)
@@ -78,7 +79,8 @@ func (m *Mull) Batch(r io.Reader, dryRun bool) ([]BatchResult, error) {
 			return err
 		}
 		b := *m
-		b.batch = s
+		b.batch, after = s, nil
+		b.after = &after
 		refs := map[string]string{}
 		out = nil
 		for k, l := range lines {
@@ -105,7 +107,12 @@ func (m *Mull) Batch(r io.Reader, dryRun bool) ([]BatchResult, error) {
 		return nil
 	})
 	if errors.Is(err, errDry) {
-		err = nil
+		return out, nil
+	}
+	if err == nil {
+		for _, f := range after {
+			f()
+		}
 	}
 	return out, err
 }

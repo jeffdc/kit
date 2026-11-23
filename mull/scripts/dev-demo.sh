@@ -73,7 +73,7 @@ m config risk --add "db/**" --max-lines 30 --no-sample --on-request
 
 m plan new web "Web app" --summary "Search, mail and the account pages." --on-request
 m plan agree web --on-request
-m plan doc web - <<'EOF'
+m plan set web doc - <<'EOF'
 The web app's search, mail and account pages. Search comes first because mail links into it.
 EOF
 search=$(id phase add "Search" --plan web --summary "Find anything from the top bar.")
@@ -81,7 +81,7 @@ mailp=$(id phase add "Mail" --plan web --summary "Send and read mail.")
 account=$(id phase add "Account" --plan web --summary "Settings and invites.")
 billing=$(id phase add "Billing" --plan web --summary "Cards and invoices.")
 launch=$(id phase add "Launch" --plan web --summary "Turn the pages on for everyone.")
-m need "$launch" "$mailp"
+m phase set "$launch" needs "$mailp"
 # Billing has work cut but nothing started: it's still uphill.
 m add "Card payments" --phase "$billing"
 
@@ -92,6 +92,7 @@ work "$results" app/search.html "<main>results</main>" "Search results page" --s
 # The last look is here: what follows is new since.
 sleep 1
 tip=$(git rev-parse mull)
+mkdir -p "$dev/cfg/mull"
 printf '{"repos": {"%s": {"commit": "%s", "at": "%s"}}}\n' "$demo" "$tip" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$dev/cfg/mull/seen.json"
 sleep 1
 

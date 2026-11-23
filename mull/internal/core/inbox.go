@@ -222,14 +222,21 @@ func (m *Mull) Accept(refs []string, onRequest bool) (AcceptResult, error) {
 	if err != nil {
 		return out, err
 	}
-	for _, l := range lands {
-		if ok, why := m.landItem(l.target, l.release, l.commit); !ok {
-			out.Warnings = append(out.Warnings, fmt.Sprintf("%s is accepted but not on %s yet: %s", l.id, l.target, why))
-		}
-		if err := m.addEdges(l.edges); err != nil {
-			out.Warnings = append(out.Warnings, fmt.Sprintf("recording %s's new connections: %v", l.id, err))
+	land := func() {
+		for _, l := range lands {
+			if ok, why := m.landItem(l.target, l.release, l.commit); !ok {
+				out.Warnings = append(out.Warnings, fmt.Sprintf("%s is accepted but not on %s yet: %s", l.id, l.target, why))
+			}
+			if err := m.addEdges(l.edges); err != nil {
+				out.Warnings = append(out.Warnings, fmt.Sprintf("recording %s's new connections: %v", l.id, err))
+			}
 		}
 	}
+	if m.after != nil { // in a batch: land once it commits, never on a dry run
+		*m.after = append(*m.after, land)
+		return out, nil
+	}
+	land()
 	return out, nil
 }
 
