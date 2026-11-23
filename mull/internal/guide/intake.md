@@ -2,7 +2,7 @@
 
 Done once per repository, with the human, who approves the result in one sitting. Draft everything first; write nothing to mull or the repo until they've seen it.
 
-1. **Look around (read only).** `mull view`, `mull context`, `mull decisions`, each plan's doc, and the project's CLAUDE.md, AGENTS.md, coding standards, design docs and CI config. Note where rules live today.
+1. **Look around (read only).** `mull status`, `mull context`, `mull decisions`, each plan's doc, and the project's CLAUDE.md, AGENTS.md, coding standards, design docs and CI config. Note where rules live today.
 2. **Draft RULES.md.** Gather the real rules from all of those places: boundaries between parts, what's shared, what's forbidden, how work runs. Most decision-log entries are implementation detail. Keep only what a future change could break. Give each rule an ID, a one-line title, a scope, and a check when one is possible (an existing script, a grep, the compiler's boundary checks). Say which have no check yet. Aim for 10 to 30 rules.
 3. **Draft the settings.**
    - Branches: the release branch, and the integration branch for unplanned work, which isn't the release branch (`next` by default).
@@ -30,7 +30,7 @@ Check it with `mull batch --dry-run < intake.jsonl`, then run it without `--dry-
 {"op": "config risk", "add": ["lib/app/accounts/**"], "on-request": true}
 {"op": "config setup", "commands": ["test -d \"$MULL_MAIN/deps\" && cp -R \"$MULL_MAIN/deps\" . || true"], "on-request": true}
 {"op": "plan new", "slug": "launch", "title": "Launch", "target": "own", "on-request": true}
-{"op": "plan doc", "slug": "launch", "doc": "Goal: charge for the app.\n\nAppetite: two weeks.\n\nRules it adds: R12.\n\nDone when: a customer can pay by card."}
+{"op": "plan set", "slug": "launch", "field": "doc", "value": "Goal: charge for the app.\n\nAppetite: two weeks.\n\nRules it adds: R12.\n\nDone when: a customer can pay by card."}
 {"op": "plan agree", "slug": "launch", "on-request": true}
 {"op": "phase add", "ref": "billing", "plan": "launch", "title": "Billing", "summary": "Done when: a card is charged and a receipt sent."}
 {"op": "bug", "title": "The footer's pricing link 404s", "area": "lib/app_web/components", "source": "intake"}

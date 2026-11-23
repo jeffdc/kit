@@ -18,11 +18,11 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"mull/internal/core"
 	"mull/internal/git"
 	"mull/internal/launchagent"
-	"mull/internal/mull"
 	"mull/internal/registry"
-	"mull/internal/serve"
+	"mull/internal/ui"
 )
 
 func unregisterCmd(a *app) *cobra.Command {
@@ -96,7 +96,7 @@ func serveCmd(a *app) *cobra.Command {
 		Short: "The human's view: a local web UI of every repository on mull, on 127.0.0.1",
 		Long: `The human's view: a local web UI of every repository on mull.
 
-Listens on 127.0.0.1 only (default port ` + strconv.Itoa(serve.DefaultPort) + `) and runs until interrupted.
+Listens on 127.0.0.1 only (default port ` + strconv.Itoa(ui.DefaultPort) + `) and runs until interrupted.
 It prints {url, registry, repos} once it is listening. Repositories are found
 with no configuration: every mull command registers its repository in the
 registry file (except one in the system's temporary directory), and mull
@@ -116,7 +116,7 @@ reload themselves onto the new build when they reconnect.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			switch {
 			case install && uninstall:
-				return &mull.Error{Code: mull.CodeUsage, Msg: "pass --install or --uninstall, not both"}
+				return &core.Error{Code: core.CodeUsage, Msg: "pass --install or --uninstall, not both"}
 			case install || uninstall:
 				return serveAgent(a, port, install)
 			}
@@ -124,7 +124,7 @@ reload themselves onto the new build when they reconnect.`,
 			ln, err := net.Listen("tcp", addr)
 			if err != nil {
 				if errors.Is(err, syscall.EADDRINUSE) {
-					return &mull.Error{Code: mull.CodePortInUse, Msg: fmt.Sprintf("%s is in use (is mull serve already running?); pass --port to use another", addr)}
+					return &core.Error{Code: core.CodePortInUse, Msg: fmt.Sprintf("%s is in use (is mull serve already running?); pass --port to use another", addr)}
 				}
 				return err
 			}
@@ -137,11 +137,6 @@ reload themselves onto the new build when they reconnect.`,
 			if err != nil {
 				return err
 			}
-			watcher, err := serve.Watch(registry.Repos, file)
-			if err != nil {
-				return err
-			}
-			defer watcher.Close()
 			bound := ln.Addr().(*net.TCPAddr).Port
 			err = a.json(map[string]any{"url": fmt.Sprintf("http://localhost:%d/", bound), "registry": file, "repos": repos})
 			if err != nil {
@@ -150,8 +145,7 @@ reload themselves onto the new build when they reconnect.`,
 
 			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
-			srv := &http.Server{Handler: serve.Handler(registry.Repos, serve.WithEvents(watcher), serve.WithBuild(Version)), ReadHeaderTimeout: 10 * time.Second}
-			srv.RegisterOnShutdown(watcher.Close) // ends the event streams, which Shutdown would otherwise wait out
+			srv := &http.Server{Handler: ui.Handler(registry.Repos), ReadHeaderTimeout: 10 * time.Second}
 			done := make(chan error, 1)
 			go func() { done <- srv.Serve(ln) }()
 			select {
@@ -164,7 +158,7 @@ reload themselves onto the new build when they reconnect.`,
 			return srv.Shutdown(shutdown)
 		},
 	}
-	c.Flags().IntVar(&port, "port", serve.DefaultPort, "port to listen on, on 127.0.0.1")
+	c.Flags().IntVar(&port, "port", ui.DefaultPort, "port to listen on, on 127.0.0.1")
 	c.Flags().BoolVar(&install, "install", false, "run mull serve at login as a macOS LaunchAgent (again after upgrading mull)")
 	c.Flags().BoolVar(&uninstall, "uninstall", false, "stop and remove the LaunchAgent")
 	return c
@@ -173,7 +167,7 @@ reload themselves onto the new build when they reconnect.`,
 // serveAgent installs or removes mull serve's LaunchAgent.
 func serveAgent(a *app, port int, install bool) error {
 	if runtime.GOOS != "darwin" {
-		return &mull.Error{Code: mull.CodeNotAllowed, Msg: "--install and --uninstall set up a macOS LaunchAgent; elsewhere, run mull serve under your own service manager"}
+		return &core.Error{Code: core.CodeNotAllowed, Msg: "--install and --uninstall set up a macOS LaunchAgent; elsewhere, run mull serve under your own service manager"}
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -196,7 +190,7 @@ func serveAgent(a *app, port int, install bool) error {
 		return a.json(map[string]any{"label": launchagent.Label, "plist": agent.PlistPath(), "removed": removed})
 	}
 	if strings.Contains(exe, string(filepath.Separator)+"go-build") {
-		return &mull.Error{Code: mull.CodeNotAllowed, Msg: "this mull is a temporary go run build: install mull (make install) and run --install from that"}
+		return &core.Error{Code: core.CodeNotAllowed, Msg: "this mull is a temporary go run build: install mull (make install) and run --install from that"}
 	}
 	for _, k := range []string{"PATH", "XDG_CONFIG_HOME"} {
 		if v := os.Getenv(k); v != "" {
@@ -211,7 +205,7 @@ func serveAgent(a *app, port int, install bool) error {
 		ln.Close()
 	}
 	if err := agent.Install(); err != nil {
-		return &mull.Error{Code: mull.CodeLaunchd, Msg: err.Error()}
+		return &core.Error{Code: core.CodeLaunchd, Msg: err.Error()}
 	}
 	return a.json(map[string]any{"label": launchagent.Label, "plist": agent.PlistPath(), "log": agent.LogPath(),
 		"url": fmt.Sprintf("http://localhost:%d/", port), "program": agent.Args(), "warnings": warnings})
