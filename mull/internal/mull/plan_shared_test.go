@@ -98,3 +98,17 @@ func TestPlanSharedSetAndClear(t *testing.T) {
 		t.Fatalf("cleared again = %q", got.Shared)
 	}
 }
+
+// context --item hands the worker its plan's shared globs.
+func TestContextHandsOverShared(t *testing.T) {
+	m, _ := setup(t)
+	must[*model.Plan](t)(m.PlanShared("general", []string{"app/**", "lib/ui/*.go"}))
+	i := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "general", Title: "A page"}))
+	loose := must[ItemView](t)(m.ItemAdd(NewItem{Plan: model.NoPlan, Title: "Loose"}))
+	if c := must[Context](t)(m.Context(i.ID)); strings.Join(c.Item.Shared, " ") != "app/** lib/ui/*.go" {
+		t.Errorf("shared = %q", c.Item.Shared)
+	}
+	if c := must[Context](t)(m.Context(loose.ID)); c.Item.Shared != nil {
+		t.Errorf("unplanned shared = %q, want none", c.Item.Shared)
+	}
+}

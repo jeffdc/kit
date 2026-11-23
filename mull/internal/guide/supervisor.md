@@ -75,7 +75,7 @@ Worktrees left behind pile up (dependencies and databases make each one big), an
 
 `mull worktrees` finds them. It lists every worktree of this repository that an item was claimed from (not the main one), with the item claimed there last, its state and the worktree's disk size, and marks `prunable` the ones that meet all three, with the `commands` that remove each; for the others, `why` says what's left. `mull view` shows how many are prunable, and their size, under WORKTREES. mull only lists them: it never runs the commands.
 
-The commands are these, for the worktree and its merged branch (and the item's claim branch, when that's another one); run them from a checkout of the target:
+The commands are these, for the worktree and its merged branch (and the item's claim branch, when that's another one, and the local branch either tracks, such as one a harness made the worktree on, deleted first); run them from a checkout of the target, in the order `mull worktrees` gives:
 ```
 git worktree remove <path>
 git branch -d <id>-<short-name>

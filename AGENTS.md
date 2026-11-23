@@ -58,7 +58,7 @@ This project's plans, work items, backlog and open questions live in **mull**: a
    - Give the tour inline, one step per line: what to click and what the human should see. Write "none" if no UI changed. Only one of `--summary`, `--tour` and `--design` can read stdin.
    - Name each page in the tour by its path (`Open /trees/quercus-alba`), never a full URL: your own dev server will be gone when the tour is walked. `mull serve` and `mull report --text` resolve paths against the plan's `preview`, and `done` warns when a step gives a local URL (`http://localhost:4001/…`) that isn't the preview.
    - `done` runs the project's hard checks itself, then any the item's plan adds (`mull check --item <id>` runs the same ones before you finish). If they fail, fix the problem and run `done` again, or run `mull release <id>` and say why.
-   - The report flags your changes to any files the plan lists as `shared` (`mull plan show <slug>`), so the review looks at them closely. It never blocks, but change shared files only where your item needs it, and say why in the design notes.
+   - The report flags your changes to any files the plan lists as `shared` (the item's `shared` in `mull context`, or `mull plan show <slug>`), so the review looks at them closely. It never blocks, but change shared files only where your item needs it, and say why in the design notes.
    - After `done` the item is in review. It's done only once its review is accepted. Never say an item is done unless `mull done` succeeded.
 6. **Hand over:**
    - Show the human (or the supervisor) the report from `mull report <id>`, and the tour. The review carries the decisions you recorded with `--item`, and accepting it ratifies them.

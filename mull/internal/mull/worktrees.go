@@ -18,9 +18,9 @@ import (
 // Claim worktrees: the git worktrees items were claimed from. mull never
 // creates or removes one; it lists them, read-only, and says which can go.
 // A worktree is prunable when its item is done, the item's work is on its
-// plan's target (with nothing in the worktree left off it), and it's clean,
-// so git's own removal (git worktree remove, git branch -d) would go
-// through without --force.
+// plan's target (with nothing in the worktree left off it, nor on the
+// branches it would remove), and it's clean, so git's own removal (git
+// worktree remove, git branch -d) would go through without --force.
 
 // WorktreeList is mull worktrees: the claim worktrees git knows, and the
 // prunable ones' count and size.
@@ -204,14 +204,26 @@ func (m *Mull) worktreeRows(s *state, g *gitState, measureAll bool) ([]WorktreeR
 		ig := s.gitOf(g, i)
 		r := WorktreeRow{Path: w.path, Branch: w.branch, Head: w.head, Item: i.ID, Title: i.Title,
 			State: i.State, Plan: i.Plan, Target: ig.Target, Locked: w.locked}
-		// The branches git branch -d would remove: the one checked out here
-		// and the item's own, when it's another, unless a target's.
+		// The branches git branch -d would remove: the one checked out here,
+		// the item's own, when it's another, and the local branch each of
+		// those tracks (such as the one a harness made the worktree on),
+		// unless a target's or checked out elsewhere. A tracked branch comes
+		// before the branch tracking it: git branch -d measures a branch
+		// against its upstream while that exists, and against HEAD once it's
+		// gone.
 		var branches []string
-		for _, b := range dedupe([]string{w.branch, i.Claim.Branch}) {
-			if b != "" && b != "HEAD" && !protected[b] && heads[b] != "" && (b == w.branch || !checkedOut[b]) {
-				branches = append(branches, b)
+		listed := map[string]bool{}
+		var list func(b string)
+		list = func(b string) {
+			if b == "" || b == "HEAD" || listed[b] || protected[b] || heads[b] == "" || (checkedOut[b] && b != w.branch) {
+				return
 			}
+			listed[b] = true
+			list(g.upstream[b])
+			branches = append(branches, b)
 		}
+		list(w.branch)
+		list(i.Claim.Branch)
 		r.Merged = w.head != "" && m.onTarget(g, ig.Target, w.head)
 		for _, b := range branches {
 			if !m.onTarget(g, ig.Target, heads[b]) {

@@ -2,6 +2,7 @@ package mull
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -99,6 +100,62 @@ func TestWorktreesPrunable(t *testing.T) {
 	}
 	if gittest.Git(t, dir, "branch", "--list", pruned.ID+"-work") == "" {
 		t.Error("branch gone")
+	}
+}
+
+// A harness makes the worktree on a branch of its own, and the worker's
+// item branch tracks it: that branch goes first, so git branch -d measures
+// the item's branch against HEAD, not an upstream that's behind it.
+func TestWorktreesTrackedBranch(t *testing.T) {
+	m, dir := setup(t)
+	i := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "general", Title: "Tracked"}))
+	wt := gittest.AddWorktree(t, dir, "worktree-agent-1")
+	branch := i.ID + "-work"
+	gittest.Git(t, wt, "checkout", "-q", "-b", branch, "--track", "worktree-agent-1")
+	w, err := Open(wt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	must[StartResult](t)(w.Start(i.ID))
+	gittest.Commit(t, wt, "t.txt", "t", "Work", "Mull: "+i.ID)
+	gittest.Git(t, dir, "merge", "-q", "--no-ff", "--no-edit", branch)
+	markInReview(t, m, i.ID)
+	must[AcceptResult](t)(m.Accept([]string{i.ID}, "", SettleOpts{OnRequest: true}))
+
+	l := must[WorktreeList](t)(m.Worktrees())
+	if len(l.Worktrees) != 1 || !l.Worktrees[0].Prunable {
+		t.Fatalf("worktrees = %+v", l.Worktrees)
+	}
+	want := []string{"git worktree remove " + wt, "git branch -d worktree-agent-1", "git branch -d " + branch}
+	if got := l.Worktrees[0].Commands; strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("commands = %q, want %q", got, want)
+	}
+	// And they go through, in order.
+	for _, c := range want {
+		cmd := exec.Command("sh", "-c", c)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("%s: %v\n%s", c, err, out)
+		}
+	}
+	if left := gittest.Git(t, dir, "branch", "--list", "worktree-agent-1", branch); strings.TrimSpace(left) != "" {
+		t.Errorf("branches left: %q", left)
+	}
+
+	// A tracked branch that's a target is never listed.
+	j := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "general", Title: "Tracks main"}))
+	wt2 := gittest.AddWorktree(t, dir, "worktree-agent-2")
+	gittest.Git(t, wt2, "checkout", "-q", "-b", j.ID+"-work", "--track", "main")
+	w2 := must[*Mull](t)(Open(wt2))
+	must[StartResult](t)(w2.Start(j.ID))
+	gittest.Commit(t, wt2, "j.txt", "j", "Work", "Mull: "+j.ID)
+	gittest.Git(t, dir, "merge", "-q", "--no-ff", "--no-edit", j.ID+"-work")
+	markInReview(t, m, j.ID)
+	must[AcceptResult](t)(m.Accept([]string{j.ID}, "", SettleOpts{OnRequest: true}))
+	l = must[WorktreeList](t)(m.Worktrees())
+	want = []string{"git worktree remove " + wt2, "git branch -d " + j.ID + "-work"}
+	if len(l.Worktrees) != 1 || strings.Join(l.Worktrees[0].Commands, "\n") != strings.Join(want, "\n") {
+		t.Errorf("worktrees = %+v, want commands %q", l.Worktrees, want)
 	}
 }
 

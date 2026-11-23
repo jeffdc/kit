@@ -46,6 +46,8 @@ type ItemGit struct {
 
 	// For a done item: the commits carrying its trailer that were written
 	// (author date) after it was accepted, anywhere, and the latest of them.
+	// Merge commits aren't counted: merging the target into the item's
+	// branch (to settle conflicts before it lands) isn't later work.
 	afterAccept     int
 	lastAfterAccept time.Time
 }
@@ -122,6 +124,7 @@ type gitState struct {
 	Unlinked         []string // recent first-parent commits on integration with no link (subjects)
 
 	heads    map[string]string // every local branch's tip
+	upstream map[string]string // the local branch each local branch tracks, if any
 	overlaps []Overlap         // pairs of items in flight changing the same files; read by readOverlaps
 }
 
@@ -213,24 +216,40 @@ func (m *Mull) aheadOfRelease(s *state, branch, tip string, heads map[string]str
 	return n
 }
 
+// branchRefs is the local branches, in refname order, with the commit each
+// points at and the local branch each tracks, if any.
+type branchRefs struct {
+	names    []string
+	heads    map[string]string // branch: tip commit
+	upstream map[string]string // branch: the local branch it tracks (branch.<name>.merge on this repository)
+}
+
+// branchRefs reads the local branches: one git call.
+func (m *Mull) branchRefs() (branchRefs, error) {
+	r := branchRefs{heads: map[string]string{}, upstream: map[string]string{}}
+	out, err := m.repo.Output(nil, nil, "for-each-ref", "--format=%(objectname) %(refname:short) %(upstream)", "refs/heads")
+	if err != nil {
+		return r, err
+	}
+	for _, line := range strings.Split(out, "\n") {
+		f := strings.Fields(line)
+		if len(f) < 2 {
+			continue
+		}
+		r.names = append(r.names, f[1])
+		r.heads[f[1]] = f[0]
+		if len(f) > 2 && strings.HasPrefix(f[2], "refs/heads/") {
+			r.upstream[f[1]] = strings.TrimPrefix(f[2], "refs/heads/")
+		}
+	}
+	return r, nil
+}
+
 // branchHeads returns the local branches, in refname order, and the commit
 // each points at: one git call.
 func (m *Mull) branchHeads() ([]string, map[string]string, error) {
-	out, err := m.repo.Output(nil, nil, "for-each-ref", "--format=%(objectname) %(refname:short)", "refs/heads")
-	if err != nil {
-		return nil, nil, err
-	}
-	var names []string
-	heads := map[string]string{}
-	for _, line := range strings.Split(out, "\n") {
-		sha, name, ok := strings.Cut(strings.TrimSpace(line), " ")
-		if !ok {
-			continue
-		}
-		names = append(names, name)
-		heads[name] = sha
-	}
-	return names, heads, nil
+	r, err := m.branchRefs()
+	return r.names, r.heads, err
 }
 
 // readGit derives git links for the items in s, each measured against its
@@ -238,11 +257,12 @@ func (m *Mull) branchHeads() ([]string, map[string]string, error) {
 // still works from mull's own records.
 func (m *Mull) readGit(s *state) (*gitState, error) {
 	g := &gitState{Integration: s.integration(), Items: map[string]*ItemGit{}}
-	branches, heads, err := m.branchHeads()
+	refs, err := m.branchRefs()
 	if err != nil {
 		return nil, err
 	}
-	g.heads = heads
+	branches, heads := refs.names, refs.heads
+	g.heads, g.upstream = heads, refs.upstream
 	g.Targets = m.readTargets(s, heads)
 	g.IntegrationFound = g.Targets.tips[g.Integration] != ""
 	g.AheadOfRelease = g.Targets.ahead[g.Integration]
@@ -255,6 +275,9 @@ func (m *Mull) readGit(s *state) (*gitState, error) {
 	accepted := s.acceptedAt()
 	counted := map[string]bool{} // sha and item, so a commit on several branches counts once
 	afterAccept := func(c commitInfo) {
+		if len(c.parents) > 1 {
+			return // a merge brings work together; it isn't new work
+		}
 		for _, id := range c.trailers {
 			at, ok := accepted[id]
 			if !ok || !c.authored.After(at) || counted[c.sha+id] {

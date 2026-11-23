@@ -236,7 +236,7 @@ func TestOutputShapes(t *testing.T) {
 	checkKeys(t, "context.plans[0].target", cp.(map[string]any)["target"], targetKeys)
 	cx = shape(keys{[]string{"worktree", "branch", "protocol", "my_claims", "plans", "ready", "active", "decisions", "item"}, nil}, "context", "--item", id(b))
 	ci := cx["item"].(map[string]any)
-	checkKeys(t, "context.item", ci, itemViewKeys.plus(keys{[]string{"target"}, []string{"preview", "phase_title", "phase_summary", "phase_doc",
+	checkKeys(t, "context.item", ci, itemViewKeys.plus(keys{[]string{"target"}, []string{"preview", "shared", "phase_title", "phase_summary", "phase_doc",
 		"plan_rules", "phase_rules", "open_questions", "item_decisions", "last_report", "last_report_passed"}}))
 	checkKeys(t, "context.item.target", ci["target"], targetKeys)
 	if ci["preview"] != "http://localhost:4100" {
