@@ -3,7 +3,7 @@
 import { api, esc, enc, item, plan, when, section, wr, md, wire, toast } from './lib.js';
 import { surface, hill, stateTag, projectTabs } from './surface.js';
 
-const app = document.getElementById('app');
+const app = document.getElementById('app'), rail = document.getElementById('rail');
 let project = '';
 
 const tb = (crumbs, name, fields) => `<header class="tb"><div class="pj"><div class="crumbs">${crumbs}</div><h1${name.length > 40 ? ' class="long"' : ''}>${esc(name)}</h1></div>
@@ -14,8 +14,8 @@ const num = n => `<span class="mono">${n}</span>`;
 const ask = n => n ? `<span class="ask">${n}</span>` : '<span class="faint">0</span>';
 
 const pages = {
-  async list() {
-    const { projects } = await api('projects');
+  async list(all) {
+    const { projects } = await all;
     const rows = projects.map(x => x.error
       ? `<tr><td><b>${esc(x.name)}</b><span class="meta">${esc(x.path)}</span></td><td colspan="4" class="mut">Can’t read it: ${esc(x.error.error)}</td></tr>`
       : `<tr><td><a class="ttl" href="#/${enc(x.id)}">${esc(x.name)}</a><span class="meta">${esc(x.path)}</span></td><td>${ask(x.summary.calls)}</td><td class="n">${num(x.summary.active)}</td><td class="n">${num(x.summary.queue)}</td>
@@ -74,10 +74,23 @@ ${pl.doc ? section('The plan', `<div class="prose">${md(pl.doc)}</div>`) : ''}</
   },
 };
 
+// The rail: every project, always on screen, so switching is one click.
+// If the list can't be read, the last one stays.
+async function drawRail(all, p) {
+  let projects;
+  try { ({ projects } = await all); } catch { return; }
+  const calls = projects.reduce((a, x) => a + (x.summary?.calls || 0), 0);
+  const row = (href, on, name, x) => `<a href="${href}"${on ? ' class="on" aria-current="page"' : ''}${x?.error ? ` title="Can’t read it: ${esc(x.error.error)}"` : ''}>
+<span class="nm${x?.error ? ' faint' : ''}">${esc(name)}</span>${x?.summary?.active ? `<i class="live" title="${x.summary.active} active"></i>` : ''}${(x ? x.summary?.calls : calls) ? `<span class="ask">${x ? x.summary.calls : calls}</span>` : ''}</a>`;
+  rail.innerHTML = row('#/', !p, 'All projects') + projects.map(x => row(`#/${enc(x.id)}`, x.id === p, x.name, x)).join('');
+}
+
 async function route() {
   const [p = '', kind = '', ref = ''] = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
   project = p;
-  const page = !p ? pages.list() : !kind ? pages.surface(p) : kind === 'rules' ? pages.rules(p) : kind === 'queue' ? pages.queue(p)
+  const all = api('projects');
+  drawRail(all, p);
+  const page = !p ? pages.list(all) : !kind ? pages.surface(p) : kind === 'rules' ? pages.rules(p) : kind === 'queue' ? pages.queue(p)
     : kind === 'plan' ? pages.plan(p, ref) : kind === 'item' ? pages.item(p, ref) : Promise.reject(new Error('No page ' + location.hash));
   try {
     const html = await page;

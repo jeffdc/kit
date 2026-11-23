@@ -181,6 +181,7 @@ Archivo across its width axis for text; Red Hat Mono for IDs, branches, counts a
 
 ## Pages
 
+- **The rail:** every project down the left on every page, its needs-you count in the violet-edged stamp and a small blue square when work is active; the current one in blue. One click switches project. On a phone it's a strip under the top bar.
 - **Projects:** one row each: its calls, active and queued counts, and open plans. An unreadable repository says why.
 - **Surface** (a project's page): Needs you first, each call on one row with its actions; then Trending worse, only when there's something; then Plans, each a two-sided hill (uphill: being worked out; downhill: executing; waiting and done quiet); then Flow, folded. Mark seen moves the last look.
 - **Rules, Queue, Plan, Item:** the rulebook with each rule's check or a "no check" tag; the queue, newest first, with a one-line form to queue a bug or idea; a plan's doc, hill and items; an item and its latest report.
