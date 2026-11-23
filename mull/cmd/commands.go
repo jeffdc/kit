@@ -973,6 +973,38 @@ func viewCmd(a *app) *cobra.Command {
 	return c
 }
 
+func rulebookCmd(a *app) *cobra.Command {
+	c := &cobra.Command{
+		Use:   "rules",
+		Short: "The rulebook (RULES.md in this worktree): each rule, its scope and check, and which are advisory (no check)",
+		Args:  noArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.read(func(m *mull.Mull) (any, error) { return m.Rules() })
+		},
+	}
+	check := &cobra.Command{
+		Use:   "check",
+		Short: "Run the rulebook's checks in this worktree now, as done will (ratcheted ones against their ratchet files)",
+		Args:  noArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.read(func(m *mull.Mull) (any, error) { return m.CheckRules() })
+		},
+	}
+	var grow, onRequest bool
+	ratchet := &cobra.Command{
+		Use:   "ratchet <id>",
+		Short: "Rewrite a rule's ratchet file to the violations its check finds now: it may only shrink (growing it, or a first baseline, is the human's: --grow --on-request). Commit the file",
+		Args:  exact(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.read(func(m *mull.Mull) (any, error) { return m.Ratchet(args[0], grow, onRequest) })
+		},
+	}
+	ratchet.Flags().BoolVar(&grow, "grow", false, "let the ratchet grow, or set its first baseline (the human's call)")
+	ratchet.Flags().BoolVar(&onRequest, "on-request", false, "an agent growing a ratchet on the human's explicit instruction")
+	c.AddCommand(check, ratchet)
+	return c
+}
+
 func hooksCmd(a *app) *cobra.Command {
 	return &cobra.Command{
 		Use:   "hooks",

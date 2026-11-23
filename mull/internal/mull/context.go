@@ -18,6 +18,9 @@ type Context struct {
 	Plans    []BriefPlan  `json:"plans"`
 	Ready    []BriefItem  `json:"ready"`
 	Active   []BriefItem  `json:"active"`
+	// Rules are the project's rulebook (RULES.md), in full: every worker
+	// follows them, and says at done whether the work touched one.
+	Rules []Rule `json:"rules"`
 }
 
 // ContextItem is the item a session works on, with what bears on it.
@@ -99,11 +102,20 @@ var protocol = []string{
 // has rules.
 const rulesProtocol = "Follow the item's plan_rules, then its phase_rules: the human's standing rules for this work."
 
+// rulesLine is the protocol's line when the project has a rulebook.
+const rulesLine = "Follow the rules below (RULES.md). If your work bends, breaks or adds one, say which and how in done's --rules: it waits for the human's review. Never change RULES.md or a ratchet file unless the human asks."
+
 // Context builds the session-start briefing, focused on item when given.
 func (m *Mull) Context(itemID string) (Context, error) {
 	wt := m.Worktree()
 	c := Context{Worktree: wt, Branch: m.repo.Branch(), Protocol: protocol,
-		MyClaims: []BriefItem{}, Plans: []BriefPlan{}, Ready: []BriefItem{}, Active: []BriefItem{}}
+		MyClaims: []BriefItem{}, Plans: []BriefPlan{}, Ready: []BriefItem{}, Active: []BriefItem{}, Rules: []Rule{}}
+	if rules, err := m.readRules(); err != nil {
+		return c, err
+	} else if len(rules) > 0 {
+		c.Rules = rules
+		c.Protocol = append(c.Protocol, rulesLine)
+	}
 	decisions, err := m.Decisions("")
 	if err != nil {
 		return c, err

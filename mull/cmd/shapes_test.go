@@ -30,7 +30,7 @@ var (
 	entryKeys     = keys{[]string{"id", "kind", "text", "plan", "by", "created"}, []string{"item", "source", "settled", "decisions", "detail", "landed", "default", "due"}}
 	configKeys    = keys{[]string{"format", "integration", "release", "remote", "done_checks", "layers", "risk"}, nil}
 	progressKeys  = keys{[]string{"total", "captured", "untriaged", "committed", "active", "in_review", "done", "dropped", "ready"}, nil}
-	reportKeys    = keys{[]string{"item", "n", "passed", "commit", "at", "by", "summary", "checks"}, []string{"override", "base", "tour", "warnings", "changes", "shared", "design", "decisions", "rules", "slowed", "risk", "risk_why", "sampled"}}
+	reportKeys    = keys{[]string{"item", "n", "passed", "commit", "at", "by", "summary", "checks"}, []string{"override", "base", "tour", "warnings", "changes", "shared", "design", "decisions", "rules", "slowed", "risk", "risk_why", "sampled", "rule_checks", "in_scope"}}
 )
 
 func checkKeys(t *testing.T, what string, v any, k keys) {
@@ -233,11 +233,11 @@ func TestOutputShapes(t *testing.T) {
 	checkKeys(t, "view.unplanned", v["unplanned"], boardKeys)
 	checkKeys(t, "view.needs_you", board.(map[string]any)["needs_you"],
 		keys{[]string{"reviews", "decisions", "questions", "older_than_a_week", "parked"}, nil})
-	cx := shape(keys{[]string{"worktree", "branch", "protocol", "my_claims", "plans", "ready", "active"}, []string{"item"}}, "context")
+	cx := shape(keys{[]string{"worktree", "branch", "protocol", "my_claims", "plans", "ready", "active", "rules"}, []string{"item"}}, "context")
 	cp := first(t, "context.plans", cx["plans"])
 	checkKeys(t, "context.plans[0]", cp, keys{[]string{"slug", "title", "state", "target"}, []string{"preview", "phases"}})
 	checkKeys(t, "context.plans[0].target", cp.(map[string]any)["target"], targetKeys)
-	cx = shape(keys{[]string{"worktree", "branch", "protocol", "my_claims", "plans", "ready", "active", "item"}, nil}, "context", "--item", id(b))
+	cx = shape(keys{[]string{"worktree", "branch", "protocol", "my_claims", "plans", "ready", "active", "rules", "item"}, nil}, "context", "--item", id(b))
 	ci := cx["item"].(map[string]any)
 	checkKeys(t, "context.item", ci, itemViewKeys.plus(keys{[]string{"target"}, []string{"preview", "shared", "phase_title", "phase_summary", "phase_doc",
 		"plan_rules", "phase_rules", "open_questions", "item_decisions", "last_report", "last_report_passed"}}))

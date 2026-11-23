@@ -445,6 +445,20 @@ type CheckRun struct {
 	Results []CheckResult `yaml:"results" json:"results"`
 }
 
+// RuleResult is one rule's check, as done ran it. A ratcheted rule's Count
+// is how many violations its check found (the trend), New the ones its
+// ratchet doesn't list, and Fixed how many it lists that are gone.
+type RuleResult struct {
+	ID         string   `yaml:"id" json:"id"`
+	Passed     bool     `yaml:"passed" json:"passed"`
+	Exit       int      `yaml:"exit,omitempty" json:"exit,omitempty"`
+	Count      int      `yaml:"count,omitempty" json:"count,omitempty"`
+	New        []string `yaml:"new,omitempty" json:"new,omitempty"`
+	Fixed      int      `yaml:"fixed,omitempty" json:"fixed,omitempty"`
+	DurationMS int64    `yaml:"duration_ms" json:"duration_ms"`
+	Tail       string   `yaml:"tail,omitempty" json:"tail,omitempty"`
+}
+
 // FileChange is one changed file in a done report.
 type FileChange struct {
 	Status  string `yaml:"status" json:"status"` // A, M, D, R
@@ -524,6 +538,10 @@ type Report struct {
 	Risk    string   `yaml:"risk,omitempty" json:"risk,omitempty"`
 	RiskWhy []string `yaml:"risk_why,omitempty" json:"risk_why,omitempty"`
 	Sampled bool     `yaml:"sampled,omitempty" json:"sampled,omitempty"`
+	// RuleChecks are the rulebook's checks as done ran them, and InScope
+	// the rules whose scope the change touched.
+	RuleChecks []RuleResult `yaml:"rule_checks,omitempty" json:"rule_checks,omitempty"`
+	InScope    []string     `yaml:"in_scope,omitempty" json:"in_scope,omitempty"`
 }
 
 // Paths of records on the mull branch.

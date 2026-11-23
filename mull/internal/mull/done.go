@@ -629,8 +629,23 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 	}
 	risk := scoreRisk(cfg.Risk.Effective(), changes, in.Rules, id, checks.Commit)
 
+	// The rulebook's checks run once the hard checks pass, against the
+	// same clean tree.
+	rulebook, err := m.readRules()
+	if err != nil {
+		return out, err
+	}
+	var ruleRuns []model.RuleResult
+	rulesPassed := true
+	if checks.Passed {
+		ruleRuns = m.runRules(rulebook)
+		for _, r := range ruleRuns {
+			rulesPassed = rulesPassed && r.Passed
+		}
+	}
+
 	warnings := tourWarnings(in.Tour, preview)
-	finished := checks.Passed || in.Override != ""
+	finished := (checks.Passed && rulesPassed) || in.Override != ""
 	err = m.update("done "+id, func(s *state) error {
 		i, err := s.item(id)
 		if err != nil {
@@ -643,11 +658,12 @@ func (m *Mull) Done(id string, in DoneInput) (DoneResult, error) {
 		decisions := s.openDecisions(id)
 		noted := s.sessionDecisions(id, claim.At)
 		rep := model.Report{
-			Item: id, N: n, Passed: checks.Passed, Override: in.Override, Commit: checks.Commit, Base: base,
+			Item: id, N: n, Passed: checks.Passed && rulesPassed, Override: in.Override, Commit: checks.Commit, Base: base,
 			At: m.now(), By: wt, Summary: strings.TrimSpace(in.Summary), Tour: in.Tour, Checks: checks,
 			Design: design, Changes: changes, Warnings: warnings,
 			Rules: strings.TrimSpace(in.Rules), Slowed: strings.TrimSpace(in.Slowed),
 			Risk: risk.Band, RiskWhy: risk.Why, Sampled: risk.Sampled,
+			RuleChecks: ruleRuns, InScope: rulesInScope(rulebook, changes),
 		}
 		if p := s.plans[i.Plan]; p != nil {
 			rep.Shared = sharedChanges(changes, p.Shared)
@@ -867,6 +883,23 @@ func renderShortReport(r model.Report, title string) string {
 	if len(checks) > 0 {
 		fmt.Fprintf(&b, "- **Checks:** %s\n", strings.Join(checks, "; "))
 	}
+	if len(r.RuleChecks) > 0 {
+		var rs []string
+		for _, rc := range r.RuleChecks {
+			mark := "pass"
+			if !rc.Passed {
+				mark = "FAIL"
+			}
+			if rc.Count > 0 || rc.Fixed > 0 || len(rc.New) > 0 {
+				mark += fmt.Sprintf(" (%d known)", rc.Count)
+			}
+			rs = append(rs, rc.ID+" "+mark)
+		}
+		fmt.Fprintf(&b, "- **Rule checks:** %s\n", strings.Join(rs, ", "))
+	}
+	if len(r.InScope) > 0 {
+		fmt.Fprintf(&b, "- **Rules in scope:** %s\n", strings.Join(r.InScope, ", "))
+	}
 	if n := len(r.Shared); n > 0 {
 		var paths []string
 		for _, f := range r.Shared {
@@ -880,6 +913,11 @@ func renderShortReport(r model.Report, title string) string {
 	for _, c := range r.Checks.Results {
 		if c.Exit != 0 {
 			fmt.Fprintf(&b, "\n`%s` exited %d:\n\n```\n%s\n```\n", c.Command, c.Exit, c.Tail)
+		}
+	}
+	for _, rc := range r.RuleChecks {
+		if !rc.Passed {
+			fmt.Fprintf(&b, "\nRule %s failed:\n\n```\n%s\n```\n", rc.ID, rc.Tail)
 		}
 	}
 	if len(r.Tour) > 0 {
