@@ -1,6 +1,6 @@
 # mull: design
 
-Status: revision 3, 2026-11-10 (Model v2 and `mull serve`). mull is a from-scratch rewrite of old mull, and none of the old code is reused. It replaced old mull at the 2026-11-09 cutover (see "Transition").
+Status: revision 3, 2026-11-10 (Model v2 and `mull serve`). **Superseded in part by `redesign.md` (2026-11-23):** done scores risk and lands low and medium risk work without review, the runner owns branches and worktrees, RULES.md and its ratchets are the rulebook, the queue is the agents', the surface is the human's view, and triage, the commit gate, decision ratification and integration reviews are gone. Where they differ, `redesign.md` wins. mull is a from-scratch rewrite of old mull, and none of the old code is reused. It replaced old mull at the 2026-11-09 cutover (see "Transition").
 
 Background:
 - `serve/`: the design of `mull serve`, and in `serve/README.md` the Model v2 summary and the decisions of 2026-11-10.
