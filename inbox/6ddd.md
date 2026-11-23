@@ -5,6 +5,12 @@ plan: supervised-work
 item: 8e3e
 by: /Users/jeff/dev/kit/.claude/worktrees/agent-ab6d36b56640e3c63
 created: "2026-11-22T18:08:11Z"
+settled:
+  action: accept
+  note: with review 038a
+  by: Jeff
+  human: true
+  at: "2026-11-23T13:55:38Z"
 ---
 
 The reason says what to fix, so it's the best title; --plan or --phase must agree with the review's phase, and --as phase is refused
