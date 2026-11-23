@@ -438,3 +438,53 @@ exit 0
 	out.Installed = true
 	return out, nil
 }
+
+// LandResult is what mull land did.
+type LandResult struct {
+	Item   string `json:"item"`
+	Target string `json:"target"`
+	Commit string `json:"commit"`
+}
+
+// Land puts a done item's work on its target when landing missed (the
+// target moved on after the work was checked, say). It lands the item's
+// branch tip, which must hold the target's tip and have a passing check
+// run for its tree: in the item's worktree, git merge <target>, then mull
+// check --item <id>, then mull land <id>.
+func (m *Mull) Land(id string) (LandResult, error) {
+	var out LandResult
+	var branch, release string
+	var commands []string
+	err := m.view(func(s *state) error {
+		i, err := s.item(id)
+		if err != nil {
+			return err
+		}
+		if i.State != model.StateDone || i.Claim == nil {
+			return errf(CodeState, "item %s is %s; only done work that was started on a branch lands", id, i.State)
+		}
+		out.Item, branch, release = id, i.Claim.Branch, s.release()
+		out.Target, _ = s.targetOf(i.Plan)
+		commands = hardChecks(s.config, s.plans[i.Plan])
+		return nil
+	})
+	if err != nil {
+		return out, err
+	}
+	tip, err := m.repo.RefCommit("refs/heads/" + branch)
+	if err != nil || tip == "" {
+		return out, errf(CodeState, "item %s's branch %s is gone", id, branch)
+	}
+	tree, err := m.repo.Output(nil, nil, "rev-parse", tip+"^{tree}")
+	if err != nil {
+		return out, err
+	}
+	if _, ok := m.cachedPass(tree, commands); !ok && len(commands) > 0 {
+		return out, errf(CodeChecksFailed, "%s's tip has no passing check run: in its worktree, git merge %s, then mull check --item %s, then mull land %s", branch, out.Target, id, id)
+	}
+	if err := m.land(out.Target, release, tip); err != nil {
+		return out, err
+	}
+	out.Commit = tip
+	return out, nil
+}

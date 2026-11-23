@@ -1,6 +1,6 @@
 # mull: the redesign (agreed 2026-11-23)
 
-Status: direction agreed with Jeff on 2026-11-23. Not built yet. Where this and `design.md` differ, this wins for anything new; `design.md` describes what's running today.
+Status: agreed with Jeff on 2026-11-23, and built on branch `f3a4-redesign` (item f3a4): steps 1 to 3 and 5 to 7 below, and the intake drafts for oaks and kit (`docs/intake/`), which wait for Jeff's approval. Where this and `design.md` differ, this wins. Plan and phase rules docs (on the mull branch) are kept beside the rulebook for now; the capture form in mull serve is kept.
 
 ## Why
 

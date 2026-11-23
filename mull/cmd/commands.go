@@ -1077,6 +1077,17 @@ func rulebookCmd(a *app) *cobra.Command {
 	return c
 }
 
+func landCmd(a *app) *cobra.Command {
+	return &cobra.Command{
+		Use:   "land <id>",
+		Short: "Put a done item's work on its target when landing missed: its branch tip, holding the target's tip and with a passing mull check, fast-forwards the target",
+		Args:  exact(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.read(func(m *mull.Mull) (any, error) { return m.Land(args[0]) })
+		},
+	}
+}
+
 func hooksCmd(a *app) *cobra.Command {
 	return &cobra.Command{
 		Use:   "hooks",

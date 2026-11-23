@@ -213,3 +213,35 @@ func TestHookRefusesPushToRelease(t *testing.T) {
 		t.Fatalf("hook = %+v", again)
 	}
 }
+
+func TestLandAfterTheTargetMoved(t *testing.T) {
+	m, dir := runnerSetup(t)
+	a := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "web", Title: "Risky"}))
+	b := must[ItemView](t)(m.ItemAdd(NewItem{Plan: "web", Title: "Quick"}))
+	ra := must[StartWorkResult](t)(m.StartWork(a.ID, false))
+	rb := must[StartWorkResult](t)(m.StartWork(b.ID, false))
+	gittest.Commit(t, ra.Worktree, "auth.txt", "a\n", "Risky", "Mull: "+a.ID)
+	wa := worker(t, ra.Worktree)
+	must[DoneResult](t)(wa.Done(a.ID, DoneInput{Summary: "Risky.", Rules: reviewRules}))
+	gittest.Commit(t, rb.Worktree, "b.txt", "b\n", "Quick", "Mull: "+b.ID)
+	must[DoneResult](t)(worker(t, rb.Worktree).Done(b.ID, DoneInput{Summary: "Quick.", Rules: "none"}))
+
+	acc := must[AcceptResult](t)(m.Accept([]string{a.ID}, "", SettleOpts{OnRequest: true}))
+	if len(acc.Warnings) != 1 || !strings.Contains(acc.Warnings[0], "not on plan/web") {
+		t.Fatalf("accept = %+v", acc)
+	}
+	_, err := m.Land(a.ID)
+	wantCode(t, err, CodeBehindTarget)
+
+	gittest.Git(t, ra.Worktree, "merge", "-q", "--no-edit", "plan/web")
+	_, err = m.Land(a.ID)
+	wantCode(t, err, CodeChecksFailed)
+	must[CheckOutcome](t)(wa.Check(a.ID))
+	res := must[LandResult](t)(m.Land(a.ID))
+	if gittest.Git(t, dir, "rev-parse", "plan/web") != res.Commit {
+		t.Fatalf("land = %+v", res)
+	}
+	for _, f := range []string{"auth.txt", "b.txt"} {
+		gittest.Git(t, dir, "cat-file", "-e", "plan/web:"+f)
+	}
+}
